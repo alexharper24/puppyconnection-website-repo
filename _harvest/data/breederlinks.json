@@ -1,0 +1,702 @@
+{
+ "blossom-boston-terrier": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "cocoa-boston-terrier": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "jamie-boston-terrier": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "jewel-boston-terrier": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "luna-cavalier-king-charles": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles/",
+  "tier": "breed"
+ },
+ "leroy-cavalier-king-charles": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles/",
+  "tier": "breed"
+ },
+ "lincoln-cavalier-king-charles": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles/",
+  "tier": "breed"
+ },
+ "loki-cavalier-king-charles": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles/",
+  "tier": "breed"
+ },
+ "loyal-cavalier-king-charles-spaniel": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "ollie-cavalier-king-charles-spaniel": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "dahlia-cavalier-king-charles-spaniel": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles-spaniel/",
+  "tier": "breed"
+ },
+ "leo-cavalier-king-charles-spaniel": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles-spaniel/",
+  "tier": "breed"
+ },
+ "augie-cavalier-king-charles-spaniel": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles-spaniel/",
+  "tier": "breed"
+ },
+ "christopher-cavalier-king-charles-spaniel": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "grady-cavalier-king-charles-spaniel": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles-spaniel/",
+  "tier": "breed"
+ },
+ "joshua-cavalier-king-charles-spaniel": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "kaiden-cavalier-king-charles-spaniel": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "keanu-cavalier-king-charles-spaniel": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "khalil-cavalier-king-charles-spaniel": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "poppy-cavalier-king-charles-spaniel": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles-spaniel/",
+  "tier": "breed"
+ },
+ "sunny-cavalier-king-charles-spaniel": {
+  "url": "https://responsibledogbreeder.com/cavalier-king-charles-spaniel/",
+  "tier": "breed"
+ },
+ "blueberry-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "coffee-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "amore-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "avery-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "bella-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "blaise-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "chocolate-chip-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "emerald-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "illius-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "kelsie-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "larry-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "madonna-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "marshmellow-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "matilda-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "mocha-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "noelle-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "copy-of-bella-cavapoo": {
+  "url": "https://peacefulpawspuppies.com/cavapoos/",
+  "tier": "breed"
+ },
+ "chocolate-english-bulldog": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "lollipop-f1b-mini-goldendoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "jazz-f1b-mini-goldendoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "moose-f1b-mini-goldendoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "angel-f1b-mini-goldendoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "lexi-f1b-mini-goldendoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "juliet-french-bulldog": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "pansy-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "philip-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "joy-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "beatrice-great-dane-1": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "benson-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "bentley-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "beulah-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "blake-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "braxton-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "brielle-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "brittany-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "bryce-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "pam-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "parker-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "patches-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "patience-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "pearl-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "petunia-great-dane": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "stella-great-dane": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "birdie-havanese": {
+  "url": "https://chainolakescompanions.com/adopt/",
+  "tier": "available"
+ },
+ "florence-havanese": {
+  "url": "https://chainolakescompanions.com/adopt/",
+  "tier": "available"
+ },
+ "matilda-havanese": {
+  "url": "https://chainolakescompanions.com/adopt/",
+  "tier": "available"
+ },
+ "apollo-havanese": {
+  "url": "https://chainolakescompanions.com/product/apollo/",
+  "tier": "puppy"
+ },
+ "athena-havanese": {
+  "url": "https://chainolakescompanions.com/product/athena/",
+  "tier": "puppy"
+ },
+ "atlas-havanese": {
+  "url": "https://chainolakescompanions.com/product/atlas/",
+  "tier": "puppy"
+ },
+ "blitz-havanese": {
+  "url": "https://chainolakescompanions.com/product/blitz/",
+  "tier": "puppy"
+ },
+ "carrie-havanese": {
+  "url": "https://chainolakescompanions.com/product/carrie/",
+  "tier": "puppy"
+ },
+ "champ-havanese": {
+  "url": "https://chainolakescompanions.com/product/champ/",
+  "tier": "puppy"
+ },
+ "darcy-havanese": {
+  "url": "https://chainolakescompanions.com/product/darcy-2/",
+  "tier": "puppy"
+ },
+ "eloise-havanese": {
+  "url": "https://chainolakescompanions.com/product/eloise-2/",
+  "tier": "puppy"
+ },
+ "fernando-havanese": {
+  "url": "https://chainolakescompanions.com/product/fernando/",
+  "tier": "puppy"
+ },
+ "francesca-havanese": {
+  "url": "https://chainolakescompanions.com/product/francesca/",
+  "tier": "puppy"
+ },
+ "gatsby-havanese": {
+  "url": "https://chainolakescompanions.com/product/gatsby-2/",
+  "tier": "puppy"
+ },
+ "goldie-havanese": {
+  "url": "https://chainolakescompanions.com/product/goldie/",
+  "tier": "puppy"
+ },
+ "iris-havanese": {
+  "url": "https://chainolakescompanions.com/product/iris/",
+  "tier": "puppy"
+ },
+ "libby-havanese": {
+  "url": "https://chainolakescompanions.com/product/libby/",
+  "tier": "puppy"
+ },
+ "orion-havanese": {
+  "url": "https://chainolakescompanions.com/product/orion/",
+  "tier": "puppy"
+ },
+ "paige-havanese": {
+  "url": "https://chainolakescompanions.com/product/paige/",
+  "tier": "puppy"
+ },
+ "penelope-havanese": {
+  "url": "https://chainolakescompanions.com/product/penelope/",
+  "tier": "puppy"
+ },
+ "penny-havanese": {
+  "url": "https://chainolakescompanions.com/product/penny/",
+  "tier": "puppy"
+ },
+ "rookie-havanese": {
+  "url": "https://chainolakescompanions.com/product/rookie/",
+  "tier": "puppy"
+ },
+ "scout-havanese": {
+  "url": "https://chainolakescompanions.com/product/scout/",
+  "tier": "puppy"
+ },
+ "sherlock-havanese": {
+  "url": "https://chainolakescompanions.com/product/sherlock-2/",
+  "tier": "puppy"
+ },
+ "webster-havanese": {
+  "url": "https://chainolakescompanions.com/product/webster/",
+  "tier": "puppy"
+ },
+ "winnie-havanese-1": {
+  "url": "https://chainolakescompanions.com/product/winnie/",
+  "tier": "puppy"
+ },
+ "eclair-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "flora-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "jasmine-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "biscuit-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "bramble-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "fizz-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "macaron-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "orchid-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "trifle-mini-aussiedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "mingo-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "maya-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "mercedes-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "everest-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "mooney-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "ridge-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "summit-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "willow-mini-bernedoodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "curly-miniature-poodle": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "moe-miniature-poodle": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "ricky-miniature-poodle": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "riley-miniature-poodle": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "rocco-miniature-poodle": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "garrett-miniature-dachshund": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "annie-miniature-dachshund": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "peanut-miniature-dachshund": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "gavin-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "gaylord-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "gilman-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "graham-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "granite-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "ian-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "isaac-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "kade-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "kase-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "kaylin-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "kolton-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "krystal-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "kyla-miniature-poodle": {
+  "url": "https://peacefulpawspuppies.com/miniature-poodles/",
+  "tier": "breed"
+ },
+ "champ-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "jasper-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "kenneth-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "lamar-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "landon-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "lavern-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "lilac-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "lily-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "merle-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "millard-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "murphy-miniature-schnauzer": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "qeleigh-miniature-schnauzer": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "quartz-miniature-schnauzer": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "quest-miniature-schnauzer": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "quinn-miniature-schnauzer": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "cheerio-pembroke-welsh-corgi": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "apple-jacks-pembroke-welsh-corgi": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "cap-n-crunch-pembroke-welsh-corgi": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "trix-pembroke-welsh-corgi": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "bingo-pomeranian": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "bluey-pomeranian": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "wendeline-saint-bernard": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "william-saint-bernard": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "tulip-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "andre-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "dandy-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "flash-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "fox-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "queenie-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "quigly-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "quincy-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "quinton-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "rusty-shih-tzu": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "casey-teddy-bear-shihchon": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "chad-teddy-bear-shihchon": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "cindy-teddy-bear-shihchon": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "tank-teddy-bear-shihchon": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "dixon-toy-poodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "george-toy-poodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "gertie-toy-poodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "guther-toy-poodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "guy-toy-poodle": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ },
+ "delsie-victorian-bulldog": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "dream-victorian-bulldog": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "duke-victorian-bulldog": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "lucy-yorkshire-terrier": {
+  "url": "https://responsibledogbreeder.com/adopt-a-puppy/",
+  "tier": "available"
+ },
+ "nicole-yorkshire-terrier": {
+  "url": "https://peacefulpawspuppies.com/available-puppies/",
+  "tier": "available"
+ }
+}

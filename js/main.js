@@ -86,13 +86,17 @@
     /* The first row or two are in view immediately. Marking those lazy delays
        them; mark them eager and high priority instead. */
     var eager = cardIndex++ < 8;
+    /* 48 listings have no landscape photo anywhere in their set. Cropping a
+       portrait into the 3:2 slot cuts the dog in half whichever edge we anchor
+       to, so those sit whole on the card's own ground instead. */
+    var tall = (l.lead_aspect || 9) < 1.2;
     var placed = isPlaced(l);
     var label = statusLabel(l);
     var mates = byLitter(l.litter).length;
     return '' +
       '<a class="card' + (placed ? ' is-sold' : '') + '" href="puppy.html?slug=' + esc(l.slug) + '">' +
-        '<div class="card-media">' +
-          (img(l) ? '<img src="' + esc(wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
+        '<div class="card-media' + (tall ? ' is-whole' : '') + '">' +
+          (img(l) ? '<img src="' + esc(tall ? wixFit(img(l), 600, 400) : wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
             esc(l.breed || 'puppy') + '" ' +
             (eager ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"') +
             ' width="600" height="400">' : '') +
@@ -350,7 +354,7 @@
     if (img(l)) {
       main.innerHTML = '<img src="' + esc(wixFit(img(l), 1200, 800)) + '" alt="' + esc(l.puppy_name) +
         '" decoding="async">';
-      gal.innerHTML = (l.images || []).slice(0, 8).map(function (u, i) {
+      gal.innerHTML = (l.images || []).map(function (u, i) {
         return '<button type="button"' + (i === 0 ? ' aria-current="true"' : '') +
           ' data-full="' + esc(wixFit(u, 1200, 800)) + '"><img src="' + esc(wix(u, 160, 160)) +
           '" alt="" loading="lazy" decoding="async" width="160" height="160"></button>';
@@ -362,6 +366,27 @@
         btn.setAttribute('aria-current', 'true');
         main.querySelector('img').src = btn.getAttribute('data-full');
       });
+
+      /* Page the strip by roughly a screenful, and only offer the direction
+         that actually goes somewhere. */
+      var prev = document.querySelector('.thumb-nav.prev');
+      var next = document.querySelector('.thumb-nav.next');
+      if (prev && next) {
+        var syncNav = function () {
+          var over = gal.scrollWidth - gal.clientWidth;
+          prev.hidden = over < 8 || gal.scrollLeft < 8;
+          next.hidden = over < 8 || gal.scrollLeft > over - 8;
+        };
+        var page = function (dir) {
+          gal.scrollLeft += dir * Math.max(gal.clientWidth - 84, 84);
+          syncNav();
+        };
+        prev.addEventListener('click', function () { page(-1); });
+        next.addEventListener('click', function () { page(1); });
+        gal.addEventListener('scroll', syncNav);
+        addEventListener('resize', syncNav);
+        syncNav();
+      }
     }
 
     /* Thumbnail clicks should be instant, so warm the remaining full sizes. */
@@ -374,14 +399,22 @@
       inc.closest('section').hidden = true;
     }
 
-    var site = l.breeder_domain ? 'https://' + l.breeder_domain : null;
+    /* Link as deep as we could find on the breeder's own site, and label it
+       honestly: a breed or available-puppies page must not read as if it were
+       this puppy's page. */
+    var site = l.breeder_url || (l.breeder_domain ? 'https://' + l.breeder_domain : null);
+    var siteLabel = l.breeder_url_tier === 'puppy' ? esc(l.puppy_name) + "'s own page"
+      : l.breeder_url_tier === 'breed' ? 'Their ' + esc(l.breed || 'breed') + ' page'
+      : l.breeder_url_tier === 'available' ? 'Their available puppies'
+      : esc(l.breeder_domain || '');
     var hasContact = site || l.breeder_phone || l.breeder_email;
     document.querySelector('#dBreeder').innerHTML =
       '<div class="eyebrow">Raised by</div>' +
       '<h3>' + esc(breederLabel(l)) + '</h3>' +
       '<p class="breeder-note">Puppy Connection lists this puppy. The sale is arranged directly with the breeder.</p>' +
       (hasContact ? '<ul class="contact-list">' +
-        (site ? '<li><a href="' + esc(site) + '" target="_blank" rel="noopener"><b>Website</b> ' + esc(l.breeder_domain) + '</a></li>' : '') +
+        (site ? '<li><a href="' + esc(site) + '" target="_blank" rel="noopener"><b>Website</b> ' +
+          siteLabel + '</a></li>' : '') +
         (l.breeder_phone ? '<li><a href="tel:' + esc(l.breeder_phone.replace(/[^\d+]/g, '')) + '"><b>Call</b> ' + esc(l.breeder_phone) + '</a></li>' : '') +
         (l.breeder_email ? '<li><a href="mailto:' + esc(l.breeder_email) + '"><b>Email</b> ' + esc(l.breeder_email) + '</a></li>' : '') +
         '</ul>' : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>') +

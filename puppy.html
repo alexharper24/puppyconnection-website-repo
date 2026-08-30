@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&family=Barlow:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=18">
+<link rel="stylesheet" href="css/style.css?v=21">
 </head>
 <body>
 
@@ -36,7 +36,7 @@
 </header>
 
 <main id="detail">
-<section class="band" style="padding-bottom:0">
+<section class="band">
   <div class="wrap detail-grid">
     <div class="d-title">
       <p class="eyebrow" id="dBreed"></p>
@@ -47,7 +47,11 @@
     </div>
     <div class="d-media">
       <div class="gallery-main" id="dMain"></div>
-      <div class="thumbs" id="dGallery"></div>
+      <div class="thumb-strip">
+        <button class="thumb-nav prev" type="button" aria-label="Earlier photos" hidden>&#8249;</button>
+        <div class="thumbs" id="dGallery"></div>
+        <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
+      </div>
       <section class="about-block">
         <p class="eyebrow">About this puppy</p>
         <p id="dDesc"></p>
@@ -109,7 +113,7 @@
     <p class="foot-note">Concept build. Content and photography belong to Puppy Connection and its breeders and are shown here for review only.</p>
   </div>
 </footer>
-<script src="data/data.js?v=7"></script>
-<script src="js/main.js?v=20"></script>
+<script src="data/data.js?v=9"></script>
+<script src="js/main.js?v=24"></script>
 </body>
 </html>

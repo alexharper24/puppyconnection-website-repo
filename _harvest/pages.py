@@ -43,7 +43,7 @@ PUPPIES = """<section class="band" style="padding-bottom:1.5rem">
 </section>"""
 
 PUPPY = """<main id="detail">
-<section class="band" style="padding-bottom:0">
+<section class="band">
   <div class="wrap detail-grid">
     <div class="d-title">
       <p class="eyebrow" id="dBreed"></p>
@@ -54,7 +54,11 @@ PUPPY = """<main id="detail">
     </div>
     <div class="d-media">
       <div class="gallery-main" id="dMain"></div>
-      <div class="thumbs" id="dGallery"></div>
+      <div class="thumb-strip">
+        <button class="thumb-nav prev" type="button" aria-label="Earlier photos" hidden>&#8249;</button>
+        <div class="thumbs" id="dGallery"></div>
+        <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
+      </div>
       <section class="about-block">
         <p class="eyebrow">About this puppy</p>
         <p id="dDesc"></p>

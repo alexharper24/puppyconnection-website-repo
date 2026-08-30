@@ -114,6 +114,20 @@ making. Profile pages carry a visible note saying so.
   breed at 26 listings and has none. Breed pages are what search traffic lands
   on, so this is a real content gap. `breed.html` shows an explicit empty state
   rather than hiding it.
+- **48 of 204 listings have no landscape photo anywhere in their set.**
+  `_harvest/measure.py` fetched a `fit` rendition of all 1,407 photos and read
+  the true shape out of each JPEG header, because every source URL arrives as a
+  4:3 crop and hides it. 968 of 1,407 photos are landscape, but they are unevenly
+  spread: 75 listings led with a portrait, 27 of which had a landscape further
+  down the set. The remaining 48 have none. Asking breeders for one landscape
+  shot per puppy would be a cheap, high-value listing rule.
+- **Only `chainolakescompanions.com` gives each puppy its own page.**
+  `_harvest/findlinks.py` walked all four breeder sitemaps: 23 of its 26 puppies
+  match a `/product/<name>/` page. Peaceful Paws (103 listings) and Responsible
+  Dog Breeder (46) publish only breed and available-puppies pages, and Kingdom's
+  Wix site exposes no reachable sitemap. 175 of 204 listings now deep-link
+  somewhere useful, but the link text has to say which, so a breed page never
+  reads as if it were the puppy's page.
 - **"Hereceives" appears in three descriptions** in her source data. Fixed here
   only because it is unambiguous.
 
@@ -152,6 +166,13 @@ load 495ms. Before these changes a single card image was 242 KB.
 - Anchoring a crop to the top does **not** rescue portraits: on a tall photo the
   top is usually sky or fence, not the dog. That is why the detail views contain
   rather than crop.
+- **Cards lead with a landscape photo where one exists.** `builddata.py` sorts
+  each listing's `images` so a measured landscape shot comes first, keeping the
+  rest in the breeder's own order. That moved 27 listings off a portrait lead.
+- **The 48 listings with no landscape at all sit whole on the card**
+  (`.card-media.is-whole`, `fit` instead of `fill`, on the cream ground) rather
+  than being cropped. A quarter-cropped puppy is worse than a letterboxed one,
+  and the letterbox is visibly a choice.
 - HTML `width`/`height` attributes act as presentational hints, and when both
   are definite CSS `aspect-ratio` is silently ignored. Images whose shape is
   set in CSS carry no size attributes.
@@ -207,6 +228,14 @@ job and belongs in a production build rather than a concept.
   on transparent (mean luminance 249), so that card goes dark instead. Backdrop
   is chosen by measuring the mark, not by recolouring someone else's logo.
 
+- **The thumbnail row is a single scroller, not a wrapping grid.** Nine or ten
+  thumbnails used to wrap to a second row and steal height from the main photo.
+  It now scrolls horizontally with prev/next buttons that appear only when there
+  is somewhere to go, so every photo is reachable and the row height is fixed.
+- **The detail grid needs `grid-template-rows:min-content 1fr`.** The media
+  column spans both rows; with two `auto` rows the browser shares the gallery's
+  surplus height between them and opens a dead gap under the name and price.
+
 ## Stacking contexts, twice
 
 The mobile menu is a descendant of `.site-header`. A positioned descendant
@@ -255,3 +284,7 @@ the iOS light-mode lock and `noindex`.
       only the browse view
 - [ ] Amber to supply a real breed list, or confirm the inventory-derived one
 - [ ] Localise images if this progresses past review
+- [ ] Ask breeders for one landscape photo per puppy (48 listings have none)
+- [ ] Ask the three breeders without per-puppy pages whether they plan to add
+      them; deep links are currently breed or available-puppies pages for 152
+      of the 175 matched listings

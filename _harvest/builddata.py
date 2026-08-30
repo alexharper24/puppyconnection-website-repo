@@ -6,6 +6,15 @@ try:
     BREED_PHOTOS = json.load(open('_harvest/data/breedphotos.json', encoding='utf-8'))
 except FileNotFoundError:
     BREED_PHOTOS = {}
+try:
+    BREEDER_LINKS = json.load(open('_harvest/data/breederlinks.json', encoding='utf-8'))
+except FileNotFoundError:
+    BREEDER_LINKS = {}
+try:
+    # True aspect ratio of every photo, measured by measure.py.
+    ASPECTS = json.load(open('_harvest/data/aspects.json', encoding='utf-8'))
+except FileNotFoundError:
+    ASPECTS = {}
 B = json.load(open('_harvest/data/breeds.json', encoding='utf-8'))
 
 canon = {b['name'].lower(): b['name'] for b in B}
@@ -189,9 +198,23 @@ for i, r in enumerate(L):
     # Who actually raised it, taken from the domain rather than a staged pairing.
     r['breeder_name'] = BREEDER_NAMES.get(r.get('breeder_domain'))
 
+    # Deepest link we could find on the breeder's own site. tier is 'puppy',
+    # 'breed' or 'available'; the label on the page depends on it.
+    link = BREEDER_LINKS.get(r['slug'])
+    r['breeder_url'] = link['url'] if link else None
+    r['breeder_url_tier'] = link['tier'] if link else None
+
     # Store bare Wix media URLs. The page appends the transform it needs, so a
     # 76px thumbnail stops downloading a 1400px file.
-    r['images'] = [re.sub(r'/v1/.*$', '', u) for u in (r.get('images') or [])]
+    ims = [re.sub(r'/v1/.*$', '', u) for u in (r.get('images') or [])]
+
+    # Card slots are 3:2, so a portrait photo cropped to fit loses the dog.
+    # Lead with a landscape shot where the breeder uploaded one, keeping the
+    # rest in their original order. ASPECTS is measured, not guessed: every
+    # source URL arrives as a 4:3 crop and hides the true shape.
+    wide = [u for u in ims if (ASPECTS.get(u) or 0) >= 1.25]
+    r['images'] = wide + [u for u in ims if u not in wide]
+    r['lead_aspect'] = ASPECTS.get(r['images'][0]) if r['images'] else None
 
 # ---- breed guides, harvested from her existing breed information pages ----
 BOILER = ('Puppy Application', 'View more puppies', 'Search by Breed', 'Category',

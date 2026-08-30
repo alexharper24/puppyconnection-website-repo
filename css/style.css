@@ -190,6 +190,9 @@ p{margin:0 0 1rem;max-width:70ch}
    18 of 24 landscape. At this ratio most photos crop by nothing at all. */
 .card-media{position:relative;aspect-ratio:3/2;overflow:hidden;background:var(--paper-warm)}
 .card-media img{width:100%;height:100%;object-fit:cover;object-position:center top}
+/* portrait-only listing: show the whole dog rather than crop it */
+.card-media.is-whole{background:var(--cream)}
+.card-media.is-whole img{object-fit:contain;object-position:center}
 .card:hover .card-media img{transform:scale(1.02);transition:transform .4s ease}
 .card-body{padding:.9rem 1rem 1.1rem;display:flex;flex-direction:column;gap:.35rem;flex:1}
 .card-name{font-family:var(--serif);font-size:1.3rem;line-height:1.2;font-weight:600}
@@ -242,8 +245,24 @@ p{margin:0 0 1rem;max-width:70ch}
    exactly, so only a portrait letterboxes, and on the page where you are
    deciding on a puppy a whole dog beats a full-bleed crop. */
 .gallery-main img{width:100%;height:100%;object-fit:contain}
-.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(76px,1fr));gap:.5rem;margin-top:.5rem}
-.thumbs button{padding:0;border:1px solid var(--line);background:none;cursor:pointer;aspect-ratio:1;overflow:hidden}
+/* One row that scrolls, rather than a second row that competes with the main
+   photo for height. The arrows only appear when there is somewhere to go. */
+.thumb-strip{position:relative;margin-top:.5rem}
+.thumbs{display:flex;gap:.5rem;overflow-x:auto;scroll-behavior:smooth;
+  scroll-snap-type:x proximity;scrollbar-width:none;-ms-overflow-style:none}
+.thumbs::-webkit-scrollbar{display:none}
+.thumbs button{flex:0 0 76px;scroll-snap-align:start;
+  padding:0;border:1px solid var(--line);background:none;cursor:pointer;aspect-ratio:1;overflow:hidden}
+.thumb-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:2;
+  width:34px;height:34px;display:grid;place-items:center;padding:0;cursor:pointer;
+  font-family:var(--cond);font-size:1.5rem;line-height:1;
+  border:1px solid var(--line-strong);background:rgba(252,252,252,.94);color:var(--ink)}
+.thumb-nav:hover{background:var(--ink);color:var(--gold);border-color:var(--ink)}
+.thumb-nav[hidden]{display:none}
+/* kept inside the strip so they never escape the column on a narrow screen */
+.thumb-nav.prev{left:0}
+.thumb-nav.next{right:0}
+.thumb-nav{box-shadow:0 0 0 4px rgba(252,252,252,.72)}
 .thumbs button[aria-current]{border-color:var(--ink);border-width:2px}
 .thumbs img{width:100%;height:100%;object-fit:cover}
 
@@ -365,6 +384,9 @@ p{margin:0 0 1rem;max-width:70ch}
   display:grid;
   grid-template-columns:1.15fr 1fr;
   grid-template-areas:"media title" "media detail";
+  /* the media column spans both rows. Row 2 has to be flexible, or the
+     gallery's surplus height is shared out and opens a gap under the price. */
+  grid-template-rows:min-content 1fr;
   gap:0 clamp(1.5rem,4vw,3.4rem);
   align-items:start;
 }

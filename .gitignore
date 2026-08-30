@@ -1,0 +1,19 @@
+# Harvest working files. The consolidated output (_harvest/data/*.json) and the
+# scripts that produce it are tracked; the intermediates are not.
+_harvest/out/
+_harvest/raw/
+_harvest/*.html
+_harvest/all.txt
+_harvest/done.txt
+_harvest/todo.txt
+_harvest/sample.txt
+_harvest/allprod.txt
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+Thumbs.db
+.DS_Store
+desktop.ini

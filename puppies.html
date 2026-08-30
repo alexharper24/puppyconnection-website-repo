@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
+<meta name="robots" content="noindex, nofollow">
+<title>Available puppies | Puppy Connection</title>
+<meta name="description" content="Browse puppies listed by small family breeders. Filter by breed and price, then contact the breeder directly.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&family=Barlow:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=13">
+</head>
+<body>
+
+<div class="demo-flag">Concept build for review · not a live site</div>
+
+<header class="site-header">
+  <div class="hdr">
+    <a class="brand" href="index.html">
+      <img src="img/brand/logo-white.png" alt="Puppy Connection" width="208" height="101">
+      <small>Connecting responsible breeders with loving families</small>
+    </a>
+    <button class="burger" type="button" aria-label="Menu">Menu</button>
+    <nav class="nav">
+      <a href="puppies.html" aria-current="page">Puppies</a>
+      <a href="breeders.html">Breeders</a>
+      <a href="breeds.html">Breeds</a>
+      <a href="list-with-us.html" class="btn-list">List with us</a>
+    </nav>
+  </div>
+</header>
+
+<section class="band" style="padding-bottom:1.5rem">
+  <div class="wrap">
+    <p class="eyebrow">Listings</p>
+    <h1 id="browseTitle">All available puppies</h1>
+    <p class="lede">Every puppy below is raised and sold by the breeder named on its page. Puppy Connection lists them, then hands you straight over.</p>
+  </div>
+</section>
+
+<section class="band" style="padding-top:0">
+  <div class="wrap rail-layout">
+    <aside class="rail">
+      <h3>Breed</h3>
+      <div id="filterBreeds"></div>
+      <h3>Price up to</h3>
+      <label><input type="radio" name="max" value="1500"><span>$1,500</span></label>
+      <label><input type="radio" name="max" value="2000"><span>$2,000</span></label>
+      <label><input type="radio" name="max" value="2500"><span>$2,500</span></label>
+      <label><input type="radio" name="max" value="3500"><span>$3,500</span></label>
+      <h3>Availability</h3>
+      <label><input type="checkbox" name="avail"><span>Hide adopted puppies</span></label>
+      <button type="button" class="rail-reset" id="reset">Clear all filters</button>
+    </aside>
+    <div>
+      <div class="result-bar">
+        <span class="count" id="resultCount"></span>
+        <span class="count">Sorted by price</span>
+      </div>
+      <div class="grid grid-4" id="results"></div>
+      <div class="more-row" id="moreRow"></div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <img src="img/brand/logo-white.png" alt="Puppy Connection" width="190" height="92">
+        <p style="max-width:34ch;font-size:.94rem">A listing service for small family breeders. Puppies are sold by the breeder, never by us.</p>
+      </div>
+      <div>
+        <h4>Browse</h4>
+        <ul>
+          <li><a href="puppies.html">All puppies</a></li>
+          <li><a href="breeders.html">Breeders</a></li>
+          <li><a href="breeds.html">Breeds</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Breeders</h4>
+        <ul>
+          <li><a href="list-with-us.html">List with us</a></li>
+          <li><a href="list-with-us.html#how">How it works</a></li>
+          <li><a href="list-with-us.html#pricing">Pricing</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="foot-note">Concept build. Content and photography belong to Puppy Connection and its breeders and are shown here for review only.</p>
+  </div>
+</footer>
+<script src="data/data.js?v=6"></script>
+<script src="js/main.js?v=14"></script>
+</body>
+</html>

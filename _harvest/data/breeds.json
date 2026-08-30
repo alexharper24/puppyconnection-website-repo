@@ -1,0 +1,127 @@
+[
+ {
+  "name": "Havanese",
+  "slug": "havanese",
+  "live_count": 25
+ },
+ {
+  "name": "Cavalier King Charles Spaniel",
+  "slug": "cavalier-king-charles-spaniel",
+  "live_count": 24
+ },
+ {
+  "name": "Miniature Poodle",
+  "slug": "miniature-poodle",
+  "live_count": 21
+ },
+ {
+  "name": "Great Dane",
+  "slug": "great-dane",
+  "live_count": 19
+ },
+ {
+  "name": "Cavapoo",
+  "slug": "cavapoo",
+  "live_count": 17
+ },
+ {
+  "name": "Miniature Schnauzer",
+  "slug": "miniature-schnauzer",
+  "live_count": 15
+ },
+ {
+  "name": "Munchkin Bernedoodle",
+  "slug": "munchkin-bernedoodle",
+  "live_count": 13
+ },
+ {
+  "name": "Golden Retriever",
+  "slug": "golden-retriever",
+  "live_count": 11
+ },
+ {
+  "name": "Shih Tzu",
+  "slug": "shih-tzu",
+  "live_count": 10
+ },
+ {
+  "name": "Pomeranian",
+  "slug": "pomeranian",
+  "live_count": 9
+ },
+ {
+  "name": "Pembroke Welsh Corgi",
+  "slug": "pembroke-welsh-corgi",
+  "live_count": 9
+ },
+ {
+  "name": "Mini Aussiedoodle",
+  "slug": "mini-aussiedoodle",
+  "live_count": 9
+ },
+ {
+  "name": "Mini Bernedoodle",
+  "slug": "mini-bernedoodle",
+  "live_count": 8
+ },
+ {
+  "name": "Miniature Dachshund",
+  "slug": "miniature-dachshund",
+  "live_count": 6
+ },
+ {
+  "name": "Toy Poodle",
+  "slug": "toy-poodle",
+  "live_count": 5
+ },
+ {
+  "name": "F1b Mini Goldendoodle",
+  "slug": "f1b-mini-goldendoodle",
+  "live_count": 5
+ },
+ {
+  "name": "Cocker Spaniel",
+  "slug": "cocker-spaniel",
+  "live_count": 5
+ },
+ {
+  "name": "Boston Terrier",
+  "slug": "boston-terrier",
+  "live_count": 5
+ },
+ {
+  "name": "Yorkshire Terrier",
+  "slug": "yorkshire-terrier",
+  "live_count": 4
+ },
+ {
+  "name": "Victorian Bulldog",
+  "slug": "victorian-bulldog",
+  "live_count": 4
+ },
+ {
+  "name": "Teddy Bear (Shihchon)",
+  "slug": "teddy-bear-shihchon",
+  "live_count": 4
+ },
+ {
+  "name": "Doberman Pinscher",
+  "slug": "doberman-pinscher",
+  "live_count": 3
+ },
+ {
+  "name": "Saint Bernard",
+  "slug": "saint-bernard",
+  "live_count": 2
+ },
+ {
+  "name": "English Bulldog",
+  "slug": "english-bulldog",
+  "live_count": 2
+ },
+ {
+  "name": "Bernese Mountain Dog",
+  "slug": "bernese-mountain-dog",
+  "live_count": 2
+ }
+]

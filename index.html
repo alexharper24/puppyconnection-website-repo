@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
+<meta name="robots" content="noindex, nofollow">
+<title>Puppy Connection — Puppies from responsible family breeders</title>
+<meta name="description" content="Browse puppies listed by small family breeders across the Midwest, then talk to the breeder directly. Puppy Connection is a listing service.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&family=Barlow:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css?v=13">
+</head>
+<body>
+
+<div class="demo-flag">Concept build for review · not a live site</div>
+
+<header class="site-header">
+  <div class="hdr">
+    <a class="brand" href="index.html">
+      <img src="img/brand/logo-white.png" alt="Puppy Connection" width="208" height="101">
+      <small>Connecting responsible breeders with loving families</small>
+    </a>
+    <button class="burger" type="button" aria-label="Menu">Menu</button>
+    <nav class="nav">
+      <a href="puppies.html">Puppies</a>
+      <a href="breeders.html">Breeders</a>
+      <a href="breeds.html">Breeds</a>
+      <a href="list-with-us.html" class="btn-list">List with us</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <img class="hero-img" src="img/brand/hero-home.jpg" alt="A baby resting beside a puppy" width="2400" height="1014">
+  <div class="hero-panel">
+    <div class="wrap">
+      <h1><em>Welcome to</em>Puppy Connection</h1>
+      <p class="hero-sub">Puppies raised by small family breeders across the Midwest. Find one you love, then talk to the breeder yourself.</p>
+      <form class="breed-search" id="heroForm">
+        <label for="heroBreed" class="visually-hidden" style="position:absolute;left:-9999px">Choose a breed</label>
+        <select id="heroBreed"></select>
+        <button type="submit">Search</button>
+      </form>
+    </div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow">Available now</p>
+        <h2>Recently listed puppies</h2>
+      </div>
+      <a class="link-more" href="puppies.html">Browse all puppies</a>
+    </div>
+    <div class="grid grid-4" id="homeFeatured"></div>
+  </div>
+</section>
+
+<section class="band band-warm" id="breeds">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow">Start here</p>
+        <h2>Browse by breed</h2>
+      </div>
+      <a class="link-more" href="breeds.html">See every breed</a>
+    </div>
+    <div class="grid grid-4" id="breedList"></div>
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap">
+    <div class="sec-head">
+      <div>
+        <p class="eyebrow">Who raises them</p>
+        <h2>The breeders behind the listings</h2>
+      </div>
+      <a class="link-more" href="breeders.html">Meet the breeders</a>
+    </div>
+    <p class="lede" style="margin-bottom:1.6rem">Every puppy here comes from a named breeder with a profile you can read. You buy from them, not from us.</p>
+    <div class="grid grid-3" id="breederStrip"></div>
+  </div>
+</section>
+
+<section class="band band-dark">
+  <div class="wrap">
+    <div class="split">
+      <div>
+        <p class="eyebrow eyebrow-light">For breeders</p>
+        <h2>Raising a litter? List it here.</h2>
+        <p>Reach families already searching for your breed, on a site that has been doing this since 2020. You keep control of your pricing, your process and your conversations with buyers.</p>
+        <div class="btn-row"><a class="btn btn-gold" href="list-with-us.html">See how listing works</a></div>
+      </div>
+      <div style="align-self:center">
+        <div class="price-card" style="background:transparent;border-color:var(--gold);color:var(--cream-text)">
+          <div class="price-big" style="color:var(--gold)"><sup>$</sup>14.99</div>
+          <p class="meta" style="color:var(--cream-text)">per puppy listed</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <img src="img/brand/logo-white.png" alt="Puppy Connection" width="190" height="92">
+        <p style="max-width:34ch;font-size:.94rem">A listing service for small family breeders. Puppies are sold by the breeder, never by us.</p>
+      </div>
+      <div>
+        <h4>Browse</h4>
+        <ul>
+          <li><a href="puppies.html">All puppies</a></li>
+          <li><a href="breeders.html">Breeders</a></li>
+          <li><a href="breeds.html">Breeds</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Breeders</h4>
+        <ul>
+          <li><a href="list-with-us.html">List with us</a></li>
+          <li><a href="list-with-us.html#how">How it works</a></li>
+          <li><a href="list-with-us.html#pricing">Pricing</a></li>
+        </ul>
+      </div>
+    </div>
+    <p class="foot-note">Concept build. Content and photography belong to Puppy Connection and its breeders and are shown here for review only.</p>
+  </div>
+</footer>
+
+<script src="data/data.js?v=6"></script>
+<script src="js/main.js?v=14"></script>
+</body>
+</html>

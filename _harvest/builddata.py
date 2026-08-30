@@ -2,6 +2,10 @@
 import json, io, re, glob, os, collections
 
 L = json.load(open('_harvest/data/listings.json', encoding='utf-8'))
+try:
+    BREED_PHOTOS = json.load(open('_harvest/data/breedphotos.json', encoding='utf-8'))
+except FileNotFoundError:
+    BREED_PHOTOS = {}
 B = json.load(open('_harvest/data/breeds.json', encoding='utf-8'))
 
 canon = {b['name'].lower(): b['name'] for b in B}
@@ -226,8 +230,15 @@ for b in breeds:
                 g = gv
                 break
     b['guide'] = g or []
-    shot = next((r for r in L if r['breed'] == b['name'] and r.get('images')), None)
-    b['photo'] = shot['images'][0] if shot else None
+    # Prefer a landscape photo, chosen by _harvest/pickphotos.py, so the 3:2
+    # slot crops by almost nothing. Falls back to the first image available.
+    pick = BREED_PHOTOS.get(b['name'])
+    if pick:
+        b['photo'] = pick['photo']
+        b['photo_aspect'] = pick['aspect']
+    else:
+        shot = next((r for r in L if r['breed'] == b['name'] and r.get('images')), None)
+        b['photo'] = shot['images'][0] if shot else None
 print('guides matched:', sum(1 for b in breeds if b['guide']), 'of', len(breeds))
 
 io.open('data/data.js', 'w', encoding='utf-8').write(

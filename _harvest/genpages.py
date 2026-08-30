@@ -9,7 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pages  # noqa: E402
 
-CSS_V, JS_V, DATA_V = 13, 14, 6
+CSS_V, JS_V, DATA_V = 14, 18, 7
 
 src = io.open('index.html', encoding='utf-8').read()
 head = src.split('<title>')[0]
@@ -17,6 +17,9 @@ hdr = src[src.index('<div class="demo-flag">'):src.index('<section class="hero">
 ftr = src[src.index('<footer class="site-footer">'):src.index('</footer>') + len('</footer>')]
 
 FONTS = (
+    # every puppy photo is on this origin; open the connection before we need it
+    '<link rel="preconnect" href="https://static.wixstatic.com" crossorigin>\n'
+    '<link rel="dns-prefetch" href="https://static.wixstatic.com">\n'
     '<link rel="preconnect" href="https://fonts.googleapis.com">\n'
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>\n'
     '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600'

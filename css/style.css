@@ -305,7 +305,9 @@ p{margin:0 0 1rem;max-width:70ch}
 /* Let the photo keep its own shape. A fixed box either crops the dog or
    letterboxes it, and breeder photos are portrait as often as landscape.
    No width/height attributes on this image, so aspect-ratio is not blocked. */
-.breed-photo img{display:block;width:100%;aspect-ratio:3/2;object-fit:contain;background:var(--paper-warm)}
+/* The photo is chosen to be landscape where one exists, so cover crops by
+   almost nothing. The few square-only breeds crop from the top. */
+.breed-photo img{display:block;width:100%;aspect-ratio:3/2;object-fit:cover;object-position:center top}
 .photo-cap{display:block;font-family:var(--cond);font-size:.8rem;letter-spacing:.1em;
   text-transform:uppercase;color:var(--muted);padding:.55rem .8rem;border-top:var(--rule)}
 .breed-hero{overflow:hidden;background:var(--paper-warm);border-bottom:var(--rule)}

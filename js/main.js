@@ -81,7 +81,11 @@
   }
 
   /* ---------- card ---------- */
+  var cardIndex = 0;
   function card(l) {
+    /* The first row or two are in view immediately. Marking those lazy delays
+       them; mark them eager and high priority instead. */
+    var eager = cardIndex++ < 8;
     var placed = isPlaced(l);
     var label = statusLabel(l);
     var mates = byLitter(l.litter).length;
@@ -89,7 +93,9 @@
       '<a class="card' + (placed ? ' is-sold' : '') + '" href="puppy.html?slug=' + esc(l.slug) + '">' +
         '<div class="card-media">' +
           (img(l) ? '<img src="' + esc(wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
-            esc(l.breed || 'puppy') + '" loading="lazy" decoding="async" width="600" height="400">' : '') +
+            esc(l.breed || 'puppy') + '" ' +
+            (eager ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"') +
+            ' width="600" height="400">' : '') +
           (label ? '<span class="tag ' + (placed ? 'tag-sold' : 'tag-pending') + '">' + label + '</span>' : '') +
           (mates > 1 ? '<span class="tag tag-litter">Litter of ' + mates + '</span>' : '') +
         '</div>' +
@@ -106,8 +112,26 @@
   function renderInto(sel, list, emptyMsg) {
     var el = document.querySelector(sel);
     if (!el) return;
+    cardIndex = 0;
     el.innerHTML = list.length ? list.map(card).join('')
       : '<p class="empty">' + (emptyMsg || 'No puppies match those filters just now. Try widening your search.') + '</p>';
+  }
+
+  /* Once the page is settled, quietly warm a small, capped set of images the
+     visitor is most likely to need next, so the following page paints from
+     cache. Skipped entirely on metered or slow connections. */
+  function warmNext(urls, cap) {
+    var c = navigator.connection || {};
+    if (c.saveData) return;
+    if (/^(slow-)?2g$/.test(c.effectiveType || '')) return;
+    var list = urls.filter(Boolean).slice(0, cap || 12);
+    var go = function () {
+      list.forEach(function (u, i) {
+        setTimeout(function () { var im = new Image(); im.decoding = 'async'; im.src = u; }, i * 120);
+      });
+    };
+    if ('requestIdleCallback' in window) requestIdleCallback(go, { timeout: 3000 });
+    else setTimeout(go, 1500);
   }
 
   /* ---------- header ---------- */
@@ -125,9 +149,19 @@
       BREEDS.map(function (b) {
         return '<option value="' + esc(b.slug) + '">' + esc(b.name) + ' (' + b.demo_count + ')</option>';
       }).join('');
+    var goToBreed = function () {
+      location.href = heroSel.value
+        ? 'breed.html?slug=' + encodeURIComponent(heroSel.value)
+        : 'puppies.html';
+    };
+    /* Picking a breed is the decision, so act on it. The button stays as a
+       fallback for re-selecting the same option, which fires no change event. */
+    heroSel.addEventListener('change', function () {
+      if (heroSel.value) goToBreed();
+    });
     document.querySelector('#heroForm').addEventListener('submit', function (e) {
       e.preventDefault();
-      location.href = heroSel.value ? 'breed.html?slug=' + encodeURIComponent(heroSel.value) : 'puppies.html';
+      goToBreed();
     });
   }
 
@@ -151,6 +185,15 @@
           '<div class="card-breed">' + b.demo_count + ' listed</div></div></a>';
       }).join('');
     }
+
+    /* Most visitors go from home to the browse grid next, so warm exactly what
+       that grid paints first: available puppies, cheapest first. Matching the
+       browse ordering matters, or this just refetches the featured row. */
+    var nextUp = L.filter(function (x) { return !isPlaced(x) && img(x); })
+                  .sort(function (a, b) { return (a.price || 0) - (b.price || 0); })
+                  .slice(0, 12)
+                  .map(function (x) { return wix(img(x), 600, 400); });
+    warmNext(nextUp, 12);
 
     var brd = document.querySelector('#breederStrip');
     if (brd) {
@@ -204,6 +247,10 @@
       var h = document.querySelector('#browseTitle');
       if (h) h.textContent = state.breed || 'All available puppies';
     };
+
+    /* From the grid, the next click is almost always a listing, so warm the
+       larger gallery rendition for the first few results. */
+    warmNext(current.slice(0, 6).map(function (x) { return wixFit(img(x), 1200, 800); }), 6);
 
     document.querySelector('#moreRow').addEventListener('click', function (e) {
       if (!e.target.closest('#moreBtn')) return;
@@ -268,6 +315,9 @@
         main.querySelector('img').src = btn.getAttribute('data-full');
       });
     }
+
+    /* Thumbnail clicks should be instant, so warm the remaining full sizes. */
+    warmNext((l.images || []).slice(1, 6).map(function (u) { return wixFit(u, 1200, 800); }), 5);
 
     var inc = document.querySelector('#dIncludes');
     if (l.includes && l.includes.length) {
@@ -402,7 +452,7 @@
        breeder photos to whatever happens to sit in the middle. */
     var bph = document.querySelector('#bPhoto');
     if (b.photo) {
-      bph.innerHTML = '<img src="' + esc(wixFit(b.photo, 900, 600)) + '" alt="' +
+      bph.innerHTML = '<img src="' + esc(wix(b.photo, 900, 600)) + '" alt="' +
         esc(b.name) + '" decoding="async">' +
         '<span class="photo-cap">A ' + esc(b.name) + ' currently listed</span>';
     } else { bph.hidden = true; }

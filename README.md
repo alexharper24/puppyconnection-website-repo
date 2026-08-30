@@ -170,9 +170,14 @@ load 495ms. Before these changes a single card image was 242 KB.
   each listing's `images` so a measured landscape shot comes first, keeping the
   rest in the breeder's own order. That moved 27 listings off a portrait lead.
 - **The 48 listings with no landscape at all sit whole on the card**
-  (`.card-media.is-whole`, `fit` instead of `fill`, on the cream ground) rather
-  than being cropped. A quarter-cropped puppy is worse than a letterboxed one,
-  and the letterbox is visibly a choice.
+  (`.card-media.is-whole`, `fit` instead of `fill`) rather than being cropped.
+  A quarter-cropped puppy is worse than a letterboxed one.
+- **Behind those, a blurred crop of the same photo fills the tile**, so the card
+  still reads edge to edge with no cream bars. The backdrop is requested at
+  `w_60` because a 22px blur needs nothing more, which is 1.4 KB against the
+  23 KB card image: about 19 KB across a full browse page. The `<img>` needs
+  `position:relative;z-index:1` to sit above the `::before`, which in turn puts
+  it above the status badges, so `.tag` needs `z-index:2`.
 - HTML `width`/`height` attributes act as presentational hints, and when both
   are definite CSS `aspect-ratio` is silently ignored. Images whose shape is
   set in CSS carry no size attributes.

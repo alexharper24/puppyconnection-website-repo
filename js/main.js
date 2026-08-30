@@ -95,7 +95,11 @@
     var mates = byLitter(l.litter).length;
     return '' +
       '<a class="card' + (placed ? ' is-sold' : '') + '" href="puppy.html?slug=' + esc(l.slug) + '">' +
-        '<div class="card-media' + (tall ? ' is-whole' : '') + '">' +
+        '<div class="card-media' + (tall ? ' is-whole' : '') + '"' +
+          /* a heavily blurred crop of the same photo fills the tile behind the
+             whole image, so the card reads edge to edge without losing the dog.
+             60px wide is all a 22px blur needs, so it costs about a kilobyte. */
+          (tall ? ' style="--fill:url(' + esc(wix(img(l), 60, 40)) + ')"' : '') + '>' +
           (img(l) ? '<img src="' + esc(tall ? wixFit(img(l), 600, 400) : wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
             esc(l.breed || 'puppy') + '" ' +
             (eager ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"') +

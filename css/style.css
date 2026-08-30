@@ -398,7 +398,10 @@ p{margin:0 0 1rem;max-width:70ch}
     border-bottom:1px solid var(--bronze);
   }
   .rail-done{display:block;width:100%;margin-top:1.4rem}
-  .rail-backdrop{
+  /* Driven by the same body class as everything else. Setting display here
+     unconditionally would beat the [hidden] attribute and leave a full-screen
+     overlay permanently over the page. */
+  body.rail-open .rail-backdrop{
     display:block;position:fixed;inset:0;z-index:79;
     background:rgba(20,20,20,.5);
   }

@@ -202,6 +202,22 @@ job and belongs in a production build rather than a concept.
   on transparent (mean luminance 249), so that card goes dark instead. Backdrop
   is chosen by measuring the mark, not by recolouring someone else's logo.
 
+## A bug worth remembering
+
+The first version of the filter drawer froze every page under 940px: the whole
+site appeared greyed out and nothing was clickable, including the main menu.
+
+`.rail-backdrop{display:block}` sat inside the mobile media query. A class
+selector beats the UA stylesheet's `[hidden]{display:none}`, so the full-screen
+overlay at `z-index:79` was displayed permanently, sitting over the header and
+swallowing every click. The JS was toggling `hidden` correctly and having no
+effect at all.
+
+Two lessons. Never set `display` on an element whose visibility is driven by
+the `hidden` attribute; drive it from the same state class as everything else.
+And assert with `document.elementFromPoint`, not `!el.hidden` — the original
+test checked the JS property and passed while the page was unusable.
+
 ## Testing note
 
 The in-app browser pane **never advances CSS transitions**: a `CSSTransition`

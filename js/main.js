@@ -242,8 +242,12 @@
       current.sort(function (a, b) { return (a.price || 0) - (b.price || 0); });
       shown = PAGE;
       paint();
-      document.querySelector('#resultCount').textContent =
-        current.length + (current.length === 1 ? ' puppy' : ' puppies') + (state.breed ? ' · ' + state.breed : '');
+      var label = current.length + (current.length === 1 ? ' puppy' : ' puppies');
+      document.querySelector('#resultCount').textContent = label + (state.breed ? ' · ' + state.breed : '');
+      var done = document.querySelector('#railDone');
+      if (done) done.textContent = 'Show ' + label;
+      var trig = document.querySelector('#railOpen');
+      if (trig) trig.textContent = 'Filters · ' + label;
       var h = document.querySelector('#browseTitle');
       if (h) h.textContent = state.breed || 'All available puppies';
     };
@@ -256,6 +260,30 @@
       if (!e.target.closest('#moreBtn')) return;
       shown += PAGE;
       paint();
+    });
+
+    /* On phones the rail is a drawer rather than a block above the results. */
+    var rail = document.querySelector('#rail');
+    var backdrop = document.querySelector('#railBackdrop');
+    var opener = document.querySelector('#railOpen');
+    var setDrawer = function (open) {
+      rail.classList.toggle('open', open);
+      backdrop.hidden = !open;
+      document.body.classList.toggle('rail-open', open);
+      opener.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) {
+        var first = rail.querySelector('input');
+        if (first) first.focus({ preventScroll: true });
+      } else {
+        opener.focus({ preventScroll: true });
+      }
+    };
+    opener.addEventListener('click', function () { setDrawer(true); });
+    backdrop.addEventListener('click', function () { setDrawer(false); });
+    document.querySelector('#railClose').addEventListener('click', function () { setDrawer(false); });
+    document.querySelector('#railDone').addEventListener('click', function () { setDrawer(false); });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && rail.classList.contains('open')) setDrawer(false);
     });
 
     document.querySelector('.rail').addEventListener('change', function (e) {

@@ -10,7 +10,15 @@ PUPPIES = """<section class="band" style="padding-bottom:1.5rem">
 
 <section class="band" style="padding-top:0">
   <div class="wrap rail-layout">
-    <aside class="rail">
+    <button type="button" class="rail-trigger" id="railOpen" aria-expanded="false" aria-controls="rail">
+      Filters
+    </button>
+    <div class="rail-backdrop" id="railBackdrop" hidden></div>
+    <aside class="rail" id="rail">
+      <div class="rail-head">
+        <span>Filters</span>
+        <button type="button" class="rail-close" id="railClose" aria-label="Close filters">Close</button>
+      </div>
       <h3>Breed</h3>
       <div id="filterBreeds"></div>
       <h3>Price up to</h3>
@@ -21,6 +29,7 @@ PUPPIES = """<section class="band" style="padding-bottom:1.5rem">
       <h3>Availability</h3>
       <label><input type="checkbox" name="avail"><span>Hide adopted puppies</span></label>
       <button type="button" class="rail-reset" id="reset">Clear all filters</button>
+      <button type="button" class="btn btn-primary rail-done" id="railDone">Show results</button>
     </aside>
     <div>
       <div class="result-bar">
@@ -35,8 +44,15 @@ PUPPIES = """<section class="band" style="padding-bottom:1.5rem">
 
 PUPPY = """<main id="detail">
 <section class="band" style="padding-bottom:0">
-  <div class="wrap split">
-    <div>
+  <div class="wrap detail-grid">
+    <div class="d-title">
+      <p class="eyebrow" id="dBreed"></p>
+      <div class="name-row">
+        <h1 id="dName"></h1>
+        <span class="price" id="dPrice"></span>
+      </div>
+    </div>
+    <div class="d-media">
       <div class="gallery-main" id="dMain"></div>
       <div class="thumbs" id="dGallery"></div>
       <section class="about-block">
@@ -45,12 +61,7 @@ PUPPY = """<main id="detail">
         <p class="disclaimer" id="dNote"></p>
       </section>
     </div>
-    <div>
-      <p class="eyebrow" id="dBreed"></p>
-      <div class="name-row">
-        <h1 id="dName"></h1>
-        <span class="price" id="dPrice"></span>
-      </div>
+    <div class="d-detail">
       <dl class="facts" id="dFacts"></dl>
 
       <section>

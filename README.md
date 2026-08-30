@@ -188,12 +188,29 @@ job and belongs in a production build rather than a concept.
   goes-home-with list and the breeder box read as separate.
 - The description sits under the gallery in the left column, which balances the
   two columns to within about 10px instead of leaving the left one short.
+- On phones the browse filters are a slide-in drawer behind a "Filters · N puppies"
+  button, rather than a block occupying the top of the page. Backdrop, Escape,
+  body scroll lock and focus handling included.
+- On phones the listing page puts breed, name and price above the gallery. The
+  page uses named grid areas so the title can reorder without moving the gallery.
+- On phones the breed page hides its sidebar photo, which is redundant next to
+  the listing grid below it.
 - Breeder pages show the breeder's own logo above their contact details, and no
   longer carry an initial-letter square beside the name: two marks competing for
   the same identity read as clutter.
 - Logo cards are white by default. Kingdom Family Companions' wordmark is white
   on transparent (mean luminance 249), so that card goes dark instead. Backdrop
   is chosen by measuring the mark, not by recolouring someone else's logo.
+
+## Testing note
+
+The in-app browser pane **never advances CSS transitions**: a `CSSTransition`
+reports `playState: "running"` with `currentTime` frozen at 0, so
+`getComputedStyle` returns the start value forever and even an inline
+`!important` appears to be ignored. It cost several rounds on the filter drawer.
+To assert a transitioned end state, inject `transition:none !important`, cancel
+running animations, then measure. Or assert on the class, per the root
+`CLAUDE.md` note.
 
 ## Verified
 

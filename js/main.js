@@ -137,8 +137,28 @@
   /* ---------- header ---------- */
   var burger = document.querySelector('.burger');
   if (burger) {
+    var nav = document.querySelector('.nav');
+    var header = document.querySelector('.site-header');
+    /* The full-height menu starts below the sticky header, whose height varies
+       with the logo and tagline, so measure it rather than guess. */
+    var sizeNav = function () {
+      document.documentElement.style.setProperty('--hdr-h', header.offsetHeight + 'px');
+    };
+    sizeNav();
+    addEventListener('resize', sizeNav);
+
+    var setNav = function (open) {
+      nav.classList.toggle('open', open);
+      document.body.classList.toggle('nav-open', open);
+      burger.textContent = open ? 'Close' : 'Menu';
+      burger.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    burger.setAttribute('aria-expanded', 'false');
     burger.addEventListener('click', function () {
-      document.querySelector('.nav').classList.toggle('open');
+      setNav(!nav.classList.contains('open'));
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && nav.classList.contains('open')) setNav(false);
     });
   }
 

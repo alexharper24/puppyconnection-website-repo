@@ -188,6 +188,11 @@ job and belongs in a production build rather than a concept.
   goes-home-with list and the breeder box read as separate.
 - The description sits under the gallery in the left column, which balances the
   two columns to within about 10px instead of leaving the left one short.
+- On phones the main menu is full height rather than a short dropdown with the
+  page showing beneath it. It starts below the sticky header (whose height is
+  measured into `--hdr-h`, since the logo and tagline make it variable), pins
+  the "List with us" call to action to the bottom, locks body scroll, closes on
+  Escape, and the button relabels itself Menu / Close.
 - On phones the browse filters are a slide-in drawer behind a "Filters · N puppies"
   button, rather than a block occupying the top of the page. Backdrop, Escape,
   body scroll lock and focus handling included.
@@ -201,6 +206,14 @@ job and belongs in a production build rather than a concept.
 - Logo cards are white by default. Kingdom Family Companions' wordmark is white
   on transparent (mean luminance 249), so that card goes dark instead. Backdrop
   is chosen by measuring the mark, not by recolouring someone else's logo.
+
+## Stacking contexts, twice
+
+The mobile menu is a descendant of `.site-header`. A positioned descendant
+paints above its ancestor's background no matter what z-index it carries, so
+the full-height menu covered the logo and, worse, the button used to close it.
+Raising the header did nothing; the fix is lifting the menu's *siblings*
+(`.brand`, `.burger`) within the header's own stacking context.
 
 ## A bug worth remembering
 

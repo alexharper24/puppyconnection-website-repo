@@ -9,7 +9,7 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pages  # noqa: E402
 
-CSS_V, JS_V, DATA_V = 16, 19, 7
+CSS_V, JS_V, DATA_V = 18, 20, 7
 
 src = io.open('index.html', encoding='utf-8').read()
 head = src.split('<title>')[0]

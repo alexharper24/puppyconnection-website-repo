@@ -106,12 +106,31 @@ p{margin:0 0 1rem;max-width:70ch}
 .burger{display:none;margin-left:auto;background:none;border:1px solid #4a4a4a;color:var(--cream-text);
   font-family:var(--cond);letter-spacing:.12em;text-transform:uppercase;padding:.5rem .8rem;cursor:pointer}
 @media(max-width:900px){
-  .nav{display:none;position:absolute;top:100%;left:0;right:0;background:var(--ink);
-    flex-direction:column;align-items:flex-start;gap:0;padding:.5rem var(--gut) 1.2rem;border-top:1px solid #3a3a3a}
+  /* Full height rather than a short dropdown with the page showing beneath it.
+     Sits below the sticky header (z-index 50) so the logo and close stay put;
+     --hdr-h is measured in main.js because the header height is not fixed. */
+  .nav{
+    display:none;position:fixed;inset:0;z-index:40;
+    background:var(--ink);overflow-y:auto;overscroll-behavior:contain;
+    flex-direction:column;align-items:stretch;gap:0;
+    padding:calc(var(--hdr-h,86px) + 1.6rem) var(--gut) 2.4rem;
+  }
   .nav.open{display:flex}
-  .nav a{width:100%;padding:.75rem 0;border-bottom:1px solid #3a3a3a}
-  .nav .btn-list{margin-top:.7rem;text-align:center}
+  .nav a{
+    width:100%;padding:1.15rem 0;border-bottom:1px solid #3a3a3a;
+    font-size:1.35rem;letter-spacing:.1em;
+  }
+  .nav a:first-child{border-top:1px solid #3a3a3a}
+  .nav .btn-list{
+    margin-top:auto;text-align:center;border:1px solid var(--gold);
+    padding:1rem 1.2rem;font-size:1.1rem;
+  }
+  /* The nav is a descendant of the header, so it paints above the header's
+     background whatever its z-index. Lift its siblings instead, or the menu
+     covers the logo and the button used to close it. */
+  .brand,.burger{position:relative;z-index:60}
   .burger{display:block}
+  body.nav-open{overflow:hidden}
 }
 
 /* ---------- buttons ---------- */

@@ -10,7 +10,12 @@ Client: Amber Blakeslee. The live site is Wix; a half-built Wix duplicate
 herself with ChatGPT's help.
 
 **Status: eight-page concept for review. Not a production site.**
-Every page carries `noindex, nofollow` and a "concept build" banner.
+
+**Live for review:** https://alexharper24.github.io/puppyconnection-website-repo/
+
+Every page carries `noindex, nofollow`, `robots.txt` disallows all crawlers, and
+a "concept build" banner sits above the header. The repo is public only because
+GitHub Pages requires it on a free plan.
 
 ## Run it
 

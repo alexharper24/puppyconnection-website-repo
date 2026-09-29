@@ -22,7 +22,6 @@ open:
   - {id: g2-images, gate: G2, blocked_on: claude, item: "Brand images now WebP with srcset (2026-09-28). The 1,675 Wix listing photo references still need localizing before the Wix plan is canceled"}
   - {id: g2-forms, gate: G2, blocked_on: alex, item: "Every form wired to a real endpoint, or its placeholder tracked in the README"}
   - {id: g2-house, gate: G2, blocked_on: alex, item: "Light-mode lock, ?v= cache-busting, sitemap.xml and robots.txt in place (2026-09-28). No favicon set and no 404 page yet, and the favicon mark is a brand choice for Alex"}
-  - {id: g2-checks, gate: G2, blocked_on: claude, item: "audit.py clean and check_site.py down to one deliberate warning (the hero breed picker has no honeypot because it never submits). Close once the commit lands and check_site.py shows no uncommitted assets"}
   # G3 Review
   - {id: g3-previews, gate: G3, blocked_on: claude, item: "Single-file OnePage preview and anything under concepts/ out of the repo or noindex"}
   - {id: g3-redirects, gate: G3, blocked_on: claude, item: "Every legacy Wix URL redirected and tested"}
@@ -42,6 +41,7 @@ open:
   - {id: pc-architecture, gate: G2, blocked_on: alex, item: "Answered 2026-09-28. The Teapup stack (Worker, D1, R2, static build) handles per-breeder isolation with the Williams Sisters ownership rule, and composite keys work in D1 too. The one change is sign-in, because Cloudflare Access is free to 50 users and then $7 per user a month, so breeders need the Worker own email sign-in while Access stays on the operator screens. Alex to choose"}
   - {id: pc-strategy-row, gate: G1, blocked_on: claude, item: "Directory row written into seo-lifecycle.md 2026-09-28 from the four results pages. Keyword-method still needs a directory column for its template table"}
 closed:
+  - {id: g2-checks, closed: 2026-09-28, evidence: "commit 5b2d27b, check_site.py 0 errors and 1 deliberate warning (hero breed picker never submits), audit.py clean"}
   - {id: g1-money-searches, closed: 2026-09-28, evidence: "Keyword method run in full with a directory config, 623 of 623 template searches returned and 0 missing, competition measured on puppies.com for all 25 breeds, four results pages read. hs-seo-data/puppyconnection/2026-09-28/keyword-plan.md"}
   - {id: g3-noindex, closed: 2026-09-28, evidence: "site-audit run 2026-09-28, 8 of 8 pages carry noindex and robots.txt disallows all"}
 decisions:

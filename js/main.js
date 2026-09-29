@@ -38,7 +38,7 @@
   /* Images are bare Wix media URLs. Ask for the size the slot actually needs,
      so a 76px thumbnail stops downloading a 1400px file. enc_auto lets Wix
      negotiate AVIF or WebP, which is roughly another 45% off the JPEG. */
-  /* al_t, not al_c: cropping a full-body portrait to 4:3 from the centre
+  /* al_t, not al_c: cropping a full-body portrait to 4:3 from the center
      keeps the torso and loses the head. Anchoring to the top keeps the face. */
   function wix(base, w, h) {
     if (!base) return '';

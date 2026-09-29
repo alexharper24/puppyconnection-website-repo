@@ -282,14 +282,61 @@ console errors, mobile nav opens and closes, filters and reset work, price sort
 ascending, littermates resolve, gallery thumbnails switch, all eight pages carry
 the iOS light-mode lock and `noindex`.
 
+## Brought in line with the live puppy sites (2026-09-28)
+
+Compared feature by feature against Teapup, Sweet Puppy Paws and Bless Your Paws, then
+fixed what the concept lacked. Verified at 320, 360, 375, 414, 768, 1024 and 1440 across
+every page, with a puppy page for each of the four breeders.
+
+- **Skip link and a `<main>` on all eight pages.** Three had no main landmark. The skip
+  target is a `<span id="content">` just inside each main, because the existing main ids
+  (`#detail`, `#breedPage` and others) are used by `main.js` and the stylesheet.
+- **WebP with srcset for the brand images.** The hero went from 397 KB to 20 to 100 KB by
+  screen width, and the logo, which loads twice on every page, from 269 KB to 22 KB. Made
+  by `_harvest/brand_images.py`, originals kept as the fallback.
+- **Social card and tags.** `img/brand/og-card.jpg` is the white wordmark on the brand
+  charcoal, and every page now carries Open Graph and Twitter tags.
+- **Structured data.** Organization and WebSite on the home page, BreadcrumbList on the
+  four static index pages, all parseable.
+- **Canonical and sitemap on the static pages only.** The three query-string templates
+  (puppy, breed, breeder) get neither, because one canonical on `puppy.html` would tell
+  Google every puppy is the same page. `BASE` in `genpages.py` is the one line to change
+  at cutover.
+- **Headings.** The footer jumped h2 to h4 on every page, the browse filters jumped h1 to
+  h3, and list-with-us had no h1. All three fixed.
+- **Phone overflow.** Every page was wider than a 320px screen. The brand block refused to
+  shrink, the breed select could not shrink below its longest option, the card grids had
+  minimums wider than the screen, and the longest breeder domain pushed the Chain O'Lakes
+  profile 117px past the edge. All four fixed.
+- **Hover zoom on the listing cards** now only applies on a real pointer, with the
+  `(hover: none)` reset site-checks enforces, so it no longer sticks after a tap on iOS.
+- **Print stylesheet** added.
+- **Copy.** The list-with-us page said listings "go live once reviewed", which contradicts
+  the settled workflow of approving a breeder once and publishing paid listings
+  automatically. Two uses of "enquiry" became "inquiry", and one code comment became US
+  spelling.
+
+**Deliberate exceptions, so nobody "fixes" them back.**
+
+- site-checks warns that the home page form has no honeypot. That form is the hero breed
+  picker, which navigates in JavaScript and never submits anywhere, so there is nothing
+  for a honeypot to protect.
+- The breed, breeder and puppy templates have no canonical and are not in the sitemap, for
+  the reason above. That changes when they become real static pages.
+
 ## Pending
 
 - [ ] Confirm hero image licensing
 - [ ] Decide whether placed puppies should also drop off the breeder page, or
       only the browse view
 - [ ] Amber to supply a real breed list, or confirm the inventory-derived one
-- [ ] Localise images if this progresses past review
+- [ ] Localize the Wix listing photos if this progresses past review
 - [ ] Ask breeders for one landscape photo per puppy (48 listings have none)
 - [ ] Ask the three breeders without per-puppy pages whether they plan to add
       them; deep links are currently breed or available-puppies pages for 152
       of the 175 matched listings
+- [ ] Favicon set. There is no favicon at all, and the natural source is the walking
+      figure and dog under the arc in the logo. A brand-mark choice, so Alex picks it
+- [ ] Change `BASE` in `_harvest/genpages.py` at cutover and regenerate
+- [ ] Generate breed, breeder and puppy pages as real static files once the stack is
+      chosen (`_claude-state.md`, pc-static-pages)

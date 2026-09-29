@@ -19,14 +19,14 @@ PUPPIES = """<section class="band" style="padding-bottom:1.5rem">
         <span>Filters</span>
         <button type="button" class="rail-close" id="railClose" aria-label="Close filters">Close</button>
       </div>
-      <h3>Breed</h3>
+      <h2>Breed</h2>
       <div id="filterBreeds"></div>
-      <h3>Price up to</h3>
+      <h2>Price up to</h2>
       <label><input type="radio" name="max" value="1500"><span>$1,500</span></label>
       <label><input type="radio" name="max" value="2000"><span>$2,000</span></label>
       <label><input type="radio" name="max" value="2500"><span>$2,500</span></label>
       <label><input type="radio" name="max" value="3500"><span>$3,500</span></label>
-      <h3>Availability</h3>
+      <h2>Availability</h2>
       <label><input type="checkbox" name="avail"><span>Hide adopted puppies</span></label>
       <button type="button" class="rail-reset" id="reset">Clear all filters</button>
       <button type="button" class="btn btn-primary rail-done" id="railDone">Show results</button>
@@ -236,7 +236,7 @@ LIST = """<section class="band band-dark">
   <div class="wrap split">
     <div>
       <p class="eyebrow eyebrow-light">For breeders</p>
-      <h2 style="font-size:clamp(2rem,4.4vw,3.2rem)">Helping responsible breeders connect with the right families</h2>
+      <h1 style="font-size:clamp(2rem,4.4vw,3.2rem)">Helping responsible breeders connect with the right families</h1>
       <p>Good breeders deserve good marketing. List your puppies where families are already searching, keep control of your pricing and your process, and talk to buyers yourself.</p>
       <div class="btn-row"><a class="btn btn-gold" href="#pricing">Start listing</a></div>
     </div>
@@ -257,7 +257,7 @@ LIST = """<section class="band band-dark">
       <li><h3>Create your account</h3><p>Register as a breeder. It takes a few minutes and costs nothing.</p></li>
       <li><h3>Build your profile</h3><p>Tell families about your program, your experience, your health testing, and what makes your puppies special.</p></li>
       <li><h3>Add your puppies</h3><p>Photos, dates, registration, pricing and health details. Add a whole litter at once and reuse everything they share.</p></li>
-      <li><h3>Pay and publish</h3><p>$14.99 per puppy, paid for the litter in one checkout. Listings go live once reviewed.</p></li>
+      <li><h3>Pay and publish</h3><p>$14.99 per puppy, paid for the litter in one checkout. Once you are approved, a paid listing goes live as soon as the payment clears.</p></li>
       <li><h3>Talk to families</h3><p>Interested buyers contact you directly through your listing. We are not part of the conversation or the sale.</p></li>
     </ol>
   </div>
@@ -269,7 +269,7 @@ LIST = """<section class="band band-dark">
       <p class="eyebrow">Why list here</p>
       <h2>An audience that is already looking</h2>
       <p>Puppy Connection has been listing puppies since 2020. Families arrive searching for a breed rather than browsing a marketplace, so the people who reach your listing already want what you raise.</p>
-      <p>Your listing carries your kennel name, your profile and your contact details. Every enquiry goes to you.</p>
+      <p>Your listing carries your kennel name, your profile and your contact details. Every inquiry goes to you.</p>
     </div>
     <div>
       <p class="eyebrow">What we ask of you</p>

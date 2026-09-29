@@ -338,5 +338,8 @@ every page, with a puppy page for each of the four breeders.
 - [ ] Favicon set. There is no favicon at all, and the natural source is the walking
       figure and dog under the arc in the logo. A brand-mark choice, so Alex picks it
 - [ ] Change `BASE` in `_harvest/genpages.py` at cutover and regenerate
-- [ ] Generate breed, breeder and puppy pages as real static files once the stack is
-      chosen (`_claude-state.md`, pc-static-pages)
+- [ ] Generate breed, breeder and puppy pages as real static files with the Teapup
+      generator, chosen 2026-09-28 (`_claude-state.md`, pc-static-pages)
+- [ ] Review the breed guide drafts for all 25 breeds before any go into the build. They
+      live outside this repo in `hs-seo-data/puppyconnection/2026-09-28/content/`, with
+      the page map and a review list (`_claude-state.md`, pc-guides)

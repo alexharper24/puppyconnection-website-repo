@@ -4,7 +4,8 @@
 // uploaded photos, but only those belonging to a public puppy.
 //
 // This stands in for spec section 9 (the cron publish, the commit and the generator) while
-// the site is in test. It reads the database and never writes to it.
+// the site is in test. It reads the database and never writes to it. It is deployed without
+// DEV_MODE, so gate() lets every request through, the same as the real public site.
 
 import { gate, json } from '../lib/util.js';
 import { buildExport, siteDataJs } from '../lib/export.js';

@@ -55,8 +55,9 @@ use) on 2026-09-30, so the journey can be tested from any browser.
 | https://puppyconnection-admin.alexharper.workers.dev | Amber's operator screens |
 | https://puppyconnection-site.alexharper.workers.dev | The public site, built live from the database on every page load |
 
-- **All three sit behind one password**, the `TEST_GATE` secret. The browser asks for it once
-  per address, and the user name can be anything. It lives only in Cloudflare and in
+- **The portal and the admin sit behind one password**, the `TEST_GATE` secret. The browser
+  asks for it once per address, and the user name can be anything. The site has no password,
+  because it reads only the public views and serves only photos of listed puppies. It lives only in Cloudflare and in
   `app/.state/test-access.txt` on Alex's machine, which is gitignored.
 - **`DEV_MODE=hosted-test` switches on the mailbox, the practice checkout and the operator
   stand-in**, and only while `TEST_GATE` is set. Without the secret every request gets a 503.
@@ -79,8 +80,8 @@ To run the journey test against it:
 TEST_GATE=<the password> PORTAL=https://puppyconnection-portal.alexharper.workers.dev ADMIN=https://puppyconnection-admin.alexharper.workers.dev node dev/e2e.mjs
 ```
 
-To take it down, delete the three Workers in the dashboard, or remove `TEST_GATE` so every
-request is refused. The access tests (`dev/access-tests.mjs`) run against the local copy
+To take it down, delete the three Workers in the dashboard, or remove `TEST_GATE` from the
+portal and the admin so every request to them is refused. The access tests (`dev/access-tests.mjs`) run against the local copy
 only, because they write to the database directly.
 
 ## Walking the journey

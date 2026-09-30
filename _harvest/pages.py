@@ -232,13 +232,17 @@ BREED = """<main id="breedPage">
 </section>
 </main>"""
 
+# Where breeders sign up and sign in. The hosted test portal until the portal moves to
+# Puppy Connection's own domain at cutover, when this one line changes.
+PORTAL_URL = 'https://puppyconnection-portal.alexharper.workers.dev/'
+
 LIST = """<section class="band band-dark">
   <div class="wrap split">
     <div>
       <p class="eyebrow eyebrow-light">For breeders</p>
       <h1 style="font-size:clamp(2rem,4.4vw,3.2rem)">Helping responsible breeders connect with the right families</h1>
       <p>Good breeders deserve good marketing. List your puppies where families are already searching, keep control of your pricing and your process, and talk to buyers yourself.</p>
-      <div class="btn-row"><a class="btn btn-gold" href="#pricing">Start listing</a></div>
+      <div class="btn-row"><a class="btn btn-gold" href="PORTAL_URL">Start listing</a></div>
     </div>
     <div style="align-self:center">
       <div class="price-card" id="pricing" style="background:transparent;border-color:var(--gold);color:var(--cream-text)">
@@ -289,6 +293,7 @@ LIST = """<section class="band band-dark">
   <div class="wrap" style="text-align:center">
     <h2>Ready to list your litter?</h2>
     <p style="margin-inline:auto">Create your breeder account and add your first puppies today.</p>
-    <div class="btn-row" style="justify-content:center"><a class="btn btn-gold" href="#pricing">Create my breeder account</a></div>
+    <div class="btn-row" style="justify-content:center"><a class="btn btn-gold" href="PORTAL_URL">Create my breeder account</a></div>
+    <p style="margin:1rem auto 0;font-size:.95rem">Already listing with us? <a href="PORTAL_URL" style="color:var(--gold)">Sign in to your account</a>.</p>
   </div>
-</section>"""
+</section>""".replace('PORTAL_URL', PORTAL_URL)

@@ -1,7 +1,8 @@
 // The public site for the hosted TEST deployment, reading live from the database's views.
 // Build, then deploy from app/site:
 //   node ../dev/build-site.mjs && wrangler deploy --config wrangler.hosted.jsonc
-// Behind the same TEST_GATE password as the portal and the admin.
+// Open to anyone, with no password, because it reads only the database's public views and
+// serves only photos of listed puppies. The portal and the admin keep their TEST_GATE password.
 {
   "name": "puppyconnection-site",
   "main": "worker.js",
@@ -13,6 +14,5 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "puppyconnection", "database_id": "14098e79-5576-4a93-b187-b68bca246724" }
   ],
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
-  "vars": { "DEV_MODE": "hosted-test" }
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }]
 }

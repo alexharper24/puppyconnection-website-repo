@@ -5,7 +5,7 @@
 import {
   now, addDays, addMinutes, ulid, randomToken, sha256hex, slugify, esc, clean, cents,
   HttpError, notFound, forbidden, bad, json, html, redirect, readJson, requireSameOrigin,
-  parseCookies, sessionCookieName, setCookie, isLocal, SECURITY_HEADERS, withHeaders,
+  parseCookies, sessionCookieName, setCookie, isLocal, SECURITY_HEADERS, withHeaders, gate,
 } from '../lib/util.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
@@ -669,6 +669,8 @@ const ROUTES = [
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
+    const locked = gate(request, env);
+    if (locked) return locked;
     try {
       for (const [method, rx, fn] of ROUTES) {
         const m = url.pathname.match(rx);

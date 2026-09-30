@@ -43,6 +43,46 @@ Both Workers share one local database and one file store because they run with t
 `--persist-to` folder. Wrangler comes from Teapup's editor, because `npm install` does not
 work from this account.
 
+## The hosted test deployment
+
+The same code, deployed to Alex's Cloudflare account (the one Teapup and Bless Your Paws
+use) on 2026-09-30, so the journey can be tested from any browser.
+
+| Address | What it is |
+|---|---|
+| https://puppyconnection-portal.alexharper.workers.dev | The breeder portal |
+| https://puppyconnection-portal.alexharper.workers.dev/dev/mail | The test mailbox |
+| https://puppyconnection-admin.alexharper.workers.dev | Amber's operator screens |
+| https://puppyconnection-site.alexharper.workers.dev | The public site, built live from the database on every page load |
+
+- **All three sit behind one password**, the `TEST_GATE` secret. The browser asks for it once
+  per address, and the user name can be anything. It lives only in Cloudflare and in
+  `app/.state/test-access.txt` on Alex's machine, which is gitignored.
+- **`DEV_MODE=hosted-test` switches on the mailbox, the practice checkout and the operator
+  stand-in**, and only while `TEST_GATE` is set. Without the secret every request gets a 503.
+- **The data is separate from everything else.** The database is `puppyconnection` (D1) and
+  the photos are in `puppyconnection-files` (R2), both new. It started from the same seed as
+  the local copy.
+- **Each Worker has its own config**, `wrangler.hosted.jsonc`, beside its local
+  `wrangler.jsonc`.
+
+To redeploy after a change, run this from the `app` folder,
+with `W` standing for `node ../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js`.
+
+```bash
+(cd portal && $W deploy --config wrangler.hosted.jsonc) && (cd admin && $W deploy --config wrangler.hosted.jsonc) && node dev/build-site.mjs && (cd site && $W deploy --config wrangler.hosted.jsonc)
+```
+
+To run the journey test against it:
+
+```bash
+TEST_GATE=<the password> PORTAL=https://puppyconnection-portal.alexharper.workers.dev ADMIN=https://puppyconnection-admin.alexharper.workers.dev node dev/e2e.mjs
+```
+
+To take it down, delete the three Workers in the dashboard, or remove `TEST_GATE` so every
+request is refused. The access tests (`dev/access-tests.mjs`) run against the local copy
+only, because they write to the database directly.
+
 ## Walking the journey
 
 1. At the portal, enter any `@breeders.test` address and a business name.

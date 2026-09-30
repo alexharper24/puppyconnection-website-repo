@@ -1,0 +1,26 @@
+// The hosted TEST deployment of the portal, on Alex's account (the Teapup one).
+// Deploy from app/portal:  wrangler deploy --config wrangler.hosted.jsonc
+// DEV_MODE hosted-test turns on the local mailbox and the practice checkout here, and only
+// once the TEST_GATE secret is set, which also puts a password in front of every request.
+// Without that secret the Worker answers 503 to everything. Production gets its own config.
+{
+  "name": "puppyconnection-portal",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-18",
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true, "html_handling": "none" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "14098e79-5576-4a93-b187-b68bca246724" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }],
+  "vars": {
+    "PORTAL_ORIGIN": "https://puppyconnection-portal.alexharper.workers.dev",
+    "ADMIN_ORIGIN": "https://puppyconnection-admin.alexharper.workers.dev",
+    "DEV_MODE": "hosted-test",
+    "EMAIL_MODE": "log",
+    "PAYMENTS_MODE": "sim"
+  }
+}

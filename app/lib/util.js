@@ -133,9 +133,38 @@ export function setCookie(request, name, value, maxAge) {
   return `${name}=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${secure ? '; Secure' : ''}`;
 }
 
+/**
+ * Whether the simulation's helpers (the mailbox, the practice checkout, the operator
+ * stand-in) may run. Two cases only: DEV_MODE "local" on localhost, or DEV_MODE
+ * "hosted-test" with the TEST_GATE secret set, where gate() below has already made every
+ * request prove it knows the password. Anything else is production, where they are off.
+ */
 export function isLocal(request, env) {
+  if (env.DEV_MODE === 'hosted-test') return !!env.TEST_GATE;
   const host = new URL(request.url).hostname;
   return env.DEV_MODE === 'local' && (host === 'localhost' || host === '127.0.0.1');
+}
+
+/**
+ * The password in front of a hosted test deployment. Only active with DEV_MODE
+ * "hosted-test", and it fails closed: the mode without the secret refuses everything.
+ * Returns a Response to send back, or null to carry on.
+ */
+export function gate(request, env) {
+  if (env.DEV_MODE !== 'hosted-test') return null;
+  if (!env.TEST_GATE) return new Response('This test environment is not set up.', { status: 503 });
+  const m = (request.headers.get('authorization') || '').match(/^Basic\s+(.+)$/i);
+  if (m) {
+    try {
+      const decoded = atob(m[1]);
+      const pass = decoded.slice(decoded.indexOf(':') + 1);
+      if (timingSafeEqual(pass, env.TEST_GATE)) return null;
+    } catch { /* fall through to the challenge */ }
+  }
+  return new Response('The Puppy Connection test environment needs its password.', {
+    status: 401,
+    headers: { 'www-authenticate': 'Basic realm="Puppy Connection test", charset="UTF-8"', 'cache-control': 'no-store' },
+  });
 }
 
 export function clean(v, max = 500) {

@@ -1,0 +1,27 @@
+// The hosted TEST deployment of the operator screens, on Alex's account.
+// Deploy from app/admin:  wrangler deploy --config wrangler.hosted.jsonc
+// In hosted-test mode the TEST_GATE password stands in for Cloudflare Access, and whoever
+// passes it is the operator named in DEV_IDENTITY. Without the secret everything is 503.
+{
+  "name": "puppyconnection-admin",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-18",
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true, "html_handling": "none" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "14098e79-5576-4a93-b187-b68bca246724" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  "vars": {
+    "PORTAL_ORIGIN": "https://puppyconnection-portal.alexharper.workers.dev",
+    "ADMIN_ORIGIN": "https://puppyconnection-admin.alexharper.workers.dev",
+    "DEV_MODE": "hosted-test",
+    "EMAIL_MODE": "log",
+    "PAYMENTS_MODE": "sim",
+    "DEV_IDENTITY": "amber@puppyconnection.test",
+    "ACCESS_TEAM_DOMAIN": "PASTE_TEAM_DOMAIN",
+    "ACCESS_AUD": "PASTE_APPLICATION_AUD"
+  }
+}

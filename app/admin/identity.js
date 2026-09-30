@@ -72,7 +72,10 @@ async function verifyAssertion(request, env) {
  * arrived on localhost.
  */
 function devIdentity(request, env) {
-  if (!env.DEV_IDENTITY || env.DEV_MODE !== 'local') return null;
+  if (!env.DEV_IDENTITY) return null;
+  // A hosted test deployment, where the worker's gate() has already checked TEST_GATE.
+  if (env.DEV_MODE === 'hosted-test' && env.TEST_GATE) return { ok: true, email: env.DEV_IDENTITY, dev: true };
+  if (env.DEV_MODE !== 'local') return null;
   const host = new URL(request.url).hostname;
   if (host !== 'localhost' && host !== '127.0.0.1') return null;
   return { ok: true, email: env.DEV_IDENTITY, dev: true };

@@ -16,6 +16,10 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PORTAL = process.env.PORTAL || 'http://localhost:8787';
 const ADMIN = process.env.ADMIN || 'http://localhost:8788';
 
+// Against the hosted test deployment, TEST_GATE carries the password (read from
+// app/.state/test-access.txt, never typed into the script).
+const AUTH = process.env.TEST_GATE ? { authorization: `Basic ${Buffer.from(`tester:${process.env.TEST_GATE}`).toString('base64')}` } : {};
+
 let failures = 0;
 function check(label, ok, detail) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${label}${!ok && detail ? `\n      ${detail}` : ''}`);
@@ -26,7 +30,7 @@ function check(label, ok, detail) {
 export class Client {
   constructor(base) { this.base = base; this.cookie = ''; }
   async req(method, p, body, extra = {}) {
-    const headers = { origin: this.base, ...(extra.headers || {}) };
+    const headers = { origin: this.base, ...AUTH, ...(extra.headers || {}) };
     if (this.cookie) headers.cookie = this.cookie;
     let payload = body;
     if (body && !(body instanceof Uint8Array) && !(body instanceof URLSearchParams)) {
@@ -114,12 +118,12 @@ async function main() {
     r = await c.req('POST', `/api/puppies/${id}/photos`, jpg, { headers: { 'content-type': 'image/jpeg' } });
     check('a photo uploads', r.status === 201, JSON.stringify(r.data));
   }
-  const served = await fetch(`${PORTAL}${r.data.url}`, { headers: { cookie: c.cookie } });
+  const served = await fetch(`${PORTAL}${r.data.url}`, { headers: { cookie: c.cookie, ...AUTH } });
   const bytes = new Uint8Array(await served.arrayBuffer());
   const asText = Buffer.from(bytes).toString('latin1');
   check('the stored photo has its GPS and camera metadata stripped', !asText.includes('Exif') && !asText.includes('SimCam') && bytes.length < jpg.length,
     `stored ${bytes.length} bytes against ${jpg.length}`);
-  const stranger = await fetch(`${PORTAL}${r.data.url}`);
+  const stranger = await fetch(`${PORTAL}${r.data.url}`, { headers: AUTH });
   check('an unpublished photo is not served to a stranger', stranger.status === 404);
 
   // Pay for two puppies through the simulated Stripe page

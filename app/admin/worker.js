@@ -309,7 +309,19 @@ async function media(req, env, ctx, id) {
   return new Response(obj.body, { headers: { 'content-type': photo.content_type || 'application/octet-stream', 'cache-control': 'private, no-store' } });
 }
 
+/** Every test email, for the operator. Only in a test mode, behind the admin's own gate. */
+async function devMail(req, env) {
+  if (env.EMAIL_MODE !== 'log' || !['local', 'hosted-test'].includes(env.DEV_MODE)) throw notFound();
+  const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
+  const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><link rel="stylesheet" href="/portal.css"></head>
+<body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
+  { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
+}
+
 const ROUTES = [
+  ['GET', /^\/dev\/mail$/, devMail],
   ['GET', /^\/api\/whoami$/, whoami],
   ['GET', /^\/api\/stats$/, stats],
   ['GET', /^\/api\/breeders$/, listBreeders],

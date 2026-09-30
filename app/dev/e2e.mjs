@@ -28,7 +28,8 @@ function check(label, ok, detail) {
 }
 
 export class Client {
-  constructor(base) { this.base = base; this.cookie = ''; }
+  constructor(base) { this.base = base; this.jar = {}; }
+  get cookie() { return Object.entries(this.jar).map(([k, v]) => `${k}=${v}`).join('; '); }
   async req(method, p, body, extra = {}) {
     const headers = { origin: this.base, ...AUTH, ...(extra.headers || {}) };
     if (this.cookie) headers.cookie = this.cookie;
@@ -38,8 +39,11 @@ export class Client {
       payload = JSON.stringify(body);
     }
     const res = await fetch(this.base + p, { method, headers, body: payload, redirect: 'manual' });
-    const set = res.headers.get('set-cookie');
-    if (set) this.cookie = set.split(';')[0];
+    for (const set of res.headers.getSetCookie ? res.headers.getSetCookie() : [res.headers.get('set-cookie')].filter(Boolean)) {
+      const [pair] = set.split(';');
+      const i = pair.indexOf('=');
+      this.jar[pair.slice(0, i)] = pair.slice(i + 1);
+    }
     const text = await res.text();
     let data = text;
     try { data = JSON.parse(text); } catch { /* html or empty */ }
@@ -88,8 +92,9 @@ async function main() {
   check('the profile saves', r.status === 200, JSON.stringify(r.data));
   r = await c.post('/api/profile/submit', { accept_terms: true });
   check('the profile submits for approval', r.status === 200 && !!r.data.profile_submitted_at, JSON.stringify(r.data));
-  const amberMail = await c.get('/dev/mail.json?to=amber%40puppyconnection.test');
-  check('Amber was emailed about the new breeder', amberMail.data.some((m) => m.subject.includes(`E2E Kennel ${stamp}`)));
+  // Amber's mail is read from the admin's own mailbox, which the portal does not show.
+  const amberMail = await admin.get('/dev/mail');
+  check('Amber was emailed about the new breeder', String(amberMail.data).includes(`E2E Kennel ${stamp}`));
 
   // Approval
   const queue = await admin.get('/api/breeders?status=queue');

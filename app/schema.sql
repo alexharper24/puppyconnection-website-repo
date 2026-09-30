@@ -254,6 +254,15 @@ CREATE TABLE IF NOT EXISTS dev_mailbox (
   sent_at  TEXT NOT NULL
 );
 
+-- TEST ONLY. Which browser asked for mail to which address, so the open test portal's
+-- mailbox shows each visitor only their own messages. The token is a random cookie.
+CREATE TABLE IF NOT EXISTS dev_mailbox_owners (
+  token      TEXT NOT NULL,
+  email      TEXT NOT NULL COLLATE NOCASE,
+  created_at TEXT NOT NULL,
+  PRIMARY KEY (token, email)
+);
+
 -- LOCAL SIMULATION ONLY. The stand-in for Stripe's Checkout Session objects, used while
 -- PAYMENTS_MODE is "sim". Shaped like the fields fulfillCheckout reads from Stripe.
 CREATE TABLE IF NOT EXISTS sim_sessions (

@@ -90,14 +90,14 @@
     var c = state.config || {};
     app.innerHTML = '<main class="plain-card"><span class="brandmark">Puppy Connection</span>' +
       (sent ? '<h1>Check your email</h1><p>' + esc(sent) + '</p>' +
-        (c.local && c.email_mode === 'log' ? '<p class="sim-flag">Simulation: nothing is emailed. <a href="/dev/mail">Open the local mailbox</a> to find the link.</p>' : '') +
+        (c.local && c.email_mode === 'log' ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your link.</p>' : '') +
         '<p class="muted small">Wrong address? <a href="/" data-restart>Start again</a>.</p>'
       : '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection. Enter your email and we will send you a link to sign in, with no password to remember.</p>' +
         '<form id="signin" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>' +
         '<div class="field"><label for="bn">Business name <span class="muted">(new breeders)</span></label><input id="bn" name="business_name" type="text" autocomplete="organization"></div>' +
         (c.turnstile_site_key ? '<div class="field"><div class="cf-turnstile" data-sitekey="' + esc(c.turnstile_site_key) + '" data-action="auth"></div></div>' : '') +
         '<button class="btn btn-primary" type="submit">Email me a sign-in link</button></form>' +
-        (c.local ? '<p class="sim-flag" style="margin-top:1rem">Local simulation. Email is shown in the <a href="/dev/mail">local mailbox</a> and payments are simulated.</p>' : '')) +
+        (c.local ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '')) +
       '</main>';
     var r = $('[data-restart]'); if (r) r.addEventListener('click', function (e) { e.preventDefault(); renderSignIn(); });
     if (c.turnstile_site_key && !window.turnstile) {
@@ -137,7 +137,7 @@
       '<div class="shell"><nav class="rail" aria-label="Portal">' +
       NAV.map(function (n) { return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="on" aria-current="page"' : '') + '>' + esc(n[1]) + '</a>'; }).join('') +
       '</nav><main class="work"><div class="inner">' +
-      (me.payments_mode === 'sim' ? '<p class="notice notice-sim">Local simulation. Payments go to a practice checkout page and no card is charged. Email appears in the <a href="/dev/mail" target="_blank" rel="noopener">local mailbox</a>.</p>' : '') +
+      (me.payments_mode === 'sim' ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
       inner + '</div></main></div>';
     $('#signout').addEventListener('click', function () {
       api('POST', '/auth/signout', {}).then(function () { state.me = null; location.hash = '#/'; render(); });

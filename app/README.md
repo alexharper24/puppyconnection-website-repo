@@ -51,13 +51,22 @@ use) on 2026-09-30, so the journey can be tested from any browser.
 | Address | What it is |
 |---|---|
 | https://puppyconnection-portal.alexharper.workers.dev | The breeder portal |
-| https://puppyconnection-portal.alexharper.workers.dev/dev/mail | The test mailbox |
+| https://puppyconnection-portal.alexharper.workers.dev/dev/mail | The test mailbox, showing your own sign-in links |
 | https://puppyconnection-admin.alexharper.workers.dev | Amber's operator screens |
 | https://puppyconnection-site.alexharper.workers.dev | The public site, built live from the database on every page load |
 
-- **The portal and the admin sit behind one password**, the `TEST_GATE` secret. The browser
-  asks for it once per address, and the user name can be anything. The site has no password,
-  because it reads only the public views and serves only photos of listed puppies. It lives only in Cloudflare and in
+- **The portal has no password**, so sign-up is tested the way a breeder meets it. It runs as
+  `DEV_MODE=hosted-open`, where the test mailbox shows each browser only the mail for
+  addresses that browser signed up with, and a practice checkout opens only for the breeder
+  who started it. `dev/open-portal-check.mjs` proves both against the live copy.
+- **The admin keeps one password**, the `TEST_GATE` secret, because it is Amber's side. The
+  browser asks for it once, and the user name can be anything. Every test email, including
+  Amber's notifications, is in the admin's own mailbox at `/dev/mail`.
+- **The site has no password**, because it reads only the public views and serves only photos
+  of listed puppies.
+- **After running `dev/e2e.mjs` against the live copy, remove its test breeders**, or they
+  show on the public site. `app/.state/remove-e2e.sql` deletes every `e2e-` address and its
+  rows. Delete their photo files from `puppyconnection-files` as well. It lives only in Cloudflare and in
   `app/.state/test-access.txt` on Alex's machine, which is gitignored.
 - **`DEV_MODE=hosted-test` switches on the mailbox, the practice checkout and the operator
   stand-in**, and only while `TEST_GATE` is set. Without the secret every request gets a 503.
@@ -80,8 +89,8 @@ To run the journey test against it:
 TEST_GATE=<the password> PORTAL=https://puppyconnection-portal.alexharper.workers.dev ADMIN=https://puppyconnection-admin.alexharper.workers.dev node dev/e2e.mjs
 ```
 
-To take it down, delete the three Workers in the dashboard, or remove `TEST_GATE` from the
-portal and the admin so every request to them is refused. The access tests (`dev/access-tests.mjs`) run against the local copy
+To take it down, delete the three Workers in the dashboard. Removing `TEST_GATE` from the
+admin makes it refuse every request. The access tests (`dev/access-tests.mjs`) run against the local copy
 only, because they write to the database directly.
 
 ## Walking the journey

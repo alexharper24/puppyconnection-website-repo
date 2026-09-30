@@ -141,6 +141,9 @@ export function setCookie(request, name, value, maxAge) {
  */
 export function isLocal(request, env) {
   if (env.DEV_MODE === 'hosted-test') return !!env.TEST_GATE;
+  // The open test portal. No password, so the mailbox shows each browser only the mail for
+  // addresses it signed up with, and the practice checkout opens only for its own breeder.
+  if (env.DEV_MODE === 'hosted-open') return true;
   const host = new URL(request.url).hostname;
   return env.DEV_MODE === 'local' && (host === 'localhost' || host === '127.0.0.1');
 }

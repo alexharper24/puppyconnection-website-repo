@@ -99,6 +99,13 @@ async function authStart(request, env, ctx) {
   ).bind(await sha256hex(token), email, existing?.id || null, purpose, clean(body.business_name, 120), ip, t, addMinutes(t, TOKEN_MINUTES)).run();
   const link = `${new URL(request.url).origin}/auth/verify?t=${encodeURIComponent(token)}`;
   ctx.waitUntil(sendMail(env, email, 'signin_link', { link, purpose }).catch((e) => console.error('sign-in mail failed', e)));
+  if (env.EMAIL_MODE === 'log' && isLocal(request, env)) {
+    // Test only: tie this address to this browser, so the mailbox can show it to them alone.
+    let box = parseCookies(request).pc_mailbox;
+    if (!box || !/^[\w-]{40,50}$/.test(box)) box = randomToken();
+    await env.DB.prepare('INSERT OR IGNORE INTO dev_mailbox_owners (token, email, created_at) VALUES (?, ?, ?)').bind(box, email, t).run();
+    return json(neutral, 200, { 'set-cookie': setCookie(request, 'pc_mailbox', box, 30 * 86400) });
+  }
   return json(neutral);
 }
 
@@ -549,19 +556,22 @@ async function checkoutCancel(request, env) {
 
 // ------------------------------------------------------------------ simulated Stripe (local only)
 
-function simAllowed(request, env) {
+async function simAllowed(request, env, sessionId) {
   if (env.PAYMENTS_MODE !== 'sim' || !isLocal(request, env)) throw notFound();
+  const s = await currentSession(request, env);
+  const co = await env.DB.prepare('SELECT breeder_id FROM checkouts WHERE stripe_session_id = ?').bind(sessionId).first();
+  if (!s || !co || co.breeder_id !== s.breeder.id) throw notFound();
 }
 
 async function simCheckoutPage(request, env, ctx, id) {
-  simAllowed(request, env);
+  await simAllowed(request, env, id);
   const s = await sim.retrieveSession(env, id);
   const money = (c) => `$${(c / 100).toFixed(2)}`;
   const q = s.line_items.data[0].quantity;
   if (s.status !== 'open') {
     return html(page('Checkout closed', `<h1>This checkout is ${esc(s.status)}</h1><p><a href="/#/listings">Back to your listings</a></p>`));
   }
-  return html(page('Simulated checkout', `<p class="sim-flag">Simulated payment page. No card is charged and Stripe is not contacted.</p>
+  return html(page('Simulated checkout', `<p class="sim-flag">Practice checkout for the test version. No card is charged.</p>
 <h1>Pay to list</h1>
 <table class="sim-table"><tr><td>Puppy listing x ${q}</td><td>${money(s.line_items.data[0].price.unit_amount)} each</td></tr>
 <tr class="sim-total"><td>Total</td><td>${money(s.amount_total)}</td></tr></table>
@@ -574,7 +584,7 @@ async function simCheckoutPage(request, env, ctx, id) {
 }
 
 async function simPay(request, env, ctx, id) {
-  simAllowed(request, env);
+  await simAllowed(request, env, id);
   requireSameOrigin(request);
   const form = await request.formData();
   const event = await sim.pay(env, id);
@@ -583,7 +593,7 @@ async function simPay(request, env, ctx, id) {
 }
 
 async function simCancel(request, env, ctx, id) {
-  simAllowed(request, env);
+  await simAllowed(request, env, id);
   requireSameOrigin(request);
   const s = await sim.retrieveSession(env, id);
   return redirect(s.cancel_url);
@@ -603,20 +613,30 @@ async function stripeWebhook(request, env, ctx) {
 
 // ------------------------------------------------------------------ local mailbox
 
+/** In the open test portal, only the mail for addresses this browser signed up with. */
+function mailboxScope(request, env) {
+  if (env.DEV_MODE !== 'hosted-open') return { where: '', binds: [] };
+  const box = parseCookies(request).pc_mailbox || '-';
+  return { where: 'WHERE to_addr IN (SELECT email FROM dev_mailbox_owners WHERE token = ?)', binds: [box] };
+}
+
 async function devMail(request, env) {
   if (!isLocal(request, env) || env.EMAIL_MODE !== 'log') throw notFound();
-  const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 50').all();
+  const scope = mailboxScope(request, env);
+  const { results } = await env.DB.prepare(`SELECT * FROM dev_mailbox ${scope.where} ORDER BY id DESC LIMIT 50`).bind(...scope.binds).all();
   const rows = results.map((m) => `<article class="mail"><header><b>${esc(m.subject)}</b><span>${esc(m.to_addr)} at ${esc(m.sent_at)}</span></header>
 <pre>${esc(m.body)}</pre>${m.link ? `<a class="btn btn-primary" href="${esc(m.link)}">Open the link</a>` : ''}</article>`).join('');
-  return html(page('Local mailbox', `<p class="sim-flag">Local mailbox. EMAIL_MODE is "log", so nothing was sent.</p>
-<h1>Mail</h1>${rows || '<p>No mail yet.</p>'}`));
+  return html(page('Test mailbox', `<p class="sim-flag">Test mailbox. Nothing is really emailed. This shows the mail for addresses you signed up with in this browser.</p>
+<h1>Mail</h1>${rows || '<p>No mail yet. Sign up or ask for a sign-in link first, and it appears here.</p>'}<p><a href="/">Back to the portal</a></p>`));
 }
 
 async function devMailJson(request, env) {
   if (!isLocal(request, env) || env.EMAIL_MODE !== 'log') throw notFound();
   const to = new URL(request.url).searchParams.get('to');
-  const { results } = await env.DB.prepare(`SELECT * FROM dev_mailbox ${to ? 'WHERE to_addr = ?' : ''} ORDER BY id DESC LIMIT 20`)
-    .bind(...(to ? [to] : [])).all();
+  const scope = mailboxScope(request, env);
+  const where = [scope.where.replace(/^WHERE /, ''), to ? 'to_addr = ?' : ''].filter(Boolean).join(' AND ');
+  const { results } = await env.DB.prepare(`SELECT * FROM dev_mailbox ${where ? `WHERE ${where}` : ''} ORDER BY id DESC LIMIT 20`)
+    .bind(...scope.binds, ...(to ? [to] : [])).all();
   return json(results);
 }
 

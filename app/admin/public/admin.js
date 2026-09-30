@@ -80,7 +80,7 @@
         return '<a href="#/' + n[0] + '" aria-label="' + esc(n[1] + (n[2] ? ', ' + n[2] : '')) + '"' + (route === n[0] ? ' class="on" aria-current="page"' : '') + '><span>' + esc(n[1]) + '</span>' +
           (n[2] ? '<span class="count">' + n[2] + '</span>' : '') + '</a>';
       }).join('') + '</nav><main class="work"><div class="inner">' +
-      (state.who.dev ? '<p class="notice notice-sim">Local simulation. You are signed in as ' + esc(state.who.email) + ' through DEV_IDENTITY, which stands in for Cloudflare Access. Email is in the <a href="' + esc(state.who.portal) + '/dev/mail" target="_blank" rel="noopener">local mailbox</a>, and payments are ' + esc(state.who.payments_mode) + '.</p>' : '') +
+      (state.who.dev ? '<p class="notice notice-sim">Local simulation. You are signed in as ' + esc(state.who.email) + ' through DEV_IDENTITY, which stands in for Cloudflare Access. Every test email is in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>, and payments are ' + esc(state.who.payments_mode) + '.</p>' : '') +
       inner + '</div></main></div>';
   }
 

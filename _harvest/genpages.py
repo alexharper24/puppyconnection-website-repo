@@ -9,12 +9,12 @@ import os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pages  # noqa: E402
 
-CSS_V, JS_V, DATA_V = 23, 26, 9
+CSS_V, JS_V, DATA_V = 23, 28, 9
 
 src = io.open('index.html', encoding='utf-8').read()
 head = src.split('<title>')[0]
 # the header runs to the home page's <main>, so the skip link travels with it
-hdr = src[src.index('<div class="demo-flag">'):src.index('<main id="home">')]
+hdr = src[src.index('<a class="skip-link"'):src.index('<main id="home">')]
 ftr = src[src.index('<footer class="site-footer">'):src.index('</footer>') + len('</footer>')]
 
 FONTS = (

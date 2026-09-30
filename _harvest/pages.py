@@ -117,10 +117,10 @@ BREEDERS_INDEX = """<main id="breederIndex-page">
     <div class="sec-head">
       <div>
         <p class="eyebrow">Profiles</p>
-        <h2>Written breeder profiles</h2>
+        <h2>Breeder profiles</h2>
       </div>
     </div>
-    <p class="lede" style="margin-bottom:1.5rem">Puppy Connection has written profiles for these breeders. In the live catalog they are not yet linked to listings, which is one of the joins worth making.</p>
+    <p class="lede" style="margin-bottom:1.5rem">Get to know some of the breeders who list their puppies on Puppy Connection.</p>
     <div class="grid grid-3" id="profileExamples"></div>
   </div>
 </section>

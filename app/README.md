@@ -101,7 +101,7 @@ simulation cannot email a real breeder.
   GPS and published photos land in this public repository.
 - `GET /auth/verify` changes nothing and shows a button. Only the `POST` spends the link,
   because mail scanners open every link first.
-- `dev/preview.mjs` patches its own copy of the concept's `js/main.js` in four places, which
+- `dev/preview.mjs` patches its own copy of the concept's `js/main.js` in several places, which
   are listed in the script. The live concept is never changed. The patches exist because
   the concept groups breeders by website domain and assumes every photo is on Wix.
 - The admin and the portal share `portal/public/portal.css`. `setup.mjs` copies it into the

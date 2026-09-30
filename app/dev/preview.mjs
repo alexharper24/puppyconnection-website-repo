@@ -70,10 +70,6 @@ const patches = [
     "if (!seen[s]) seen[s] = { slug: s, name: breederLabel(l), domain: /\\.puppyconnection$/.test(l.breeder_domain) ? '' : l.breeder_domain, listings: [] };"],
   ["'<li><a href=\"https://' + esc(biz.domain) + '\" target=\"_blank\" rel=\"noopener\"><b>Website</b> ' + esc(biz.domain) + '</a></li>' +",
     "(biz.domain ? '<li><a href=\"https://' + esc(biz.domain) + '\" target=\"_blank\" rel=\"noopener\"><b>Website</b> ' + esc(biz.domain) + '</a></li>' : '') +"],
-  // Patch 4. The concept labels every breeder page's copy as a demo example. A breeder whose
-  // own profile matched in patch 2 is showing their own words, so the note is dropped.
-  ["(biz ? '<p class=\"demo-note\">Profile copy below is an example",
-    "(biz && !prof ? '<p class=\"demo-note\">Profile copy below is an example"],
 ];
 for (const [a, b] of patches) {
   if (!js.includes(a)) { console.error(`preview patch no longer matches js/main.js:\n${a}`); process.exit(1); }

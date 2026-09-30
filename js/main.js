@@ -482,10 +482,10 @@
     document.querySelector('#pName').textContent = name;
     document.querySelector('#pPeople').textContent = biz ? biz.domain : (prof.people || '');
 
-    var body = prof ? prof.body : (BREEDERS[0] ? BREEDERS[0].body : []);
+    /* A breeder's page shows only that breeder's own profile copy. With none written, it shows
+       none, rather than borrowing another kennel's words and people. */
+    var body = prof ? prof.body : [];
     document.querySelector('#pBody').innerHTML =
-      (biz ? '<p class="demo-note">Profile copy below is an example from her existing breeder pages. ' +
-        'The live catalog does not yet link listings to profiles.</p>' : '') +
       body.map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('');
 
     var logo = document.querySelector('#pLogo');
@@ -509,7 +509,7 @@
     }
 
     document.querySelector('#pCount').textContent = theirs.length;
-    renderInto('#pListings', theirs, 'This profile is not yet linked to listings in the live catalog.');
+    renderInto('#pListings', theirs, 'No puppies are listed by this breeder right now.');
 
     var all = document.querySelector('#pAll');
     if (all) {

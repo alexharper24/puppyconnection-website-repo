@@ -17,3 +17,11 @@ __pycache__/
 Thumbs.db
 .DS_Store
 desktop.ini
+
+# Local simulation (app/). The database, uploaded files, the preview copy of the site and
+# the local-only settings never leave this machine.
+app/.state/
+app/.preview/
+app/**/.dev.vars
+.wrangler/
+app/**/.wrangler/

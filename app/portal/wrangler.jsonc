@@ -1,0 +1,45 @@
+{
+  "$schema": "../../../teapup-website-repo/admin/node_modules/wrangler/config-schema.json",
+  "name": "pc-portal",
+  "main": "worker.js",
+  // 2026-08-18 because the local workerd binary refuses anything newer (breeder-site-backend
+  // architecture). A deployed Worker would accept a current date.
+  "compatibility_date": "2026-08-18",
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS",
+    // Every request goes through the Worker first, so the API and the auth pages are never
+    // shadowed by a static file, and html_handling none stops / and /index.html redirecting
+    // to each other forever (both are Teapup lessons).
+    "run_worker_first": true,
+    "html_handling": "none"
+  },
+
+  // ONE database and ONE bucket, shared with pc-admin. The id is a placeholder until the
+  // database is created in Amber's account ("wrangler d1 create puppyconnection"). Locally,
+  // both Workers run with --persist-to app/.state so they read the same files.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "00000000-0000-4000-8000-000000000c01" }
+  ],
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "puppyconnection-files" }
+  ],
+
+  // Burst limit on sign-in link requests. Counted per Cloudflare location and not exact, so
+  // the per-address limit lives in D1 (spec 6.1).
+  "ratelimits": [
+    { "name": "AUTH_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }
+  ],
+
+  // Nothing here switches on the simulation. EMAIL_MODE, PAYMENTS_MODE and DEV_MODE come
+  // from .dev.vars locally (gitignored, see .dev.vars.example). Deployed without them, the
+  // portal sends no mail and takes no payments, which is the safe failure.
+  "vars": {
+    "PORTAL_ORIGIN": "http://localhost:8787",
+    "ADMIN_ORIGIN": "http://localhost:8788"
+  }
+}

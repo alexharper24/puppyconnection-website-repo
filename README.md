@@ -340,6 +340,8 @@ every page, with a puppy page for each of the four breeders.
 - [ ] Change `BASE` in `_harvest/genpages.py` at cutover and regenerate
 - [ ] Generate breed, breeder and puppy pages as real static files with the Teapup
       generator, chosen 2026-09-28 (`_claude-state.md`, pc-static-pages)
+- [ ] Walk the local simulation of the breeder portal and operator screens (`app/README.md`)
+      and decide whether it gets pushed with this repo
 - [ ] Review the breed guide drafts for all 25 breeds before any go into the build. They
       live outside this repo in `hs-seo-data/puppyconnection/2026-09-28/content/`, with
       the page map and a review list (`_claude-state.md`, pc-guides)

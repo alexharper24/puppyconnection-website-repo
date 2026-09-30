@@ -1,0 +1,10 @@
+# Local simulation settings for pc-portal. Copy to .dev.vars (gitignored); app/dev/setup.mjs
+# does it for you. Never put these in wrangler.jsonc.
+DEV_MODE=local
+EMAIL_MODE=log
+PAYMENTS_MODE=sim
+# Turnstile is skipped locally when these are empty. Cloudflare publishes always-pass test
+# keys for trying the widget: site key 1x00000000000000000000AA and secret
+# 1x0000000000000000000000000000000AA.
+TURNSTILE_SITE_KEY=
+TURNSTILE_SECRET=

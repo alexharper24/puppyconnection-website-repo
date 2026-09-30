@@ -1,0 +1,8 @@
+# Local simulation settings for pc-admin. Copy to .dev.vars (gitignored); app/dev/setup.mjs
+# does it for you. Never put these in wrangler.jsonc.
+DEV_MODE=local
+EMAIL_MODE=log
+PAYMENTS_MODE=sim
+# Stands in for Cloudflare Access, and only on localhost. The address must be in the people
+# table, which the seed does for this one.
+DEV_IDENTITY=amber@puppyconnection.test

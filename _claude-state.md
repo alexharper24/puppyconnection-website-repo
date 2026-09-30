@@ -2,7 +2,7 @@
 name: puppyconnection-website-repo
 description: Project state for Puppy Connection, read first every session
 kind: other                 # listing directory, not a breeder. See pc-strategy-row
-updated: 2026-09-28
+updated: 2026-09-30
 gate: G1                    # concept is built and in review, but discovery was skipped and every later gate depends on it
 review_url: "https://alexharper24.github.io/puppyconnection-website-repo/"
 live_url: "https://www.puppy-connection.com/"
@@ -46,6 +46,7 @@ closed:
   - {id: g1-money-searches, closed: 2026-09-28, evidence: "Keyword method run in full with a directory config, 623 of 623 template searches returned and 0 missing, competition measured on puppies.com for all 25 breeds, four results pages read. hs-seo-data/puppyconnection/2026-09-28/keyword-plan.md"}
   - {id: g3-noindex, closed: 2026-09-28, evidence: "site-audit run 2026-09-28, 8 of 8 pages carry noindex and robots.txt disallows all"}
 decisions:
+  - {date: 2026-09-30, decision: "Implementation spec written in the private proposals repo covering sign-up, approval, Stripe checkout and fulfillment, publishing, jobs and tests. Fulfillment is keyed on the Checkout Session, card is the only payment method, sign-in links are redeemed by POST so mail scanners cannot spend them, and photo metadata is stripped at upload because published photos land in this public repo"}
   - {date: 2026-09-28, decision: "Build on the Teapup stack. Breeders sign in with a one-time emailed link and no password, pending breeders can sign in to finish their profile but cannot list, pay or appear publicly until Amber approves them"}
   - {date: 2026-09-28, decision: "Each breed guide lives on its breed page under the listings, answering the price, full grown size and shedding searches there, instead of on separate guide pages, because 25 breeds would otherwise spread 75 thin pages across one directory"}
   - {date: 2026-09-28, decision: "Guide text is repo content and every listing figure in it (price range, deposit, parent weights, what is included) is a token the generator fills from the database, so no owner or breeder fact is typed into copy"}

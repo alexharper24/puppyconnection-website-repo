@@ -1,7 +1,9 @@
 // The hosted TEST deployment of the operator screens, on Alex's account.
 // Deploy from app/admin:  wrangler deploy --config wrangler.hosted.jsonc
-// In hosted-test mode the TEST_GATE password stands in for Cloudflare Access, and whoever
-// passes it is the operator named in DEV_IDENTITY. Without the secret everything is 503.
+// Signed in with Cloudflare Access on the shy-truth-7b36 team (the same sign-in as the Teapup
+// editor: email code or Google), and then the people table decides who is an operator.
+// DEV_MODE hosted-access keeps the test mailbox on and uses no password gate and no
+// DEV_IDENTITY. Until ACCESS_AUD is filled in, identity fails closed and every page is 403.
 {
   "name": "puppyconnection-admin",
   "main": "worker.js",
@@ -17,11 +19,10 @@
   "vars": {
     "PORTAL_ORIGIN": "https://puppyconnection-portal.alexharper.workers.dev",
     "ADMIN_ORIGIN": "https://puppyconnection-admin.alexharper.workers.dev",
-    "DEV_MODE": "hosted-test",
+    "DEV_MODE": "hosted-access",
     "EMAIL_MODE": "log",
     "PAYMENTS_MODE": "sim",
-    "DEV_IDENTITY": "amber@puppyconnection.test",
-    "ACCESS_TEAM_DOMAIN": "PASTE_TEAM_DOMAIN",
+    "ACCESS_TEAM_DOMAIN": "shy-truth-7b36",
     "ACCESS_AUD": "PASTE_APPLICATION_AUD"
   }
 }

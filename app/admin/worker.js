@@ -311,7 +311,7 @@ async function media(req, env, ctx, id) {
 
 /** Every test email, for the operator. Only in a test mode, behind the admin's own gate. */
 async function devMail(req, env) {
-  if (env.EMAIL_MODE !== 'log' || !['local', 'hosted-test'].includes(env.DEV_MODE)) throw notFound();
+  if (env.EMAIL_MODE !== 'log' || !['local', 'hosted-test', 'hosted-access'].includes(env.DEV_MODE)) throw notFound();
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');

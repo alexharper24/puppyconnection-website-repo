@@ -266,7 +266,7 @@
           (l.mom_weight_lb || l.dad_weight_lb ? '. Parents ' + (l.mom_weight_lb ? esc(l.mom_weight_lb) + ' lb mom' : '') + (l.mom_weight_lb && l.dad_weight_lb ? ', ' : '') + (l.dad_weight_lb ? esc(l.dad_weight_lb) + ' lb dad' : '') : '') + '</div></div>' +
           (canEdit ? '<div class="btn-row" style="margin:0"><button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button><button class="btn btn-sm btn-primary" data-add-puppy="' + esc(l.id) + '">Add a puppy</button></div>' : '') + '</div>' +
           (pups.length ? pups.map(function (x) {
-            var img = x.photos[0] ? '<img class="thumb" src="' + esc(x.photos[0].url) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
+            var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
             return '<div class="puppy-row">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + esc(money(x.price_cents)) +
               (x.sex ? ', ' + esc(x.sex) : '') + (x.color ? ', ' + esc(x.color) : '') + '. ' + x.photos.length + ' photo' + (x.photos.length === 1 ? '' : 's') + '</span>' +
               '<div class="chips">' + puppyChips(x) + '</div></div>' +
@@ -374,13 +374,61 @@
     return '<section style="margin-top:1.4rem"><h3>Photos</h3><p class="hint">The first photo is the cover. Location and camera details are removed when a photo is uploaded.</p>' +
       '<div class="photos" id="photos">' + x.photos.map(function (ph, i) {
         return '<div class="photo" data-id="' + esc(ph.id) + '">' + (i === 0 ? '<span class="pill pill-gold cover">Cover</span>' : '') +
-          '<img src="' + esc(ph.url) + '" alt="Photo ' + (i + 1) + ' of ' + esc(x.name) + '">' +
+          '<img src="' + esc(cardUrl(ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(x.name) + '">' +
           (canEdit ? '<div class="tools"><button type="button" data-move="-1" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>&larr;</button>' +
             '<button type="button" data-remove aria-label="Remove photo">Remove</button>' +
             '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' : '') + '</div>';
       }).join('') + '</div>' +
       (canEdit ? '<div class="upload"><label for="ph-input" class="btn btn-sm">Add photos</label><input id="ph-input" type="file" accept="image/*" multiple hidden>' +
         '<div class="hint">JPEG, PNG or WebP, up to 15 MB each.</div><p class="error" id="ph-error" hidden></p></div>' : '') + '</section>';
+  }
+
+  /* A phone photo can be 4 to 12 MB and 4000 px wide, and the site never shows one wider than
+     1200 px. Each photo is redrawn here before upload, once at FULL_EDGE for the puppy page
+     and once at CARD_EDGE for cards and thumbnails, as WebP where the browser can write it and
+     JPEG where it cannot. Redrawing also drops the camera metadata, which the server strips
+     again anyway. A file the browser cannot decode goes up as it is. */
+  var FULL_EDGE = 1600, CARD_EDGE = 640;
+  function cardUrl(u) { return /^\/media\/[\w-]+$/.test(u || '') ? u + '/card' : u; }
+  function decode(file) {
+    if (window.createImageBitmap) return createImageBitmap(file, { imageOrientation: 'from-image' });
+    return new Promise(function (ok, fail) {
+      var im = new Image(), u = URL.createObjectURL(file);
+      im.onload = function () { URL.revokeObjectURL(u); ok(im); };
+      im.onerror = function () { URL.revokeObjectURL(u); fail(new Error('decode')); };
+      im.src = u;
+    });
+  }
+  function draw(src, edge) {
+    var w = src.width, h = src.height, k = Math.min(1, edge / Math.max(w, h));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    var g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, c.width, c.height);
+    return new Promise(function (ok) {
+      c.toBlob(function (b) {
+        if (b && b.type === 'image/webp') return ok(b);
+        c.toBlob(function (j) { ok(j); }, 'image/jpeg', 0.85);
+      }, 'image/webp', 0.82);
+    });
+  }
+  function shrink(file) {
+    return decode(file).then(function (src) {
+      return draw(src, FULL_EDGE).then(function (full) {
+        return draw(src, CARD_EDGE).then(function (card) {
+          if (src.close) src.close();
+          // Keep the original when redrawing would not make it smaller, such as a small PNG.
+          return { full: full && full.size < file.size ? full : file, card: card };
+        });
+      });
+    }).catch(function () { return { full: file, card: null }; });
+  }
+  function uploadOne(puppyId, file) {
+    return shrink(file).then(function (s) {
+      return api('POST', '/api/puppies/' + puppyId + '/photos', undefined, s.full).then(function (r) {
+        // A missing card copy only means cards load the full photo, so its failure is not shown.
+        if (s.card) return api('POST', '/api/photos/' + r.id + '/card', undefined, s.card).catch(function () {});
+      });
+    });
   }
 
   function wirePhotos(d, x, canEdit) {
@@ -394,7 +442,7 @@
       errBox.hidden = true;
       var chain = Promise.resolve();
       files.forEach(function (file) {
-        chain = chain.then(function () { return api('POST', '/api/puppies/' + x.id + '/photos', undefined, file); });
+        chain = chain.then(function () { return uploadOne(x.id, file); });
       });
       chain.then(function () { toast(files.length === 1 ? 'Photo added' : files.length + ' photos added'); return reopen(); })
         .catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; reopen(); });
@@ -434,7 +482,7 @@
       if (me.status !== 'approved') html += '<p class="notice">Payments open once your account is approved and active.</p>';
       html += '<form id="payform" class="card"><h2>Ready to list</h2>' +
         (ready.length ? '<label class="check" for="all" style="margin-bottom:.4rem"><input type="checkbox" id="all" aria-label="Select all"> Select all</label>' + ready.map(function (r) {
-          var img = r.x.photos[0] ? '<img class="thumb" src="' + esc(r.x.photos[0].url) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
+          var img = r.x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(r.x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
           return '<label class="pay-row check"><input type="checkbox" name="p" value="' + esc(r.x.id) + '" aria-label="' + esc('Pay for ' + r.x.name) + '">' + img +
             '<span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' +
             (r.x.publication_state === 'published' ? 'Renew, listed until ' + esc(day(r.x.expires_at)) : r.x.publication_state === 'expired' ? 'Expired, relist' : 'Draft') + '</span></span></label>';

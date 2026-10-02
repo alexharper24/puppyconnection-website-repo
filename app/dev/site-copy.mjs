@@ -17,8 +17,11 @@ export const REPO = path.resolve(HERE, '../..');
 // no website gets a stand-in "<slug>.puppyconnection" from the export so the grouping still
 // works, and these keep that stand-in from being shown or linked as if it were a website.
 const PATCHES = [
-  ["  function wix(base, w, h) {\n    if (!base) return '';", "  function wix(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return base;"],
-  ["  function wixFit(base, w, h) {\n    if (!base) return '';", "  function wixFit(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return base;"],
+  ["  function wix(base, w, h) {\n    if (!base) return '';", "  function wix(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return pcMedia(base, w);"],
+  ["  function wixFit(base, w, h) {\n    if (!base) return '';", "  function wixFit(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return pcMedia(base, w);"],
+  // Patch 1b. An uploaded photo has a full copy and a small card copy, and a slot 640 px wide
+  // or less (cards, thumbnails, the breeder page photo) takes the card copy.
+  ["  /* \"fit\" letterboxes", "  function pcMedia(base, w) {\n    return w <= 640 && /\\/media\\/[\\w-]+$/.test(base) ? base + '/card' : base;\n  }\n  /* \"fit\" letterboxes"],
   ['var prof = BREEDERS.filter(function (x) { return x.slug === pslug; })[0];', 'var prof = BREEDERS.filter(function (x) { return x.slug === (pslug || bslug); })[0];'],
   ["var site = l.breeder_url || (l.breeder_domain ? 'https://' + l.breeder_domain : null);",
     "var site = l.breeder_url || (l.breeder_domain && !/\\.puppyconnection$/.test(l.breeder_domain) ? 'https://' + l.breeder_domain : null);"],

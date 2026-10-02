@@ -82,6 +82,7 @@ async function main() {
     uploadPhoto: ['POST', `/api/puppies/${B.draft}/photos`, JPG],
     orderPhotos: ['PUT', `/api/puppies/${B.draft}/photo-order`, { ids: [B.draftPhoto] }],
     deletePhoto: ['DELETE', `/api/photos/${B.draftPhoto}`, null],
+    uploadCard: ['POST', `/api/photos/${B.draftPhoto}/card`, JPG],
   };
   const covered = idRoutes.every((m) => attacks[m[3]]);
   check(0, `every id route in the portal router is attacked (${idRoutes.map((m) => m[3]).join(', ')})`, covered,

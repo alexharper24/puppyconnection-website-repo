@@ -130,6 +130,14 @@ async function main() {
     `stored ${bytes.length} bytes against ${jpg.length}`);
   const stranger = await fetch(`${PORTAL}${r.data.url}`, { headers: AUTH });
   check('an unpublished photo is not served to a stranger', stranger.status === 404);
+  const before = await fetch(`${PORTAL}${r.data.url}/card`, { headers: { cookie: c.cookie, ...AUTH } });
+  check('a photo with no card copy serves the full copy at /card', before.status === 200 && (await before.arrayBuffer()).byteLength === bytes.length);
+  const card = await c.req('POST', `/api/photos/${r.data.id}/card`, jpg, { headers: { 'content-type': 'image/jpeg' } });
+  check('a card copy uploads', card.status === 201, JSON.stringify(card.data));
+  const cardServed = await fetch(`${PORTAL}${r.data.url}/card`, { headers: { cookie: c.cookie, ...AUTH } });
+  const cardText = Buffer.from(await cardServed.arrayBuffer()).toString('latin1');
+  check('the card copy is served and stripped too', cardServed.status === 200 && !cardText.includes('SimCam'));
+  check('an unpublished card copy is not served to a stranger', (await fetch(`${PORTAL}${r.data.url}/card`, { headers: AUTH })).status === 404);
 
   // Pay for two puppies through the simulated Stripe page
   r = await c.post('/api/checkouts', { puppy_ids: [ids[0], ids[1]] });

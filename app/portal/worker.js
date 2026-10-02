@@ -460,8 +460,26 @@ async function deletePhoto(request, env, ctx, id) {
   ];
   if (await hasPublic(env, 'id = ?', photo.puppy_id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
-  if (photo.r2_key) await env.FILES.delete(photo.r2_key);
+  if (photo.r2_key) await env.FILES.delete([photo.r2_key, cardKey(photo.r2_key)]);
   return json({ ok: true });
+}
+
+// The card copy is a second, smaller file the portal makes in the browser at upload, so a
+// listing card or a thumbnail never downloads the full photo. It sits beside the full copy
+// in R2, and a photo without one is served at full size.
+const CARD_MAX_EDGE = 1000;
+function cardKey(key) { return `${key}.card`; }
+
+async function uploadCard(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const photo = await owned(env, 'photo', id, breeder.id);
+  if (!photo.r2_key) throw bad('That photo has no uploaded file.');
+  const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
+  if (!img.size || Math.max(img.size.w, img.size.h) > CARD_MAX_EDGE) throw bad(`A card copy can be up to ${CARD_MAX_EDGE} pixels on its longest side.`);
+  await env.FILES.put(cardKey(photo.r2_key), img.bytes, { httpMetadata: { contentType: img.type } });
+  return json({ ok: true, bytes: img.bytes.length }, 201);
 }
 
 async function orderPhotos(request, env, ctx, puppyId) {
@@ -480,7 +498,7 @@ async function orderPhotos(request, env, ctx, puppyId) {
 }
 
 /** A photo is served to its owner, or to anyone once its puppy is public. */
-async function media(request, env, ctx, id) {
+async function media(request, env, ctx, id, card) {
   const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
   if (!photo || !photo.r2_key) throw notFound();
   const pub = await env.DB.prepare('SELECT 1 AS x FROM public_puppies WHERE id = ?').bind(photo.puppy_id).first();
@@ -488,10 +506,14 @@ async function media(request, env, ctx, id) {
     const s = await currentSession(request, env);
     if (!s || s.breeder.id !== photo.breeder_id) throw notFound();
   }
-  const obj = await env.FILES.get(photo.r2_key);
+  const obj = (card && await env.FILES.get(cardKey(photo.r2_key))) || await env.FILES.get(photo.r2_key);
   if (!obj) throw notFound();
+  // A photo id never changes its file, so a public one can sit in the browser for a day.
   return new Response(obj.body, {
-    headers: { 'content-type': photo.content_type || 'application/octet-stream', 'cache-control': pub ? 'public, max-age=300' : 'private, no-store' },
+    headers: {
+      'content-type': obj.httpMetadata?.contentType || photo.content_type || 'application/octet-stream',
+      'cache-control': pub ? 'public, max-age=86400' : 'private, no-store',
+    },
   });
 }
 
@@ -673,7 +695,9 @@ const ROUTES = [
   ['POST', /^\/api\/puppies\/([\w-]+)\/photos$/, uploadPhoto],
   ['PUT', /^\/api\/puppies\/([\w-]+)\/photo-order$/, orderPhotos],
   ['DELETE', /^\/api\/photos\/([\w-]+)$/, deletePhoto],
+  ['POST', /^\/api\/photos\/([\w-]+)\/card$/, uploadCard],
   ['GET', /^\/media\/([\w-]+)$/, media],
+  ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id) => media(r, e, c, id, true)],
   ['POST', /^\/api\/checkouts$/, startCheckout],
   ['GET', /^\/api\/checkouts$/, myCheckouts],
   ['GET', /^\/checkout\/success$/, checkoutSuccess],

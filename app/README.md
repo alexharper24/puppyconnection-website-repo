@@ -76,6 +76,16 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
   files come out of `puppyconnection-files` as well.
 - **The data is separate from everything else.** The database is `puppyconnection` (D1) and
   the photos are in `puppyconnection-files` (R2), both in the Puppy Connection account.
+- **Photos are shrunk in the breeder's browser before they upload.** The portal redraws each
+  one at 1600 px for the puppy page and at 640 px as a card copy (`<key>.card` in R2, served at
+  `/media/<id>/card`), as WebP where the browser can write it. Cards and thumbnails ask for the
+  card copy, and a photo without one is served whole. The server still strips metadata and
+  still accepts up to 15 MB, for a file the browser could not decode.
+- **The site Worker caches for speed.** `data.js` is kept for 30 seconds per isolate and a
+  minute in the browser, then revalidated by ETag, so a new listing can take about a minute and
+  a half to show. Stylesheets and scripts linked with `?v=` are kept for a year, so bump the
+  number with every change, and images are kept for a week. The Cache API does nothing on
+  workers.dev, so edge caching waits for a custom domain.
 - **Each Worker has its own config**, `wrangler.hosted.jsonc`, beside its local
   `wrangler.jsonc`, and each pins the account id so a deploy cannot land in another account.
 

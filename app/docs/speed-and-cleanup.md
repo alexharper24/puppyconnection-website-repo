@@ -19,9 +19,9 @@ tasks:
   - {id: s5, status: done 2026-10-02, evidence: "live: css and js ?v= max-age=31536000 immutable, img max-age=604800; second page took css, js, logo and data.js from browser cache with 0 bytes", task: "Long cache on versioned css and js, a week on img and media"}
   - {id: s6, status: done before this batch, evidence: "hero and logo already ship WebP srcsets in picture (fix_2026_09_28.py); measured 45 KB hero-1400 and 22 KB logo-420", task: "Hero WebP srcset and a small logo, through the generator, originals kept"}
   - {id: s7, status: done 2026-10-02, evidence: "deployed portal d6db66ad and site f91f1585; HTML 270 ms to first byte", task: "Verify. Local e2e and access tests, live sizes and headers re-measured, site-checks clean"}
-  - {id: c1, status: open, task: "Puppy Connection old Workers off their workers.dev URLs (account-move C7)"}
-  - {id: c2, status: open, task: "Teapup and Sweet Puppy Paws. Confirm the new account serves and builds, then disconnect old builds and take the old editor and sites off their URLs (their account-move C7)"}
-  - {id: c3, status: open, task: "Local config and docs pointing at the old hosts updated"}
+  - {id: c1, status: done 2026-10-02, evidence: "old portal, admin and site 302 to the new hosts",  task: "Puppy Connection old Workers off their workers.dev URLs (account-move C7)"}
+  - {id: c2, status: done 2026-10-02, evidence: "D1 parity checked first; old builds disconnected; old teapup, sweetpuppypaws and teapup-admin redirect; first publish from the new editor still to come (Teapup A5)",  task: "Teapup and Sweet Puppy Paws. Confirm the new account serves and builds, then disconnect old builds and take the old editor and sites off their URLs (their account-move C7)"}
+  - {id: c3, status: done 2026-10-02, evidence: "living docs, state files, owner message drafts and memory carry the new hosts; dated records left as history",  task: "Local config and docs pointing at the old hosts updated"}
 ---
 
 # Speed pass and old-account cleanup

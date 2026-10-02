@@ -112,8 +112,8 @@ async function authStart(request, env, ctx) {
 function page(title, inner) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css"></head>
-<body class="plain"><main class="plain-card"><a class="brandmark" href="/">Puppy Connection</a>${inner}</main></body></html>`;
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=2"></head>
+<body class="plain"><main class="plain-card"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main></body></html>`;
 }
 
 /** GET changes nothing, because mail scanners open links first (spec 6.2). */

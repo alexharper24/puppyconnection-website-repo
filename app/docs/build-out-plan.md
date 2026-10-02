@@ -2,7 +2,7 @@
 doc: build-out-plan
 written: 2026-10-02
 asked: "build out all of the functionality in the config that doesn't require me to actually spend money ... so that I can ultimately test and even potentially show Amber the process ... make sure the aesthetics of the back end, both the breeder portal and also the admin panel ... looks clean, it's organized, it's aligned ... do a full assessment review ... are we missing anything ... make sure we have a good plan to then execute"
-status: "IN PROGRESS 2026-10-02. D3 and D4 answered, D1 preview built, listings refreshed from the live store. Waiting on D1 and D2"
+status: "IN PROGRESS 2026-10-02. P1 done and on staging. Next batch is P4.1 to P4.3, then P2 and P3"
 scope:
   in: "Everything the portal, admin, site and their jobs need that costs nothing, built and tested on the Puppy Connection staging copy"
   out:
@@ -24,8 +24,8 @@ assessment_2026_10_02:
     - "The puppy editor panel, with status, what comes with the puppy, and photos"
     - "The pay screen explaining what each puppy still needs before it can be paid for"
 decisions:
-  - {id: D1, status: open, blocked_on: alex, preview: "app/preview/shell-options.html, built 2026-10-02", item: "The look of both tools. Recommend building a preview page with two shells side by side, one following the Teapup editor (dark grouped menu, centered work area up to 92rem, page header and panels) and one lighter variant in the site's cream and gold, then deleting the preview after the pick"}
-  - {id: D2, status: open, blocked_on: alex, item: "Whose Stripe test account staging uses. Recommend a free Stripe account Alex opens now in test mode, swapped for Amber's at launch, because hers takes one to two weeks to verify and the test runs do not depend on it"}
+  - {id: D1, status: "closed 2026-10-02", answer: "Option A, the dark menu (Alex)", preview: "app/preview/shell-options.html, deleted 2026-10-02 once P1 landed", item: "The look of both tools. Recommend building a preview page with two shells side by side, one following the Teapup editor (dark grouped menu, centered work area up to 92rem, page header and panels) and one lighter variant in the site's cream and gold, then deleting the preview after the pick"}
+  - {id: D2, status: "closed 2026-10-02", answer: "Alex sets up Stripe himself (F1)", item: "Whose Stripe test account staging uses. Recommend a free Stripe account Alex opens now in test mode, swapped for Amber's at launch, because hers takes one to two weeks to verify and the test runs do not depend on it"}
   - {id: D3, status: "closed 2026-10-02", answer: "Logo, kennel photo, breeds and a Facebook page, all optional (Alex)", item: "Which optional profile fields a breeder gets. Recommend logo, one kennel photo, the breeds they raise and a Facebook page, all optional, and nothing that asks for information breeders may not have"}
   - {id: D4, status: "closed 2026-10-02", answer: "Refresh from the live Puppy Connection site, or Alex signs in to Wix if that fails. The public product pages answered, so no Wix sign-in or API key is needed (Alex)", item: "Demo data for showing Amber. Recommend keeping the 204 seed listings plus three made-up breeders at different stages, with a reset that puts staging back to that state"}
 free_accounts_alex_opens:
@@ -38,11 +38,11 @@ phases:
     name: "Layout and polish, both tools"
     tasks:
       - {id: P1.1, status: "done 2026-10-02", evidence: "shell-a and shell-b from real listings; no page overflow at 360 to 1920, table fits from 390 up and scrolls 21 px at 360", task: "Shell preview with the two options for D1"}
-      - {id: P1.2, status: open, task: "Centered work area using the full width up to a cap, page header with a one-line purpose on every screen, logo in the menu, menu grouped by job"}
-      - {id: P1.3, status: open, task: "Search, filters and paging on admin Breeders and Listings, and sortable columns"}
-      - {id: P1.4, status: open, task: "Empty states on every list, consistent stat cards, confirmation on anything that cannot be undone"}
-      - {id: P1.5, status: open, task: "A pending breeder sees only what they can use, with the rest explained"}
-      - {id: P1.6, status: open, task: "Phone and tablet pass at 360, 390, 768 and 1024, plus 1280, 1440 and 1920, measured and screenshotted"}
+      - {id: P1.2, status: "done 2026-10-02", evidence: "both tools on the Option A shell (portal.css v2, admin.js v4, portal.js v5); every screen centered with equal side gaps, measured at 360, 390, 768, 1024, 1280, 1600 and 1920", task: "Centered work area using the full width up to a cap, page header with a one-line purpose on every screen, logo in the menu, menu grouped by job"}
+      - {id: P1.3, status: "done 2026-10-02", evidence: "admin Breeders, Listings, Approvals, Payments and Activity search, filter and page 25 at a time; a top-bar search across breeders and listings; Listings 14,255 px tall before, 2,048 px after. Sortable columns not done, moved to P3", task: "Search, filters and paging on admin Breeders and Listings, and sortable columns"}
+      - {id: P1.4, status: "done 2026-10-02", evidence: "empty states on every list, four even stat cards, confirm before Hold, List free, removing a litter or a puppy", task: "Empty states on every list, consistent stat cards, confirmation on anything that cannot be undone"}
+      - {id: P1.5, status: "done 2026-10-02", evidence: "a pending breeder sees Overview and Profile with a note on what opens after approval, and litters, pay and payments send them to the overview", task: "A pending breeder sees only what they can use, with the rest explained"}
+      - {id: P1.6, status: "done 2026-10-02", evidence: "no page overflow and no table scroll at any of the seven widths in either tool, no tap target under 34 px, menu wraps to two lines on a phone; e2e 41 of 41, access tests 10 of 10; staging portal 3b0f6f44, admin 818360a8", task: "Phone and tablet pass at 360, 390, 768 and 1024, plus 1280, 1440 and 1920, measured and screenshotted"}
   - id: P2
     name: "Breeder portal, what a breeder expects"
     tasks:

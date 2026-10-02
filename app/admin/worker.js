@@ -301,12 +301,13 @@ async function markPublished(req, env, ctx, id, who) {
   return json({ ok: true });
 }
 
-async function media(req, env, ctx, id) {
+async function media(req, env, ctx, id, card) {
   const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
   if (!photo?.r2_key) throw notFound();
-  const obj = await env.FILES.get(photo.r2_key);
+  // The small card copy the portal makes at upload, or the full photo when there is none.
+  const obj = (card && await env.FILES.get(`${photo.r2_key}.card`)) || await env.FILES.get(photo.r2_key);
   if (!obj) throw notFound();
-  return new Response(obj.body, { headers: { 'content-type': photo.content_type || 'application/octet-stream', 'cache-control': 'private, no-store' } });
+  return new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType || photo.content_type || 'application/octet-stream', 'cache-control': 'private, no-store' } });
 }
 
 /** Every test email, for the operator. Only in a test mode, behind the admin's own gate. */
@@ -315,7 +316,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><link rel="stylesheet" href="/portal.css"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=2"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
@@ -339,6 +340,7 @@ const ROUTES = [
   ['GET', /^\/api\/export$/, exportData],
   ['POST', /^\/api\/site\/published$/, markPublished],
   ['GET', /^\/media\/([\w-]+)$/, media],
+  ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id, who) => media(r, e, c, id, true)],
 ];
 
 export default {

@@ -88,7 +88,7 @@
   function renderSignIn(sent) {
     document.body.className = 'plain';
     var c = state.config || {};
-    app.innerHTML = '<main class="plain-card"><span class="brandmark">Puppy Connection</span>' +
+    app.innerHTML = '<main class="plain-card"><div class="plain-mark"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></div>' +
       (sent ? '<h1>Check your email</h1><p>' + esc(sent) + '</p>' +
         (c.local && c.email_mode === 'log' ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your link.</p>' : '') +
         '<p class="muted small">Wrong address? <a href="/" data-restart>Start again</a>.</p>'
@@ -118,30 +118,49 @@
   }
 
   // ------------------------------------------------------------ shell
-  var NAV = [
-    ['', 'Overview'], ['profile', 'Profile'], ['litters', 'Litters and puppies'], ['pay', 'Pay to list'], ['payments', 'Payments'],
-  ];
+  function nav(status) {
+    var listing = [['', 'Overview'], ['litters', 'Litters and puppies'], ['pay', 'Pay to list']];
+    var account = [['profile', 'Profile'], ['payments', 'Payments']];
+    if (status === 'pending') return [['Getting started', [['', 'Overview'], ['profile', 'Profile']]]];
+    if (status === 'declined') return [['Account', [['', 'Overview']]]];
+    return [['Your listings', listing], ['Account', account]];
+  }
 
   function statusPill(s) {
     return { pending: '<span class="pill pill-warn">Waiting for approval</span>', approved: '<span class="pill pill-ok">Approved</span>',
       suspended: '<span class="pill pill-alert">Paused</span>', declined: '<span class="pill pill-alert">Not approved</span>' }[s] || '';
   }
 
-  function shell(inner) {
+  function shell(inner, narrow) {
     document.body.className = '';
     var me = state.me;
     var route = state.route.split('?')[0];
-    app.innerHTML = '<header class="topbar"><a class="brand" href="#/">Puppy Connection</a>' +
-      '<div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
+    var foot = { pending: me.profile_submitted_at ? ['Waiting for approval', 'Puppy Connection will email you'] : ['Signing up', 'Finish your profile to submit'],
+      approved: ['Approved', 'You can list and pay'], suspended: ['Paused', 'Changes and payments are on hold'], declined: ['Not approved', 'Reply to the email you received'] }[me.status] || ['', ''];
+    app.innerHTML = '<div class="app"><aside class="rail" aria-label="Main menu">' +
+      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection breeder portal, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Breeder portal</span></div>' +
+      '<nav class="nav">' + nav(me.status).map(function (g) {
+        return '<div class="nav-group">' + esc(g[0]) + '</div>' + g[1].map(function (n) {
+          return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="is-on" aria-current="page"' : '') + '><span>' + esc(n[1]) + '</span></a>';
+        }).join('');
+      }).join('') + (me.status === 'pending' ? '<p class="nav-note">Litters, puppies and payments open once Puppy Connection approves your account.</p>' : '') + '</nav>' +
+      '<div class="rail-foot"><span class="dot' + (me.status === 'approved' ? '' : ' wait') + '"></span><div><b>' + esc(foot[0]) + '</b><span>' + esc(foot[1]) + '</span></div></div></aside>' +
+      '<div class="main"><header class="topbar"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
-      '<div class="shell"><nav class="rail" aria-label="Portal">' +
-      NAV.map(function (n) { return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="on" aria-current="page"' : '') + '>' + esc(n[1]) + '</a>'; }).join('') +
-      '</nav><main class="work"><div class="inner">' +
+      '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
       (me.payments_mode === 'sim' ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
-      inner + '</div></main></div>';
+      inner + '</div></main></div></div>';
     $('#signout').addEventListener('click', function () {
       api('POST', '/auth/signout', {}).then(function () { state.me = null; location.hash = '#/'; render(); });
     });
+  }
+
+  function head(title, lede, actions) {
+    return '<div class="page-head"><div><h1>' + esc(title) + '</h1>' + (lede ? '<p class="lede">' + lede + '</p>' : '') + '</div>' +
+      (actions ? '<div class="head-actions">' + actions + '</div>' : '') + '</div>';
+  }
+  function empty(title, text, action) {
+    return '<div class="empty"><b>' + esc(title) + '</b>' + (text ? '<span>' + esc(text) + '</span>' : '') + (action || '') + '</div>';
   }
 
   // ------------------------------------------------------------ overview
@@ -149,7 +168,7 @@
     var me = state.me;
     var p = me.profile;
     var filled = !!(p.business_name && (p.public_phone || p.public_email) && p.city && p.state);
-    var html = '<h1>Welcome' + (p.business_name ? ', ' + esc(p.business_name) : '') + '</h1>';
+    var html = head('Welcome' + (p.business_name ? ', ' + p.business_name : ''), me.status === 'pending' ? 'Four steps to your first listing. You are on step ' + (me.profile_submitted_at ? 4 : filled ? 3 : 2) + '.' : 'Your listings at a glance.');
     if (me.status === 'pending') {
       var submitted = !!me.profile_submitted_at;
       html += '<div class="card"><h2>Getting listed</h2><ol class="steps">' +
@@ -160,10 +179,10 @@
         (submitted ? '<div class="muted small">Submitted ' + esc(day(me.profile_submitted_at)) + '.</div>' : filled ? '<a class="btn btn-sm btn-gold" href="#/profile" style="margin-top:.4rem">Submit for approval</a>' : '') + '</div></li>' +
         '<li class="' + (submitted ? 'now' : '') + '"><span class="dot">4</span><div><b>Puppy Connection approves your account</b><div class="muted small">You will get an email, and then you can add litters and puppies.</div></div></li>' +
         '</ol></div>';
-      app.innerHTML = ''; shell(html); return;
+      app.innerHTML = ''; shell(html, true); return;
     }
     if (me.status === 'declined') {
-      shell(html + '<div class="notice notice-alert"><p><b>Your account was not approved.</b></p><p>If you think this is a mistake, reply to the email you received.</p></div>');
+      shell(html + '<div class="notice notice-alert"><p><b>Your account was not approved.</b></p><p>If you think this is a mistake, reply to the email you received.</p></div>', true);
       return;
     }
     if (me.status === 'suspended') {
@@ -177,11 +196,11 @@
       var ready = all.filter(function (x) { return !x.pay_block; }).length;
       var soon = all.filter(function (x) { return x.is_public && x.expires_at && new Date(x.expires_at) - Date.now() < 7 * 86400000; }).length;
       shell(html + '<div class="stats">' +
-        '<div class="stat"><b>' + live + '</b><span>Live on the site</span></div>' +
-        '<div class="stat"><b>' + drafts + '</b><span>Drafts</span></div>' +
-        '<div class="stat"><b>' + ready + '</b><span>Ready to pay for</span></div>' +
-        '<div class="stat"><b>' + soon + '</b><span>Expiring within a week</span></div></div>' +
-        '<div class="card"><h2>Next steps</h2><p>Add a litter, add each puppy with photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it for ' + L.listing_days + ' days.</p>' +
+        '<a class="stat" href="#/litters"><b>' + live + '</b><span>Live on the site</span></a>' +
+        '<a class="stat" href="#/litters"><b>' + drafts + '</b><span>Drafts</span></a>' +
+        '<a class="stat" href="#/pay"><b>' + ready + '</b><span>Ready to pay for</span></a>' +
+        '<a class="stat" href="#/pay"><b>' + soon + '</b><span>Expiring within a week</span></a></div>' +
+        '<div class="card"><h2>' + (all.length ? 'Next steps' : 'Add your first litter') + '</h2><p>Add a litter, add each puppy with photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it for ' + L.listing_days + ' days.</p>' +
         '<div class="btn-row"><a class="btn btn-primary" href="#/litters">Litters and puppies</a>' + (ready ? '<a class="btn btn-gold" href="#/pay">Pay to list ' + ready + '</a>' : '') + '</div></div>');
     });
   }
@@ -194,7 +213,7 @@
     function f(name, label, type, hint, attrs) {
       return '<div class="field"><label for="f-' + name + '">' + esc(label) + '</label><input id="f-' + name + '" name="' + name + '" type="' + (type || 'text') + '" value="' + esc(p[name] || '') + '"' + dis + (attrs || '') + '>' + (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
     }
-    var html = '<h1>Your profile</h1><p class="muted">This is what buyers see on your breeder page. Your sign-in email (' + esc(me.email) + ') stays private.</p>' +
+    var html = head('Your profile', 'This is what buyers see on your breeder page. Your sign-in email (' + esc(me.email) + ') stays private.') +
       '<form id="profile" class="card" novalidate><input type="hidden" name="version" value="' + esc(p.version) + '">' +
       f('business_name', 'Business name', 'text', null, ' required') +
       '<div class="grid-2">' + f('public_phone', 'Phone buyers can call', 'tel') + f('public_email', 'Email buyers can write to', 'email') + '</div>' +
@@ -212,7 +231,7 @@
     } else if (me.status === 'pending') {
       html += '<p class="notice">Submitted ' + esc(day(me.profile_submitted_at)) + '. Puppy Connection will email you when it is approved.</p>';
     }
-    shell(html);
+    shell(html, true);
     var pf = $('#profile');
     if (editable) pf.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -256,25 +275,25 @@
     Promise.all([loadListings(), loadBreeds()]).then(function (res) {
       var L = res[0];
       var active = L.litters.filter(function (l) { return !l.archived_at; });
-      var html = '<div class="card-head"><h1>Litters and puppies</h1>' + (canEdit ? '<button class="btn btn-primary" id="add-litter">Add a litter</button>' : '') + '</div>';
+      var html = head('Litters and puppies', 'Each litter holds its puppies. Add photos to a puppy, then pay to list it.', canEdit ? '<button class="btn btn-primary" id="add-litter">Add a litter</button>' : '');
       if (!canEdit) html += '<p class="notice">' + (me.status === 'suspended' ? 'Your account is paused, so this is read only.' : 'Litters open once your account is approved.') + '</p>';
-      if (!active.length) html += '<div class="card"><p>No litters yet.' + (canEdit ? ' Start with <b>Add a litter</b>, then add each puppy to it.' : '') + '</p></div>';
+      if (!active.length) html += '<div class="card">' + empty('No litters yet', canEdit ? 'Start with a litter, then add each puppy to it.' : '', canEdit ? '<button class="btn btn-primary" data-first-litter>Add a litter</button>' : '') + '</div>';
       active.forEach(function (l) {
         var pups = l.puppies.filter(function (x) { return x.publication_state !== 'archived'; });
         html += '<section class="card" aria-label="' + esc(l.breed_name) + ' litter"><div class="card-head"><div><h2>' + esc(l.breed_name) + '</h2>' +
           '<div class="muted small">' + (l.born_on ? 'Born ' + esc(day(l.born_on)) : 'Birth date not set') + (l.ready_on ? ', ready ' + esc(day(l.ready_on)) : '') +
           (l.mom_weight_lb || l.dad_weight_lb ? '. Parents ' + (l.mom_weight_lb ? esc(l.mom_weight_lb) + ' lb mom' : '') + (l.mom_weight_lb && l.dad_weight_lb ? ', ' : '') + (l.dad_weight_lb ? esc(l.dad_weight_lb) + ' lb dad' : '') : '') + '</div></div>' +
           (canEdit ? '<div class="btn-row" style="margin:0"><button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button><button class="btn btn-sm btn-primary" data-add-puppy="' + esc(l.id) + '">Add a puppy</button></div>' : '') + '</div>' +
-          (pups.length ? pups.map(function (x) {
+          (pups.length ? '<div class="puppy-grid">' + pups.map(function (x) {
             var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
             return '<div class="puppy-row">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + esc(money(x.price_cents)) +
               (x.sex ? ', ' + esc(x.sex) : '') + (x.color ? ', ' + esc(x.color) : '') + '. ' + x.photos.length + ' photo' + (x.photos.length === 1 ? '' : 's') + '</span>' +
               '<div class="chips">' + puppyChips(x) + '</div></div>' +
               '<button class="btn btn-sm" data-edit-puppy="' + esc(x.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button></div>';
-          }).join('') : '<p class="muted small">No puppies in this litter yet.</p>') + '</section>';
+          }).join('') + '</div>' : '<p class="muted small">No puppies in this litter yet.</p>') + '</section>';
       });
       shell(html);
-      var al = $('#add-litter'); if (al) al.addEventListener('click', function () { litterDrawer(null); });
+      $$('#add-litter, [data-first-litter]').forEach(function (b) { b.addEventListener('click', function () { litterDrawer(null); }); });
       $$('[data-edit-litter]').forEach(function (b) { b.addEventListener('click', function () { litterDrawer(findLitter(b.dataset.editLitter)); }); });
       $$('[data-add-puppy]').forEach(function (b) { b.addEventListener('click', function () { puppyDrawer(null, b.dataset.addPuppy); }); });
       $$('[data-edit-puppy]').forEach(function (b) { b.addEventListener('click', function () { puppyDrawer(findPuppy(b.dataset.editPuppy)); }); });
@@ -476,9 +495,9 @@
       });
       var ready = rows.filter(function (r) { return !r.x.pay_block; });
       var blocked = rows.filter(function (r) { return r.x.pay_block && !r.x.is_public; });
-      var html = '<h1>Pay to list</h1>' +
+      var html = head('Pay to list', 'Each puppy costs ' + esc(money(L.fee_cents)) + ' to list for ' + L.listing_days + ' days. Pay for a whole litter at once.') +
         (q.indexOf('canceled=1') >= 0 ? '<p class="notice">Payment canceled. Nothing was charged, and the puppies are free to pay for again.</p>' : '') +
-        '<p>Each puppy costs ' + esc(money(L.fee_cents)) + ' to list for ' + L.listing_days + ' days. Pay for a whole litter at once.</p>';
+        '';
       if (me.status !== 'approved') html += '<p class="notice">Payments open once your account is approved and active.</p>';
       html += '<form id="payform" class="card"><h2>Ready to list</h2>' +
         (ready.length ? '<label class="check" for="all" style="margin-bottom:.4rem"><input type="checkbox" id="all" aria-label="Select all"> Select all</label>' + ready.map(function (r) {
@@ -494,7 +513,7 @@
           return '<div class="pay-row"><span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' + esc(r.x.pay_block) + '</span></span></div>';
         }).join('') + '</div>';
       }
-      shell(html);
+      shell(html, true);
       var form = $('#payform');
       function update() {
         var n = $$('input[name=p]:checked', form).length;
@@ -519,11 +538,11 @@
     api('GET', '/api/checkouts').then(function (rows) {
       var label = { paid: '<span class="pill pill-ok">Paid</span>', open: '<span class="pill pill-gold">Open</span>', expired: '<span class="pill">Canceled or expired</span>',
         failed: '<span class="pill pill-alert">Failed</span>', needs_review: '<span class="pill pill-warn">Under review</span>', creating: '<span class="pill">Starting</span>' };
-      shell('<h1>Payments</h1><p class="muted">Receipts for paid listings come from Stripe by email.</p>' +
+      shell(head('Payments', 'Every payment you have started. Receipts for paid listings come from Stripe by email.') + '<section class="panel">' +
         (rows.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Date</th><th>Puppies</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>' +
           rows.map(function (c) {
             return '<tr><td>' + esc(day(c.created_at)) + '</td><td>' + esc(c.puppies) + '</td><td class="num">' + esc(money(c.amount_total_cents)) + '</td><td>' + (label[c.status] || esc(c.status)) + '</td></tr>';
-          }).join('') + '</tbody></table></div>' : '<div class="card"><p>No payments yet.</p></div>'));
+          }).join('') + '</tbody></table></div>' : empty('No payments yet', 'Payments appear here once you pay to list a puppy.', '<a class="btn" href="#/pay">Pay to list</a>')) + '</section>');
     });
   }
 
@@ -540,6 +559,8 @@
       return;
     }
     if (state.me.status === 'declined' && r !== '') return overview();
+    if (state.me.status === 'pending' && ['litters', 'pay', 'payments'].indexOf(r) >= 0) { location.replace('#/'); return; }
+    window.scrollTo(0, 0);
     ({ '': overview, profile: profile, litters: litters, pay: pay, payments: payments }[r] || overview)();
   }
 

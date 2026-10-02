@@ -31,7 +31,7 @@ decisions:
 free_accounts_alex_opens:
   - {id: F1, item: "Stripe account in test mode (free, no card)", unblocks: "real Checkout, the webhook, refunds and disputes on staging"}
   - {id: F2, item: "Resend account (free tier, 100 a day)", unblocks: "real sign-in and notice emails to an allowed list of Alex's addresses, sent from Resend's shared address until the domain is verified"}
-  - {id: F3, status: "widget created 2026-10-02 by Claude with Alex approval; secret waiting on Alex", item: "Turnstile widget in the Puppy Connection account (free)", unblocks: "bot protection on sign-up"}
+  - {id: F3, status: "done 2026-10-02", evidence: "widget created by Claude with Alex approval, TURNSTILE_SECRET set by Alex", item: "Turnstile widget in the Puppy Connection account (free)", unblocks: "bot protection on sign-up"}
   - {id: F4, item: "Fine-grained GitHub token, Contents read and write on the site repo only (free)", unblocks: "publishing generated pages through CI"}
 phases:
   - id: P1
@@ -69,7 +69,7 @@ phases:
   - id: P4
     name: "Behind the scenes, at no cost"
     tasks:
-      - {id: P4.1, status: "built, waiting on Alex to set TURNSTILE_SECRET", evidence: "server check and sign-in widget already in the portal; staging runs hosted-open, which allows sign-up without a secret, so it switches on when TURNSTILE_SITE_KEY and TURNSTILE_SECRET are set from F3", task: "Turnstile on sign-up, with Cloudflare's test keys locally"}
+      - {id: P4.1, status: "done 2026-10-02 except the human pass test", evidence: "staging refuses sign-up with no token and with a forged token (400); a real sign-up in Alex's own browser still to confirm the pass side; server check and sign-in widget already in the portal; staging runs hosted-open, which allows sign-up without a secret, so it switches on when TURNSTILE_SITE_KEY and TURNSTILE_SECRET are set from F3", task: "Turnstile on sign-up, with Cloudflare's test keys locally"}
       - {id: P4.2, status: "done 2026-10-02", evidence: "lib/jobs.js with expiry, housekeeping, reconcile and backup on two cron triggers (*/15 and 0 13 UTC), job_runs table, admin Settings shows each job with Run now; dev/jobs-test.mjs 19 of 19, both crons fired locally through __scheduled, e2e 41 of 41, access 10 of 10; staging portal 8fd3b849 with both schedules registered, admin 906d1a21. Publish is not one of the jobs yet, it waits for P4.3", task: "Scheduled jobs for publish, reconciliation, expiry warnings and expiry, nightly backup to R2 and housekeeping, folded into the free plan's five cron slots"}
       - {id: P4.3, status: open, task: "Static breed, breeder and puppy pages generated from the database, the publish commit, and the CI build of the site"}
       - {id: P4.4, status: open, task: "Admin Publish now through a service binding to the portal"}

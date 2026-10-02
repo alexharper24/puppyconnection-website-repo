@@ -21,6 +21,10 @@
   // Two of the free plan's five cron triggers. lib/jobs.js says what each one runs.
   "triggers": { "crons": ["*/15 * * * *", "0 13 * * *"] },
   "vars": {
+    // Turnstile widget "Puppy Connection breeder portal" in the Puppy Connection account (2026-10-02).
+    // The site key is public by design. TURNSTILE_SECRET is a secret, set with wrangler secret put.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFMKWRvBD106y7VJ",
+    "TURNSTILE_HOSTNAME": "portal.puppyconnection.workers.dev",
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
     "DEV_MODE": "hosted-open",

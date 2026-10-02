@@ -4,7 +4,8 @@
 // Open to anyone, with no password, because it reads only the database's public views and
 // serves only photos of listed puppies. The portal and the admin keep their TEST_GATE password.
 {
-  "name": "puppyconnection-site",
+  "name": "site",
+  "account_id": "4f6e9dc25ab751960763628b06e6c108",
   "main": "worker.js",
   "compatibility_date": "2026-08-18",
   "observability": { "enabled": true },
@@ -12,7 +13,7 @@
   "preview_urls": false,
   "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true },
   "d1_databases": [
-    { "binding": "DB", "database_name": "puppyconnection", "database_id": "14098e79-5576-4a93-b187-b68bca246724" }
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }]
 }

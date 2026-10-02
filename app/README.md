@@ -45,36 +45,39 @@ work from this account.
 
 ## The hosted test deployment
 
-The same code, deployed to Alex's Cloudflare account (the one Teapup and Bless Your Paws
-use) on 2026-09-30, so the journey can be tested from any browser.
+The same code, deployed to the Puppy Connection Cloudflare account, so the journey can be
+tested from any browser. It moved there from Alex's main account on 2026-10-02, and
+`docs/account-move.md` records how.
 
 | Address | What it is |
 |---|---|
-| https://puppyconnection-portal.alexharper.workers.dev | The breeder portal |
-| https://puppyconnection-portal.alexharper.workers.dev/dev/mail | The test mailbox, showing your own sign-in links |
-| https://puppyconnection-admin.alexharper.workers.dev | Amber's operator screens |
-| https://puppyconnection-site.alexharper.workers.dev | The public site, built live from the database on every page load |
+| https://portal.puppyconnection.workers.dev | The breeder portal |
+| https://portal.puppyconnection.workers.dev/dev/mail | The test mailbox, showing your own sign-in links |
+| https://admin.puppyconnection.workers.dev | Amber's operator screens |
+| https://site.puppyconnection.workers.dev | The public site, built live from the database on every page load |
 
 - **The portal has no password**, so sign-up is tested the way a breeder meets it. It runs as
   `DEV_MODE=hosted-open`, where the test mailbox shows each browser only the mail for
   addresses that browser signed up with, and a practice checkout opens only for the breeder
   who started it. `dev/open-portal-check.mjs` proves both against the live copy.
-- **The admin keeps one password**, the `TEST_GATE` secret, because it is Amber's side. The
-  browser asks for it once, and the user name can be anything. Every test email, including
-  Amber's notifications, is in the admin's own mailbox at `/dev/mail`.
+- **The admin signs in with Cloudflare Access**, an emailed one-time code, through the
+  "Puppy Connection admin" application in the account's Zero Trust (team
+  `dry-snowflake-0e9c`). Access lets in only the addresses on the "Puppy Connection admin
+  operators" policy, and the admin then checks the address against the `people` table, so an
+  operator needs both. It runs as `DEV_MODE=hosted-access`, with no password gate and no
+  stand-in identity. Every test email, including Amber's notifications, is in the admin's
+  own mailbox at `/dev/mail`.
 - **The site has no password**, because it reads only the public views and serves only photos
   of listed puppies.
-- **After running `dev/e2e.mjs` against the live copy, remove its test breeders**, or they
-  show on the public site. `app/.state/remove-e2e.sql` deletes every `e2e-` address and its
-  rows. Delete their photo files from `puppyconnection-files` as well. It lives only in Cloudflare and in
-  `app/.state/test-access.txt` on Alex's machine, which is gitignored.
-- **`DEV_MODE=hosted-test` switches on the mailbox, the practice checkout and the operator
-  stand-in**, and only while `TEST_GATE` is set. Without the secret every request gets a 503.
+- **`dev/e2e.mjs` cannot drive the hosted admin**, because Access stands in front of it. It
+  runs in full against the local copy, and on the hosted copy the approval step is done by
+  hand in the admin. Remove any test breeders afterwards, or they show on the public site.
+  `app/.state/remove-e2e.sql` deletes every `e2e-` address and its rows, and their photo
+  files come out of `puppyconnection-files` as well.
 - **The data is separate from everything else.** The database is `puppyconnection` (D1) and
-  the photos are in `puppyconnection-files` (R2), both new. It started from the same seed as
-  the local copy.
+  the photos are in `puppyconnection-files` (R2), both in the Puppy Connection account.
 - **Each Worker has its own config**, `wrangler.hosted.jsonc`, beside its local
-  `wrangler.jsonc`.
+  `wrangler.jsonc`, and each pins the account id so a deploy cannot land in another account.
 
 To redeploy after a change, run this from the `app` folder,
 with `W` standing for `node ../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js`.
@@ -83,15 +86,9 @@ with `W` standing for `node ../../teapup-website-repo/admin/node_modules/wrangle
 (cd portal && $W deploy --config wrangler.hosted.jsonc) && (cd admin && $W deploy --config wrangler.hosted.jsonc) && node dev/build-site.mjs && (cd site && $W deploy --config wrangler.hosted.jsonc)
 ```
 
-To run the journey test against it:
-
-```bash
-TEST_GATE=<the password> PORTAL=https://puppyconnection-portal.alexharper.workers.dev ADMIN=https://puppyconnection-admin.alexharper.workers.dev node dev/e2e.mjs
-```
-
-To take it down, delete the three Workers in the dashboard. Removing `TEST_GATE` from the
-admin makes it refuse every request. The access tests (`dev/access-tests.mjs`) run against the local copy
-only, because they write to the database directly.
+To take it down, delete the three Workers in the dashboard. The access tests
+(`dev/access-tests.mjs`) run against the local copy only, because they write to the database
+directly.
 
 ## Walking the journey
 

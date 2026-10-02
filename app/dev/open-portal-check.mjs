@@ -1,7 +1,7 @@
 // Checks for the open test portal (DEV_MODE hosted-open), where there is no password:
 // one browser must not see another's mail, or open another breeder's practice checkout.
 //
-//   PORTAL=https://puppyconnection-portal.alexharper.workers.dev node app/dev/open-portal-check.mjs
+//   PORTAL=https://portal.puppyconnection.workers.dev node app/dev/open-portal-check.mjs
 
 import { Client } from './e2e.mjs';
 

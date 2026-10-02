@@ -234,7 +234,7 @@ BREED = """<main id="breedPage">
 
 # Where breeders sign up and sign in. The hosted test portal until the portal moves to
 # Puppy Connection's own domain at cutover, when this one line changes.
-PORTAL_URL = 'https://puppyconnection-portal.alexharper.workers.dev/'
+PORTAL_URL = 'https://portal.puppyconnection.workers.dev/'
 
 LIST = """<section class="band band-dark">
   <div class="wrap split">

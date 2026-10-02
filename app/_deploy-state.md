@@ -2,7 +2,7 @@
 batch: puppyconnection-hosted-test
 started: 2026-09-30
 asked: "use my account, same as teapup ... set up any separate workers that are needed ... proceed with the permissions that you need"
-account: "Alex's Cloudflare account (the Teapup one), wrangler OAuth, workers.dev subdomain alexharper"
+account: "Alex's Cloudflare account (the Teapup one), wrangler OAuth, workers.dev subdomain alexharper. Superseded 2026-10-02, when the copy moved to the Puppy Connection account (docs/account-move.md)"
 design:
   - "Three Workers: puppyconnection-portal, puppyconnection-admin, puppyconnection-site (the public site reading live from D1)"
   - "One D1 puppyconnection and one R2 bucket puppyconnection-files, both new, nothing shared with Teapup"

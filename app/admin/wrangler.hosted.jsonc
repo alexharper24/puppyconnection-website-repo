@@ -1,11 +1,12 @@
-// The hosted TEST deployment of the operator screens, on Alex's account.
+// The hosted TEST deployment of the operator screens, on the Puppy Connection Cloudflare account.
 // Deploy from app/admin:  wrangler deploy --config wrangler.hosted.jsonc
-// Signed in with Cloudflare Access on the shy-truth-7b36 team (the same sign-in as the Teapup
-// editor: email code or Google), and then the people table decides who is an operator.
+// Signed in with Cloudflare Access on the dry-snowflake-0e9c team (an emailed one-time code, as
+// the Teapup editor uses), and then the people table decides who is an operator.
 // DEV_MODE hosted-access keeps the test mailbox on and uses no password gate and no
-// DEV_IDENTITY. Until ACCESS_AUD is filled in, identity fails closed and every page is 403.
+// DEV_IDENTITY. The Access application is "Puppy Connection admin" in that account.
 {
-  "name": "puppyconnection-admin",
+  "name": "admin",
+  "account_id": "4f6e9dc25ab751960763628b06e6c108",
   "main": "worker.js",
   "compatibility_date": "2026-08-18",
   "observability": { "enabled": true },
@@ -13,16 +14,16 @@
   "preview_urls": false,
   "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true, "html_handling": "none" },
   "d1_databases": [
-    { "binding": "DB", "database_name": "puppyconnection", "database_id": "14098e79-5576-4a93-b187-b68bca246724" }
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
   "vars": {
-    "PORTAL_ORIGIN": "https://puppyconnection-portal.alexharper.workers.dev",
-    "ADMIN_ORIGIN": "https://puppyconnection-admin.alexharper.workers.dev",
+    "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
+    "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
     "DEV_MODE": "hosted-access",
     "EMAIL_MODE": "log",
     "PAYMENTS_MODE": "sim",
-    "ACCESS_TEAM_DOMAIN": "shy-truth-7b36",
-    "ACCESS_AUD": "PASTE_APPLICATION_AUD"
+    "ACCESS_TEAM_DOMAIN": "dry-snowflake-0e9c",
+    "ACCESS_AUD": "ed2540a85f73e26cbd10f0ab48a416aac70dad4ffecf8cc5f01f8553643debfa"
   }
 }

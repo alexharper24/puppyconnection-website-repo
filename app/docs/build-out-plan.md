@@ -2,7 +2,7 @@
 doc: build-out-plan
 written: 2026-10-02
 asked: "build out all of the functionality in the config that doesn't require me to actually spend money ... so that I can ultimately test and even potentially show Amber the process ... make sure the aesthetics of the back end, both the breeder portal and also the admin panel ... looks clean, it's organized, it's aligned ... do a full assessment review ... are we missing anything ... make sure we have a good plan to then execute"
-status: "PLAN, waiting on Alex for D1 to D4. Nothing in this plan has been built yet"
+status: "IN PROGRESS 2026-10-02. D3 and D4 answered, D1 preview built, live catalog refresh running"
 scope:
   in: "Everything the portal, admin, site and their jobs need that costs nothing, built and tested on the Puppy Connection staging copy"
   out:
@@ -24,10 +24,10 @@ assessment_2026_10_02:
     - "The puppy editor panel, with status, what comes with the puppy, and photos"
     - "The pay screen explaining what each puppy still needs before it can be paid for"
 decisions:
-  - {id: D1, status: open, blocked_on: alex, item: "The look of both tools. Recommend building a preview page with two shells side by side, one following the Teapup editor (dark grouped menu, centered work area up to 92rem, page header and panels) and one lighter variant in the site's cream and gold, then deleting the preview after the pick"}
+  - {id: D1, status: open, blocked_on: alex, preview: "app/preview/shell-options.html, built 2026-10-02", item: "The look of both tools. Recommend building a preview page with two shells side by side, one following the Teapup editor (dark grouped menu, centered work area up to 92rem, page header and panels) and one lighter variant in the site's cream and gold, then deleting the preview after the pick"}
   - {id: D2, status: open, blocked_on: alex, item: "Whose Stripe test account staging uses. Recommend a free Stripe account Alex opens now in test mode, swapped for Amber's at launch, because hers takes one to two weeks to verify and the test runs do not depend on it"}
-  - {id: D3, status: open, blocked_on: alex, item: "Which optional profile fields a breeder gets. Recommend logo, one kennel photo, the breeds they raise and a Facebook page, all optional, and nothing that asks for information breeders may not have"}
-  - {id: D4, status: open, blocked_on: alex, item: "Demo data for showing Amber. Recommend keeping the 204 seed listings plus three made-up breeders at different stages, with a reset that puts staging back to that state"}
+  - {id: D3, status: "closed 2026-10-02", answer: "Logo, kennel photo, breeds and a Facebook page, all optional (Alex)", item: "Which optional profile fields a breeder gets. Recommend logo, one kennel photo, the breeds they raise and a Facebook page, all optional, and nothing that asks for information breeders may not have"}
+  - {id: D4, status: "closed 2026-10-02", answer: "Refresh from the live Puppy Connection site, or Alex signs in to Wix if that fails. The public product pages answered, so no Wix sign-in or API key is needed (Alex)", item: "Demo data for showing Amber. Recommend keeping the 204 seed listings plus three made-up breeders at different stages, with a reset that puts staging back to that state"}
 free_accounts_alex_opens:
   - {id: F1, item: "Stripe account in test mode (free, no card)", unblocks: "real Checkout, the webhook, refunds and disputes on staging"}
   - {id: F2, item: "Resend account (free tier, 100 a day)", unblocks: "real sign-in and notice emails to an allowed list of Alex's addresses, sent from Resend's shared address until the domain is verified"}
@@ -37,7 +37,7 @@ phases:
   - id: P1
     name: "Layout and polish, both tools"
     tasks:
-      - {id: P1.1, status: open, task: "Shell preview with the two options for D1"}
+      - {id: P1.1, status: "done 2026-10-02", evidence: "shell-a and shell-b from real listings; no page overflow at 360 to 1920, table fits from 390 up and scrolls 21 px at 360", task: "Shell preview with the two options for D1"}
       - {id: P1.2, status: open, task: "Centered work area using the full width up to a cap, page header with a one-line purpose on every screen, logo in the menu, menu grouped by job"}
       - {id: P1.3, status: open, task: "Search, filters and paging on admin Breeders and Listings, and sortable columns"}
       - {id: P1.4, status: open, task: "Empty states on every list, consistent stat cards, confirmation on anything that cannot be undone"}

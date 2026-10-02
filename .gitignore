@@ -26,3 +26,4 @@ app/**/.dev.vars
 .wrangler/
 app/**/.wrangler/
 app/site/public/
+_harvest/data/listings.prev.json

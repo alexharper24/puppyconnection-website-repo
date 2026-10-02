@@ -25,6 +25,7 @@ alias = {
     'saint bernard': 'Saint Bernard',
     'st. bernard': 'Saint Bernard',
     'yorkie': 'Yorkshire Terrier',
+    'mini poodle': 'Miniature Poodle',
 }
 
 
@@ -126,7 +127,8 @@ for i, r in enumerate(L):
     status = 'available'
     if re.search(r'pending', nm, re.I):
         status = 'pending'
-    elif re.search(r'adopted|sold', nm, re.I):
+    elif re.search(r'adopted|sold', nm, re.I) or r.get('placed'):
+        # refresh.py lifts "*ADOPTED*" out of the name into placed before this runs
         status = 'adopted'
     nm = re.sub(r'\*[^*]*\*', ' ', nm)
     nm = re.sub(r'\b(ADOPTED|SOLD|PENDING ADOPTION|PENDING)\b', ' ', nm, flags=re.I)

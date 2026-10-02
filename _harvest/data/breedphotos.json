@@ -1,58 +1,58 @@
 {
  "Havanese": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_61fbe22101d94c70b71b39c9dd7506b3~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_0b3a0956d9f54fbf8b52109b17d5a7cc~mv2.jpg",
   "aspect": 1.5
  },
  "Cavalier King Charles Spaniel": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_3046318f58e042c2baa15e66ab9eb9a5~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_fa6ff8eff783478c99714ea7035a48ae~mv2.jpg",
   "aspect": 1.5
  },
  "Miniature Poodle": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_13e0ecb960dd47099023d9fd2758b1d8~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_887edc8f19814fdaa1370062bb5a226b~mv2.jpg",
   "aspect": 1.5
  },
  "Great Dane": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_126d131f01f7437e9797ea7efb48dc95~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_fd13fc806c9642b49e49f17039d29008~mv2.jpg",
   "aspect": 1.5
  },
  "Cavapoo": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_6e36a591cd154db6ad06525896ba0a89~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_7453f0c4a06946d2b4dac446346ddc25~mv2.jpg",
   "aspect": 1.5
  },
  "Miniature Schnauzer": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_ce1a9f29e32e4e1c82141a0513bec0fe~mv2.jpg",
-  "aspect": 1.25
+  "photo": "https://static.wixstatic.com/media/8d80ac_52fcaefbcba44f19aad9309fcea38f11~mv2.jpg",
+  "aspect": 1.5
  },
  "Munchkin Bernedoodle": {
   "photo": "https://static.wixstatic.com/media/8d80ac_11af078247db451b84e61aad1c51a81e~mv2.jpg",
   "aspect": 1.33
  },
  "Golden Retriever": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_65294cadf97d4635b7dc0b0223c3e934~mv2.jpg",
-  "aspect": 1.5
+  "photo": "https://static.wixstatic.com/media/8d80ac_7921fd0d70e74f88a5915354671590b1~mv2.jpg",
+  "aspect": 1.33
  },
  "Shih Tzu": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_10a86db25b5f450f84714872642d6780~mv2.jpg",
-  "aspect": 1.0
+  "photo": "https://static.wixstatic.com/media/8d80ac_fc0d0892cb3b4d349c64b4f98b3e8031~mv2.jpg",
+  "aspect": 1.25
  },
  "Pomeranian": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_c1315bc8884240c8ada7218ae31ef0a1~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_c230cff890e4491ba87f69073c37af0e~mv2.jpg",
   "aspect": 1.5
  },
  "Pembroke Welsh Corgi": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_ad055603447a427ba06f1c3fbd3c7242~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_22bbafcea7d244c1889d732dd6d5ee58~mv2.jpg",
   "aspect": 1.5
  },
  "Mini Aussiedoodle": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_0fb8c1e786d84839a1fb836110ce855c~mv2.jpeg",
-  "aspect": 1.06
+  "photo": "https://static.wixstatic.com/media/8d80ac_e67adad13bdd4c84ba6b94524c8072e8~mv2.jpeg",
+  "aspect": 0.75
  },
  "Mini Bernedoodle": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_77a8387dfb194922931120dfb170fefb~mv2.jpg",
-  "aspect": 1.33
+  "photo": "https://static.wixstatic.com/media/8d80ac_e660901efe314f53b07b708cfec63958~mv2.jpg",
+  "aspect": 1.5
  },
  "Miniature Dachshund": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_f6eeab9128fd411681adafc0eea4ba15~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_e26a094043c8442186c9bc6ebf2b0e25~mv2.jpg",
   "aspect": 1.5
  },
  "Toy Poodle": {
@@ -60,19 +60,23 @@
   "aspect": 1.38
  },
  "F1b Mini Goldendoodle": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_c5a8581a83984262a7896186bc9f39e4~mv2.jpeg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_71a1681f6c784e11a1e946dbf2d96fc1~mv2.jpeg",
   "aspect": 1.0
  },
+ "Cocker Spaniel": {
+  "photo": "https://static.wixstatic.com/media/8d80ac_72cf918c2c64440a9717e1f265eeef2b~mv2.jpg",
+  "aspect": 1.52
+ },
  "Boston Terrier": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_2bd1c6e821cc4389aebdd19985372f0f~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_db8049f27720474abc4646a2afcc67db~mv2.jpg",
   "aspect": 1.5
  },
  "Yorkshire Terrier": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_88f162b1d90c4742a38b11ab538b4317~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_90ad90aa72f94484bb7e00545d117f48~mv2.jpg",
   "aspect": 1.5
  },
  "Victorian Bulldog": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_5ed1d981810b4b4d9a28a8c067b2d638~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_b12e1cb32494428d8c56c125f7e79fd5~mv2.jpg",
   "aspect": 1.5
  },
  "Teddy Bear (Shihchon)": {
@@ -80,19 +84,19 @@
   "aspect": 1.0
  },
  "Doberman Pinscher": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_8a6b8ae6400d49f38c597986438d4cae~mv2.jpg",
-  "aspect": 1.5
+  "photo": "https://static.wixstatic.com/media/8d80ac_8568e42179054149934155aba41ce923~mv2.jpg",
+  "aspect": 1.33
  },
  "Saint Bernard": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_a343280cb5a1409d8efbc00c9d181680~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_f2f7d1c35c1a4fe5b3253f2778a066c9~mv2.jpg",
   "aspect": 1.5
  },
  "English Bulldog": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_5feb88b2d5d142fa81b67053e692d60d~mv2.jpg",
-  "aspect": 1.0
+  "photo": "https://static.wixstatic.com/media/d5ac96_993919a570ab43af914a0130e48f1699~mv2.jpg",
+  "aspect": 1.5
  },
  "Bernese Mountain Dog": {
-  "photo": "https://static.wixstatic.com/media/8d80ac_6e51040f9f93499696ca52d500e221e3~mv2.jpg",
+  "photo": "https://static.wixstatic.com/media/8d80ac_50df93ce2cc64d6695c7fbddc5b501b5~mv2.jpg",
   "aspect": 1.0
  }
 }

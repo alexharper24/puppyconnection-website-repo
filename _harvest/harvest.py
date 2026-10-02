@@ -12,7 +12,7 @@ def parse(path,slug):
     o['name']=prod.get('name')
     off=prod.get('offers') or {}
     if isinstance(off,list): off=off[0] if off else {}
-    o['price']=int(off['price']) if off.get('price') else None
+    o['price']=float(off['price']) if off.get('price') else None
     o['in_stock']=(off.get('availability','').split('/')[-1]=='InStock')
     d=prod.get('description') or ''
     d=re.sub(r'<[^>]+>','\n',d); d=html.unescape(d)

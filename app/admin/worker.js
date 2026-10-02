@@ -10,6 +10,21 @@ import { loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithP
 import { sendMail } from '../lib/mail.js';
 import { identify } from './identity.js';
 import { buildExport } from '../lib/export.js';
+import { runJob, JOBS } from '../lib/jobs.js';
+
+/** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
+async function listJobs(req, env) {
+  const { results } = await env.DB.prepare('SELECT * FROM job_runs').all();
+  const by = Object.fromEntries(results.map((r) => [r.job, r]));
+  return json(Object.keys(JOBS).map((job) => ({ job, ...(by[job] || {}), last_result: by[job]?.last_result ? JSON.parse(by[job].last_result) : null })));
+}
+async function runJobNow(req, env, ctx, name, who) {
+  requireSameOrigin(req);
+  if (!JOBS[name]) throw notFound();
+  const r = await runJob(env, name);
+  await auditStmt(env, 'operator', who.email, 'job.run', 'job', name, null, r).run();
+  return json(r, r.ok ? 200 : 500);
+}
 
 async function whoami(req, env, ctx, id, who) {
   return json({ email: who.email, name: who.person.name, role: who.person.role, dev: who.dev,
@@ -336,6 +351,8 @@ const ROUTES = [
   ['GET', /^\/api\/checkouts$/, listCheckouts],
   ['GET', /^\/api\/audit$/, auditList],
   ['GET', /^\/api\/settings$/, getSettings],
+  ['GET', /^\/api\/jobs$/, listJobs],
+  ['POST', /^\/api\/jobs\/(\w+)\/run$/, runJobNow],
   ['PUT', /^\/api\/settings$/, putSettings],
   ['GET', /^\/api\/export$/, exportData],
   ['POST', /^\/api\/site\/published$/, markPublished],

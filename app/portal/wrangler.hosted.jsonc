@@ -18,6 +18,8 @@
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
   "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }],
+  // Two of the free plan's five cron triggers. lib/jobs.js says what each one runs.
+  "triggers": { "crons": ["*/15 * * * *", "0 13 * * *"] },
   "vars": {
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",

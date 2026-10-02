@@ -12,6 +12,7 @@ import {
   littersWithPuppies, photoUrl,
 } from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
+import { scheduled as runScheduled } from '../lib/jobs.js';
 import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
 } from '../lib/payments.js';
@@ -732,5 +733,9 @@ export default {
       console.error(e);
       return json({ error: 'Something went wrong. Please try again.' }, 500);
     }
+  },
+  // The two cron triggers in wrangler.jsonc (lib/jobs.js says which job runs when).
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runScheduled(event, env).then((r) => console.log('jobs', JSON.stringify(r))));
   },
 };

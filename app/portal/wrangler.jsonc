@@ -38,6 +38,8 @@
   // Nothing here switches on the simulation. EMAIL_MODE, PAYMENTS_MODE and DEV_MODE come
   // from .dev.vars locally (gitignored, see .dev.vars.example). Deployed without them, the
   // portal sends no mail and takes no payments, which is the safe failure.
+  // Two of the free plan's five cron triggers. lib/jobs.js says what each one runs.
+  "triggers": { "crons": ["*/15 * * * *", "0 13 * * *"] },
   "vars": {
     "PORTAL_ORIGIN": "http://localhost:8787",
     "ADMIN_ORIGIN": "http://localhost:8788"

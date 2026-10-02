@@ -53,6 +53,18 @@ export const TEMPLATES = {
       names.map((n) => `  ${n}`).join('\n') + `\n\n${portalUrl}` + signOff(),
     link: portalUrl,
   }),
+  expiring_soon: ({ items, portalUrl }) => ({
+    subject: items.length === 1 ? `${items[0].name}'s listing ends soon` : `${items.length} of your listings end soon`,
+    text: 'These listings come off Puppy Connection on the date shown. Renew them from the portal to keep them up:\n\n' +
+      items.map((i) => `  ${i.name}, until ${i.until}`).join('\n') + `\n\n${portalUrl}` + signOff(),
+    link: portalUrl,
+  }),
+  expired: ({ names, portalUrl }) => ({
+    subject: names.length === 1 ? `${names[0]}'s listing has ended` : `${names.length} of your listings have ended`,
+    text: 'These listings have come off Puppy Connection. You can renew them from the portal and they go back up as soon as payment goes through:\n\n' +
+      names.map((n) => `  ${n}`).join('\n') + `\n\n${portalUrl}` + signOff(),
+    link: portalUrl,
+  }),
   ops_alert: ({ title, detail }) => ({
     subject: `Puppy Connection alert: ${title}`,
     text: `${detail}` + signOff(),

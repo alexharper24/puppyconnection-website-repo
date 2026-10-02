@@ -388,8 +388,22 @@
     max_photos: ['Most photos a puppy can have', 'number'],
     terms_version: ['Listing terms version breeders accept', 'text'],
   };
+  var JOB_LABELS = {
+    expiry: ['Listing expiry', 'Every morning. Warns breeders before a listing ends, then takes ended listings off the site.'],
+    housekeeping: ['Housekeeping', 'Every morning. Clears used sign-in links, ended sessions and stale checkout holds.'],
+    backup: ['Backup', 'Every morning. Saves every table to the photo bucket and keeps 90 days.'],
+    reconcile: ['Checkout check', 'Every 15 minutes. Closes abandoned checkouts and publishes any paid listing that is not live.'],
+  };
+  function jobSummary(job, r) {
+    if (!r) return '';
+    if (job === 'expiry') return plural(r.warned || 0, 'warning') + ' sent, ' + plural(r.expired || 0, 'listing') + ' expired';
+    if (job === 'housekeeping') return (r.tokens || 0) + ' links, ' + (r.sessions || 0) + ' sessions and ' + (r.holds || 0) + ' holds cleared';
+    if (job === 'backup') return r.rows ? r.rows.toLocaleString('en-US') + ' rows, ' + Math.round((r.bytes || 0) / 1024) + ' KB' : '';
+    if (job === 'reconcile') return plural(r.closed || 0, 'checkout') + ' closed, ' + (r.fulfilled || 0) + ' published';
+    return r.error || '';
+  }
   function settings() {
-    Promise.all([refreshStats(), api('GET', '/api/settings')]).then(function (r) {
+    Promise.all([refreshStats(), api('GET', '/api/settings'), api('GET', '/api/jobs')]).then(function (r) {
       var rows = r[1].filter(function (s) { return SETTING_LABELS[s.key]; });
       var fixed = r[1].filter(function (s) { return !SETTING_LABELS[s.key]; });
       var waiting = state.stats.unpublished_changes || 0;
@@ -400,8 +414,22 @@
           var l = SETTING_LABELS[s.key];
           return '<div class="field"><label for="s-' + esc(s.key) + '">' + esc(l[0]) + '</label><input id="s-' + esc(s.key) + '" name="' + esc(s.key) + '" type="' + l[1] + '" value="' + esc(s.value) + '"></div>';
         }).join('') + '<button class="btn btn-primary" type="submit">Save settings</button></form>' +
+        '<section class="card"><h2>Scheduled jobs</h2><p class="muted small">These run on their own. Run now does the same thing straight away, which is handy when showing how expiry works.</p>' +
+        '<div class="table-wrap"><table class="list"><thead><tr><th>Job</th><th class="hide-sm">Last run</th><th>Result</th><th class="act"></th></tr></thead><tbody>' +
+        r[2].map(function (j) {
+          return '<tr><td><b>' + esc(JOB_LABELS[j.job][0]) + '</b><span class="sub">' + esc(JOB_LABELS[j.job][1]) + '</span></td><td class="hide-sm when">' + (j.last_run_at ? esc(when(j.last_run_at)) : '<span class="muted">Not yet</span>') + '</td>' +
+            '<td>' + (j.last_error ? '<span class="pill pill-alert">Failed</span><span class="sub">' + esc(j.last_error) + '</span>' : j.last_result ? '<span class="small">' + esc(jobSummary(j.job, j.last_result)) + '</span>' : '') + '</td>' +
+            '<td class="act"><button class="btn btn-sm" data-run="' + esc(j.job) + '">Run now</button></td></tr>';
+        }).join('') + '</tbody></table></div></section>' +
         '<section class="card"><h2>Set elsewhere</h2>' + fixed.map(function (s) { return '<p class="small"><b>' + esc(s.key) + '</b>: ' + esc(s.value) + '</p>'; }).join('') +
         '<p class="hint">The listing fee is the Price in Stripe, so it is changed there and in fee_cents together.</p></section>', true);
+      $$('[data-run]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          b.disabled = true; b.textContent = 'Running';
+          api('POST', '/api/jobs/' + b.dataset.run + '/run', {}).then(function (r) { toast(JOB_LABELS[r.job][0] + ': ' + jobSummary(r.job, r)); settings(); })
+            .catch(function (err) { toast(err.message); settings(); });
+        });
+      });
       var f = $('#settings');
       f.addEventListener('submit', function (e) {
         e.preventDefault();

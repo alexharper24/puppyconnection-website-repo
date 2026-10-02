@@ -220,6 +220,14 @@ CREATE TABLE IF NOT EXISTS site_state (
   last_error           TEXT
 );
 
+-- The last run of each scheduled job (lib/jobs.js), shown in the admin.
+CREATE TABLE IF NOT EXISTS job_runs (
+  job         TEXT PRIMARY KEY,
+  last_run_at TEXT NOT NULL,
+  last_result TEXT,
+  last_error  TEXT
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   at          TEXT NOT NULL,

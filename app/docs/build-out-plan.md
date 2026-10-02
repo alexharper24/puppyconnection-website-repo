@@ -2,7 +2,7 @@
 doc: build-out-plan
 written: 2026-10-02
 asked: "build out all of the functionality in the config that doesn't require me to actually spend money ... so that I can ultimately test and even potentially show Amber the process ... make sure the aesthetics of the back end, both the breeder portal and also the admin panel ... looks clean, it's organized, it's aligned ... do a full assessment review ... are we missing anything ... make sure we have a good plan to then execute"
-status: "IN PROGRESS 2026-10-02. D3 and D4 answered, D1 preview built, live catalog refresh running"
+status: "IN PROGRESS 2026-10-02. D3 and D4 answered, D1 preview built, listings refreshed from the live store. Waiting on D1 and D2"
 scope:
   in: "Everything the portal, admin, site and their jobs need that costs nothing, built and tested on the Puppy Connection staging copy"
   out:
@@ -80,7 +80,7 @@ phases:
   - id: P5
     name: "Ready to show Amber"
     tasks:
-      - {id: P5.1, status: open, task: "Demo data and a reset per D4"}
+      - {id: P5.1, status: "partly done 2026-10-02", evidence: "_harvest/refresh.py took 273 of 274 live products (willow-mini-bernedoodle is in the sitemap with no product); prices from the stated Price line, 77 placed; local and staging reseeded through seed- ids only, staging backed up first to app/.state/staging-before-refresh-2026-10-02.sql; commit be5491e. Left: the three made-up breeders at different stages, and a reset button", task: "Demo data and a reset per D4"}
       - {id: P5.2, status: open, task: "A walk-through script for both sides, written for Amber"}
       - {id: P5.3, status: open, task: "Every automated test green on staging, plus a click-through of the script by Claude before Alex shows it"}
 order: "P1.1 first so D1 can be decided while P4.1, P4.2 and P4.3 go ahead, since those need no decision. Then P1, P2 and P3 together, then P4.5 and P4.6 as F1 and F2 arrive, then P5"

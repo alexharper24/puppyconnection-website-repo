@@ -28,6 +28,9 @@ decisions:
   - {id: D2, status: "closed 2026-10-02", answer: "Alex sets up Stripe himself (F1)", item: "Whose Stripe test account staging uses. Recommend a free Stripe account Alex opens now in test mode, swapped for Amber's at launch, because hers takes one to two weeks to verify and the test runs do not depend on it"}
   - {id: D3, status: "closed 2026-10-02", answer: "Logo, kennel photo, breeds and a Facebook page, all optional (Alex)", item: "Which optional profile fields a breeder gets. Recommend logo, one kennel photo, the breeds they raise and a Facebook page, all optional, and nothing that asks for information breeders may not have"}
   - {id: D4, status: "closed 2026-10-02", answer: "Refresh from the live Puppy Connection site, or Alex signs in to Wix if that fails. The public product pages answered, so no Wix sign-in or API key is needed (Alex)", item: "Demo data for showing Amber. Recommend keeping the 204 seed listings plus three made-up breeders at different stages, with a reset that puts staging back to that state"}
+  - {id: D5, status: open, blocked_on: "alex and amber", item: "Who owns the Puppy Connection Google account that holds the OAuth client for P6.1 and P6.4. Recommend Amber's business Google account, or a new account for the platform on a puppy-connection.com address, with Alex added as a second owner of the Cloud project"}
+  - {id: D6, status: open, blocked_on: amber, item: "What staff can do. Recommend staff approve breeders and hold listings, and only the owner changes settings and handles refunds"}
+  - {id: D7, status: open, blocked_on: amber, item: "Whether a kennel can have more than one person signing in. Today each breeder account has one sign-in"}
 free_accounts_alex_opens:
   - {id: F1, item: "Stripe account in test mode (free, no card)", unblocks: "real Checkout, the webhook, refunds and disputes on staging"}
   - {id: F2, item: "Resend account (free tier, 100 a day)", unblocks: "real sign-in and notice emails to an allowed list of Alex's addresses, sent from Resend's shared address until the domain is verified"}
@@ -77,6 +80,16 @@ phases:
       - {id: P4.6, status: open, task: "Resend provider proven against the allowed list"}
       - {id: P4.7, status: open, task: "Wix import script, run against a copy of the database"}
       - {id: P4.8, status: open, task: "Restore from a nightly backup, rehearsed once on staging"}
+  - id: P6
+    name: "Sign-in and account security, added 2026-10-03"
+    tasks:
+      - {id: P6.1, status: open, task: "Continue with Google on the breeder portal, verifying Google's answer on the server, linking to an existing account only on a verified email, applying the same approval and suspension rules, with the emailed link kept as the fallback"}
+      - {id: P6.2, status: open, task: "Six-digit code in the sign-in email beside the link, so a breeder on a phone stays in the same tab"}
+      - {id: P6.3, status: open, task: "Breeder sessions last 60 days and renew with use, replacing the fixed 30 days"}
+      - {id: P6.4, status: open, task: "Google as a sign-in method on the admin's Access application, using the same OAuth client as P6.1"}
+      - {id: P6.5, status: "set up 2026-10-03, waiting on Alex to enroll", evidence: "Access settings allow biometrics, security key and authenticator app, global MFA enforcement on for every Access application, App Launcher opened to the operator policy so operators can enroll at dry-snowflake-0e9c.cloudflareaccess.com", task: "Access two-step check (authenticator app or security key) required for operators"}
+      - {id: P6.6, status: open, task: "Email the breeder whenever their public phone, email or website changes, so a stranger's edit is noticed by the real owner"}
+      - {id: P6.7, status: open, task: "Staff permissions per D6"}
   - id: P5
     name: "Ready to show Amber"
     tasks:

@@ -28,6 +28,7 @@ decisions:
   - {id: D2, status: "closed 2026-10-02", answer: "Alex sets up Stripe himself (F1)", item: "Whose Stripe test account staging uses. Recommend a free Stripe account Alex opens now in test mode, swapped for Amber's at launch, because hers takes one to two weeks to verify and the test runs do not depend on it"}
   - {id: D3, status: "closed 2026-10-02", answer: "Logo, kennel photo, breeds and a Facebook page, all optional (Alex)", item: "Which optional profile fields a breeder gets. Recommend logo, one kennel photo, the breeds they raise and a Facebook page, all optional, and nothing that asks for information breeders may not have"}
   - {id: D4, status: "closed 2026-10-02", answer: "Refresh from the live Puppy Connection site, or Alex signs in to Wix if that fails. The public product pages answered, so no Wix sign-in or API key is needed (Alex)", item: "Demo data for showing Amber. Recommend keeping the 204 seed listings plus three made-up breeders at different stages, with a reset that puts staging back to that state"}
+  - {id: D8, status: "closed 2026-10-04", answer: "Listings do not expire, the fee is a one-time payment (Alex). listing_days 0 means no end date; setting a number turns expiry and renewals back on without a rebuild", item: "How long a paid listing lasts"}
   - {id: D5, status: open, blocked_on: "alex and amber", item: "Who owns the Puppy Connection Google account that holds the OAuth client for P6.1 and P6.4. Recommend Amber's business Google account, or a new account for the platform on a puppy-connection.com address, with Alex added as a second owner of the Cloud project"}
   - {id: D6, status: open, blocked_on: amber, item: "What staff can do. Recommend staff approve breeders and hold listings, and only the owner changes settings and handles refunds"}
   - {id: D7, status: open, blocked_on: amber, item: "Whether a kennel can have more than one person signing in. Today each breeder account has one sign-in"}
@@ -49,12 +50,12 @@ phases:
   - id: P2
     name: "Breeder portal, what a breeder expects"
     tasks:
-      - {id: P2.1, status: open, task: "Each puppy shows where it stands, meaning live until a date, expiring soon, expired with a renew button, or what it still needs"}
+      - {id: P2.1, status: open, task: "Each puppy shows where it stands, meaning listed, placed, paused, or what it still needs before it can be paid for. Dates and a renew button appear only if expiry is turned back on (D8)"}
       - {id: P2.2, status: open, task: "View on the site links for the breeder page and each live puppy"}
       - {id: P2.3, status: open, task: "Optional profile extras per D3, with uploads through the same in-browser resize as puppy photos"}
       - {id: P2.4, status: open, task: "Add a whole litter's puppies in one step, duplicate a puppy, and mark placed from the list"}
       - {id: P2.5, status: open, task: "Views and clicks through to the breeder for each puppy, so a breeder can see what a listing produced"}
-      - {id: P2.6, status: open, task: "Renewal of expired listings through the same checkout"}
+      - {id: P2.6, status: "done 2026-10-04 as a setting", evidence: "D8 made listings permanent; listing_days 0 on staging and as the default, paid listings get no end date, a listed puppy cannot be paid for twice, the expiry job reports itself off; renewal still works if listing_days is set above 0 (jobs-test 20 of 20 runs with it at 60); e2e 41 of 41, access 10 of 10; staging backed up to app/.state/staging-before-no-expiry-2026-10-04.sql first", task: "Renewal of expired listings through the same checkout"}
       - {id: P2.7, status: open, task: "Account screen to change the sign-in email, sign out everywhere, and ask to close the account"}
       - {id: P2.8, status: open, task: "Short help page answering how listing, payment, expiry and approval work"}
   - id: P3

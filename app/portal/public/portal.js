@@ -155,6 +155,8 @@
     });
   }
 
+  // How long a payment lists a puppy, in words. listing_days 0 means it stays up until removed.
+  function term(L) { return L.listing_days > 0 ? 'for ' + L.listing_days + ' days' : 'once, and it stays up until you remove it or mark it placed'; }
   function head(title, lede, actions) {
     return '<div class="page-head"><div><h1>' + esc(title) + '</h1>' + (lede ? '<p class="lede">' + lede + '</p>' : '') + '</div>' +
       (actions ? '<div class="head-actions">' + actions + '</div>' : '') + '</div>';
@@ -195,12 +197,13 @@
       var drafts = all.filter(function (x) { return x.publication_state === 'draft'; }).length;
       var ready = all.filter(function (x) { return !x.pay_block; }).length;
       var soon = all.filter(function (x) { return x.is_public && x.expires_at && new Date(x.expires_at) - Date.now() < 7 * 86400000; }).length;
+      var placed = all.filter(function (x) { return x.availability === 'placed'; }).length;
       shell(html + '<div class="stats">' +
         '<a class="stat" href="#/litters"><b>' + live + '</b><span>Live on the site</span></a>' +
         '<a class="stat" href="#/litters"><b>' + drafts + '</b><span>Drafts</span></a>' +
         '<a class="stat" href="#/pay"><b>' + ready + '</b><span>Ready to pay for</span></a>' +
-        '<a class="stat" href="#/pay"><b>' + soon + '</b><span>Expiring within a week</span></a></div>' +
-        '<div class="card"><h2>' + (all.length ? 'Next steps' : 'Add your first litter') + '</h2><p>Add a litter, add each puppy with photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it for ' + L.listing_days + ' days.</p>' +
+        (L.listing_days > 0 ? '<a class="stat" href="#/pay"><b>' + soon + '</b><span>Expiring within a week</span></a>' : '<a class="stat" href="#/litters"><b>' + placed + '</b><span>Placed</span></a>') + '</div>' +
+        '<div class="card"><h2>' + (all.length ? 'Next steps' : 'Add your first litter') + '</h2><p>Add a litter, add each puppy with photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it ' + term(L) + '.</p>' +
         '<div class="btn-row"><a class="btn btn-primary" href="#/litters">Litters and puppies</a>' + (ready ? '<a class="btn btn-gold" href="#/pay">Pay to list ' + ready + '</a>' : '') + '</div></div>');
     });
   }
@@ -259,7 +262,7 @@
   function puppyChips(x) {
     var chips = [];
     if (x.publication_state === 'archived') chips.push('<span class="pill">Removed</span>');
-    else if (x.is_public) chips.push('<span class="pill pill-ok">Listed until ' + esc(day(x.expires_at)) + '</span>');
+    else if (x.is_public) chips.push('<span class="pill pill-ok">' + (x.expires_at ? 'Listed until ' + esc(day(x.expires_at)) : 'Listed') + '</span>');
     else if (x.publication_state === 'expired') chips.push('<span class="pill pill-warn">Expired</span>');
     else if (x.publication_state === 'published') chips.push('<span class="pill pill-warn">Paid, not showing</span>');
     else chips.push('<span class="pill">Draft</span>');
@@ -495,7 +498,7 @@
       });
       var ready = rows.filter(function (r) { return !r.x.pay_block; });
       var blocked = rows.filter(function (r) { return r.x.pay_block && !r.x.is_public; });
-      var html = head('Pay to list', 'Each puppy costs ' + esc(money(L.fee_cents)) + ' to list for ' + L.listing_days + ' days. Pay for a whole litter at once.') +
+      var html = head('Pay to list', 'Each puppy costs ' + esc(money(L.fee_cents)) + ' to list ' + term(L) + '. Pay for a whole litter at once.') +
         (q.indexOf('canceled=1') >= 0 ? '<p class="notice">Payment canceled. Nothing was charged, and the puppies are free to pay for again.</p>' : '') +
         '';
       if (me.status !== 'approved') html += '<p class="notice">Payments open once your account is approved and active.</p>';

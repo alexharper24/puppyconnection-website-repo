@@ -301,7 +301,7 @@
   }
   function listingChips(p) {
     var c = [];
-    if (p.is_public) c.push('<span class="pill pill-ok">Live until ' + esc(day(p.expires_at)) + '</span>');
+    if (p.is_public) c.push('<span class="pill pill-ok">' + (p.expires_at ? 'Live until ' + esc(day(p.expires_at)) : 'Live') + '</span>');
     else if (p.publication_state === 'expired') c.push('<span class="pill pill-warn">Expired</span>');
     else if (p.publication_state === 'draft') c.push('<span class="pill">Draft</span>');
     else if (p.publication_state === 'published') c.push('<span class="pill pill-warn">Paid, hidden</span>');
@@ -381,22 +381,22 @@
   }
 
   var SETTING_LABELS = {
-    listing_days: ['How many days a paid listing stays live', 'number'],
-    warn_days: ['Days before expiry that breeders are warned', 'number'],
+    listing_days: ['Days a payment lists a puppy. 0 means it stays up until removed, as a one-time payment', 'number'],
+    warn_days: ['Days before expiry that breeders are warned, when listings expire', 'number'],
     suspended_listings_visible: ['Keep a suspended breeder\'s listings on the site (1 yes, 0 no)', 'number'],
     min_photos: ['Photos a puppy needs before it can be paid for', 'number'],
     max_photos: ['Most photos a puppy can have', 'number'],
     terms_version: ['Listing terms version breeders accept', 'text'],
   };
   var JOB_LABELS = {
-    expiry: ['Listing expiry', 'Every morning. Warns breeders before a listing ends, then takes ended listings off the site.'],
+    expiry: ['Listing expiry', 'Every morning, when listings have an end date. Warns breeders before a listing ends, then takes ended listings off the site.'],
     housekeeping: ['Housekeeping', 'Every morning. Clears used sign-in links, ended sessions and stale checkout holds.'],
     backup: ['Backup', 'Every morning. Saves every table to the photo bucket and keeps 90 days.'],
     reconcile: ['Checkout check', 'Every 15 minutes. Closes abandoned checkouts and publishes any paid listing that is not live.'],
   };
   function jobSummary(job, r) {
     if (!r) return '';
-    if (job === 'expiry') return plural(r.warned || 0, 'warning') + ' sent, ' + plural(r.expired || 0, 'listing') + ' expired';
+    if (job === 'expiry') return r.off ? 'Off, because listings do not expire' : plural(r.warned || 0, 'warning') + ' sent, ' + plural(r.expired || 0, 'listing') + ' expired';
     if (job === 'housekeeping') return (r.tokens || 0) + ' links, ' + (r.sessions || 0) + ' sessions and ' + (r.holds || 0) + ' holds cleared';
     if (job === 'backup') return r.rows ? r.rows.toLocaleString('en-US') + ' rows, ' + Math.round((r.bytes || 0) / 1024) + ' KB' : '';
     if (job === 'reconcile') return plural(r.closed || 0, 'checkout') + ' closed, ' + (r.fulfilled || 0) + ' published';

@@ -293,7 +293,9 @@ CREATE TABLE IF NOT EXISTS sim_sessions (
 
 INSERT OR IGNORE INTO site_state (id) VALUES (1);
 INSERT OR IGNORE INTO settings (key, value) VALUES
-  ('listing_days', '60'),
+  -- 0 means a paid listing stays up until it is removed (Alex, 2026-10-04: one-time payment).
+  -- Any other number is the days a payment buys, and turns on the expiry job and renewals.
+  ('listing_days', '0'),
   ('warn_days', '7'),
   ('suspended_listings_visible', '0'),
   ('min_photos', '1'),
@@ -323,7 +325,7 @@ FROM puppies pu JOIN public_breeders pb ON pb.breeder_id = pu.breeder_id
 WHERE pu.publication_state = 'published'
   AND pu.payment_state IN ('paid','comped')
   AND pu.operator_hold = 0
-  AND pu.expires_at > strftime('%Y-%m-%dT%H:%M:%SZ','now');
+  AND (pu.expires_at IS NULL OR pu.expires_at > strftime('%Y-%m-%dT%H:%M:%SZ','now'));
 
 CREATE VIEW public_litters AS
 SELECT l.id, l.breeder_id, l.breed_id, l.born_on, l.ready_on, l.mom_weight_lb,

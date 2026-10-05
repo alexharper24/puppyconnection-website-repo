@@ -40,8 +40,24 @@ async function req(base, method, p, body, raw) {
 }
 
 async function main() {
+  // Expiry only runs when listings have an end date, so this run turns it on and puts it back.
+  const before = sql("SELECT value FROM settings WHERE key = 'listing_days'")[0]?.value ?? '0';
+  sql("UPDATE settings SET value = '60' WHERE key = 'listing_days'");
+  try { await body(); } finally { sql(`UPDATE settings SET value = '${before}' WHERE key = 'listing_days'`); }
+  console.log(fails ? `\n${fails} failed` : '\nall passed');
+  process.exit(fails ? 1 : 0);
+}
+
+async function body() {
   const email = `jobs-${Date.now().toString(36)}@breeders.test`;
-  await req(PORTAL, 'POST', '/auth/start', { email, business_name: 'Jobs Test Kennel' });
+  // Sign-up is rate limited per minute, so after the other suites this may need one wait.
+  let started = await req(PORTAL, 'POST', '/auth/start', { email, business_name: 'Jobs Test Kennel' });
+  if (started.status === 429) {
+    console.log('sign-up rate limited, waiting a minute');
+    await new Promise((r) => setTimeout(r, 65000));
+    started = await req(PORTAL, 'POST', '/auth/start', { email, business_name: 'Jobs Test Kennel' });
+  }
+  check('the test breeder can start signing up', started.status === 200, JSON.stringify(started.data));
   const mail = (await req(PORTAL, 'GET', `/dev/mail.json?to=${encodeURIComponent(email)}`)).data;
   await req(PORTAL, 'POST', '/auth/verify', new URLSearchParams({ t: new URL(mail[0].link).searchParams.get('t') }));
   let me = (await req(PORTAL, 'GET', '/api/me')).data;
@@ -100,7 +116,5 @@ async function main() {
   check('an unknown job is refused', (await req(ADMIN, 'POST', '/api/jobs/nothing/run', {})).status === 404);
   check('Run now refuses a request from another site', (await fetch(`${ADMIN}/api/jobs/expiry/run`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' })).status === 403);
 
-  console.log(fails ? `\n${fails} failed` : '\nall passed');
-  process.exit(fails ? 1 : 0);
 }
 main().catch((e) => { console.error(e); process.exit(1); });

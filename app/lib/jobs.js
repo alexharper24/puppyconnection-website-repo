@@ -37,6 +37,8 @@ async function record(env, job, fn) {
 // per breeder. Past their date, they come off the site and the breeder is told how to renew.
 async function expiry(env) {
   const s = await settings(env);
+  // listing_days 0 means listings never end, so there is nothing to warn about or expire.
+  if (s.listingDays <= 0) return { warned: 0, expired: 0, off: true };
   const t = now(), soon = iso(Date.now() + s.warnDays * DAY);
   const portal = env.PORTAL_ORIGIN || '';
   const live = `p.publication_state = 'published' AND p.payment_state IN ('paid','comped')`;

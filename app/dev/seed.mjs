@@ -25,7 +25,8 @@ const BREEDS = grab('PC_BREEDS');
 
 const q = (v) => (v == null ? 'NULL' : typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
 const NOW = new Date().toISOString().slice(0, 19) + 'Z';
-const EXPIRES = new Date(Date.now() + 60 * 86400000).toISOString().slice(0, 19) + 'Z';
+// Listings are a one-time payment (listing_days 0), so imported ones have no end date.
+const EXPIRES = null;
 const slugify = (s) => String(s || '').toLowerCase().replace(/['’]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 const MONTHS = { January: 1, February: 2, March: 3, April: 4, May: 5, June: 6, July: 7, August: 8, September: 9, October: 10, November: 11, December: 12 };
 function isoDate(s) {

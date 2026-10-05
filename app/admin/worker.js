@@ -216,7 +216,7 @@ async function compPuppy(req, env, ctx, id, who) {
       `UPDATE puppies SET payment_state = CASE WHEN payment_state = 'paid' THEN 'paid' ELSE 'comped' END,
          publication_state = 'published', published_at = COALESCE(published_at, ?), expires_at = ?, updated_at = ?, version = version + 1
        WHERE id = ?`,
-    ).bind(t, addDays(base, s.listingDays), t, id),
+    ).bind(t, s.listingDays > 0 ? addDays(base, s.listingDays) : null, t, id),
     auditStmt(env, 'operator', who.email, 'puppy.comp', 'puppy', id, { payment_state: p.payment_state, publication_state: p.publication_state },
       { breeder_id: p.breeder_id, days: s.listingDays }),
     dirtyStmt(env),

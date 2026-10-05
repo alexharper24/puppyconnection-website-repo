@@ -154,8 +154,10 @@ export async function payability(env, puppy, s, photoCount, heldBy) {
   if (!puppy.name || puppy.price_cents == null) return 'Needs a name and a price.';
   if (photoCount < s.minPhotos) return `Needs at least ${s.minPhotos} photo${s.minPhotos === 1 ? '' : 's'}.`;
   if (puppy.publication_state === 'published') {
+    // With no expiry (listing_days 0) one payment lists a puppy for good, so it is never paid for twice.
+    if (s.listingDays <= 0 || !puppy.expires_at) return 'Already listed.';
     const soon = new Date(Date.now() + s.warnDays * 86400000).toISOString();
-    if (puppy.expires_at && puppy.expires_at > soon) return 'Already listed. Renewal opens near the expiry date.';
+    if (puppy.expires_at > soon) return 'Already listed. Renewal opens near the expiry date.';
   }
   return null;
 }
@@ -290,13 +292,13 @@ export async function fulfillCheckout(env, sessionId, source, ctx) {
       `UPDATE puppies
           SET payment_state = 'paid', publication_state = 'published',
               published_at = COALESCE(published_at, ?),
-              expires_at = strftime('%Y-%m-%dT%H:%M:%SZ',
+              expires_at = CASE WHEN ? > 0 THEN strftime('%Y-%m-%dT%H:%M:%SZ',
                              CASE WHEN expires_at IS NOT NULL AND expires_at > ? THEN expires_at ELSE ? END,
-                             '+' || ? || ' days'),
+                             '+' || ? || ' days') ELSE NULL END,
               expiry_warned_at = NULL, version = version + 1, updated_at = ?
         WHERE id IN (SELECT puppy_id FROM checkout_items WHERE checkout_id = ?)
           AND breeder_id = ? AND publication_state != 'archived' AND ${unfulfilled}`,
-    ).bind(t, t, t, st.listingDays, t, co.id, co.breeder_id, co.id),
+    ).bind(t, st.listingDays, t, t, st.listingDays, t, co.id, co.breeder_id, co.id),
     env.DB.prepare('DELETE FROM puppy_holds WHERE checkout_id = ?').bind(co.id),
     env.DB.prepare(
       `UPDATE site_state SET dirty = 1, dirty_since = COALESCE(dirty_since, ?), generation = generation + 1

@@ -192,6 +192,23 @@ export const SECURITY_HEADERS = {
     "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 
+/**
+ * The breeder portal's headers. Google's sign-in library (One Tap and its button) loads a
+ * script, a frame and a stylesheet from accounts.google.com/gsi/, calls back to it, and needs
+ * the page's origin in the Referer, so the portal allows exactly those. The admin keeps
+ * SECURITY_HEADERS as they are.
+ */
+export const PORTAL_SECURITY_HEADERS = {
+  ...SECURITY_HEADERS,
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'content-security-policy':
+    "default-src 'self'; img-src 'self' data: https://static.wixstatic.com https://lh3.googleusercontent.com; " +
+    "script-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/client; " +
+    "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/; " +
+    "connect-src 'self' https://accounts.google.com/gsi/; " +
+    "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
+};
+
 export function withHeaders(response, headers) {
   const r = new Response(response.body, response);
   for (const [k, v] of Object.entries(headers)) if (!r.headers.has(k)) r.headers.set(k, v);

@@ -5,7 +5,7 @@
 import {
   now, addDays, addMinutes, ulid, randomToken, sha256hex, slugify, esc, clean, cents,
   HttpError, notFound, forbidden, bad, json, html, redirect, readJson, requireSameOrigin,
-  parseCookies, sessionCookieName, setCookie, isLocal, SECURITY_HEADERS, withHeaders, gate,
+  parseCookies, sessionCookieName, setCookie, isLocal, PORTAL_SECURITY_HEADERS as SECURITY_HEADERS, withHeaders, gate,
 } from '../lib/util.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
@@ -17,7 +17,7 @@ import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
 } from '../lib/payments.js';
 import { cleanImage } from '../lib/images.js';
-import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle } from '../lib/google.js';
+import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle, randomString } from '../lib/google.js';
 
 const SESSION_DAYS = 30;
 const TOKEN_MINUTES = 15;
@@ -114,7 +114,7 @@ async function authStart(request, env, ctx) {
 function page(title, inner) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=3"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=4"></head>
 <body class="plain"><main class="plain-card"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main></body></html>`;
 }
 
@@ -210,6 +210,40 @@ async function googleCallback(request, env) {
   const breederId = await breederForVerifiedEmail(env, email, { contactName: clean(claims.name, 120), method: 'google' });
   const session = await startSession(request, env, breederId);
   const res = redirect('/', 303, { 'set-cookie': session });
+  res.headers.append('set-cookie', clear);
+  return res;
+}
+
+// One Tap and Google's in-page button (plan P6.8). The page asks for a nonce, which is also
+// kept in an HttpOnly cookie, hands it to Google, and posts back the ID token Google returns.
+// The token is checked exactly as the redirect flow checks it, nonce included, so a token
+// lifted from another site or another sign-in is refused.
+const ONETAP_COOKIE = 'pc_gnonce';
+
+async function oneTapNonce(request, env) {
+  if (!googleEnabled(env)) throw notFound();
+  const nonce = randomString();
+  return json({ nonce, client_id: env.GOOGLE_CLIENT_ID }, 200, { 'set-cookie': setCookie(request, ONETAP_COOKIE, nonce, 600), 'cache-control': 'no-store' });
+}
+
+async function oneTapSignIn(request, env) {
+  if (!googleEnabled(env)) throw notFound();
+  requireSameOrigin(request);
+  const { credential } = await readJson(request);
+  const nonce = parseCookies(request)[ONETAP_COOKIE];
+  const clear = setCookie(request, ONETAP_COOKIE, '', 0);
+  if (!nonce) throw new HttpError(400, 'That sign-in took too long. Please try again.');
+  let claims;
+  try {
+    claims = await verifyWithGoogle(env, String(credential || ''), nonce);
+  } catch (e) {
+    console.warn('one tap refused:', e.message);
+    return json({ error: 'Google sign-in did not go through. Please try again.' }, 400, { 'set-cookie': clear });
+  }
+  const email = String(claims.email).trim().toLowerCase();
+  if (!EMAIL_RX.test(email)) return json({ error: 'That Google account has no usable email address.' }, 400, { 'set-cookie': clear });
+  const breederId = await breederForVerifiedEmail(env, email, { contactName: clean(claims.name, 120), method: 'google' });
+  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId) });
   res.headers.append('set-cookie', clear);
   return res;
 }
@@ -741,6 +775,8 @@ const ROUTES = [
   ['POST', /^\/auth\/signout$/, signOut],
   ['GET', /^\/auth\/google$/, googleStart],
   ['GET', /^\/auth\/google\/callback$/, googleCallback],
+  ['GET', /^\/auth\/google\/nonce$/, oneTapNonce],
+  ['POST', /^\/auth\/google\/onetap$/, oneTapSignIn],
   ['GET', /^\/api\/config$/, config],
   ['GET', /^\/api\/me$/, me],
   ['PUT', /^\/api\/profile$/, saveProfile],

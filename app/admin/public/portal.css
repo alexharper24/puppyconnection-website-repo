@@ -229,6 +229,8 @@ body.plain { display: grid; place-items: start center; min-height: 100dvh; paddi
 /* Continue with Google, styled to Google's sign-in button guidance: white, gray border, the four-color G */
 .btn-google { width: 100%; background: #fff; border-color: #747775; color: #1f1f1f; font-weight: 500; gap: .7rem; margin-top: .4rem; }
 .btn-google:hover { background: #f8f9fa; border-color: #5f6368; }
+.gsi-button { display: flex; justify-content: center; min-height: 44px; margin-top: .4rem; }
+.gsi-button:empty { display: none; }
 .or { display: flex; align-items: center; gap: .8rem; color: var(--muted); font-size: .85rem; margin: 1.1rem 0 .2rem; }
 .or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
 .brandmark img { width: 100%; height: auto; display: block; }

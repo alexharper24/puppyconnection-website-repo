@@ -94,7 +94,7 @@
         '<p class="muted small">Wrong address? <a href="/" data-restart>Start again</a>.</p>'
       : '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection. There is no password to remember.</p>' +
         (/google=failed/.test(location.search) ? '<p class="notice notice-alert">Google sign-in did not go through. Please try again, or use your email below.</p>' : '') +
-        (c.google ? '<a class="btn btn-google" href="/auth/google"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.4-4 6.8-10 6.8-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.7-2.9-.7-4.6s.3-3.2.7-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Continue with Google</a>' +
+        (c.google ? '<div id="gsi-button" class="gsi-button" aria-live="polite"></div><a class="btn btn-google" id="google-redirect" href="/auth/google"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.4-4 6.8-10 6.8-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.7-2.9-.7-4.6s.3-3.2.7-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Continue with Google</a>' +
           '<p class="or"><span>or use your email</span></p>' : '<p>Enter your email and we will send you a link to sign in.</p>') +
         '<form id="signin" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>' +
         '<div class="field"><label for="bn">Business name <span class="muted">(new breeders)</span></label><input id="bn" name="business_name" type="text" autocomplete="organization"></div>' +
@@ -103,6 +103,7 @@
         (c.local ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '')) +
       '</main>';
     var r = $('[data-restart]'); if (r) r.addEventListener('click', function (e) { e.preventDefault(); renderSignIn(); });
+    if (c.google && !sent) startGoogle();
     if (c.turnstile_site_key && !window.turnstile) {
       var s = document.createElement('script'); s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'; s.async = true; document.head.appendChild(s);
     }
@@ -118,6 +119,35 @@
         .then(function (r) { renderSignIn(r.message); })
         .catch(function (err) { btn.disabled = false; showError(f, err); });
     });
+  }
+
+  /* Google's own library shows One Tap ("Continue as Alex") and its standard button on this
+     page, so a breeder signs in without leaving it. If the library cannot load, the plain
+     redirect button below it is what they see and use. */
+  function startGoogle() {
+    api('GET', '/auth/google/nonce').then(function (g) {
+      function ready() {
+        if (!window.google || !google.accounts || !google.accounts.id) return;
+        google.accounts.id.initialize({
+          client_id: g.client_id, nonce: g.nonce, context: 'signin', ux_mode: 'popup',
+          use_fedcm_for_prompt: true, itp_support: true, cancel_on_tap_outside: true,
+          callback: function (resp) {
+            api('POST', '/auth/google/onetap', { credential: resp.credential })
+              .then(function () { location.hash = '#/'; location.reload(); })
+              .catch(function (err) { var f = $('#signin'); if (f) showError(f, err); });
+          },
+        });
+        var box = $('#gsi-button');
+        if (box) {
+          google.accounts.id.renderButton(box, { type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', logo_alignment: 'left', width: Math.min(box.clientWidth || 400, 400) });
+          var fallback = $('#google-redirect'); if (fallback) fallback.hidden = true;
+        }
+        google.accounts.id.prompt();
+      }
+      if (window.google && window.google.accounts) return ready();
+      var s = document.createElement('script'); s.src = 'https://accounts.google.com/gsi/client'; s.async = true; s.onload = ready;
+      document.head.appendChild(s);
+    }).catch(function () { /* the redirect button stays */ });
   }
 
   // ------------------------------------------------------------ shell

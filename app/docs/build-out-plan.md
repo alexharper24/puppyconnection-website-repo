@@ -2,7 +2,7 @@
 doc: build-out-plan
 written: 2026-10-02
 asked: "build out all of the functionality in the config that doesn't require me to actually spend money ... so that I can ultimately test and even potentially show Amber the process ... make sure the aesthetics of the back end, both the breeder portal and also the admin panel ... looks clean, it's organized, it's aligned ... do a full assessment review ... are we missing anything ... make sure we have a good plan to then execute"
-status: "IN PROGRESS 2026-10-02. P1 and P4.2 done and on staging, P4.1 waits on F3. Next is P4.3, then P2 and P3"
+status: "IN PROGRESS 2026-10-05. P1, P4.1, P4.2, D8 and Google sign-in (P6.1, P6.4, P6.8) on staging. Next is P7, the production-like staging, then P2 and P3"
 scope:
   in: "Everything the portal, admin, site and their jobs need that costs nothing, built and tested on the Puppy Connection staging copy"
   out:
@@ -29,6 +29,7 @@ decisions:
   - {id: D3, status: "closed 2026-10-02", answer: "Logo, kennel photo, breeds and a Facebook page, all optional (Alex)", item: "Which optional profile fields a breeder gets. Recommend logo, one kennel photo, the breeds they raise and a Facebook page, all optional, and nothing that asks for information breeders may not have"}
   - {id: D4, status: "closed 2026-10-02", answer: "Refresh from the live Puppy Connection site, or Alex signs in to Wix if that fails. The public product pages answered, so no Wix sign-in or API key is needed (Alex)", item: "Demo data for showing Amber. Recommend keeping the 204 seed listings plus three made-up breeders at different stages, with a reset that puts staging back to that state"}
   - {id: D8, status: "closed 2026-10-04", answer: "Listings do not expire, the fee is a one-time payment (Alex). listing_days 0 means no end date; setting a number turns expiry and renewals back on without a rebuild", item: "How long a paid listing lasts"}
+  - {id: D9, status: open, blocked_on: alex, item: "Where staging sends email from before puppy-connection.com is on Cloudflare. Resend's free plan delivers only to the account owner until a sending domain is verified, and workers.dev cannot be one. Options are a subdomain of a domain Alex controls, verified in Resend for staging only, or moving puppy-connection.com's DNS to the Puppy Connection Cloudflare account early (the site can stay on Wix) and sending from it with Resend or Cloudflare Email Sending. Recommend the second, because launch needs it anyway"}
   - {id: D5, status: open, blocked_on: "alex and amber", item: "Who owns the Puppy Connection Google account that holds the OAuth client for P6.1 and P6.4. Recommend Amber's business Google account, or a new account for the platform on a puppy-connection.com address, with Alex added as a second owner of the Cloud project"}
   - {id: D6, status: open, blocked_on: amber, item: "What staff can do. Recommend staff approve breeders and hold listings, and only the owner changes settings and handles refunds"}
   - {id: D7, status: open, blocked_on: amber, item: "Whether a kennel can have more than one person signing in. Today each breeder account has one sign-in"}
@@ -91,6 +92,18 @@ phases:
       - {id: P6.5, status: "set up 2026-10-03, waiting on Alex to enroll", evidence: "Access settings allow biometrics, security key and authenticator app, global MFA enforcement on for every Access application, App Launcher opened to the operator policy so operators can enroll at dry-snowflake-0e9c.cloudflareaccess.com", task: "Access two-step check (authenticator app or security key) required for operators"}
       - {id: P6.6, status: open, task: "Email the breeder whenever their public phone, email or website changes, so a stranger's edit is noticed by the real owner"}
       - {id: P6.7, status: open, task: "Staff permissions per D6"}
+      - {id: P6.8, status: "built 2026-10-05, waiting on Alex's live sign-in", evidence: "Google Identity Services One Tap and Google's own button on the portal sign-in page, nonce held in an HttpOnly cookie, token checked exactly as the redirect flow; portal CSP and Referrer-Policy opened to accounts.google.com/gsi only, admin unchanged; google-test 25 of 25, e2e 41, access 10, jobs 20; staging portal c41a7457 renders the button", task: "One Tap and Google's in-page button, so a breeder signs in without leaving the portal"}
+  - id: P7
+    name: "Staging that looks and behaves like production, added 2026-10-05"
+    why: "Alex, 2026-10-05: show a live environment, not on the domain, with breeder accounts, approval, listing and sandbox Stripe payment end to end, so launch only flips accounts like Stripe to live"
+    tasks:
+      - {id: P7.1, status: open, blocked_on: claude, task: "Privacy policy and terms pages on the portal. The privacy policy is drafted by Claude and marked for Amber's review; the terms wait on Amber's own words (build spec section 14) and show as a clearly marked draft until then"}
+      - {id: P7.2, status: open, blocked_on: "claude, then alex", task: "Google app moved from Testing to In production: home page, privacy and terms links, authorized domain puppyconnection.workers.dev. Asking only for name and email needs no Google review, so any Google account can sign in and the unverified warning goes. The logo waits for brand verification at launch"}
+      - {id: P7.3, status: open, blocked_on: claude, task: "A staging mode that drops every simulation surface: the test-version banners, the test mailbox, the practice checkout and the operator stand-in. Search engines still kept out"}
+      - {id: P7.4, status: open, blocked_on: "alex (F1)", task: "Stripe sandbox: the $14.99 product and price and the webhook endpoint created in test mode, the keys set as secrets, and the spec's Stripe test list run on staging (paid, declined, lost webhook, refund, dispute)"}
+      - {id: P7.5, status: open, blocked_on: "alex (D9)", task: "Real email from staging per D9, so sign-in links, approvals and notices arrive in real inboxes"}
+      - {id: P7.6, status: open, blocked_on: "claude, then alex (F4)", task: "P4.3 publishing, so the public site is generated pages built on each change rather than the live-read stand-in"}
+      - {id: P7.7, status: open, blocked_on: claude, task: "A launch checklist naming exactly what flips: Stripe live keys and price, the Google app under the Puppy Connection account with brand verification, the domain and its email records, Access on the admin hostname, and noindex off"}
   - id: P5
     name: "Ready to show Amber"
     tasks:

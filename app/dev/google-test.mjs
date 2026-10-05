@@ -124,7 +124,37 @@ async function part2(k) {
   }
 }
 
+// Part 3, One Tap: the page gets a nonce (also kept in a cookie), Google hands back an ID
+// token carrying it, and the page posts that token to /auth/google/onetap.
+async function part3(k) {
+  const g = fakeGoogle(k);
+  await new Promise((r) => g.server.listen(8799, r));
+  try {
+    const n = await fetch(`${PORTAL}/auth/google/nonce`);
+    const { nonce, client_id } = await n.json();
+    const cookie = (n.headers.get('set-cookie') || '').split(';')[0];
+    check('the page gets a nonce and the client ID for One Tap', !!nonce && client_id === CLIENT_ID && /^pc_gnonce=/.test(cookie));
+    const post = (credential, headers = {}) => fetch(`${PORTAL}/auth/google/onetap`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json', cookie, ...headers }, body: JSON.stringify({ credential }) });
+    const email = `onetap-${Date.now().toString(36)}@example.com`;
+    const ok = await post(await sign(k, good({ email, nonce })));
+    const session = (ok.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).find((c) => /pc_session=./.test(c));
+    const me = session ? await (await fetch(`${PORTAL}/api/me`, { headers: { cookie: session } })).json() : null;
+    check('a One Tap token signs the breeder in', ok.status === 200 && me?.email === email, JSON.stringify(me));
+    check('a One Tap token from another sign-in (nonce) is refused', (await post(await sign(k, good({ email, nonce: 'someone-elses' })))).status === 400);
+    const noCookie = await fetch(`${PORTAL}/auth/google/onetap`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json' }, body: JSON.stringify({ credential: await sign(k, good({ email, nonce })) }) });
+    check('a One Tap token with no sign-in started in this browser is refused', noCookie.status === 400);
+    check('a One Tap post from another site is refused', (await post(await sign(k, good({ email, nonce })), { origin: 'https://evil.example' })).status === 403);
+    const ph = await fetch(`${PORTAL}/`), ah = await fetch('http://localhost:8788/');
+    check('the portal allows Google sign-in and keeps the page origin in the Referer',
+      /accounts\.google\.com\/gsi\/client/.test(ph.headers.get('content-security-policy') || '') && ph.headers.get('referrer-policy') === 'strict-origin-when-cross-origin');
+    check('the admin keeps its stricter policy', !/accounts\.google\.com/.test(ah.headers.get('content-security-policy') || '') && ah.headers.get('referrer-policy') === 'same-origin');
+  } finally {
+    g.server.close();
+  }
+}
+
 const k = await part1();
 await part2(k);
+await part3(k);
 console.log(fails ? `\n${fails} failed` : '\nall passed');
 process.exit(fails ? 1 : 0);

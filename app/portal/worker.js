@@ -17,6 +17,7 @@ import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
 } from '../lib/payments.js';
 import { cleanImage } from '../lib/images.js';
+import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle } from '../lib/google.js';
 
 const SESSION_DAYS = 30;
 const TOKEN_MINUTES = 15;
@@ -113,7 +114,7 @@ async function authStart(request, env, ctx) {
 function page(title, inner) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=2"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=3"></head>
 <body class="plain"><main class="plain-card"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main></body></html>`;
 }
 
@@ -139,22 +140,78 @@ async function authVerify(request, env) {
 <p>Sign-in links work once and last 15 minutes. <a href="/">Ask for a new one</a>.</p>`), 400);
   }
   const tok = await env.DB.prepare('SELECT * FROM login_tokens WHERE token_hash = ?').bind(hash).first();
-  let breeder = await env.DB.prepare('SELECT id, email_verified_at FROM breeders WHERE email = ?').bind(tok.email).first();
-  if (!breeder) {
-    const id = ulid();
-    await env.DB.batch([
-      env.DB.prepare(`INSERT INTO breeders (id, email, status, email_verified_at, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?, ?)`)
-        .bind(id, tok.email, t, t, t),
-      env.DB.prepare('INSERT INTO breeder_profiles (breeder_id, business_name, updated_at) VALUES (?, ?, ?)')
-        .bind(id, tok.signup_name || '', t),
-      auditStmt(env, 'breeder', tok.email, 'breeder.signup', 'breeder', id, null, { email: tok.email }),
-    ]);
-    breeder = { id };
-  } else if (!breeder.email_verified_at) {
-    await env.DB.prepare('UPDATE breeders SET email_verified_at = ? WHERE id = ?').bind(t, breeder.id).run();
-  }
-  const cookie = await startSession(request, env, breeder.id);
+  const breederId = await breederForVerifiedEmail(env, tok.email, { businessName: tok.signup_name, method: 'email' });
+  const cookie = await startSession(request, env, breederId);
   return redirect('/', 303, { 'set-cookie': cookie });
+}
+
+/**
+ * The account for an email address that has just been proven, by an emailed link or by
+ * Google. An existing breeder is signed in whatever their status, because approval and
+ * suspension are enforced on every request after this. A new address becomes a pending
+ * breeder, exactly as a first emailed sign-in does.
+ */
+async function breederForVerifiedEmail(env, email, { businessName = '', contactName = null, method }) {
+  const t = now();
+  const existing = await env.DB.prepare('SELECT id, email_verified_at FROM breeders WHERE email = ?').bind(email).first();
+  if (existing) {
+    const stmts = [auditStmt(env, 'breeder', email, `breeder.signin.${method}`, 'breeder', existing.id, null, null)];
+    if (!existing.email_verified_at) stmts.push(env.DB.prepare('UPDATE breeders SET email_verified_at = ? WHERE id = ?').bind(t, existing.id));
+    await env.DB.batch(stmts);
+    return existing.id;
+  }
+  const id = ulid();
+  await env.DB.batch([
+    env.DB.prepare(`INSERT INTO breeders (id, email, status, email_verified_at, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?, ?)`)
+      .bind(id, email, t, t, t),
+    env.DB.prepare('INSERT INTO breeder_profiles (breeder_id, business_name, contact_name, updated_at) VALUES (?, ?, ?, ?)')
+      .bind(id, businessName || '', contactName, t),
+    auditStmt(env, 'breeder', email, 'breeder.signup', 'breeder', id, null, { email, method }),
+  ]);
+  return id;
+}
+
+// ------------------------------------------------------------------ Continue with Google (plan P6.1)
+
+const GOOGLE_COOKIE = 'pc_google';
+const googleRedirect = (request) => `${new URL(request.url).origin}/auth/google/callback`;
+
+async function googleStart(request, env) {
+  if (!googleEnabled(env)) throw notFound();
+  if (env.AUTH_LIMITER) {
+    const { success } = await env.AUTH_LIMITER.limit({ key: `ip:${request.headers.get('cf-connecting-ip') || 'local'}` });
+    if (!success) throw new HttpError(429, 'Too many requests. Please wait a minute and try again.');
+  }
+  const { url, cookie } = await startUrl(env, googleRedirect(request));
+  // state, nonce and the PKCE verifier stay in this browser for ten minutes, never in the URL.
+  return redirect(url, 302, { 'set-cookie': setCookie(request, GOOGLE_COOKIE, cookie, 600) });
+}
+
+async function googleCallback(request, env) {
+  if (!googleEnabled(env)) throw notFound();
+  const url = new URL(request.url);
+  const clear = setCookie(request, GOOGLE_COOKIE, '', 0);
+  const fail = (why) => {
+    console.warn('google sign-in refused:', why);
+    return redirect('/?google=failed', 303, { 'set-cookie': clear });
+  };
+  if (url.searchParams.get('error')) return redirect('/?google=cancelled', 303, { 'set-cookie': clear });
+  const [state, nonce, verifier] = String(parseCookies(request)[GOOGLE_COOKIE] || '').split('.');
+  if (!state || url.searchParams.get('state') !== state) return fail('state does not match this browser');
+  let claims;
+  try {
+    const idToken = await exchangeCode(env, url.searchParams.get('code') || '', verifier, googleRedirect(request));
+    claims = await verifyWithGoogle(env, idToken, nonce);
+  } catch (e) {
+    return fail(e.message);
+  }
+  const email = String(claims.email).trim().toLowerCase();
+  if (!EMAIL_RX.test(email)) return fail('email address not usable');
+  const breederId = await breederForVerifiedEmail(env, email, { contactName: clean(claims.name, 120), method: 'google' });
+  const session = await startSession(request, env, breederId);
+  const res = redirect('/', 303, { 'set-cookie': session });
+  res.headers.append('set-cookie', clear);
+  return res;
 }
 
 async function signOut(request, env) {
@@ -668,6 +725,7 @@ async function devMailJson(request, env) {
 function config(request, env) {
   return json({
     turnstile_site_key: env.TURNSTILE_SITE_KEY || null,
+    google: googleEnabled(env),
     local: isLocal(request, env),
     email_mode: env.EMAIL_MODE || 'off',
     payments_mode: env.PAYMENTS_MODE || 'off',
@@ -681,6 +739,8 @@ const ROUTES = [
   ['GET', /^\/auth\/verify$/, (r) => authVerifyPage(r)],
   ['POST', /^\/auth\/verify$/, authVerify],
   ['POST', /^\/auth\/signout$/, signOut],
+  ['GET', /^\/auth\/google$/, googleStart],
+  ['GET', /^\/auth\/google\/callback$/, googleCallback],
   ['GET', /^\/api\/config$/, config],
   ['GET', /^\/api\/me$/, me],
   ['PUT', /^\/api\/profile$/, saveProfile],

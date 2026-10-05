@@ -8,3 +8,11 @@ PAYMENTS_MODE=sim
 # 1x0000000000000000000000000000000AA.
 TURNSTILE_SITE_KEY=
 TURNSTILE_SECRET=
+
+# Continue with Google. Empty means the button does not show. The values below are for the
+# local test (dev/google-test.mjs), which runs a stand-in Google on port 8799. The *_URL
+# overrides are honored only when DEV_MODE is local.
+GOOGLE_CLIENT_ID=local-test-client.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=local-test-secret
+GOOGLE_TOKEN_URL=http://localhost:8799/token
+GOOGLE_JWKS_URL=http://localhost:8799/certs

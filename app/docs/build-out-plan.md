@@ -84,10 +84,10 @@ phases:
   - id: P6
     name: "Sign-in and account security, added 2026-10-03"
     tasks:
-      - {id: P6.1, status: open, task: "Continue with Google on the breeder portal, verifying Google's answer on the server, linking to an existing account only on a verified email, applying the same approval and suspension rules, with the emailed link kept as the fallback"}
+      - {id: P6.1, status: "built 2026-10-04, waiting on Alex's live sign-in", evidence: "lib/google.js (authorization code, PKCE S256, state, nonce, RS256 check against Google keys, issuer, audience, expiry, verified email) and one find-or-create shared with the emailed link; dev/google-test.mjs 18 of 18 incl. a full local sign-in against a stand-in Google, and it fails when the nonce and audience checks are removed; e2e 41, access 10, jobs 20; staging portal 8bf32be1 starts the real Google flow", task: "Continue with Google on the breeder portal, verifying Google's answer on the server, linking to an existing account only on a verified email, applying the same approval and suspension rules, with the emailed link kept as the fallback"}
       - {id: P6.2, status: open, task: "Six-digit code in the sign-in email beside the link, so a breeder on a phone stays in the same tab"}
       - {id: P6.3, status: open, task: "Breeder sessions last 60 days and renew with use, replacing the fixed 30 days"}
-      - {id: P6.4, status: open, task: "Google as a sign-in method on the admin's Access application, using the same OAuth client as P6.1"}
+      - {id: P6.4, status: "set up 2026-10-04, waiting on Alex's live sign-in", evidence: "Google login method in Access with the shared client and PKCE, secret entered by Alex", task: "Google as a sign-in method on the admin's Access application, using the same OAuth client as P6.1"}
       - {id: P6.5, status: "set up 2026-10-03, waiting on Alex to enroll", evidence: "Access settings allow biometrics, security key and authenticator app, global MFA enforcement on for every Access application, App Launcher opened to the operator policy so operators can enroll at dry-snowflake-0e9c.cloudflareaccess.com", task: "Access two-step check (authenticator app or security key) required for operators"}
       - {id: P6.6, status: open, task: "Email the breeder whenever their public phone, email or website changes, so a stranger's edit is noticed by the real owner"}
       - {id: P6.7, status: open, task: "Staff permissions per D6"}

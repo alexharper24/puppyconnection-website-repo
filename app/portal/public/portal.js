@@ -92,7 +92,10 @@
       (sent ? '<h1>Check your email</h1><p>' + esc(sent) + '</p>' +
         (c.local && c.email_mode === 'log' ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your link.</p>' : '') +
         '<p class="muted small">Wrong address? <a href="/" data-restart>Start again</a>.</p>'
-      : '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection. Enter your email and we will send you a link to sign in, with no password to remember.</p>' +
+      : '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection. There is no password to remember.</p>' +
+        (/google=failed/.test(location.search) ? '<p class="notice notice-alert">Google sign-in did not go through. Please try again, or use your email below.</p>' : '') +
+        (c.google ? '<a class="btn btn-google" href="/auth/google"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.4-4 6.8-10 6.8-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.7-2.9-.7-4.6s.3-3.2.7-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Continue with Google</a>' +
+          '<p class="or"><span>or use your email</span></p>' : '<p>Enter your email and we will send you a link to sign in.</p>') +
         '<form id="signin" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>' +
         '<div class="field"><label for="bn">Business name <span class="muted">(new breeders)</span></label><input id="bn" name="business_name" type="text" autocomplete="organization"></div>' +
         (c.turnstile_site_key ? '<div class="field"><div class="cf-turnstile" data-sitekey="' + esc(c.turnstile_site_key) + '" data-action="auth"></div></div>' : '') +

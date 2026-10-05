@@ -25,6 +25,9 @@
     // The site key is public by design. TURNSTILE_SECRET is a secret, set with wrangler secret put.
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFMKWRvBD106y7VJ",
     "TURNSTILE_HOSTNAME": "portal.puppyconnection.workers.dev",
+    // Google OAuth client in the "Puppy Connection staging" Cloud project (Alex's account, testing mode,
+    // 2026-10-04). The client ID is public; GOOGLE_CLIENT_SECRET is a secret, set with wrangler secret put.
+    "GOOGLE_CLIENT_ID": "751105615126-cu5h48psv53a59nci3e9g5u0n0mmfuir.apps.googleusercontent.com",
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
     "DEV_MODE": "hosted-open",

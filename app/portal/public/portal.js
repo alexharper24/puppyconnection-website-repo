@@ -211,9 +211,38 @@
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
       (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
+      // Plan P3.4. New listing terms were published since this breeder accepted. Everything
+      // stays open, and the banner stays until they accept.
+      (me.terms && me.terms.needs_accept ? '<div class="notice terms-banner" id="terms-banner"><p><b>The listing terms have changed.</b> Puppy Connection published a new version' +
+        (me.terms.published_at ? ' on ' + esc(day(me.terms.published_at)) : '') + '. Please read it and accept it.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and accept</button></div>' : '') +
       inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';
     $('#signout').addEventListener('click', function () {
       api('POST', '/auth/signout', {}).then(function () { state.me = null; location.hash = '#/'; render(); });
+    });
+    var tr = $('#terms-read');
+    if (tr) tr.addEventListener('click', termsDrawer);
+  }
+
+  /* The current listing terms as paragraphs. A REPLACE THIS paragraph is marked as a placeholder. */
+  function termsParas(body) {
+    return String(body || '').split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (para) {
+      var m = /^REPLACE THIS:\s*([\s\S]*)$/.exec(para);
+      return m ? '<p class="replace-block"><b>REPLACE THIS:</b> ' + esc(m[1]) + '</p>' : '<p>' + esc(para).replace(/\n/g, '<br>') + '</p>';
+    }).join('');
+  }
+  function termsDrawer() {
+    var t = state.me.terms;
+    openDrawer('Listing terms', '<p class="muted small">Version ' + esc(t.version) + (t.published_at ? ', published ' + esc(day(t.published_at)) : '') + '.</p>' +
+      '<div class="terms-preview">' + termsParas(t.body) + '</div>' +
+      '<form id="terms-accept"><div class="btn-row"><button class="btn btn-gold" type="submit">I accept these terms</button><button class="btn btn-quiet" type="button" data-later>Not now</button></div></form>',
+    function (d) {
+      $('[data-later]', d).addEventListener('click', closeDrawer);
+      var f = $('#terms-accept', d);
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        api('POST', '/api/terms/accept', { version: t.version }).then(function (me2) { state.me = me2; closeDrawer(); toast('Thank you. The new terms are accepted.'); render(); })
+          .catch(function (err) { showError(f, err); });
+      });
     });
   }
 
@@ -296,7 +325,9 @@
       '<div id="extras-slot"></div>';
     if (me.status === 'pending' && !me.profile_submitted_at) {
       html += '<form id="submit" class="card" novalidate><h2>Submit for approval</h2>' +
-        '<div class="notice"><b>REPLACE THIS:</b> the listing terms, in Amber\'s own words, go here before launch (build spec section 14). Version ' + esc(me.terms_version) + '. <a href="/terms" target="_blank" rel="noopener">Open the listing terms page</a>.</div>' +
+        // Plan P3.4. The current terms, as published on the admin's Terms screen.
+        '<div class="terms-preview">' + termsParas(me.terms ? me.terms.body : '') + '</div>' +
+        '<p class="hint">Version ' + esc(me.terms_version) + '. <a href="/terms" target="_blank" rel="noopener">Open the listing terms page</a>.</p>' +
         '<label class="check" for="accept-terms"><input type="checkbox" id="accept-terms" name="accept_terms"> I have read and accept the <a href="/terms" target="_blank" rel="noopener">listing terms</a>.</label>' +
         '<div class="btn-row"><button class="btn btn-gold" type="submit">Submit for approval</button></div></form>';
     } else if (me.status === 'pending') {

@@ -12,7 +12,7 @@ import { privacyPage, termsPage } from './legal.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
-  BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand,
+  BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
 } from '../lib/store.js';
 import { sendMail, alertOps } from '../lib/mail.js';
 import { siteBreederSlug } from '../lib/export.js';
@@ -209,7 +209,7 @@ async function authCode(request, env) {
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=7"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=8"></head>
 <body class="plain"><main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
@@ -399,6 +399,10 @@ async function me(request, env) {
     logo_url: brandUrl('', breeder.id, 'logo', breeder.logo_key),
     kennel_url: brandUrl('', breeder.id, 'kennel', breeder.kennel_key),
   };
+  // Plan P3.4. The current listing terms, and whether this breeder has accepted that version.
+  const terms = await currentTerms(env);
+  out.terms = { version: terms.version, body: terms.body, published_at: terms.published_at, accepted_version: breeder.terms_version || null,
+    needs_accept: termsNeedAccept(breeder, terms.version) };
   out.site_origin = siteOrigin(env) || null;
   out.site_url = siteOrigin(env) && breeder.slug && await isPublicBreeder(env, breeder.id)
     ? `${siteOrigin(env)}/breeder.html?slug=${encodeURIComponent(siteBreederSlug(breeder))}` : null;
@@ -419,6 +423,25 @@ async function saveProfile(request, env, ctx) {
   const res = await env.DB.batch(stmts);
   checkVersion(res[0], 'profile');
   noticeContactChange(env, ctx, breeder, f, 'breeder');
+  return me(request, env);
+}
+
+/**
+ * Plan P3.4. Accept the current listing terms, after Puppy Connection publishes a new version.
+ * Nothing is blocked while a breeder has not, so this only records the acceptance.
+ */
+async function acceptTerms(request, env) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  const body = await readJson(request);
+  const terms = await currentTerms(env);
+  if (body.version !== terms.version) throw new HttpError(409, 'The listing terms changed again. Reload to read the latest version.');
+  if (!breeder.profile_submitted_at) throw bad('Accept the terms when you submit your profile.');
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, updated_at = ? WHERE id = ?').bind(terms.version, t, t, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'terms.accept', 'breeder', breeder.id, { terms_version: breeder.terms_version || null }, { terms_version: terms.version }),
+  ]);
   return me(request, env);
 }
 
@@ -611,28 +634,7 @@ async function listBreeds(env) {
   return json(results);
 }
 
-function num(v, max) {
-  if (v === '' || v == null) return null;
-  const n = Number(v);
-  if (!Number.isFinite(n) || n < 0 || n > max) throw bad('A number is out of range.');
-  return n;
-}
-
-function isoDate(v) {
-  const s = clean(v, 10);
-  if (!s) return null;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw bad('Dates are YYYY-MM-DD.');
-  return s;
-}
-
-function litterFields(body) {
-  if (!body.breed_id) throw bad('Choose a breed.');
-  return {
-    breed_id: String(body.breed_id), born_on: isoDate(body.born_on), ready_on: isoDate(body.ready_on),
-    mom_weight_lb: num(body.mom_weight_lb, 300), dad_weight_lb: num(body.dad_weight_lb, 300),
-    description: clean(body.description, 4000),
-  };
-}
+// litterFields and puppyFields live in lib/store.js, shared with the admin (plan P3.1).
 
 async function createLitter(request, env) {
   requireSameOrigin(request);
@@ -691,22 +693,6 @@ async function archiveLitter(request, env, ctx, id) {
   if (await hasPublic(env, 'litter_id = ?', id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
   return json({ ok: true });
-}
-
-function puppyFields(body) {
-  const name = clean(body.name, 80);
-  if (!name) throw bad('Give the puppy a name.');
-  const sex = body.sex ? String(body.sex) : null;
-  if (sex && !['male', 'female'].includes(sex)) throw bad('Sex is male or female.');
-  const availability = body.availability ? String(body.availability) : 'available';
-  if (!['available', 'pending', 'placed'].includes(availability)) throw bad('Status is available, pending or placed.');
-  const url = clean(body.breeder_url, 400);
-  if (url && !/^https?:\/\//i.test(url)) throw bad('The link to your site needs to start with https://');
-  const includes = Array.isArray(body.includes) ? body.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 15) : [];
-  return {
-    name, sex, color: clean(body.color, 60), price_cents: cents(body.price), deposit_cents: cents(body.deposit),
-    description: clean(body.description, 4000), breeder_url: url, includes_json: JSON.stringify(includes), availability,
-  };
 }
 
 async function createPuppy(request, env) {
@@ -1155,7 +1141,8 @@ const ROUTES = [
   ['POST', /^\/auth\/google\/onetap$/, oneTapSignIn],
   ['GET', /^\/api\/config$/, config],
   ['GET', /^\/privacy$/, (r, e) => html(page('Privacy policy', privacyPage(e), { wide: true }))],
-  ['GET', /^\/terms$/, async (r, e) => html(page('Listing terms', termsPage(e, await settings(e)), { wide: true }))],
+  ['GET', /^\/terms$/, async (r, e) => html(page('Listing terms', termsPage(await currentTerms(e)), { wide: true }))],
+  ['POST', /^\/api\/terms\/accept$/, acceptTerms],
   ['GET', /^\/api\/me$/, me],
   ['PUT', /^\/api\/profile$/, saveProfile],
   ['POST', /^\/api\/profile\/submit$/, submitProfile],

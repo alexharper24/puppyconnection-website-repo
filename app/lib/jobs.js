@@ -110,7 +110,7 @@ async function reconcile(env) {
 // media route serves only rows in photos, so nothing under backups/ is reachable from outside.
 const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'people', 'breeds', 'litters', 'puppies', 'photos', 'checkouts', 'checkout_items',
   'puppy_holds', 'payments', 'stripe_events', 'settings', 'site_state', 'audit_log', 'email_log', 'job_runs',
-  'breeder_breeds', 'puppy_stats', 'account_requests'];
+  'breeder_breeds', 'puppy_stats', 'account_requests', 'operator_notes', 'terms_versions', 'disputes'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;

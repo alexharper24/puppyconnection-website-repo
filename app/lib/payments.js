@@ -85,6 +85,15 @@ const stripeProvider = {
       console.warn('expire failed (the session may already be complete or expired)', e.message);
     }
   },
+  /**
+   * Plan P3.8. Refund a whole listing payment. Stripe answers with the refund and later sends
+   * charge.refunded, which handleEvent turns into applyRefund, so this returns no event. Not yet
+   * run against Stripe, and the admin route refuses it until P4.5 proves it.
+   */
+  async refund(env, paymentIntent) {
+    await this.call(env, 'POST', '/refunds', { payment_intent: paymentIntent, reason: 'requested_by_customer' }, `refund-${paymentIntent}`);
+    return null;
+  },
 };
 
 const simProvider = {
@@ -130,6 +139,31 @@ const simProvider = {
     if (r.meta.changes !== 1) throw new HttpError(409, 'This checkout is no longer open.');
     return { id: `evt_sim_${ulid()}`, type: 'checkout.session.completed', livemode: false,
       data: { object: await this.retrieveSession(env, id) } };
+  },
+  /** Plan P3.8. The practice refund. Returns the charge.refunded event Stripe would send. */
+  async refund(env, paymentIntent) {
+    const pay = await env.DB.prepare('SELECT * FROM payments WHERE stripe_payment_intent_id = ?').bind(paymentIntent).first();
+    if (!pay) throw new HttpError(404, 'No such payment.');
+    return { id: `evt_sim_${ulid()}`, type: 'charge.refunded', livemode: false,
+      data: { object: { id: pay.stripe_charge_id || `ch_sim_${ulid()}`, object: 'charge', payment_intent: paymentIntent,
+        amount: pay.amount_cents, amount_refunded: pay.amount_cents } } };
+  },
+  /**
+   * Plan P3.8. A practice dispute, opened or closed as won or lost. Returns the
+   * charge.dispute.created or charge.dispute.closed event Stripe would send.
+   */
+  async dispute(env, paymentIntent, action, reason) {
+    const pay = await env.DB.prepare('SELECT * FROM payments WHERE stripe_payment_intent_id = ?').bind(paymentIntent).first();
+    if (!pay) throw new HttpError(404, 'No such payment.');
+    const open = await env.DB.prepare('SELECT id FROM disputes WHERE payment_intent = ? AND closed_at IS NULL ORDER BY opened_at DESC LIMIT 1').bind(paymentIntent).first();
+    if (action === 'open') {
+      if (open) throw bad('This payment already has an open dispute.');
+      return { id: `evt_sim_${ulid()}`, type: 'charge.dispute.created', livemode: false,
+        data: { object: { id: `dp_sim_${ulid()}`, object: 'dispute', payment_intent: paymentIntent, amount: pay.amount_cents, reason: reason || 'general', status: 'needs_response' } } };
+    }
+    if (!open) throw bad('This payment has no open dispute.');
+    return { id: `evt_sim_${ulid()}`, type: 'charge.dispute.closed', livemode: false,
+      data: { object: { id: open.id, object: 'dispute', payment_intent: paymentIntent, amount: pay.amount_cents, reason: reason || null, status: action === 'won' ? 'won' : 'lost' } } };
   },
 };
 
@@ -330,8 +364,83 @@ export async function fulfillCheckout(env, sessionId, source, ctx) {
 
 // ---------------------------------------------------------------- events
 
+/**
+ * Plan P3.8. The one path a refund takes, whether an operator pressed Refund (the practice
+ * provider hands back the charge.refunded event) or Stripe sent charge.refunded on its own. A
+ * full refund takes the puppies it paid for off the site (payment_state refunded, back to a
+ * draft the breeder can see), records it, and emails the breeder. A partial refund is recorded
+ * and the operators are told, and the listings stay up until someone decides.
+ */
+export async function applyRefund(env, charge, ctx, actor = { type: 'stripe', email: 'webhook' }) {
+  const t = now();
+  const pay = await env.DB.prepare('SELECT * FROM payments WHERE stripe_payment_intent_id = ?').bind(charge.payment_intent || '').first();
+  if (!pay) {
+    await alertOps(env, 'A refund for an unknown payment', `Charge ${charge.id} for payment ${charge.payment_intent} was refunded, and that payment is not in the database.`);
+    return 'unknown payment';
+  }
+  if (pay.status === 'refunded') return 'already refunded';
+  const full = charge.amount_refunded >= charge.amount;
+  const setPay = env.DB.prepare('UPDATE payments SET status = ?, stripe_charge_id = ?, updated_at = ? WHERE stripe_payment_intent_id = ?')
+    .bind(full ? 'refunded' : 'partially_refunded', charge.id, t, pay.stripe_payment_intent_id);
+  const audit = (action, after) => auditStmt(env, actor.type, actor.email, action, 'checkout', pay.checkout_id,
+    { payment_status: pay.status }, { payment_intent: pay.stripe_payment_intent_id, refunded_cents: charge.amount_refunded, ...after });
+  if (!full) {
+    await env.DB.batch([setPay, audit('payment.refund_partial', { reason: actor.reason || null })]);
+    await alertOps(env, 'A listing payment was partly refunded', `Payment ${pay.stripe_payment_intent_id} was partly refunded. The listings stay up until you decide.`);
+    return 'partial refund recorded';
+  }
+  const co = await env.DB.prepare('SELECT * FROM checkouts WHERE id = ?').bind(pay.checkout_id).first();
+  // A puppy that a later payment also covers (a renewal, when listings expire) stays up.
+  const res = await env.DB.batch([
+    setPay,
+    env.DB.prepare(
+      `UPDATE puppies SET payment_state = 'refunded',
+              publication_state = CASE WHEN publication_state = 'archived' THEN 'archived' ELSE 'draft' END,
+              expires_at = NULL, expiry_warned_at = NULL, updated_at = ?, version = version + 1
+        WHERE id IN (SELECT puppy_id FROM checkout_items WHERE checkout_id = ?) AND breeder_id = ? AND payment_state = 'paid'
+          AND NOT EXISTS (SELECT 1 FROM checkout_items i2 JOIN checkouts c2 ON c2.id = i2.checkout_id JOIN payments p2 ON p2.checkout_id = c2.id
+                           WHERE i2.puppy_id = puppies.id AND c2.id != ? AND p2.status = 'succeeded' AND c2.paid_at > ?)`,
+    ).bind(t, co.id, co.breeder_id, co.id, co.paid_at || ''),
+    audit('payment.refund', { reason: actor.reason || null }),
+    dirtyStmt(env),
+  ]);
+  const down = res[1].meta.changes;
+  const after = (async () => {
+    const b = await env.DB.prepare('SELECT email, legacy FROM breeders WHERE id = ?').bind(co.breeder_id).first();
+    const { results } = await env.DB.prepare(
+      'SELECT p.name FROM puppies p JOIN checkout_items i ON i.puppy_id = p.id WHERE i.checkout_id = ? ORDER BY p.name',
+    ).bind(co.id).all();
+    if (b && !b.legacy) await sendMail(env, b.email, 'listing_refunded', { names: results.map((r) => r.name), amountCents: charge.amount_refunded, portalUrl: env.PORTAL_ORIGIN || '' });
+    if (actor.type !== 'operator') await alertOps(env, 'A listing payment was refunded', `Payment ${pay.stripe_payment_intent_id} was refunded in full, so ${down} listing(s) came off the site.`);
+  })().catch((e) => console.error('post-refund work failed', e));
+  if (ctx?.waitUntil) ctx.waitUntil(after); else await after;
+  return `refunded, ${down} off the site`;
+}
+
+/** Plan P3.8. A dispute opened or closed, recorded and shown. Listings are not changed. */
+async function recordDispute(env, type, d, actor) {
+  const t = now();
+  const pay = await env.DB.prepare('SELECT checkout_id FROM payments WHERE stripe_payment_intent_id = ?').bind(d.payment_intent || '').first();
+  const opened = type === 'charge.dispute.created';
+  const payStatus = opened ? 'disputed' : d.status === 'won' ? 'dispute_won' : d.status === 'lost' ? 'dispute_lost' : 'disputed';
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO disputes (id, payment_intent, checkout_id, status, reason, amount_cents, opened_at, closed_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT (id) DO UPDATE SET status = excluded.status, reason = COALESCE(excluded.reason, disputes.reason),
+         closed_at = COALESCE(excluded.closed_at, disputes.closed_at), updated_at = excluded.updated_at`,
+    ).bind(d.id, d.payment_intent, pay?.checkout_id || null, d.status || 'needs_response', d.reason || null, d.amount ?? null, t,
+      type === 'charge.dispute.closed' ? t : null, t),
+    env.DB.prepare('UPDATE payments SET status = ?, updated_at = ? WHERE stripe_payment_intent_id = ?').bind(payStatus, t, d.payment_intent),
+    auditStmt(env, actor.type, actor.email, opened ? 'payment.dispute_open' : 'payment.dispute_close', 'checkout', pay?.checkout_id || d.payment_intent || 'unknown',
+      null, { dispute: d.id, status: d.status, reason: d.reason || null }),
+  ]);
+  await alertOps(env, 'A listing payment is disputed', `Payment ${d.payment_intent}: ${payStatus.replace('_', ' ')}. The listing stays up until you decide.`);
+  return payStatus;
+}
+
 /** Dispatch one verified event (spec 8.4). Returns a short result for the log. */
-export async function handleEvent(env, event, ctx) {
+export async function handleEvent(env, event, ctx, actor = { type: 'stripe', email: 'webhook' }) {
   const p = provider(env);
   if (!!event.livemode !== p.livemode(env)) return 'ignored: mode mismatch';
   const t = now();
@@ -354,22 +463,14 @@ export async function handleEvent(env, event, ctx) {
       result = co ? 'released' : 'unknown session';
       break;
     }
-    case 'charge.refunded': {
-      const full = obj.amount_refunded >= obj.amount;
-      const r = await env.DB.prepare('UPDATE payments SET status = ?, stripe_charge_id = ?, updated_at = ? WHERE stripe_payment_intent_id = ?')
-        .bind(full ? 'refunded' : 'partially_refunded', obj.id, t, obj.payment_intent).run();
-      await alertOps(env, 'A listing payment was refunded', `Payment ${obj.payment_intent} was ${full ? 'fully' : 'partly'} refunded. The listing stays up until you decide.`);
-      result = r.meta.changes ? 'refund recorded' : 'unknown payment';
+    // Plan P3.8. A full refund takes the listings down, whoever started it.
+    case 'charge.refunded':
+      result = await applyRefund(env, obj, ctx, actor);
       break;
-    }
     case 'charge.dispute.created':
-    case 'charge.dispute.closed': {
-      const status = event.type.endsWith('created') ? 'disputed' : obj.status === 'won' ? 'dispute_won' : 'dispute_lost';
-      await env.DB.prepare('UPDATE payments SET status = ?, updated_at = ? WHERE stripe_payment_intent_id = ?').bind(status, t, obj.payment_intent).run();
-      await alertOps(env, 'A listing payment is disputed', `Payment ${obj.payment_intent}: ${status.replace('_', ' ')}.`);
-      result = status;
+    case 'charge.dispute.closed':
+      result = await recordDispute(env, event.type, obj, actor);
       break;
-    }
     default:
       break;
   }

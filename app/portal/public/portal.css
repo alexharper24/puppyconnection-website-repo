@@ -289,6 +289,32 @@ body.plain { display: grid; place-items: start center; min-height: 100dvh; paddi
 .mail header span { font-size: .8rem; color: var(--muted); }
 .mail pre { white-space: pre-wrap; font: .88rem/1.5 var(--sans); background: var(--ground); padding: .7rem; border-radius: 8px; margin: 0 0 .6rem; overflow-wrap: anywhere; }
 
+/* plan P3: sortable headings, private notes, the terms editor and banner, attention details */
+table.list th[data-sort] { padding: 0; }
+table.list th .sort { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .3rem; width: 100%; min-height: 40px;
+  padding: .65rem 1rem; cursor: pointer; font: inherit; letter-spacing: inherit; text-transform: inherit; color: inherit; white-space: nowrap; }
+table.list th.num .sort { justify-content: flex-end; }
+table.list th .sort::after { content: '\2195'; opacity: .35; }
+table.list th[aria-sort=ascending] .sort::after { content: '\2191'; opacity: 1; }
+table.list th[aria-sort=descending] .sort::after { content: '\2193'; opacity: 1; }
+table.list th .sort:hover { color: var(--ink); }
+table.list th .sort:focus-visible { outline: 3px solid var(--bronze); outline-offset: -3px; }
+a.rail-foot { text-decoration: none; }
+a.rail-foot:hover b { text-decoration: underline; }
+.attention .att-sub { display: block; font-size: .82rem; color: var(--muted); overflow-wrap: anywhere; }
+.attention li > span { min-width: 0; }
+.note { padding: .6rem 0; border-top: 1px solid var(--line); }
+.note p { margin: .2rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.terms-text { min-height: 320px; }
+.terms-preview { border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem 1rem; background: #fff; max-height: 420px; overflow: auto; overflow-wrap: anywhere; }
+.terms-banner { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between; }
+.terms-banner p { margin: 0; }
+.pay-row > .btn { margin-left: auto; }
+table.list td.brk { overflow-wrap: anywhere; }
+table.list .row-acts { margin-top: .4rem; }
+.show-md, .show-sm { display: none !important; }
+@media (max-width: 1100px) { table.list .show-md { display: block !important; } }
+
 .toast { position: fixed; bottom: 1.2rem; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: .7rem 1.1rem;
   border-radius: 10px; z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,.2); max-width: calc(100% - 2rem); }
 
@@ -318,6 +344,12 @@ body.plain { display: grid; place-items: start center; min-height: 100dvh; paddi
   table.list td, table.list th { padding-inline: .45rem; }
   table.list td { overflow-wrap: anywhere; }
   table.list td:first-child, table.list th:first-child { padding-left: .8rem; }
+  table.list th[data-sort] { padding: 0; }
+  table.list th .sort { padding-inline: .45rem; }
+  table.list th:first-child .sort { padding-left: .8rem; }
+  /* on a phone only the sorted column shows its arrow, to keep the table inside the screen */
+  table.list th[aria-sort=none] .sort::after { display: none; }
+  .show-sm { display: inline !important; }
   .thumb, .thumb-empty { width: 44px; height: 33px; }
   table.list .when { white-space: normal; min-width: 5.5rem; }
   .toolbar .count { margin-left: 0; }

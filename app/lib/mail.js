@@ -80,6 +80,16 @@ export const TEMPLATES = {
       names.map((n) => `  ${n}`).join('\n') + `\n\n${portalUrl}` + signOff(),
     link: portalUrl,
   }),
+  // Plan P3.8. A refunded listing payment takes its puppies off the site.
+  listing_refunded: ({ names, amountCents, portalUrl }) => ({
+    subject: 'Your Puppy Connection listing payment was refunded',
+    text: `Your listing payment${amountCents ? ` of $${(amountCents / 100).toFixed(2)}` : ''} was refunded, so ` +
+      `${names.length === 1 ? 'this puppy is' : 'these puppies are'} no longer listed on Puppy Connection:\n\n` +
+      names.map((n) => `  ${n}`).join('\n') +
+      `\n\n${names.length === 1 ? 'It is' : 'They are'} still in your breeder portal as ${names.length === 1 ? 'a draft' : 'drafts'}. ` +
+      'If you have a question about this, reply to this email.' + (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
+    link: portalUrl || undefined,
+  }),
   ops_alert: ({ title, detail }) => ({
     subject: `Puppy Connection alert: ${title}`,
     text: `${detail}` + signOff(),

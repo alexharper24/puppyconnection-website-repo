@@ -1,6 +1,6 @@
 // Reads and writes shared by both Workers, the ownership rule, and the audit trail.
 
-import { now, notFound, forbidden, bad, clean, HttpError } from './util.js';
+import { now, notFound, forbidden, bad, clean, cents, HttpError } from './util.js';
 import { sendMail } from './mail.js';
 
 /**
@@ -89,14 +89,17 @@ export function checkVersion(result, what) {
 }
 
 export async function puppyPhotos(env, puppyIds) {
-  if (!puppyIds.length) return {};
-  const marks = puppyIds.map(() => '?').join(',');
-  const { results } = await env.DB.prepare(
-    `SELECT id, puppy_id, r2_key, external_url, position, aspect FROM photos
-      WHERE puppy_id IN (${marks}) ORDER BY puppy_id, position`,
-  ).bind(...puppyIds).all();
+  // D1 binds at most 100 values a statement, and an imported Wix breeder can have more puppies
+  // than that, so the ids go in groups of 90.
   const by = {};
-  for (const p of results) (by[p.puppy_id] ||= []).push(p);
+  for (let i = 0; i < puppyIds.length; i += 90) {
+    const ids = puppyIds.slice(i, i + 90);
+    const { results } = await env.DB.prepare(
+      `SELECT id, puppy_id, r2_key, external_url, position, aspect FROM photos
+        WHERE puppy_id IN (${ids.map(() => '?').join(',')}) ORDER BY puppy_id, position`,
+    ).bind(...ids).all();
+    for (const p of results) (by[p.puppy_id] ||= []).push(p);
+  }
   return by;
 }
 
@@ -247,4 +250,80 @@ export async function serveBrand(env, breederId, kind, { card = false, allowPriv
       'cache-control': row.pub ? 'public, max-age=86400' : 'private, no-store',
     },
   });
+}
+
+// ------------------------------------------------------------------ litter and puppy fields
+
+// The rules for a litter or a puppy, shared by the portal and the admin (plan P3.1), so an
+// operator editing on a breeder's behalf is held to exactly what the breeder is held to.
+
+export function num(v, max) {
+  if (v === '' || v == null) return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > max) throw bad('A number is out of range.');
+  return n;
+}
+
+export function isoDate(v) {
+  const s = clean(v, 10);
+  if (!s) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) throw bad('Dates are YYYY-MM-DD.');
+  return s;
+}
+
+export function litterFields(body) {
+  if (!body.breed_id) throw bad('Choose a breed.');
+  return {
+    breed_id: String(body.breed_id), born_on: isoDate(body.born_on), ready_on: isoDate(body.ready_on),
+    mom_weight_lb: num(body.mom_weight_lb, 300), dad_weight_lb: num(body.dad_weight_lb, 300),
+    description: clean(body.description, 4000),
+  };
+}
+
+export function puppyFields(body) {
+  const name = clean(body.name, 80);
+  if (!name) throw bad('Give the puppy a name.');
+  const sex = body.sex ? String(body.sex) : null;
+  if (sex && !['male', 'female'].includes(sex)) throw bad('Sex is male or female.');
+  const availability = body.availability ? String(body.availability) : 'available';
+  if (!['available', 'pending', 'placed'].includes(availability)) throw bad('Status is available, pending or placed.');
+  const url = clean(body.breeder_url, 400);
+  if (url && !/^https?:\/\//i.test(url)) throw bad('The link to your site needs to start with https://');
+  const includes = Array.isArray(body.includes) ? body.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 15) : [];
+  return {
+    name, sex, color: clean(body.color, 60), price_cents: cents(body.price), deposit_cents: cents(body.deposit),
+    description: clean(body.description, 4000), breeder_url: url, includes_json: JSON.stringify(includes), availability,
+  };
+}
+
+/** A stored litter or puppy in the shape the field rules read, so an edit may send only what changes. */
+export function litterInput(l) {
+  return { breed_id: l.breed_id, born_on: l.born_on, ready_on: l.ready_on, mom_weight_lb: l.mom_weight_lb, dad_weight_lb: l.dad_weight_lb, description: l.description };
+}
+export function puppyInput(p) {
+  return {
+    name: p.name, sex: p.sex, color: p.color, price: p.price_cents == null ? null : p.price_cents / 100,
+    deposit: p.deposit_cents == null ? null : p.deposit_cents / 100, description: p.description, breeder_url: p.breeder_url,
+    includes: JSON.parse(p.includes_json || '[]'), availability: p.availability,
+  };
+}
+
+// ------------------------------------------------------------------ listing terms (plan P3.4)
+
+export const TERMS_PLACEHOLDER = "REPLACE THIS: the listing terms, in Amber's own words (build spec section 14). Nothing has been written here on her behalf.";
+
+/** The current listing terms: the version in settings and its text. */
+export async function currentTerms(env) {
+  const s = await settings(env);
+  const row = await env.DB.prepare('SELECT body, published_at FROM terms_versions WHERE version = ?').bind(s.termsVersion).first();
+  return { version: s.termsVersion, body: row ? row.body : TERMS_PLACEHOLDER, published_at: row ? row.published_at : null };
+}
+
+/**
+ * Whether a breeder should be asked to accept the current terms. Anyone who has submitted a
+ * profile accepted a version then, so a newer one is asked for on their next visit. It never
+ * blocks viewing anything.
+ */
+export function termsNeedAccept(breeder, version) {
+  return !!breeder.profile_submitted_at && breeder.status !== 'declined' && breeder.terms_version !== version;
 }

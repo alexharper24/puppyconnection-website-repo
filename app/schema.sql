@@ -114,8 +114,50 @@ CREATE TABLE IF NOT EXISTS people (
 CREATE TABLE IF NOT EXISTS breeds (
   id   TEXT PRIMARY KEY,
   slug TEXT NOT NULL UNIQUE,
-  name TEXT NOT NULL UNIQUE
+  name TEXT NOT NULL UNIQUE,
+  -- Plan P3.3 (migrations/0003_admin_features.sql). The breed guide text an operator writes in
+  -- the admin, plain paragraphs, for the site's breed pages (P4.3).
+  guide            TEXT,
+  guide_updated_at TEXT
 );
+
+-- Plan P3.2. Private notes operators keep on a breeder. Never shown to the breeder, and never
+-- in the site export or a report. The nightly backup carries them, for recovery only.
+CREATE TABLE IF NOT EXISTS operator_notes (
+  id         TEXT PRIMARY KEY,
+  breeder_id TEXT NOT NULL REFERENCES breeders(id),
+  author     TEXT NOT NULL,
+  body       TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS operator_notes_breeder ON operator_notes(breeder_id, created_at);
+
+-- Plan P3.4. The listing terms text, one row per published version plus the working draft
+-- (version 'draft', never published). settings.terms_version names the current version, and a
+-- breeder whose breeders.terms_version differs is asked to accept it.
+CREATE TABLE IF NOT EXISTS terms_versions (
+  version      TEXT PRIMARY KEY,
+  body         TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  updated_by   TEXT NOT NULL,
+  published_at TEXT,
+  published_by TEXT
+);
+
+-- Plan P3.8. Disputes on a listing payment, written from the payment provider's dispute
+-- events (lib/payments.js handleEvent). The id is the provider's dispute id.
+CREATE TABLE IF NOT EXISTS disputes (
+  id             TEXT PRIMARY KEY,
+  payment_intent TEXT NOT NULL,
+  checkout_id    TEXT,
+  status         TEXT NOT NULL,
+  reason         TEXT,
+  amount_cents   INTEGER,
+  opened_at      TEXT NOT NULL,
+  closed_at      TEXT,
+  updated_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS disputes_payment ON disputes(payment_intent);
 
 CREATE TABLE IF NOT EXISTS litters (
   id            TEXT PRIMARY KEY,
@@ -344,6 +386,14 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('terms_version', 'draft-2026-09-30'),
   ('fee_cents', '1499'),
   ('max_photos', '12');
+
+-- Plan P3.4. The terms start as Amber's placeholder, marked, both as the version on file and
+-- as the first draft. The admin's Terms screen replaces the draft and publishes new versions.
+INSERT OR IGNORE INTO terms_versions (version, body, updated_at, updated_by, published_at, published_by) VALUES
+  ('draft-2026-09-30', 'REPLACE THIS: the listing terms, in Amber''s own words (build spec section 14). Nothing has been written here on her behalf.',
+   '2026-09-30T00:00:00Z', 'setup', '2026-09-30T00:00:00Z', 'setup'),
+  ('draft', 'REPLACE THIS: the listing terms, in Amber''s own words (build spec section 14). Nothing has been written here on her behalf.',
+   '2026-09-30T00:00:00Z', 'setup', NULL, NULL);
 
 -- What the public may see. The exporter reads only these views (spec 4.1).
 DROP VIEW IF EXISTS public_litters;

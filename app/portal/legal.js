@@ -83,12 +83,27 @@ export function privacyPage() {
 </div>`;
 }
 
-export function termsPage(env, s) {
-  return `<p class="draft-flag"><b>Draft, waiting on Amber's own words.</b> The listing terms breeders accept are written by Puppy Connection. They go on this page before launch.</p>
+/**
+ * The listing terms (plan P3.4). The text is the current version in terms_versions, written and
+ * published from the admin's Terms screen as plain paragraphs. While it still holds a REPLACE
+ * THIS placeholder the page says it is waiting on Amber's own words.
+ */
+export function termsPage(terms) {
+  const draft = /REPLACE THIS/.test(terms.body);
+  return `${draft ? `<p class="draft-flag"><b>Draft, waiting on Amber's own words.</b> The listing terms breeders accept are written by Puppy Connection. They go on this page before launch.</p>` : ''}
 <div class="legal">
 <h1>Listing terms</h1>
-<p class="replace-block"><b>REPLACE THIS:</b> the listing terms, in Amber's own words (build spec section 14). Nothing has been written here on her behalf.</p>
-<p class="muted small">Terms version on file: ${esc(s.termsVersion)}. A breeder accepts this version when they submit their profile for approval.</p>
+${termsHtml(terms.body)}
+<p class="muted small">Terms version on file: ${esc(terms.version)}${terms.published_at ? `, published ${esc(terms.published_at.slice(0, 10))}` : ''}. A breeder accepts this version when they submit their profile for approval, and is asked again when a new version is published.</p>
 <p>See also the <a href="/privacy">privacy policy</a>.</p>
 </div>`;
+}
+
+/** Plain paragraphs, blank-line separated, escaped. A REPLACE THIS paragraph is marked. */
+export function termsHtml(body) {
+  return String(body || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean).map((para) => {
+    const m = /^REPLACE THIS:\s*([\s\S]*)$/.exec(para);
+    if (m) return `<p class="replace-block"><b>REPLACE THIS:</b> ${esc(m[1])}</p>`;
+    return `<p>${esc(para).replace(/\n/g, '<br>')}</p>`;
+  }).join('\n');
 }

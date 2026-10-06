@@ -18,6 +18,7 @@ import { runJob, JOBS } from '../lib/jobs.js';
 import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
+import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
 
 /** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
 async function listJobs(req, env) {
@@ -37,7 +38,9 @@ async function whoami(req, env, ctx, id, who) {
   return json({ email: who.email, name: who.person.name, role: who.person.role, dev: who.dev,
     payments_mode: env.PAYMENTS_MODE || 'off', email_mode: env.EMAIL_MODE || 'off', portal: env.PORTAL_ORIGIN,
     // Plan P7.3. Staging shows no test-copy notice, but the mailbox link stays while EMAIL_MODE is log.
-    notices: showTestNotices(env) });
+    notices: showTestNotices(env),
+    // Plan P5.1. Reset demo data shows its button only where the server allows it.
+    demo_reset: demoResetAllowed(env), demo_phrase: RESET_PHRASE });
 }
 
 async function stats(req, env) {
@@ -737,6 +740,13 @@ async function brand(req, env, id, kind) {
 }
 
 /** Every test email, for the operator. Only in a test mode, behind the admin's own gate. */
+// Plan P5.1. Staging only, after a backup, with the phrase typed (lib/demo.js).
+async function demoReset(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  return json(await resetDemo(env, who.email, body.confirm));
+}
+
 async function devMail(req, env) {
   if (env.EMAIL_MODE !== 'log' || !['local', 'hosted-test', 'hosted-access', 'staging'].includes(env.DEV_MODE)) throw notFound();
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
@@ -784,6 +794,7 @@ const ROUTES = [
   ['GET', /^\/api\/settings$/, getSettings],
   ['GET', /^\/api\/jobs$/, listJobs],
   ['POST', /^\/api\/jobs\/(\w+)\/run$/, runJobNow],
+  ['POST', /^\/api\/demo\/reset$/, demoReset],
   ['PUT', /^\/api\/settings$/, putSettings],
   ['GET', /^\/api\/export$/, exportData],
   ['POST', /^\/api\/site\/published$/, markPublished],

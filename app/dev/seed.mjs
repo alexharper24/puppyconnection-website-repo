@@ -51,6 +51,32 @@ for (const b of BREEDS) {
   sql.push(`INSERT OR IGNORE INTO breeds (id, slug, name, guide, guide_updated_at) VALUES (${q(breedId[b.name])}, ${q(b.slug)}, ${q(b.name)}, ${q(guide)}, ${q(guide ? NOW : null)});`);
 }
 
+// A breeder the concept names only by its website gets a readable name from the domain, split
+// into words from this list. heartlandminischnauzers.com becomes "Heartland Mini Schnauzers".
+// The split is used only when the words cover the whole name in exactly one way, so a domain that
+// splits two ways, or holds a word the list lacks, keeps the domain itself as its name.
+// "Unassigned Wix listings" is only for listings that name no breeder at all.
+const DOMAIN_WORDS = ['heartland', 'mini', 'miniature', 'schnauzers', 'schnauzer', 'cornerstone', 'cavaliers', 'cavalier',
+  'bless', 'your', 'paws', 'puppies', 'puppy', 'pups', 'winding', 'streams', 'stream', 'companions', 'kennels', 'kennel',
+  'family', 'farm', 'farms', 'doodles', 'creek', 'valley', 'acres', 'country', 'meadow', 'hollow', 'ridge', 'peaceful',
+  'responsible', 'dog', 'dogs', 'breeder', 'breeders', 'kingdom', 'chain', 'lakes', 'golden', 'little', 'home', 'sweet'];
+function nameFromDomain(domain) {
+  const base = domain.replace(/^www\./, '').replace(/\.[a-z]+$/, '').toLowerCase();
+  if (!/^[a-z]+$/.test(base)) return domain;
+  // ways[i] counts the splits of base.slice(i), and next[i] remembers the word that starts one.
+  const ways = Array(base.length + 1).fill(0), next = Array(base.length + 1).fill(null);
+  ways[base.length] = 1;
+  for (let i = base.length - 1; i >= 0; i -= 1) {
+    for (const w of DOMAIN_WORDS) {
+      if (base.startsWith(w, i) && ways[i + w.length]) { ways[i] += ways[i + w.length]; next[i] = w; }
+    }
+  }
+  if (ways[0] !== 1) return domain;
+  const words = [];
+  for (let i = 0; i < base.length; i += next[i].length) words.push(next[i][0].toUpperCase() + next[i].slice(1));
+  return words.join(' ');
+}
+
 const breeders = {};
 function breederFor(l) {
   const key = l.breeder_domain || 'unassigned';
@@ -58,7 +84,7 @@ function breederFor(l) {
   const slug = l.breeder_domain ? slugify(l.breeder_domain.replace(/\.[a-z]+$/, '')) : 'unassigned';
   const b = {
     id: `seed-${slug}`, slug, email: `${slug}@breeders.test`,
-    name: l.breeder_name || 'Unassigned Wix listings',
+    name: l.breeder_name || (l.breeder_domain ? nameFromDomain(l.breeder_domain) : 'Unassigned Wix listings'),
     website: l.breeder_domain ? `https://${l.breeder_domain}` : null,
     phone: l.breeder_phone || null, pubEmail: l.breeder_email || null,
     description: l.breeder_domain ? null : 'Listings imported from Wix whose breeder is not confirmed yet.',

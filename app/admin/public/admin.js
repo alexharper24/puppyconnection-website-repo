@@ -746,13 +746,45 @@
           return '<div class="field"><label for="s-' + esc(s.key) + '">' + esc(l[0]) + '</label><input id="s-' + esc(s.key) + '" name="' + esc(s.key) + '" type="' + l[1] + '" value="' + esc(s.value) + '"></div>';
         }).join('') + '<button class="btn btn-primary" type="submit">Save settings</button></form>' +
         '<section class="card"><h2>Set elsewhere</h2>' + fixed.map(function (s) { return '<p class="small"><b>' + esc(s.key) + '</b>: ' + esc(s.value) + '</p>'; }).join('') +
-        '<p class="hint">The listing fee is the Price in Stripe, so it is changed there and in fee_cents together. The terms version changes when new terms are published on the <a href="#/terms">Terms</a> screen. Publishing and the scheduled jobs are on the <a href="#/publish">Publish</a> screen.</p></section>', true);
+        '<p class="hint">The listing fee is the Price in Stripe, so it is changed there and in fee_cents together. The terms version changes when new terms are published on the <a href="#/terms">Terms</a> screen. Publishing and the scheduled jobs are on the <a href="#/publish">Publish</a> screen.</p></section>' +
+        demoCard(), true);
+      wireDemo();
       var f = $('#settings');
       f.addEventListener('submit', function (e) {
         e.preventDefault();
         var body = {}; $$('input', f).forEach(function (i) { body[i.name] = i.value; });
         api('PUT', '/api/settings', body).then(function () { toast('Settings saved'); }).catch(function (err) { showError(f, err); });
       });
+    });
+  }
+
+  // Plan P5.1. Reset demo data, on the staging copy only. The server refuses it anywhere else too.
+  function demoCard() {
+    var who = state.who;
+    if (!who.demo_reset) {
+      return '<section class="card" id="demo-card"><h2>Demo data</h2><p class="small">Reset demo data puts the staging copy back to the three made-up breeders. ' +
+        'It works only on the staging copy, so it is switched off here.</p></section>';
+    }
+    return '<form class="card" id="demo-card"><h2>Reset demo data</h2>' +
+      '<p class="small">This puts the staging copy back to the three made-up breeders. Buttercup Lane Puppies is signing up, Thistledown Pups is waiting for approval, and Maple Brook Doodles is approved with two litters. ' +
+      'It removes every other breeder that is not one of the imported Wix listings, with their litters, puppies, photos, payments and notes, and clears sign-ins, the test mailbox and the view counts. ' +
+      'The Wix listings, breeds, settings, terms and operators stay as they are. The nightly backup runs first, and nothing changes if it fails.</p>' +
+      '<div class="field"><label for="demo-confirm">Type ' + esc(who.demo_phrase) + ' to confirm</label><input id="demo-confirm" name="confirm" autocomplete="off" spellcheck="false"></div>' +
+      '<button class="btn btn-danger" type="submit" id="demo-go" disabled>Reset demo data</button></form>';
+  }
+  function wireDemo() {
+    var f = $('#demo-card');
+    if (!f || f.tagName !== 'FORM') return;
+    var input = $('#demo-confirm', f), go = $('#demo-go', f);
+    input.addEventListener('input', function () { go.disabled = input.value.trim() !== state.who.demo_phrase; });
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (go.disabled) return;
+      go.disabled = true; go.textContent = 'Backing up and resetting';
+      api('POST', '/api/demo/reset', { confirm: input.value }).then(function (r) {
+        toast('Demo data reset. ' + plural(r.removed.breeders, 'breeder') + ' removed, backup ' + r.backup.replace('backups/', '') + ' saved.');
+        settings();
+      }).catch(function (err) { go.textContent = 'Reset demo data'; go.disabled = false; showError(f, err); });
     });
   }
 

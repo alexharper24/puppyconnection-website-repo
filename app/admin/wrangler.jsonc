@@ -20,6 +20,10 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "puppyconnection", "database_id": "00000000-0000-4000-8000-000000000c01" }
   ],
+  // Plan P4.4. Publish now with PUBLISH_MODE portal asks the portal to publish through this binding,
+  // at /internal/publish, which answers nothing that arrives any other way. PUBLISH_MODE is unset
+  // (mark) while the staging site reads the database live.
+  "services": [{ "binding": "PORTAL", "service": "pc-portal" }],
   "r2_buckets": [
     { "binding": "FILES", "bucket_name": "puppyconnection-files" }
   ],

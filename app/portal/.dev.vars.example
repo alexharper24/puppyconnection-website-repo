@@ -16,3 +16,11 @@ GOOGLE_CLIENT_ID=local-test-client.apps.googleusercontent.com
 GOOGLE_CLIENT_SECRET=local-test-secret
 GOOGLE_TOKEN_URL=http://localhost:8799/token
 GOOGLE_JWKS_URL=http://localhost:8799/certs
+
+# Publishing the site (plan P4.3). These point the publish at the stand-in GitHub that
+# dev/publish-test.mjs runs on 8798, with its made-up token. GITHUB_API is honored only while
+# DEV_MODE is local. A deployed portal gets the real GITHUB_TOKEN as a secret (plan F4) and
+# GITHUB_REPO as a var. Leave GITHUB_TOKEN empty to see the publish say it is not set up.
+GITHUB_TOKEN=local-test-token
+GITHUB_REPO=local/puppyconnection-site
+GITHUB_API=http://localhost:8798

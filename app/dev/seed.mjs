@@ -45,7 +45,10 @@ sql.push(`INSERT OR IGNORE INTO people (email, name, role, added_at) VALUES ('am
 const breedId = {};
 for (const b of BREEDS) {
   breedId[b.name] = `breed-${b.slug}`;
-  sql.push(`INSERT OR IGNORE INTO breeds (id, slug, name) VALUES (${q(breedId[b.name])}, ${q(b.slug)}, ${q(b.name)});`);
+  // The concept's breed guides are the text on Amber's live breed pages. They seed breeds.guide so
+  // the generated breed pages (plan P4.3) show them, and the admin's Breeds screen edits them.
+  const guide = (b.guide || []).join('\n\n') || null;
+  sql.push(`INSERT OR IGNORE INTO breeds (id, slug, name, guide, guide_updated_at) VALUES (${q(breedId[b.name])}, ${q(b.slug)}, ${q(b.name)}, ${q(guide)}, ${q(guide ? NOW : null)});`);
 }
 
 const breeders = {};

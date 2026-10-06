@@ -18,6 +18,7 @@ import { sendMail, alertOps } from '../lib/mail.js';
 import { siteBreederSlug } from '../lib/export.js';
 import { breederStats } from '../lib/stats.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
+import { publishSite } from '../lib/publish.js';
 import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
 } from '../lib/payments.js';
@@ -1126,6 +1127,27 @@ function config(request, env) {
   });
 }
 
+// ------------------------------------------------------------------ publish now (plan P4.4)
+
+/**
+ * True only for a request from another Worker over a service binding. The admin calls
+ * https://portal.internal/internal/publish through its PORTAL binding, and that request carries
+ * no cf object and no CF-Connecting-IP. Every request from the internet comes through
+ * Cloudflare's edge, which always attaches both (wrangler dev attaches a stand-in cf object), so
+ * a forged Host header alone does not get in. Checked locally on 2026-10-06 (dev/publish-test.mjs).
+ */
+function overBinding(request) {
+  return new URL(request.url).hostname === 'portal.internal' && !request.cf && !request.headers.get('cf-connecting-ip');
+}
+
+async function internalPublish(request, env) {
+  if (!overBinding(request)) throw notFound();
+  const body = await request.json().catch(() => ({}));
+  const email = body && body.actor && typeof body.actor.email === 'string' ? body.actor.email.slice(0, 200) : 'admin';
+  const r = await publishSite(env, { type: 'operator', email });
+  return json(r, r.ok ? 200 : r.off ? 503 : 502);
+}
+
 // ------------------------------------------------------------------ router
 
 const ROUTES = [
@@ -1183,6 +1205,7 @@ const ROUTES = [
   ['POST', /^\/stripe\/webhook$/, stripeWebhook],
   ['GET', /^\/dev\/mail$/, devMail],
   ['GET', /^\/dev\/mail\.json$/, devMailJson],
+  ['POST', /^\/internal\/publish$/, internalPublish],
 ];
 
 export default {

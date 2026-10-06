@@ -412,7 +412,9 @@ WHERE p.slug IS NOT NULL
 CREATE VIEW public_puppies AS
 SELECT pu.id, pu.breeder_id, pu.litter_id, pu.slug, pu.name, pu.sex, pu.color,
        pu.price_cents, pu.deposit_cents, pu.description, pu.breeder_url, pu.includes_json,
-       pu.hypoallergenic, pu.availability, pu.published_at, pu.expires_at
+       pu.hypoallergenic, pu.availability, pu.published_at, pu.expires_at,
+       -- Plan P4.3 (migrations/0004). The old Wix product slug, for the site's 301 map.
+       pu.legacy_slug
 FROM puppies pu JOIN public_breeders pb ON pb.breeder_id = pu.breeder_id
 WHERE pu.publication_state = 'published'
   AND pu.payment_state IN ('paid','comped')

@@ -3,6 +3,7 @@
 //
 // The free Workers plan allows five cron triggers per account, so the portal uses two:
 //   */15 * * * *   reconcile   checkouts left open or paid without a listing
+//                  publish     the site, when changes have waited a minute (lib/publish.js, plan P4.4)
 //   0 13 * * *     daily       expiry warnings and expiry, housekeeping, then the backup
 // 13:00 UTC is 8 or 9 in the morning in Indiana, so warnings arrive at the start of the day.
 // Each job records its last run in job_runs, which the admin shows.
@@ -11,6 +12,7 @@ import { now } from './util.js';
 import { settings, auditStmt, dirtyStmt } from './store.js';
 import { sendMail, alertOps } from './mail.js';
 import { provider, releaseCheckout, fulfillCheckout } from './payments.js';
+import { publishIfDue } from './publish.js';
 
 const DAY = 86400000;
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
@@ -139,7 +141,10 @@ export function runJob(env, name) {
 
 /** The cron entry point. */
 export async function scheduled(event, env) {
-  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile')];
+  // Reconcile first, because a checkout it fulfills marks the site dirty. Publish is not in JOBS,
+  // so the admin has no Run now for it: the admin's Publish now goes through the portal instead,
+  // because only the portal holds the GitHub token.
+  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await record(env, 'publish', () => publishIfDue(env))];
   const out = [];
   for (const j of ['expiry', 'housekeeping', 'backup']) out.push(await runJob(env, j));
   return out;

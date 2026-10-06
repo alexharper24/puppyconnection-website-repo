@@ -551,7 +551,7 @@ async function siteScreen(req, env) {
 async function publishSite(req, env, ctx, id, who) {
   requireSameOrigin(req);
   const r = await publishNow(env, { type: 'operator', email: who.email });
-  return json({ ...r, site: await siteStatus(env) }, r.ok ? 200 : 502);
+  return json({ ...r, site: await siteStatus(env) }, r.ok ? 200 : r.off ? 503 : 502);
 }
 
 // ------------------------------------------------------------------ email log (plan P3.6)

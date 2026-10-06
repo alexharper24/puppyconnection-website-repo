@@ -1,0 +1,222 @@
+---
+doc: launch-checklist
+written: 2026-10-05
+plan_id: P7.7
+asked: "A launch checklist naming exactly what flips: Stripe live keys and price, the Google app under the Puppy Connection account with brand verification, the domain and its email records, Access on the admin hostname, and noindex off"
+status: "OPEN. Nothing here has flipped. Staging runs on puppyconnection.workers.dev with DEV_MODE staging (plan P7.3)"
+glossary:
+  - {term: "portal", means: "the breeder portal Worker (app/portal)", not: ["breeder app", "dashboard"]}
+  - {term: "admin", means: "the operator screens Worker (app/admin), behind Cloudflare Access", not: ["back office", "operator portal"]}
+  - {term: "site", means: "the public Puppy Connection site Worker (app/site)", not: ["front end", "storefront"]}
+  - {term: "staging", means: "the copy on puppyconnection.workers.dev in the Puppy Connection Cloudflare account", not: ["test copy", "hosted test"]}
+  - {term: "real hostnames", means: "the portal, admin and site hostnames on puppy-connection.com, decided in L0", not: ["custom domain", "prod URL"]}
+items:
+  - {id: L0, status: open, blocked_on: "alex and amber", item: "Decide the real hostnames for the portal, admin and site. Suggested portal.puppy-connection.com, admin.puppy-connection.com, and the apex plus www for the site"}
+  - {id: L1, status: open, blocked_on: "amber, then alex", item: "Stripe live. Amber's Stripe account verified, the $14.99 product and price and the webhook created in live mode, the live keys set as secrets, PAYMENTS_MODE stripe and STRIPE_MODE live"}
+  - {id: L2, status: open, blocked_on: "alex and amber (D5)", item: "Google OAuth app moved to the Puppy Connection Google account, published, brand verified, with the redirect URI and origin for the real portal hostname"}
+  - {id: L3, status: open, blocked_on: alex, item: "puppy-connection.com DNS moved to the Puppy Connection Cloudflare account with every existing record carried over before the nameserver change"}
+  - {id: L4, status: open, blocked_on: "alex (D9)", item: "Email sending domain records (SPF, DKIM, DMARC) published and verified, EMAIL_MODE resend, EMAIL_FROM on the real domain"}
+  - {id: L5, status: open, blocked_on: alex, item: "Access application on the admin's real hostname with the same operator policy and two-step check, and ACCESS_AUD updated"}
+  - {id: L6, status: open, blocked_on: alex, item: "Turnstile widget hostnames include the real portal hostname, and TURNSTILE_HOSTNAME set to it"}
+  - {id: L7, status: open, blocked_on: claude, item: "Production config for the portal and admin with DEV_MODE unset, so the mailbox, practice checkout and test notices are gone"}
+  - {id: L8, status: open, blocked_on: "claude, then alex", item: "noindex off and robots.txt open on the public site only, sitemap on the real domain, Search Console verified"}
+  - {id: L9, status: open, blocked_on: claude, item: "Every legacy Wix URL redirected with a 301 and a sample tested after cutover (site state g1-old-site, g3-redirects, g4-legacy-check)"}
+  - {id: L10, status: open, blocked_on: alex, item: "Workers Paid ($5 a month), only if the publish measurement on staging (P4.3, P7.6) does not fit the free plan"}
+  - {id: L11, status: open, blocked_on: alex, item: "The fine-grained GitHub token (F4) expiry date on a calendar, with a reminder two weeks before"}
+  - {id: L12, status: open, blocked_on: amber, item: "Privacy policy approved and the listing terms written by Amber, the contact address placeholder replaced"}
+  - {id: L13, status: open, blocked_on: "alex and amber", item: "Staging test data removed from the production database (e2e- breeders, demo breeders, the test mailbox)"}
+  - {id: L14, status: open, blocked_on: "alex and amber", item: "One real $14.99 listing payment, then its refund, checked end to end in live mode"}
+  - {id: L15, status: open, blocked_on: "claude and alex", item: "One restore from a nightly backup, done and checked, before launch is called done (plan P4.8)"}
+---
+
+# Launch checklist
+
+This lists what changes when Puppy Connection moves from staging to launch. Staging already
+runs the production code. Launch changes accounts, keys, DNS records and settings, and no
+feature is built at launch. Each item in the header has an id, a status and who it waits
+on. Close an item only with evidence, such as a command output, a dashboard value or a test
+result.
+
+Run every step in order inside each section. Sections L1 to L6 can run in any order after
+L0 and L3. L13 to L15 run last.
+
+## L0 Hostnames
+
+- [ ] Agree the real hostnames with Amber.
+- [ ] Record them in this file's glossary.
+
+## L1 Stripe live
+
+WARNING: A live key takes real money. Set live keys only on the production portal, never on staging.
+
+- [ ] Confirm Amber's Stripe account shows as verified and able to take payments.
+- [ ] Create the listing product in live mode.
+- [ ] Create one price of $14.99, one-time, on that product.
+- [ ] Create a webhook endpoint at `https://<portal hostname>/stripe/webhook`.
+- [ ] Select these events on the endpoint.
+  - `checkout.session.completed`
+  - `checkout.session.async_payment_succeeded`
+  - `checkout.session.async_payment_failed`
+  - `checkout.session.expired`
+  - `charge.refunded`
+  - `charge.dispute.created`
+  - `charge.dispute.closed`
+- [ ] Pin the endpoint API version to the value in `STRIPE_API_VERSION`.
+- [ ] Set the secret `STRIPE_SECRET_KEY` to the live secret key with `wrangler secret put`.
+- [ ] Set the secret `STRIPE_WEBHOOK_SECRET` to the endpoint signing secret.
+- [ ] Set `PAYMENTS_MODE` to `stripe` in the production portal config.
+- [ ] Set `STRIPE_MODE` to `live`.
+- [ ] Set `STRIPE_PRICE_ID` to the live price id.
+- [ ] Set `PAYMENTS_MODE` to `stripe` in the production admin config.
+- [ ] Send a test event from the Stripe dashboard and confirm the portal answers 200.
+
+## L2 Google sign-in
+
+CAUTION: A wrong redirect URI stops Google sign-in. The emailed link still works, so breeders can sign in.
+
+- [ ] Create the Cloud project in the Puppy Connection Google account (D5).
+- [ ] Add Alex as a second owner of the project.
+- [ ] Configure the consent screen with the name Puppy Connection and the logo.
+- [ ] Set the home page to the site's real home page.
+- [ ] Set the privacy policy link to `https://<portal hostname>/privacy`.
+- [ ] Set the terms link to `https://<portal hostname>/terms`.
+- [ ] Add `puppy-connection.com` as an authorized domain.
+- [ ] Request only the scopes `openid`, `email` and `profile`.
+- [ ] Create a web OAuth client.
+- [ ] Add the redirect URI `https://<portal hostname>/auth/google/callback`.
+- [ ] Add the JavaScript origin `https://<portal hostname>` for One Tap.
+- [ ] Add the Access redirect URI `https://dry-snowflake-0e9c.cloudflareaccess.com/cdn-cgi/access/callback`.
+- [ ] Publish the app to In production.
+- [ ] Submit the brand for verification and wait for approval.
+- [ ] Set `GOOGLE_CLIENT_ID` in the production portal config.
+- [ ] Set the secret `GOOGLE_CLIENT_SECRET` on the production portal.
+- [ ] Update the Google login method in Access with the new client id and secret.
+- [ ] Sign in with a Google account that is not on the project and confirm no warning shows.
+
+## L3 DNS move
+
+WARNING: A record left behind stops what it serves. A missing MX record stops all mail to the domain.
+
+- [ ] Export every record for puppy-connection.com from the current DNS host.
+- [ ] Take a screenshot of the record list as a second copy.
+- [ ] Add puppy-connection.com to the Puppy Connection Cloudflare account.
+- [ ] Compare the imported records with the export, one line at a time.
+- [ ] Add each record the import missed.
+- [ ] Set the Wix site records to DNS only, so Wix keeps serving until cutover.
+- [ ] Confirm MX, SPF and every verification TXT record is present.
+- [ ] Change the nameservers at the registrar to the two Cloudflare names.
+- [ ] Confirm the zone shows as active in Cloudflare.
+- [ ] Check mail delivery to the domain with one test message.
+- [ ] Check the Wix site still loads on the domain.
+
+## L4 Email sending
+
+CAUTION: A domain can have one SPF record only. Merge a new include into the existing record.
+
+- [ ] Choose Resend or Cloudflare Email Sending (D9).
+- [ ] Add the sending domain in that service.
+- [ ] Publish the DKIM records it gives.
+- [ ] Merge its SPF include into the existing SPF record.
+- [ ] Publish a DMARC record, starting at `p=none` with a report address.
+- [ ] Wait for the service to show the domain as verified.
+- [ ] Set `EMAIL_MODE` to `resend` on the production portal and admin.
+- [ ] Set `EMAIL_FROM` to the sending address on the real domain.
+- [ ] Set the secret `RESEND_API_KEY` on the production portal and admin.
+- [ ] Remove `EMAIL_ALLOWLIST`, so mail goes to every breeder.
+- [ ] Set `OPS_EXTRA` to the addresses that get job alerts.
+- [ ] Ask for a sign-in link and confirm it arrives outside the spam folder.
+
+## L5 Access on the admin
+
+WARNING: An admin hostname with no Access application is open to anyone. Create the application before the route.
+
+- [ ] Create a self-hosted Access application on the admin's real hostname.
+- [ ] Attach the "Puppy Connection admin operators" policy.
+- [ ] Turn on the same login methods, one-time PIN and Google.
+- [ ] Confirm the account-wide two-step check still applies to the application.
+- [ ] Set `ACCESS_AUD` to the new application's audience tag.
+- [ ] Add the admin's real hostname as a custom domain on the admin Worker.
+- [ ] Set `workers_dev` to false on the production admin.
+- [ ] Open the admin in a private window and confirm Access asks for sign-in.
+- [ ] Confirm an address outside the policy is refused.
+
+## L6 Turnstile
+
+- [ ] Add the real portal hostname to the widget "Puppy Connection breeder portal".
+- [ ] Set `TURNSTILE_HOSTNAME` to the real portal hostname.
+- [ ] Sign up once from a normal browser and confirm the check passes.
+
+## L7 Production config
+
+CAUTION: Staging must keep `DEV_MODE` staging until real email and Stripe work there, or sign-in stops.
+
+- [ ] Make `wrangler.production.jsonc` for the portal and admin from the hosted configs.
+- [ ] Remove `DEV_MODE` from both.
+- [ ] Set `PORTAL_ORIGIN` and `ADMIN_ORIGIN` to the real hostnames.
+- [ ] Deploy the portal and the admin.
+- [ ] Confirm `/dev/mail` answers 404 on both.
+- [ ] Confirm `/sim/checkout/x` answers 404 on the portal.
+- [ ] Confirm `/api/config` reports `notices` false and `mailbox` false.
+
+## L8 Search engines
+
+The portal and admin stay out of search engines after launch. Each sends `X-Robots-Tag: noindex` from `lib/util.js`. Only the public site opens.
+
+- [ ] Remove the `noindex` robots meta from every site page.
+- [ ] Replace `robots.txt` with one that allows crawling and names the sitemap.
+- [ ] Build `sitemap.xml` with real-domain URLs.
+- [ ] Verify the domain in Search Console.
+- [ ] Submit the sitemap.
+
+## L9 Wix URL redirects
+
+- [ ] Inventory every live Wix URL, from the sitemap and Search Console.
+- [ ] Map each one to its new page.
+- [ ] Add the map as 301 redirects in the site Worker.
+- [ ] Test every mapped URL on staging.
+- [ ] Fetch a sample of old URLs after cutover and confirm each lands on the right page.
+
+## L10 Workers plan
+
+- [ ] Read the publish measurement from staging (P4.3, P7.6).
+- [ ] Move to Workers Paid only if a publish exceeds the free plan limits.
+
+## L11 GitHub token
+
+- [ ] Note the expiry date of the fine-grained token (F4).
+- [ ] Put a calendar reminder two weeks before that date.
+- [ ] Write the rotation steps beside the reminder.
+
+## L12 Legal pages
+
+- [ ] Send the draft privacy policy at `/privacy` to Amber.
+- [ ] Apply her changes.
+- [ ] Replace the contact address placeholder.
+- [ ] Put Amber's listing terms on `/terms` and in the profile submit card.
+- [ ] Set a new `terms_version` in the admin settings.
+
+## L13 Test data
+
+WARNING: Deleting rows cannot be undone. Export a backup to `app/.state/` first.
+
+- [ ] Export the production database.
+- [ ] Delete every `e2e-` and `staging-` breeder and its rows.
+- [ ] Delete the demo breeders.
+- [ ] Empty `dev_mailbox` and `dev_mailbox_owners`.
+- [ ] Delete their photo files from R2.
+
+## L14 First real payment
+
+- [ ] List one puppy with a real card for $14.99.
+- [ ] Confirm the puppy shows on the site.
+- [ ] Confirm the payment shows in the admin Payments screen.
+- [ ] Refund the payment in Stripe.
+- [ ] Confirm the refund shows in the admin and the operators get the refund alert.
+- [ ] Take the listing down in the admin. Today a refund leaves the listing up until an operator decides (plan P3.8).
+
+## L15 Restore rehearsal
+
+- [ ] Download last night's backup from R2.
+- [ ] Restore it into a scratch D1 database.
+- [ ] Compare the row counts with production.
+- [ ] Record the time the restore took.

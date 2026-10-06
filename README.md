@@ -330,7 +330,8 @@ every page, with a puppy page for each of the four breeders.
 - [ ] Decide whether placed puppies should also drop off the breeder page, or
       only the browse view
 - [ ] Amber to supply a real breed list, or confirm the inventory-derived one
-- [ ] Localize the Wix listing photos if this progresses past review
+- [ ] Localize the Wix listing photos. Decided 2026-10-06 (D11): `app/ops/wix-import.mjs` copies
+      them into R2 and the site Worker serves them at `/media`. It runs with Amber's pairing
 - [ ] Ask breeders for one landscape photo per puppy (48 listings have none)
 - [ ] Ask the three breeders without per-puppy pages whether they plan to add
       them; deep links are currently breed or available-puppies pages for 152
@@ -339,7 +340,10 @@ every page, with a puppy page for each of the four breeders.
       figure and dog under the arc in the logo. A brand-mark choice, so Alex picks it
 - [ ] Change `BASE` in `_harvest/genpages.py` at cutover and regenerate
 - [ ] Generate breed, breeder and puppy pages as real static files with the Teapup
-      generator, chosen 2026-09-28 (`_claude-state.md`, pc-static-pages)
+      generator, chosen 2026-09-28 (`_claude-state.md`, pc-static-pages). Built as
+      `app/build/generate.mjs` and deployed from the private site repository
+      alexharper24/puppyconnection-site (D10, `app/README.md`), live once Alex connects Workers Builds and sets the deploy hook
+      and connects Workers Builds (`app/docs/launch-checklist.md`, L16)
 - [ ] Walk the local simulation of the breeder portal and operator screens (`app/README.md`)
       and decide whether it gets pushed with this repo
 - [ ] Review the breed guide drafts for all 25 breeds before any go into the build. They

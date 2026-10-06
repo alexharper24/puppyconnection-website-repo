@@ -148,8 +148,8 @@ breeder's own page shows their logo, their town and all of their puppies. From t
 breeder can press **View on the site** to jump straight to their page or to any puppy.
 
 On staging a listing shows up within about a minute and a half. When the finished site is
-switched on, it updates through **Publish** in the admin instead. **Waiting** on Alex to decide
-where the finished site is published from and to add the paid Cloudflare plan it needs.
+switched on, it updates through **Publish** in the admin instead. **Waiting** on Alex to connect
+the finished site's automatic build in Cloudflare, which is free.
 
 Try Maple, Biscuit and Clover from Maple Brook Doodles.
 
@@ -224,6 +224,6 @@ sign-in link**, and open the **portal mailbox** link on the next page to find th
 | The listing terms in your own words | Amber |
 | The privacy page, written as a draft for your review | Amber |
 | Which breeder each Wix listing belongs to, before the real import | Amber |
-| The finished public site, generated and published from the directory | Alex, choosing where it is published and adding the paid Cloudflare plan |
+| The finished public site, generated and published from the directory | Alex, connecting the site's automatic build in Cloudflare (free) |
 | What staff can do compared with the owner | Amber |
 | Whether a kennel can have more than one person signing in | Amber |

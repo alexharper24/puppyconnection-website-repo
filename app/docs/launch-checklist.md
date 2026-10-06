@@ -3,11 +3,12 @@ doc: launch-checklist
 written: 2026-10-05
 plan_id: P7.7
 asked: "A launch checklist naming exactly what flips: Stripe live keys and price, the Google app under the Puppy Connection account with brand verification, the domain and its email records, Access on the admin hostname, and noindex off"
-status: "OPEN, updated 2026-10-06 with the publish, import and restore steps (plan P4.3 to P4.8). Nothing here has flipped. Staging runs on puppyconnection.workers.dev with DEV_MODE staging (plan P7.3)"
+status: "OPEN, updated 2026-10-06 with the publish, import and restore steps (plan P4.3 to P4.8), and again for the site repository, photos in R2 and publishing through a deploy hook (decisions D10 and D11). Nothing here has flipped. Staging runs on puppyconnection.workers.dev with DEV_MODE staging (plan P7.3)"
 glossary:
   - {term: "portal", means: "the breeder portal Worker (app/portal)", not: ["breeder app", "dashboard"]}
   - {term: "admin", means: "the operator screens Worker (app/admin), behind Cloudflare Access", not: ["back office", "operator portal"]}
-  - {term: "site", means: "the public Puppy Connection site Worker (app/site)", not: ["front end", "storefront"]}
+  - {term: "site", means: "the public Puppy Connection site Worker, named site, deployed from the site repository", not: ["front end", "storefront"]}
+  - {term: "site repository", means: "the private GitHub repository alexharper24/puppyconnection-site that holds the site build and Worker, and that Workers Builds deploys from (D10)", not: ["publish repo", "site repo folder"]}
   - {term: "staging", means: "the copy on puppyconnection.workers.dev in the Puppy Connection Cloudflare account", not: ["test copy", "hosted test"]}
   - {term: "real hostnames", means: "the portal, admin and site hostnames on puppy-connection.com, decided in L0", not: ["custom domain", "prod URL"]}
 items:
@@ -21,14 +22,14 @@ items:
   - {id: L7, status: open, blocked_on: claude, item: "Production config for the portal and admin with DEV_MODE unset, so the mailbox, practice checkout and test notices are gone"}
   - {id: L8, status: open, blocked_on: "claude, then alex", item: "noindex off and robots.txt open on the public site only, sitemap on the real domain, Search Console verified. The generator does the first three with SITE_INDEXABLE=1 and SITE_URL (plan P4.3)"}
   - {id: L9, status: open, blocked_on: claude, item: "Every legacy Wix URL redirected with a 301 and a sample tested after cutover (site state g1-old-site, g3-redirects, g4-legacy-check). Product pages are done by the generator's _redirects from each puppy's legacy_slug (plan P4.3). Category, breed and breeder pages on Wix still need their own lines"}
-  - {id: L10, status: open, blocked_on: alex, item: "Workers Paid ($5 a month). Measured 2026-10-06 (plan P4.4), a publish does not fit the free plan's 10 ms of CPU, so this is needed before the publish runs for real", evidence: "dev/publish-test.mjs on Node with SQLite time left out: the publish's own work for one change 12.9 to 18.3 ms with GitHub's answers canned, 21 to 50 ms with Node's fetch, the export alone 3 to 9 ms"}
-  - {id: L11, status: open, blocked_on: alex, item: "The fine-grained GitHub token (F4) expiry date on a calendar, with a reminder two weeks before"}
+  - {id: L10, status: open, blocked_on: alex, item: "Workers Paid ($5 a month) is NOT needed for publishing since 2026-10-06. Alex chose the deploy hook, which fits the free plan, because the in-Worker commit measured 13 to 50 ms of CPU against 10 ms. Needed only if the commit mode is turned on later", evidence: "dev/publish-test.mjs on Node with SQLite time left out: the commit publish 12.5 to 18.3 ms with GitHub canned, 21 to 50 ms with Node fetch"}
+  - {id: L11, status: open, blocked_on: alex, item: "Only for the commit mode, kept for later. A fine-grained GitHub token (F4) has an expiry date to put on a calendar. A GITHUB_TOKEN secret was found on the staging portal on 2026-10-06 and is unused in hook mode"}
   - {id: L12, status: open, blocked_on: amber, item: "Privacy policy approved and the listing terms written by Amber, the contact address placeholder replaced"}
   - {id: L13, status: open, blocked_on: "alex and amber", item: "Staging test data removed from the production database (e2e- breeders, demo breeders, the test mailbox)"}
   - {id: L14, status: open, blocked_on: "alex and amber", item: "One real $14.99 listing payment, then its refund, checked end to end in live mode"}
   - {id: L15, status: open, blocked_on: "claude and alex", item: "One restore from a nightly backup, done and checked, before launch is called done (plan P4.8). Rehearsed locally on 2026-10-06 with app/ops/restore-backup.mjs (dev/restore-test.mjs, every table matched). The staging rehearsal into a new D1 database is still to do"}
-  - {id: L16, status: open, blocked_on: "alex (F4, D10), then claude", item: "Publishing switched on. The GitHub token as a portal secret, GITHUB_REPO and PUBLISH_DIR set, PUBLISH_MODE portal on the admin, the CI workflow running app/build/ci-build.sh and deploying the site Worker over its output, and the site Worker changed from reading the database live to serving the generated pages"}
-  - {id: L17, status: open, blocked_on: "amber (d8), then claude and alex", item: "The Wix import. Amber's pairing file, app/ops/wix-import.mjs run on a copy and checked, then the copy's rows and photos moved to D1 and R2. Decide first where the imported photos are served from (D11)"}
+  - {id: L16, status: open, blocked_on: "alex (Workers Builds, the deploy hook, PUBLISH_HOOK_URL), then claude", item: "Publishing switched on through a Workers Builds deploy hook (Alex, 2026-10-06). Done by Claude: the site repository holds the build and the site Worker, the portal serves /data/export.json, and the staging portal and admin run PUBLISH_MODE hook. Waiting on Alex: Workers Builds connected to the site Worker, its deploy hook, and the hook address as the portal secret PUBLISH_HOOK_URL. Then Claude checks the first build and Publish now"}
+  - {id: L17, status: open, blocked_on: "amber (d8), then claude and alex", item: "The Wix import. Amber's pairing file, app/ops/wix-import.mjs run on a copy and checked, the photos copied into R2 with --upload-to, then the copy's rows moved to D1. Photos are served from R2 at /media by the site Worker (D11, decided 2026-10-06)"}
 ---
 
 # Launch checklist
@@ -183,16 +184,13 @@ The generator writes `_redirects` with a 301 from each imported puppy's `/produc
 
 ## L10 Workers plan
 
-The free plan allows 10 ms of CPU and 50 outside requests per run. A publish measured on 2026-10-06 needs more CPU than that, so it needs Workers Paid. The publish keeps to 40 new files per run (`PUBLISH_MAX_FILES`), so the request limit holds either way.
-
-- [ ] Move the Puppy Connection account to Workers Paid.
-- [ ] Publish once and read the CPU time of that run in the portal's Workers logs.
+Not needed for publishing. Since 2026-10-06 the portal publishes by calling a Workers Builds deploy hook, which is one request and fits the free plan's 10 ms of CPU. The commit mode, kept for later, measured 13 to 50 ms and needs Workers Paid if it is ever turned on.
 
 ## L11 GitHub token
 
-- [ ] Note the expiry date of the fine-grained token (F4).
-- [ ] Put a calendar reminder two weeks before that date.
-- [ ] Write the rotation steps beside the reminder.
+Only for the commit mode, kept for later. Hook mode uses no GitHub token.
+
+- [ ] If the commit mode is turned on, note the expiry date of the fine-grained token (F4) and put a calendar reminder two weeks before it.
 
 ## L12 Legal pages
 
@@ -251,16 +249,28 @@ The local rehearsal is `node dev/restore-test.mjs`. It runs the backup job, take
 
 ## L16 Publishing
 
-WARNING: A publish writes to the repository on every change. Point `GITHUB_REPO` and `PUBLISH_DIR` at the agreed place (D10) before the token is set.
+The portal publishes by calling the deploy hook of the `site` Worker (`PUBLISH_MODE` hook, Alex 2026-10-06). Workers Builds then runs `bash build/ci-build.sh` in the site repository `alexharper24/puppyconnection-site`, which fetches `https://portal.puppyconnection.workers.dev/data/export.json`, builds the pages and checks them, and deploys with `npx wrangler deploy`. Photos stay in R2 and the site Worker serves them at `/media` (D11).
 
-- [ ] Create the fine-grained token with Contents read and write on the site repository only (F4).
-- [ ] Set it on the portal with `$W secret put GITHUB_TOKEN`.
-- [ ] Set `GITHUB_REPO`, and `PUBLISH_DIR` if it is not `site`, in the portal config.
-- [ ] Add the CI workflow that runs `bash app/build/ci-build.sh` and deploys the site Worker over its output.
-- [ ] Add the Cloudflare API token for that deploy to the CI secrets.
-- [ ] Set `PUBLISH_MODE` to `portal` in the admin config.
-- [ ] Press Publish now and confirm one commit lands and the CI build passes.
-- [ ] Change the site Worker to serve the generated pages, with the beacon route kept.
+Done on 2026-10-06: the site repository holds the build and the site Worker, the portal serves `/data/export.json`, and the staging portal and admin run `PUBLISH_MODE` hook with no hook set, so a publish says it is not set up.
+
+CAUTION: Connecting Workers Builds replaces the staging site, which reads the database live, with the generated pages at the same address. A failed build changes nothing.
+
+- [ ] In the Cloudflare dashboard of the Puppy Connection account, open Workers and Pages, then the `site` Worker, then Settings, then Builds, and connect the repository with these settings.
+  - Git account `alexharper24`. Keep the Cloudflare Workers and Pages GitHub app at All repositories.
+  - Repository `alexharper24/puppyconnection-site`, production branch `main`.
+  - Root directory `/` (blank).
+  - Build command `bash build/ci-build.sh`.
+  - Deploy command `npx wrangler deploy`.
+  - Non-production branch builds off.
+  - Build variables none for staging. `DATA_URL`, `SITE_URL`, `PORTAL_ORIGIN` and `SITE_INDEXABLE` exist for other hostnames (L8).
+  - API token, the one the dashboard makes for the build.
+- [ ] Make sure the first build passes. Its log shows `fetched data at generation`, then `0 error(s)` from site-checks, then the deploy.
+- [ ] Open https://site.puppyconnection.workers.dev/ and one puppy page, and make sure the photos show.
+- [ ] In the same Builds settings, add a deploy hook named `Publish` on branch `main`, and copy its address.
+- [ ] Set the address on the staging portal. From `C:\Git_Repos`, run `node teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js secret put PUBLISH_HOOK_URL --config puppyconnection-website-repo/app/portal/wrangler.hosted.jsonc` with `CLOUDFLARE_ACCOUNT_ID` set to the Puppy Connection account, and paste the address.
+- [ ] Press Publish now on the admin, and make sure one build starts and passes.
+
+To change the generator, the templates or the site Worker later, change them in this repository, run `dev/publish-test.mjs`, then run `node app/build/sync-site-repo.mjs <clone>` and push the clone. The push builds and deploys the site.
 
 ## L17 Wix import
 
@@ -271,4 +281,6 @@ WARNING: The import changes the database copy only. Moving it to D1 and R2 repla
 - [ ] Do a dry run: `node ops/wix-import.mjs --pairing <file> --drop-seed --dry-run`.
 - [ ] Run it: `node ops/wix-import.mjs --pairing <file> --drop-seed`.
 - [ ] Make sure every check line reads `ok`.
-- [ ] Move the copy's rows and photos to D1 and R2, as decided in D11.
+- [ ] Copy the photos into R2: `node ops/wix-import.mjs --pairing <file> --drop-seed --upload-to puppyconnection-files`, with `CLOUDFLARE_ACCOUNT_ID` set. It is about 700 MB in 2,343 files. A run that stops can be started again, and it skips what is already there.
+- [ ] Make sure its last line reads `ok   copied` with no failures.
+- [ ] Move the copy's rows to D1. The photos must be in R2 first, or the pages name photos the site cannot serve.

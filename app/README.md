@@ -57,7 +57,7 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
 | https://portal.puppyconnection.workers.dev/privacy | The privacy policy, a draft for Amber's review |
 | https://portal.puppyconnection.workers.dev/terms | The listing terms, a placeholder until Amber writes them |
 | https://admin.puppyconnection.workers.dev | Amber's operator screens |
-| https://site.puppyconnection.workers.dev | The public site, built live from the database on every page load |
+| https://site.puppyconnection.workers.dev | The public site, built live from the database on every page load until Workers Builds is connected to the site repository (below) |
 
 - **Staging looks like production** (plan P7.3). The portal and the admin run as
   `DEV_MODE=staging`, which shows no "test version" or "test copy" notices, keeps every page
@@ -130,6 +130,55 @@ directly.
    and a cancel.
 7. Run `node app/dev/preview.mjs` and open the puppy on the preview site.
 
+## Publishing and the site repository (decisions D10 and D11)
+
+The public site is built and deployed from a second, private repository,
+[alexharper24/puppyconnection-site](https://github.com/alexharper24/puppyconnection-site), by
+Cloudflare Workers Builds for the `site` Worker. That repository holds code only. Alex chose this
+on 2026-10-06 because it keeps build machinery out of this history, keeps the site private until
+launch, and lets a bad site change be reverted on its own.
+
+A publish does not write anything. The portal (`lib/publish.js`, `PUBLISH_MODE` hook, the
+staging default) POSTs the site Worker's deploy hook, the secret `PUBLISH_HOOK_URL`, from its
+*/15 schedule or from the admin's Publish now. The build then fetches the public data from the
+portal's `/data/export.json`, which is exactly what `lib/shape.js` reads from the public views,
+builds every page, checks them with site-checks and deploys. The hook call is one request, which
+fits the free plan's 10 ms of CPU, where writing the data as a GitHub commit measured 13 to 50 ms.
+The commit path (`PUBLISH_MODE` commit, `lib/github.js`) is kept for later, for example on
+Workers Paid, and the build uses committed `data/*.json` instead of fetching when it finds them.
+
+The generation read when the hook is called counts as published once the hook accepts, so one
+period of changes starts one build. The cron also leaves a build alone for
+`PUBLISH_HOOK_GAP_SECONDS` (180) after the last one. Until `PUBLISH_HOOK_URL` is set, a publish
+does nothing and says so.
+
+| In the site repository | Comes from here |
+|---|---|
+| `build/generate.mjs`, `build/fetch-data.mjs`, `build/ci-build.sh` | `app/build/` |
+| `build/check_site.py` | `../site-checks`, used only when the public copy cannot be fetched |
+| `templates/` | The concept at this repository's root: `index.html`, `puppies.html`, `list-with-us.html`, `css/`, `img/`, `js/main.js` |
+| `worker/site.js` | `app/site/static-worker.js` |
+| `lib/util.js`, `lib/stats.js`, `lib/media.js` | `app/lib/` |
+| `wrangler.jsonc`, `README.md`, `.gitignore` | `app/site/repo/` |
+
+Change any of these here and test them here (`publish-test.mjs` part 3 runs the generated site
+and its Worker locally, over data fetched from the local portal), then copy them across on
+purpose and push:
+
+```bash
+node puppyconnection-website-repo/app/build/sync-site-repo.mjs <clone of puppyconnection-site>
+node puppyconnection-website-repo/app/build/sync-site-repo.mjs <clone> --check   # what would change, exit 1 if anything
+```
+
+The sync never touches `data/`, removes only files an earlier sync wrote, and records the commit
+here and a hash of each file in `SYNCED.json`. To build the site locally from the local portal,
+run `DATA_URL=http://localhost:8787/data/export.json bash build/ci-build.sh` in the clone.
+
+No photo is ever committed (decision D11). Breeder uploads and imported Wix photos both live in
+R2 under `uploads/<breeder id>/<photo id>.<ext>`, the data names them `media/<photo id>`, and the
+site Worker serves them from R2 while their puppy is public (`lib/media.js`). A Wix photo not
+imported yet keeps its Wix address.
+
 ## Tests
 
 ```bash
@@ -141,7 +190,7 @@ node app/dev/google-test.mjs    # Continue with Google, against a stand-in Googl
 node app/dev/legal-staging-test.mjs     # the privacy and terms pages and the staging mode
 node app/dev/portal-features-test.mjs   # plan P2: standing, site links, extras, batches, views, account
 node app/dev/admin-features-test.mjs    # plan P3: every admin route operator-only, edits, notes, breeds, terms, publish, refunds, reports
-node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stand-in GitHub on 8798, the generator, the binding, the cron, CPU
+node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stand-in GitHub on 8798, the generator, the binding, the cron, CPU, and the generated site's Worker on 8795
 node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
@@ -149,6 +198,8 @@ node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo da
 
 `publish-test.mjs` starts its own stand-in GitHub and a second admin on 8794 with `PUBLISH_MODE`
 portal, and needs the `GITHUB_*` lines from `portal/.dev.vars.example` in `portal/.dev.vars`.
+Its part 3 builds the pages from the local database into `app/.preview/static-site` and starts the
+generated site's Worker on 8795 with `app/site/wrangler.static.jsonc`.
 The made-up token there works only against the stand-in, because `GITHUB_API` is honored only
 while `DEV_MODE` is local.
 
@@ -174,7 +225,7 @@ the routes it guards, so the suite is known to catch the failure it exists for.
 | Payments | `PAYMENTS_MODE=sim` uses a practice checkout page served by the portal | Set `PAYMENTS_MODE=stripe`, `STRIPE_MODE`, `STRIPE_API_VERSION`, `STRIPE_PRICE_ID`, and the `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` secrets. The Stripe provider in `lib/payments.js` is written to the spec but has not run against Stripe, so its first test-mode run is milestone M5 |
 | Bot check on sign-up | Skipped on localhost when no key is set | Set `TURNSTILE_SITE_KEY` and the `TURNSTILE_SECRET` secret |
 | Operator sign-in | `DEV_IDENTITY`, on localhost only | Create the Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Until then a deployed admin answers 403 everywhere, which is the safe state |
-| Publishing | Built and tested against a stand-in GitHub (plan P4.3, P4.4). Staging has no token, so its portal only says publishing is not set up, and the staging site keeps reading the database live | The `GITHUB_TOKEN` secret (F4), `GITHUB_REPO` (D10), `PUBLISH_MODE` portal on the admin, the CI workflow, and Workers Paid (launch checklist L10, L16) |
+| Publishing | Built and tested against a stand-in deploy hook and a stand-in GitHub (plan P4.3, P4.4). The staging portal and admin run `PUBLISH_MODE` hook with no `PUBLISH_HOOK_URL`, so a publish only says it is not set up, and the staging site keeps reading the database live | Workers Builds connected to the site repository, the deploy hook made and set as `PUBLISH_HOOK_URL` (launch checklist L16) |
 | Scheduled jobs | Built (plan P4.2), with the publish on the */15 trigger since P4.4 | Nothing, beyond real email for their alerts |
 
 The local settings live in `app/portal/.dev.vars` and `app/admin/.dev.vars`, which are
@@ -219,7 +270,7 @@ settings, terms and operators are not touched. The audit log and email log are k
 - The portal sends `frame-ancestors 'none'`, which also blocks framing from its own origin.
   Phone-width checks use a resized tab instead of the usual iframe (CLAUDE.md section 5).
 - `lib/images.js` strips EXIF, XMP and IPTC from every upload, because phone photos carry
-  GPS and published photos land in this public repository.
+  GPS and every photo is served to anyone who opens the site.
 - `GET /auth/verify` changes nothing and shows a button. Only the `POST` spends the link,
   because mail scanners open every link first.
 - The six-digit sign-in code works only in the browser that asked for it. `/auth/start` sets a
@@ -278,13 +329,11 @@ settings, terms and operators are not touched. The audit log and email log are k
   token. `/internal/publish` answers 404 to anything that arrives with a `cf` object or a
   `CF-Connecting-IP` header, which every request from the internet has and a binding request
   does not, so a forged Host header does not get in.
-- The publish writes `data/*.json` (`lib/shape.js`, from the public views only) and new photos
-  as one commit under `PUBLISH_DIR`, default `site`. A photo or logo already in the repository
-  is never sent again, because its file name changes with its content. At most 40 new files go
-  per run (`PUBLISH_MAX_FILES`), photos first, and the data follows in the run that has every
-  file it names, so no page points at a missing photo.
-- The generator is `app/build/generate.mjs`, a Node script with no packages, run by
-  `app/build/ci-build.sh` after each publish. Pages are flat at the root
+- The publish calls a deploy hook and the build fetches `/data/export.json` (hook mode, above),
+  rather than committing data, because the commit did not fit the free plan's CPU. The export is
+  `lib/shape.js` from the public views only, so it shows nothing the site does not.
+- The generator is `app/build/generate.mjs`, a Node script with no packages, run in the site
+  repository by `build/ci-build.sh` after each publish. Pages are flat at the root
   (`puppy-<slug>.html`, `breed-<slug>.html`, `breeder-<slug>.html`), because site-checks reads
   only the root and every page should be checked. The concept's `?slug=` pages become pages
   that send the visitor on, and `_redirects` sends each Wix `/product-page/<slug>` to its puppy.
@@ -317,11 +366,11 @@ settings, terms and operators are not touched. The audit log and email log are k
       Puppy Connection contact email address, which replaces the REPLACE THIS in it twice.
       She also decides how long the activity record and payment records are kept after an
       account closes
-- [ ] Publishing for real (launch checklist L16): the GitHub token (F4), where the publish
-      writes (D10 in the build-out plan), the CI workflow and its Cloudflare token, and Workers
-      Paid, because a publish measured more CPU than the free plan allows (L10)
-- [ ] Where imported Wix photos are served from (D11). 2,343 photos at about 300 KB each is
-      about 700 MB, too much to commit to a repository
+- [ ] Publishing for real (launch checklist L16): Workers Builds connected to the `site` Worker
+      from the site repository, its deploy hook made, and the hook address set as the portal's
+      `PUBLISH_HOOK_URL` secret. Then the staging site becomes the generated pages
+- [ ] The imported Wix photos copied into R2 with `wix-import.mjs --upload-to` before the
+      imported rows reach D1 (launch checklist L17), once Amber's pairing arrives
 - [ ] Stripe, Resend, Turnstile and Access, each per the table above
 - [ ] Amber's own breed list, and the real listing-to-breeder pairing for the migration
 - [ ] The kennel photo, breeds and Facebook page show on the generated breeder pages (plan

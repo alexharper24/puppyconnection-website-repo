@@ -90,7 +90,9 @@
     var c = state.config || {};
     app.innerHTML = '<main class="plain-card"><div class="plain-mark"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></div>' +
       (sent ? '<h1>Check your email</h1><p>' + esc(sent) + '</p>' +
-        (c.local && c.email_mode === 'log' ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your link.</p>' : '') +
+        // The mailbox follows EMAIL_MODE alone (plan P7.3). Staging keeps it, without the test-version wording, until real email is on.
+        (c.mailbox ? (c.notices ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your link.</p>'
+          : '<p class="muted small">Email delivery is not switched on yet, so your link is waiting in the <a href="/dev/mail">portal mailbox</a>.</p>') : '') +
         '<p class="muted small">Wrong address? <a href="/" data-restart>Start again</a>.</p>'
       : '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection. There is no password to remember.</p>' +
         (/google=failed/.test(location.search) ? '<p class="notice notice-alert">Google sign-in did not go through. Please try again, or use your email below.</p>' : '') +
@@ -100,8 +102,8 @@
         '<div class="field"><label for="bn">Business name <span class="muted">(new breeders)</span></label><input id="bn" name="business_name" type="text" autocomplete="organization"></div>' +
         (c.turnstile_site_key ? '<div class="field"><div class="cf-turnstile" data-sitekey="' + esc(c.turnstile_site_key) + '" data-action="auth"></div></div>' : '') +
         '<button class="btn btn-primary" type="submit">Email me a sign-in link</button></form>' +
-        (c.local ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '')) +
-      '</main>';
+        (c.local && c.notices ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '')) +
+      '</main><footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer>';
     var r = $('[data-restart]'); if (r) r.addEventListener('click', function (e) { e.preventDefault(); renderSignIn(); });
     if (c.google && !sent) startGoogle();
     if (c.turnstile_site_key && !window.turnstile) {
@@ -139,7 +141,11 @@
         });
         var box = $('#gsi-button');
         if (box) {
-          google.accounts.id.renderButton(box, { type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', logo_alignment: 'left', width: Math.min(box.clientWidth || 400, 400) });
+          // The box is display:none while empty, so its own width reads 0. Size the button to
+          // the form beside it, or a 400 px button pushes the card past a phone screen.
+          var form = $('#signin');
+          var w = Math.max(200, Math.min((form && form.clientWidth) || box.clientWidth || 400, 400));
+          google.accounts.id.renderButton(box, { type: 'standard', theme: 'outline', size: 'large', text: 'continue_with', shape: 'rectangular', logo_alignment: 'left', width: w });
           var fallback = $('#google-redirect'); if (fallback) fallback.hidden = true;
         }
         google.accounts.id.prompt();
@@ -181,8 +187,8 @@
       '<div class="main"><header class="topbar"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
-      (me.payments_mode === 'sim' ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
-      inner + '</div></main></div></div>';
+      (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
+      inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';
     $('#signout').addEventListener('click', function () {
       api('POST', '/auth/signout', {}).then(function () { state.me = null; location.hash = '#/'; render(); });
     });
@@ -261,8 +267,8 @@
       (editable ? '<button class="btn btn-primary" type="submit">Save profile</button>' : '') + '</form>';
     if (me.status === 'pending' && !me.profile_submitted_at) {
       html += '<form id="submit" class="card" novalidate><h2>Submit for approval</h2>' +
-        '<div class="notice"><b>REPLACE THIS:</b> the listing terms, in Amber\'s own words, go here before launch (build spec section 14). Version ' + esc(me.terms_version) + '.</div>' +
-        '<label class="check" for="accept-terms"><input type="checkbox" id="accept-terms" name="accept_terms"> I have read and accept the listing terms.</label>' +
+        '<div class="notice"><b>REPLACE THIS:</b> the listing terms, in Amber\'s own words, go here before launch (build spec section 14). Version ' + esc(me.terms_version) + '. <a href="/terms" target="_blank" rel="noopener">Open the listing terms page</a>.</div>' +
+        '<label class="check" for="accept-terms"><input type="checkbox" id="accept-terms" name="accept_terms"> I have read and accept the <a href="/terms" target="_blank" rel="noopener">listing terms</a>.</label>' +
         '<div class="btn-row"><button class="btn btn-gold" type="submit">Submit for approval</button></div></form>';
     } else if (me.status === 'pending') {
       html += '<p class="notice">Submitted ' + esc(day(me.profile_submitted_at)) + '. Puppy Connection will email you when it is approved.</p>';

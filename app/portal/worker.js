@@ -6,7 +6,9 @@ import {
   now, addDays, addMinutes, ulid, randomToken, sha256hex, slugify, esc, clean, cents,
   HttpError, notFound, forbidden, bad, json, html, redirect, readJson, requireSameOrigin,
   parseCookies, sessionCookieName, setCookie, isLocal, PORTAL_SECURITY_HEADERS as SECURITY_HEADERS, withHeaders, gate,
+  showTestNotices, isOpenHosted,
 } from '../lib/util.js';
+import { privacyPage, termsPage } from './legal.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl,
@@ -111,11 +113,13 @@ async function authStart(request, env, ctx) {
   return json(neutral);
 }
 
-function page(title, inner) {
+/** A plain server-rendered page. wide is for reading pages such as the privacy policy. */
+export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=4"></head>
-<body class="plain"><main class="plain-card"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main></body></html>`;
+<meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=5"></head>
+<body class="plain"><main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
+<footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
 
 /** GET changes nothing, because mail scanners open links first (spec 6.2). */
@@ -276,6 +280,8 @@ async function me(request, env) {
   const s = await settings(env);
   const out = publicBreeder(breeder, s);
   out.payments_mode = env.PAYMENTS_MODE || 'off';
+  out.test_notices = showTestNotices(env);
+  out.mailbox = env.EMAIL_MODE === 'log' && isLocal(request, env);
   return json(out);
 }
 
@@ -685,16 +691,18 @@ async function simCheckoutPage(request, env, ctx, id) {
   if (s.status !== 'open') {
     return html(page('Checkout closed', `<h1>This checkout is ${esc(s.status)}</h1><p><a href="/#/listings">Back to your listings</a></p>`));
   }
-  return html(page('Simulated checkout', `<p class="sim-flag">Practice checkout for the test version. No card is charged.</p>
+  // The lost-webhook button tests the success-page backstop, so it shows only where the
+  // screens admit to being a test copy (not in staging, plan P7.3).
+  const lostWebhook = showTestNotices(env) ? `<form method="post" action="/sim/checkout/${esc(s.id)}/pay"><input type="hidden" name="webhook" value="0">
+<button class="btn" type="submit">Pay, but lose the webhook (tests the success-page backstop)</button></form>` : '';
+  return html(page('Practice checkout', `<p class="sim-flag">Practice checkout. No card is charged.</p>
 <h1>Pay to list</h1>
 <table class="sim-table"><tr><td>Puppy listing x ${q}</td><td>${money(s.line_items.data[0].price.unit_amount)} each</td></tr>
 <tr class="sim-total"><td>Total</td><td>${money(s.amount_total)}</td></tr></table>
 <p class="muted">Billed to ${esc(s.customer_email)}. This practice checkout closes ${esc(new Date(s.expires_at * 1000).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', timeZone: 'America/Indiana/Indianapolis' }))} Indiana time.</p>
 <form method="post" action="/sim/checkout/${esc(s.id)}/pay"><input type="hidden" name="webhook" value="1">
-<button class="btn btn-primary" type="submit">Pay ${money(s.amount_total)} (simulated card)</button></form>
-<form method="post" action="/sim/checkout/${esc(s.id)}/pay"><input type="hidden" name="webhook" value="0">
-<button class="btn" type="submit">Pay, but lose the webhook (tests the success-page backstop)</button></form>
-<form method="post" action="/sim/checkout/${esc(s.id)}/cancel"><button class="btn btn-quiet" type="submit">Cancel and go back</button></form>`));
+<button class="btn btn-primary" type="submit">Pay ${money(s.amount_total)} (practice card)</button></form>
+${lostWebhook}<form method="post" action="/sim/checkout/${esc(s.id)}/cancel"><button class="btn btn-quiet" type="submit">Cancel and go back</button></form>`));
 }
 
 async function simPay(request, env, ctx, id) {
@@ -729,7 +737,7 @@ async function stripeWebhook(request, env, ctx) {
 
 /** In the open test portal, only the mail for addresses this browser signed up with. */
 function mailboxScope(request, env) {
-  if (env.DEV_MODE !== 'hosted-open') return { where: '', binds: [] };
+  if (!isOpenHosted(env)) return { where: '', binds: [] };
   const box = parseCookies(request).pc_mailbox || '-';
   return { where: 'WHERE to_addr IN (SELECT email FROM dev_mailbox_owners WHERE token = ?)', binds: [box] };
 }
@@ -761,6 +769,10 @@ function config(request, env) {
     turnstile_site_key: env.TURNSTILE_SITE_KEY || null,
     google: googleEnabled(env),
     local: isLocal(request, env),
+    // Plan P7.3. notices is whether to say this is a test copy. mailbox is whether the test
+    // mailbox exists, which follows EMAIL_MODE alone, so staging keeps it until real email.
+    notices: showTestNotices(env),
+    mailbox: env.EMAIL_MODE === 'log' && isLocal(request, env),
     email_mode: env.EMAIL_MODE || 'off',
     payments_mode: env.PAYMENTS_MODE || 'off',
   });
@@ -778,6 +790,8 @@ const ROUTES = [
   ['GET', /^\/auth\/google\/nonce$/, oneTapNonce],
   ['POST', /^\/auth\/google\/onetap$/, oneTapSignIn],
   ['GET', /^\/api\/config$/, config],
+  ['GET', /^\/privacy$/, (r, e) => html(page('Privacy policy', privacyPage(e), { wide: true }))],
+  ['GET', /^\/terms$/, async (r, e) => html(page('Listing terms', termsPage(e, await settings(e)), { wide: true }))],
   ['GET', /^\/api\/me$/, me],
   ['PUT', /^\/api\/profile$/, saveProfile],
   ['POST', /^\/api\/profile\/submit$/, submitProfile],

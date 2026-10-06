@@ -2,8 +2,10 @@
 // Deploy from app/admin:  wrangler deploy --config wrangler.hosted.jsonc
 // Signed in with Cloudflare Access on the dry-snowflake-0e9c team (an emailed one-time code, as
 // the Teapup editor uses), and then the people table decides who is an operator.
-// DEV_MODE hosted-access keeps the test mailbox on and uses no password gate and no
-// DEV_IDENTITY. The Access application is "Puppy Connection admin" in that account.
+// DEV_MODE staging (plan P7.3) shows no "test copy" notice and uses no password gate and no
+// DEV_IDENTITY. The operators' mailbox at /dev/mail stays while EMAIL_MODE is log, linked from
+// the menu. hosted-access is the same with the notice shown. The Access application is
+// "Puppy Connection admin" in that account.
 {
   "name": "admin",
   "account_id": "4f6e9dc25ab751960763628b06e6c108",
@@ -20,7 +22,7 @@
   "vars": {
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
-    "DEV_MODE": "hosted-access",
+    "DEV_MODE": "staging",
     "EMAIL_MODE": "log",
     "PAYMENTS_MODE": "sim",
     "ACCESS_TEAM_DOMAIN": "dry-snowflake-0e9c",

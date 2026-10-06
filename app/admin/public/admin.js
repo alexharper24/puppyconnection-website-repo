@@ -97,14 +97,16 @@
           return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="is-on" aria-current="page"' : '') + (n[2] ? ' aria-label="' + esc(n[1] + ', ' + n[2]) + '"' : '') + '><span>' + esc(n[1]) + '</span>' +
             (n[2] ? '<span class="tally">' + n[2] + '</span>' : '') + '</a>';
         }).join('');
-      }).join('') + '</nav>' +
+      }).join('') +
+      // The mailbox follows EMAIL_MODE alone (plan P7.3), so staging keeps it until real email is on.
+      (state.who.email_mode === 'log' ? '<a href="/dev/mail" target="_blank" rel="noopener"><span>Mailbox</span></a>' : '') + '</nav>' +
       '<div class="rail-foot"><span class="dot' + (waiting ? ' wait' : '') + '"></span><div><b>' + (waiting ? 'Changes waiting' : 'Site up to date') + '</b><span>' +
         (waiting ? plural(waiting, 'change') + ' not on the site yet' : 'Nothing waiting to publish') + '</span></div></div></aside>' +
       '<div class="main"><header class="topbar"><form class="finder" id="finder" role="search"><label class="sr" for="find">Search breeders and puppies</label>' +
         '<input id="find" name="q" type="search" placeholder="Search breeders, puppies, emails" value="' + esc(q) + '"></form>' +
         '<div class="who"><span class="name">' + esc(state.who.name) + '</span></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
-      (state.who.dev ? '<p class="notice notice-sim">Local simulation. You are signed in as ' + esc(state.who.email) + ' through DEV_IDENTITY, which stands in for Cloudflare Access. Every test email is in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>, and payments are ' + esc(state.who.payments_mode) + '.</p>'
+      (!state.who.notices ? '' : state.who.dev ? '<p class="notice notice-sim">Local simulation. You are signed in as ' + esc(state.who.email) + ' through DEV_IDENTITY, which stands in for Cloudflare Access. Every test email is in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>, and payments are ' + esc(state.who.payments_mode) + '.</p>'
         : state.who.email_mode === 'log' ? '<p class="notice notice-sim">This is the test copy. Every email lands in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a> instead of being sent, and payments are ' + esc(state.who.payments_mode) + '.</p>' : '') +
       inner + '</div></main></div></div>';
     $('#finder').addEventListener('submit', function (e) {

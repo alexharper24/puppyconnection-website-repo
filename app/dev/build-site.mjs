@@ -6,10 +6,10 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { copyConcept, REPO } from './site-copy.mjs';
+import { copyConcept, REPO, DEFAULT_PORTAL } from './site-copy.mjs';
 
 const OUT = path.join(REPO, 'app/site/public');
-const base = copyConcept(OUT);
+const base = copyConcept(OUT, { portalOrigin: process.env.PORTAL_ORIGIN || DEFAULT_PORTAL });
 fs.writeFileSync(path.join(OUT, 'data/base.json'), JSON.stringify(base));
 fs.rmSync(path.join(OUT, 'data/data.js'), { force: true });
 console.log(`site built into app/site/public: ${base.breeds.length} breeds, ${base.profiles.length} profiles`);

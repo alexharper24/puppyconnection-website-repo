@@ -1,9 +1,13 @@
 // The hosted TEST deployment of the portal, on the Puppy Connection Cloudflare account.
 // Deploy from app/portal:  wrangler deploy --config wrangler.hosted.jsonc
-// DEV_MODE hosted-open turns on the test mailbox and the practice checkout with no password,
-// so sign-up can be tested as a breeder would meet it. Each browser's mailbox shows only the
-// mail for addresses it signed up with, and a practice checkout opens only for the breeder who
-// started it. Production gets its own config, with real email and Stripe and no test helpers.
+// DEV_MODE staging (plan P7.3) makes this copy look like production, with no "test version"
+// notices, while the test helpers stay for as long as their provider settings ask for them.
+// The mailbox exists while EMAIL_MODE is log and the practice checkout while PAYMENTS_MODE is
+// sim, both with no password. Each browser's mailbox shows only the mail for addresses it
+// signed up with, and a practice checkout opens only for the breeder who started it. Leave
+// EMAIL_MODE and PAYMENTS_MODE alone until real email (D9) and Stripe test keys (F1) are set,
+// or sign-in and payment stop. hosted-open is the same with the notices shown. Production
+// gets its own config with DEV_MODE unset (docs/launch-checklist.md, L7).
 {
   "name": "portal",
   "account_id": "4f6e9dc25ab751960763628b06e6c108",
@@ -30,7 +34,7 @@
     "GOOGLE_CLIENT_ID": "751105615126-cu5h48psv53a59nci3e9g5u0n0mmfuir.apps.googleusercontent.com",
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
-    "DEV_MODE": "hosted-open",
+    "DEV_MODE": "staging",
     "EMAIL_MODE": "log",
     "PAYMENTS_MODE": "sim"
   }

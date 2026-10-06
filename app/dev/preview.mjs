@@ -20,7 +20,7 @@ const res = await fetch(`${ADMIN}/api/export`);
 if (!res.ok) { console.error(`export failed: ${res.status} ${await res.text()}`); process.exit(1); }
 const exp = await res.json();
 
-const base = copyConcept(OUT);
+const base = copyConcept(OUT, { portalOrigin: process.env.PORTAL || 'http://localhost:8787' });
 fs.writeFileSync(path.join(OUT, 'data/data.js'), siteDataJs(base, exp, 'Local preview, built by app/dev/preview.mjs from the simulation database.'));
 
 // A banner on every page so a local preview is never mistaken for the live site.

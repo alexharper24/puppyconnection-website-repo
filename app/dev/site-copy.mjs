@@ -31,12 +31,25 @@ const PATCHES = [
     "(biz.domain ? '<li><a href=\"https://' + esc(biz.domain) + '\" target=\"_blank\" rel=\"noopener\"><b>Website</b> ' + esc(biz.domain) + '</a></li>' : '') +"],
 ];
 
-/** Copy the site into out and patch it. Returns the concept's breed and profile records. */
-export function copyConcept(out) {
+// Patch 4 (plan P7.1). The privacy policy and listing terms live on the portal, so every
+// copied page's footer links to them under "Breeders". The concept itself is unchanged.
+const FOOTER_ANCHOR = '<li><a href="list-with-us.html#pricing">Pricing</a></li>';
+export const DEFAULT_PORTAL = 'https://portal.puppyconnection.workers.dev';
+
+/**
+ * Copy the site into out and patch it. Returns the concept's breed and profile records.
+ * portalOrigin is where the footer's privacy and terms links point.
+ */
+export function copyConcept(out, { portalOrigin = DEFAULT_PORTAL } = {}) {
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(path.join(out, 'data'), { recursive: true });
+  const legal = `<li><a href="${portalOrigin}/privacy">Privacy</a></li><li><a href="${portalOrigin}/terms">Listing terms</a></li>`;
   for (const f of fs.readdirSync(REPO)) {
-    if (/\.(html|txt|xml)$/.test(f)) fs.copyFileSync(path.join(REPO, f), path.join(out, f));
+    if (/\.html$/.test(f)) {
+      const page = fs.readFileSync(path.join(REPO, f), 'utf8');
+      if (page.includes('<footer') && !page.includes(FOOTER_ANCHOR)) throw new Error(`site footer patch no longer matches ${f}`);
+      fs.writeFileSync(path.join(out, f), page.replace(FOOTER_ANCHOR, `${FOOTER_ANCHOR}${legal}`));
+    } else if (/\.(txt|xml)$/.test(f)) fs.copyFileSync(path.join(REPO, f), path.join(out, f));
   }
   for (const dir of ['css', 'js', 'img']) fs.cpSync(path.join(REPO, dir), path.join(out, dir), { recursive: true });
 

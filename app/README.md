@@ -52,23 +52,38 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
 | Address | What it is |
 |---|---|
 | https://portal.puppyconnection.workers.dev | The breeder portal |
-| https://portal.puppyconnection.workers.dev/dev/mail | The test mailbox, showing your own sign-in links |
+| https://portal.puppyconnection.workers.dev/dev/mail | The mailbox, showing your own sign-in links, while `EMAIL_MODE` is `log` |
+| https://portal.puppyconnection.workers.dev/privacy | The privacy policy, a draft for Amber's review |
+| https://portal.puppyconnection.workers.dev/terms | The listing terms, a placeholder until Amber writes them |
 | https://admin.puppyconnection.workers.dev | Amber's operator screens |
 | https://site.puppyconnection.workers.dev | The public site, built live from the database on every page load |
 
-- **The portal has no password**, so sign-up is tested the way a breeder meets it. It runs as
-  `DEV_MODE=hosted-open`, where the test mailbox shows each browser only the mail for
-  addresses that browser signed up with, and a practice checkout opens only for the breeder
-  who started it. `dev/open-portal-check.mjs` proves both against the live copy.
+- **Staging looks like production** (plan P7.3). The portal and the admin run as
+  `DEV_MODE=staging`, which shows no "test version" or "test copy" notices, keeps every page
+  out of search engines (a robots meta and an `X-Robots-Tag` header), and has no operator
+  stand-in. The mailbox and the practice checkout stay only while their own provider setting
+  asks for them. The mailbox (`/dev/mail`, the link on the "check your email" screen, the
+  admin's Mailbox menu item) exists while `EMAIL_MODE` is `log`, and the practice checkout
+  while `PAYMENTS_MODE` is `sim`. Setting real email (D9) or Stripe test keys (F1) removes
+  each one with no code change. `hosted-open` and `hosted-access` still work and still show
+  the notices, for a copy that should say it is a test. `lib/util.js` lists every mode.
+- **The portal has no password**, so sign-up is tested the way a breeder meets it. The test
+  mailbox shows each browser only the mail for addresses that browser signed up with, and a
+  practice checkout opens only for the breeder who started it. `dev/open-portal-check.mjs`
+  proves both against the live copy, and `dev/legal-staging-test.mjs` proves them against a
+  local portal started with `--var DEV_MODE:staging`.
 - **The admin signs in with Cloudflare Access**, an emailed one-time code, through the
   "Puppy Connection admin" application in the account's Zero Trust (team
   `dry-snowflake-0e9c`). Access lets in only the addresses on the "Puppy Connection admin
   operators" policy, and the admin then checks the address against the `people` table, so an
   operator needs both. It runs as `DEV_MODE=hosted-access`, with no password gate and no
   stand-in identity. Every test email, including Amber's notifications, is in the admin's
-  own mailbox at `/dev/mail`.
+  own mailbox at `/dev/mail`, linked from the menu while `EMAIL_MODE` is `log`.
+- **The launch steps are in `docs/launch-checklist.md`**, meaning every key, account, DNS
+  record and setting that changes between staging and launch.
 - **The site has no password**, because it reads only the public views and serves only photos
-  of listed puppies.
+  of listed puppies. Its footer links to the portal's privacy and terms pages, added to the
+  copied pages by `dev/site-copy.mjs` (set `PORTAL_ORIGIN` for `build-site.mjs` at launch).
 - **`dev/e2e.mjs` cannot drive the hosted admin**, because Access stands in front of it. It
   runs in full against the local copy, and on the hosted copy the approval step is done by
   hand in the admin. Remove any test breeders afterwards, or they show on the public site.
@@ -170,6 +185,11 @@ simulation cannot email a real breeder.
       the 2026-09-30 build, so the layouts are measured (no sideways overflow at 320 and 375 in the portal and at 320 in the admin)
       but have not been looked at
 - [ ] Listing terms text from Amber, which replaces the REPLACE THIS on the profile screen
+      and on the portal's `/terms` page (`portal/legal.js`)
+- [ ] Amber's review of the draft privacy policy at `/privacy` (`portal/legal.js`), and the
+      Puppy Connection contact email address, which replaces the REPLACE THIS in it twice.
+      She also decides how long the activity record and payment records are kept after an
+      account closes
 - [ ] The scheduled jobs (spec section 10) and the publish commit (spec section 9)
 - [ ] Stripe, Resend, Turnstile and Access, each per the table above
 - [ ] Amber's own breed list, and the real listing-to-breeder pairing for the migration

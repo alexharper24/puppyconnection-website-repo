@@ -237,6 +237,19 @@ body.plain { display: grid; place-items: start center; min-height: 100dvh; paddi
 .plain-mark { display: grid; place-items: center; background: var(--rail-bg); border-radius: 10px; padding: 1rem; margin: -.4rem -.4rem 1.2rem; }
 .plain-mark img { width: 10rem; height: auto; display: block; }
 .sim-flag { background: #f4f6f8; border: 1px solid #d7dde4; border-radius: 8px; padding: .5rem .7rem; font-size: .85rem; color: #3f4a57; }
+/* privacy and terms (plan P7.1): a wider card for reading, links under every plain page */
+.plain-card.plain-wide { width: min(760px, 100%); }
+.plain-foot { display: flex; gap: 1.2rem; justify-content: center; margin: 1rem auto 0; font-size: .85rem; }
+.plain-foot a { color: var(--muted); min-height: 34px; display: inline-flex; align-items: center; }
+.work-foot { display: flex; gap: 1.2rem; margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .85rem; }
+.work-foot a { color: var(--muted); min-height: 34px; display: inline-flex; align-items: center; }
+.draft-flag { background: #fff8e6; border: 1px solid #e6c264; border-radius: 8px; padding: .6rem .8rem; font-size: .9rem; }
+.legal { max-width: 70ch; }
+.legal h2 { font-size: 1.1rem; margin: 1.6rem 0 .4rem; }
+.legal ul { padding-left: 1.2rem; } .legal li { margin: .3rem 0; }
+.replace, .replace-block b { background: #fde8e8; color: #8a1f1f; font-weight: 600; padding: 0 .25rem; border-radius: 4px; }
+.replace-block { border: 1px dashed #c96b6b; border-radius: 8px; padding: .7rem .8rem; }
+.review-note { border-left: 4px solid #e6c264; background: #fff8e6; padding: .5rem .8rem; font-size: .9rem; }
 .sim-table { width: 100%; border-collapse: collapse; margin: .6rem 0 1rem; }
 .sim-table td { padding: .5rem 0; border-bottom: 1px solid var(--line); }
 .sim-table td + td { text-align: right; font-variant-numeric: tabular-nums; }

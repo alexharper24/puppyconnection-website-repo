@@ -102,12 +102,15 @@ async function main() {
   check('P2.1 a listed puppy cannot be paid for again', p.pay_block === 'Already listed.');
 
   // ---------------------------------------------------------------- P2.2 view on the site
-  check('P2.2 the listed puppy links to its page on the site', p.site_url === `${SITE_ORIGIN}/puppy.html?slug=${p.slug}`, p.site_url);
+  check('P2.2 the listed puppy links to its page on the site', p.site_url === `${SITE_ORIGIN}/puppy-${p.slug}.html`, p.site_url);
   const exp = (await admin.get('/api/export')).data;
   check('P2.2 that slug is the one the site renders', exp.listings.some((x) => x.slug === p.slug));
   const meA = (await A.c.get('/api/me')).data;
   const prof = exp.profiles.find((x) => x.name === A.name);
-  check('P2.2 an approved breeder links to their page on the site', !!prof && meA.site_url === `${SITE_ORIGIN}/breeder.html?slug=${prof.slug}`, `${meA.site_url} vs ${prof && prof.slug}`);
+  // PUBLISH_MODE is commit in portal/.dev.vars, so links name the generated pages, and a breeder's
+  // page is named by their profile slug as build/generate.mjs writes it, not their website.
+  const bslug = meA.breeder?.profile?.slug || meA.profile?.slug;
+  check('P2.2 an approved breeder links to their page on the site', !!prof && !!bslug && meA.site_url === `${SITE_ORIGIN}/breeder-${bslug}.html`, `${meA.site_url} vs ${bslug}`);
   check('P2.2 a pending breeder has no site link yet', (await C.c.get('/api/me')).data.site_url === null);
 
   // ---------------------------------------------------------------- P2.3 profile extras

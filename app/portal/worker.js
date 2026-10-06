@@ -407,7 +407,7 @@ async function me(request, env) {
     needs_accept: termsNeedAccept(breeder, terms.version) };
   out.site_origin = siteOrigin(env) || null;
   out.site_url = siteOrigin(env) && breeder.slug && await isPublicBreeder(env, breeder.id)
-    ? `${siteOrigin(env)}/breeder.html?slug=${encodeURIComponent(siteBreederSlug(breeder))}` : null;
+    ? sitePage(env, 'breeder', breeder.slug, siteBreederSlug(breeder)) : null;
   return json(out);
 }
 
@@ -974,7 +974,7 @@ async function listings(request, env) {
       const short = s.minPhotos - p.photos.length;
       if (short > 0) p.needs.push(short === 1 ? (p.photos.length ? 'one more photo' : 'a photo') : `${short} more photos`);
       // Plan P2.2. Where buyers see this puppy, once it is live.
-      p.site_url = site && p.is_public ? `${site}/puppy.html?slug=${encodeURIComponent(p.slug)}` : null;
+      p.site_url = site && p.is_public ? sitePage(env, 'puppy', p.slug, p.slug) : null;
       p.views = counts[p.id]?.views || 0;
       p.clicks = counts[p.id]?.clicks || 0;
     }
@@ -1221,6 +1221,14 @@ const ROUTES = [
   ['POST', /^\/internal\/publish$/, internalPublish],
   ['GET', /^\/data\/export\.json$/, dataExport],
 ];
+
+// Plan P2.2. A generated site (PUBLISH_MODE hook or commit) names pages puppy-<slug>.html and
+// breeder-<profile slug>.html, as build/generate.mjs writes them. The live-data site Worker used
+// before that reads breeder.html?slug=<website slug> instead.
+function sitePage(env, kind, slug, liveSlug) {
+  if (env.PUBLISH_MODE === 'hook' || env.PUBLISH_MODE === 'commit') return `${siteOrigin(env)}/${kind}-${encodeURIComponent(slug)}.html`;
+  return `${siteOrigin(env)}/${kind}.html?slug=${encodeURIComponent(liveSlug)}`;
+}
 
 export default {
   async fetch(request, env, ctx) {

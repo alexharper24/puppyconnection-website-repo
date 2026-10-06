@@ -138,7 +138,15 @@ node app/dev/google-test.mjs    # Continue with Google, against a stand-in Googl
 node app/dev/legal-staging-test.mjs     # the privacy and terms pages and the staging mode
 node app/dev/portal-features-test.mjs   # plan P2: standing, site links, extras, batches, views, account
 node app/dev/admin-features-test.mjs    # plan P3: every admin route operator-only, edits, notes, breeds, terms, publish, refunds, reports
+node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stand-in GitHub on 8798, the generator, the binding, the cron, CPU
+node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
+node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 ```
+
+`publish-test.mjs` starts its own stand-in GitHub and a second admin on 8794 with `PUBLISH_MODE`
+portal, and needs the `GITHUB_*` lines from `portal/.dev.vars.example` in `portal/.dev.vars`.
+The made-up token there works only against the stand-in, because `GITHUB_API` is honored only
+while `DEV_MODE` is local.
 
 `portal-features-test.mjs` also needs the public site Worker running locally on 8791, which it
 uses for the view and click beacon. Build its pages and start it from `C:\Git_Repos`:
@@ -162,8 +170,8 @@ the routes it guards, so the suite is known to catch the failure it exists for.
 | Payments | `PAYMENTS_MODE=sim` uses a practice checkout page served by the portal | Set `PAYMENTS_MODE=stripe`, `STRIPE_MODE`, `STRIPE_API_VERSION`, `STRIPE_PRICE_ID`, and the `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` secrets. The Stripe provider in `lib/payments.js` is written to the spec but has not run against Stripe, so its first test-mode run is milestone M5 |
 | Bot check on sign-up | Skipped on localhost when no key is set | Set `TURNSTILE_SITE_KEY` and the `TURNSTILE_SECRET` secret |
 | Operator sign-in | `DEV_IDENTITY`, on localhost only | Create the Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Until then a deployed admin answers 403 everywhere, which is the safe state |
-| Publishing | `dev/preview.mjs` copies the concept site and writes its `data/data.js` from the export | The cron publish and GitHub commit (spec section 9) and the real generator. Needs Workers Paid |
-| Scheduled jobs | Not built. The views already hide expired listings | Expiry warnings, reconciliation, backups and housekeeping (spec section 10) |
+| Publishing | Built and tested against a stand-in GitHub (plan P4.3, P4.4). Staging has no token, so its portal only says publishing is not set up, and the staging site keeps reading the database live | The `GITHUB_TOKEN` secret (F4), `GITHUB_REPO` (D10), `PUBLISH_MODE` portal on the admin, the CI workflow, and Workers Paid (launch checklist L10, L16) |
+| Scheduled jobs | Built (plan P4.2), with the publish on the */15 trigger since P4.4 | Nothing, beyond real email for their alerts |
 
 The local settings live in `app/portal/.dev.vars` and `app/admin/.dev.vars`, which are
 gitignored and copied from the `.example` files by `setup.mjs`. Nothing in `wrangler.jsonc`
@@ -238,6 +246,28 @@ simulation cannot email a real breeder.
   (`payment_state` refunded, back to a draft), audits it and emails the breeder. A partial refund
   and a dispute are recorded, shown and alerted, and leave the listing up. The admin's Refund
   and dispute buttons work only with the practice provider until P4.5 proves the Stripe one.
+- The publish (plan P4.3) runs in the portal, from its */15 cron and from `/internal/publish`,
+  which the admin reaches through the `PORTAL` service binding. Only the portal holds the GitHub
+  token. `/internal/publish` answers 404 to anything that arrives with a `cf` object or a
+  `CF-Connecting-IP` header, which every request from the internet has and a binding request
+  does not, so a forged Host header does not get in.
+- The publish writes `data/*.json` (`lib/shape.js`, from the public views only) and new photos
+  as one commit under `PUBLISH_DIR`, default `site`. A photo or logo already in the repository
+  is never sent again, because its file name changes with its content. At most 40 new files go
+  per run (`PUBLISH_MAX_FILES`), photos first, and the data follows in the run that has every
+  file it names, so no page points at a missing photo.
+- The generator is `app/build/generate.mjs`, a Node script with no packages, run by
+  `app/build/ci-build.sh` after each publish. Pages are flat at the root
+  (`puppy-<slug>.html`, `breed-<slug>.html`, `breeder-<slug>.html`), because site-checks reads
+  only the root and every page should be checked. The concept's `?slug=` pages become pages
+  that send the visitor on, and `_redirects` sends each Wix `/product-page/<slug>` to its puppy.
+- The generated site turns off site-checks' em dash check (`.sitecheck.json`), because breeders
+  write their own descriptions and their dashes are published as written. The site's own
+  wording is still checked with it on, by a second build in `publish-test.mjs` with the
+  breeders' dashes taken out.
+- The Wix import (`app/ops/wix-import.mjs`) and the restore (`app/ops/restore-backup.mjs`) work
+  on a copy or a new database, never the live one. The restore refuses a database that already
+  has breeders.
 - Report CSVs (plan P3.7) are built on the server, and any text cell starting with `=`, `+`, `-`,
   `@`, a tab or a carriage return gets a leading apostrophe, so a puppy named like a formula
   cannot run in Amber's spreadsheet (`lib/csv.js`).
@@ -253,12 +283,16 @@ simulation cannot email a real breeder.
       Puppy Connection contact email address, which replaces the REPLACE THIS in it twice.
       She also decides how long the activity record and payment records are kept after an
       account closes
-- [ ] The scheduled jobs (spec section 10) and the publish commit (spec section 9)
+- [ ] Publishing for real (launch checklist L16): the GitHub token (F4), where the publish
+      writes (D10 in the build-out plan), the CI workflow and its Cloudflare token, and Workers
+      Paid, because a publish measured more CPU than the free plan allows (L10)
+- [ ] Where imported Wix photos are served from (D11). 2,343 photos at about 300 KB each is
+      about 700 MB, too much to commit to a repository
 - [ ] Stripe, Resend, Turnstile and Access, each per the table above
 - [ ] Amber's own breed list, and the real listing-to-breeder pairing for the migration
-- [ ] The kennel photo, breeds and Facebook page are in the site export but the concept pages
-      have no place for them, so only the logo shows on the site today. They wait for the
-      generated pages (plan P4.3)
+- [ ] The kennel photo, breeds and Facebook page show on the generated breeder pages (plan
+      P4.3). The staging site still renders the concept pages live, where only the logo shows,
+      until publishing is switched on
 - [ ] Questions for Amber from the operator screens (plan P3): whether a dispute should take a
       listing down while it is open (today it is recorded and shown, and the listing stays up),
       whether a breeder who has not accepted new listing terms may still pay to list (today they

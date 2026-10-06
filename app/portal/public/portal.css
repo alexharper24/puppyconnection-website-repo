@@ -184,6 +184,33 @@ table.list tr.clickable:focus-visible { outline: 3px solid var(--bronze); outlin
 .puppy-grid .puppy-row { border: 1px solid var(--line); border-radius: 10px; padding: .6rem .7rem; background: #fff; }
 .puppy-grid .puppy-row:first-of-type { border-top: 1px solid var(--line); }
 
+/* Plan P2.1, where a puppy stands, and P2.4, the quick actions under each puppy */
+.standing { font-size: .84rem; color: var(--ink-soft); margin-top: .3rem; line-height: 1.4; }
+.standing-ok { color: var(--ok); } .standing-warn { color: var(--warn); } .standing-alert { color: var(--alert); } .standing-gold { color: var(--olive); }
+.puppy-row .row-actions { grid-column: 2 / -1; display: flex; flex-wrap: wrap; gap: .2rem .3rem; margin: -.2rem 0 0 -.6rem; }
+.puppy-row .row-actions:empty { display: none; }
+.grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); gap: 0 1rem; }
+table.list tr.total-row td { background: var(--ground); }
+
+/* Plan P2.3, the profile extras */
+.brand-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(15rem, 100%), 1fr)); gap: 1rem; margin-bottom: 1.2rem; }
+.brand-slot { border: 1px solid var(--line); border-radius: 10px; padding: .8rem; background: #fff; min-width: 0; }
+.brand-slot > b { display: block; margin-bottom: .5rem; }
+.brand-slot img, .brand-empty { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: contain; border-radius: 8px; background: var(--ground); }
+.brand-slot[data-kind="kennel"] img { object-fit: cover; }
+.brand-slot img { max-height: 12rem; }
+.brand-empty { display: grid; place-items: center; color: var(--muted); font-size: .85rem; border: 1px dashed var(--line-strong); aspect-ratio: auto; height: 5rem; }
+.brand-slot .btn-row { margin-top: .5rem; }
+.breed-picks { border: 1px solid var(--line); border-radius: 10px; padding: .6rem .9rem .8rem; margin: 0 0 1rem; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr)); gap: .25rem 1rem; }
+.breed-picks legend { font-weight: 500; font-size: .9rem; padding: 0 .3rem; }
+.breed-picks .check { align-items: center; min-height: 34px; font-size: .92rem; }
+.brand-pics { display: flex; flex-wrap: wrap; gap: .8rem; margin: 0 0 1rem; }
+.brand-pics figure { margin: 0; width: 9rem; }
+.brand-pics img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: contain; background: var(--ground); border-radius: 8px; border: 1px solid var(--line); }
+.brand-pics figcaption { font-size: .8rem; color: var(--muted); margin-top: .2rem; }
+.help p { max-width: 70ch; }
+
 /* segmented control and tab links */
 .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; max-width: 100%; overflow-x: auto; }
 .seg button, .seg a { border: 0; background: #fff; padding: .45rem .8rem; min-height: 40px; font: 500 .86rem var(--sans); cursor: pointer;
@@ -201,7 +228,8 @@ table.list tr.clickable:focus-visible { outline: 3px solid var(--bronze); outlin
 .drawer-body { padding: 1.1rem 1.2rem 2rem; overflow-y: auto; flex: 1; }
 .drawer-body h3 { margin-top: 1.4rem; }
 .kv { width: 100%; border-collapse: collapse; font-size: .92rem; margin-bottom: 1rem; }
-.kv td { padding: .45rem 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.kv { table-layout: fixed; }
+.kv td { padding: .45rem 0; border-bottom: 1px solid var(--line); vertical-align: top; overflow-wrap: anywhere; }
 .kv td:first-child { color: var(--muted); width: 38%; padding-right: 1rem; }
 
 /* photo manager */

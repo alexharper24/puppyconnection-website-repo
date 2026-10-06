@@ -12,8 +12,11 @@ import { privacyPage, termsPage } from './legal.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
+  BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand,
 } from '../lib/store.js';
-import { sendMail } from '../lib/mail.js';
+import { sendMail, alertOps } from '../lib/mail.js';
+import { siteBreederSlug } from '../lib/export.js';
+import { breederStats } from '../lib/stats.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
 import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
@@ -206,7 +209,7 @@ async function authCode(request, env) {
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=6"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=7"></head>
 <body class="plain"><main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
@@ -375,6 +378,13 @@ function publicBreeder(b, s) {
   };
 }
 
+/** The public site's address, with no trailing slash, or '' when it is not set (plan P2.2). */
+function siteOrigin(env) { return String(env.SITE_ORIGIN || '').replace(/\/+$/, ''); }
+
+async function isPublicBreeder(env, breederId) {
+  return !!(await env.DB.prepare('SELECT 1 AS x FROM public_breeders WHERE breeder_id = ?').bind(breederId).first());
+}
+
 async function me(request, env) {
   const { breeder } = await needSession(request, env);
   const s = await settings(env);
@@ -382,6 +392,16 @@ async function me(request, env) {
   out.payments_mode = env.PAYMENTS_MODE || 'off';
   out.test_notices = showTestNotices(env);
   out.mailbox = env.EMAIL_MODE === 'log' && isLocal(request, env);
+  // Plan P2.3, the optional extras, and P2.2, the breeder's page on the site once it is public.
+  out.extras = {
+    facebook_url: breeder.facebook_url || null,
+    breeds: await breederBreeds(env, breeder.id),
+    logo_url: brandUrl('', breeder.id, 'logo', breeder.logo_key),
+    kennel_url: brandUrl('', breeder.id, 'kennel', breeder.kennel_key),
+  };
+  out.site_origin = siteOrigin(env) || null;
+  out.site_url = siteOrigin(env) && breeder.slug && await isPublicBreeder(env, breeder.id)
+    ? `${siteOrigin(env)}/breeder.html?slug=${encodeURIComponent(siteBreederSlug(breeder))}` : null;
   return json(out);
 }
 
@@ -429,6 +449,159 @@ async function submitProfile(request, env, ctx) {
     }
   }
   return me(request, env);
+}
+
+// ------------------------------------------------------------------ profile extras (plan P2.3)
+
+function requireEditableProfile(breeder) {
+  if (!['pending', 'approved'].includes(breeder.status)) throw forbidden('Your profile cannot be changed right now.');
+}
+
+/** The breeds they raise and their Facebook page, both optional. */
+async function saveExtras(request, env, ctx) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireEditableProfile(breeder);
+  const body = await readJson(request);
+  const facebook = facebookUrl(body.facebook_url);
+  const ids = Array.isArray(body.breed_ids) ? [...new Set(body.breed_ids.map(String))] : [];
+  if (ids.length > 20) throw bad('Choose up to 20 breeds.');
+  if (ids.length) {
+    const { results } = await env.DB.prepare(`SELECT id FROM breeds WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+    if (results.length !== ids.length) throw bad('Choose breeds from the list.');
+  }
+  const before = { facebook_url: breeder.facebook_url || null, breeds: (await breederBreeds(env, breeder.id)).map((b) => b.id) };
+  const t = now();
+  const stmts = [
+    env.DB.prepare('UPDATE breeder_profiles SET facebook_url = ?, updated_at = ? WHERE breeder_id = ?').bind(facebook, t, breeder.id),
+    env.DB.prepare('DELETE FROM breeder_breeds WHERE breeder_id = ?').bind(breeder.id),
+    ...ids.map((id) => env.DB.prepare('INSERT INTO breeder_breeds (breeder_id, breed_id) VALUES (?, ?)').bind(breeder.id, id)),
+    auditStmt(env, 'breeder', breeder.email, 'profile.extras', 'breeder', breeder.id, before, { facebook_url: facebook, breeds: ids }),
+  ];
+  if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  // A changed Facebook page is a public contact link, so it gets the same notice as P6.6.
+  if (breeder.profile_submitted_at && (breeder.facebook_url || null) !== facebook) {
+    ctx.waitUntil(sendMail(env, breeder.email, 'contact_changed', {
+      business: breeder.business_name, by: 'breeder', portalUrl: env.PORTAL_ORIGIN || '',
+      changes: [{ field: 'facebook_url', label: 'Facebook page', from: breeder.facebook_url || null, to: facebook }],
+    }).catch((e) => console.error('contact change notice failed', e)));
+  }
+  return me(request, env);
+}
+
+/** Upload or replace the logo or the kennel photo. The old file is removed from R2 afterwards. */
+async function uploadBrand(request, env, ctx, kind) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireEditableProfile(breeder);
+  const col = BRAND[kind];
+  const raw = new Uint8Array(await request.arrayBuffer());
+  const img = cleanImage(raw);
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[img.type];
+  const key = `brand/${breeder.id}/${kind}-${ulid()}.${ext}`;
+  await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
+  const old = breeder[col];
+  const stmts = [
+    env.DB.prepare(`UPDATE breeder_profiles SET ${col} = ?, updated_at = ? WHERE breeder_id = ?`).bind(key, now(), breeder.id),
+    auditStmt(env, 'breeder', breeder.email, `profile.${kind}.add`, 'breeder', breeder.id, old ? { key: old } : null, { key, bytes: img.bytes.length }),
+  ];
+  if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  if (old) await env.FILES.delete([old, cardKey(old)]);
+  return json({ ok: true, url: brandUrl('', breeder.id, kind, key) }, 201);
+}
+
+async function uploadBrandCard(request, env, ctx, kind) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireEditableProfile(breeder);
+  const key = breeder[BRAND[kind]];
+  if (!key) throw bad('Upload the image first.');
+  const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
+  if (!img.size || Math.max(img.size.w, img.size.h) > CARD_MAX_EDGE) throw bad(`A card copy can be up to ${CARD_MAX_EDGE} pixels on its longest side.`);
+  await env.FILES.put(cardKey(key), img.bytes, { httpMetadata: { contentType: img.type } });
+  return json({ ok: true }, 201);
+}
+
+async function removeBrand(request, env, ctx, kind) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireEditableProfile(breeder);
+  const col = BRAND[kind];
+  const old = breeder[col];
+  if (!old) return json({ ok: true });
+  const stmts = [
+    env.DB.prepare(`UPDATE breeder_profiles SET ${col} = NULL, updated_at = ? WHERE breeder_id = ?`).bind(now(), breeder.id),
+    auditStmt(env, 'breeder', breeder.email, `profile.${kind}.remove`, 'breeder', breeder.id, { key: old }, null),
+  ];
+  if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  await env.FILES.delete([old, cardKey(old)]);
+  return json({ ok: true });
+}
+
+/** A breeder's logo or kennel photo. Public once the breeder is, and before that only to them. */
+async function brandImage(request, env, kind, breederId) {
+  const res = await serveBrand(env, breederId, kind, {
+    card: new URL(request.url).searchParams.get('size') === 'card',
+    allowPrivate: async () => { const s = await currentSession(request, env); return !!s && s.breeder.id === breederId; },
+  });
+  if (!res) throw notFound();
+  return res;
+}
+
+const brandLogo = (r, e, c, id) => brandImage(r, e, 'logo', id);
+const brandKennel = (r, e, c, id) => brandImage(r, e, 'kennel', id);
+
+// ------------------------------------------------------------------ account (plan P2.7)
+
+const openRequest = (env, breederId) => env.DB.prepare(
+  `SELECT id, kind, reason, created_at FROM account_requests
+    WHERE breeder_id = ? AND withdrawn_at IS NULL AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 1`,
+).bind(breederId).first();
+
+async function account(request, env) {
+  const { breeder } = await needSession(request, env);
+  const sessions = await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE breeder_id = ? AND revoked_at IS NULL AND expires_at > ?')
+    .bind(breeder.id, now()).first();
+  return json({ email: breeder.email, created_at: breeder.created_at, sessions: sessions.n, close_request: await openRequest(env, breeder.id) });
+}
+
+/** Ask Puppy Connection to close the account. This records the request and deletes nothing. */
+async function askToClose(request, env, ctx) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  if (await openRequest(env, breeder.id)) throw bad('You have already asked to close your account. Puppy Connection will be in touch.');
+  const body = await readJson(request);
+  const reason = clean(body.reason, 1000);
+  const id = ulid();
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO account_requests (id, breeder_id, kind, reason, created_at) VALUES (?, ?, 'close', ?, ?)").bind(id, breeder.id, reason, now()),
+    auditStmt(env, 'breeder', breeder.email, 'account.close_request', 'breeder', breeder.id, null, { request: id }),
+  ]);
+  ctx.waitUntil(alertOps(env, `${breeder.business_name || breeder.email} asked to close their account`,
+    `${breeder.business_name || breeder.email} asked Puppy Connection to close their breeder account.${reason ? `\n\nTheir reason: ${reason}` : ''}\n\nNothing has been removed. Open the breeder in the admin to follow up:\n${env.ADMIN_ORIGIN || ''}/#/breeders?status=closing`)
+    .catch((e) => console.error(e)));
+  return account(request, env);
+}
+
+async function withdrawClose(request, env) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  const open = await openRequest(env, breeder.id);
+  if (!open) throw bad('There is no request to close your account.');
+  await env.DB.batch([
+    env.DB.prepare('UPDATE account_requests SET withdrawn_at = ? WHERE id = ? AND breeder_id = ?').bind(now(), open.id, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'account.close_withdrawn', 'breeder', breeder.id, { request: open.id }, null),
+  ]);
+  return account(request, env);
+}
+
+/** Views and clicks per puppy (plan P2.5), for this breeder only. */
+async function myStats(request, env) {
+  const { breeder } = await needSession(request, env);
+  return json(await breederStats(env, breeder.id, 30));
 }
 
 // ------------------------------------------------------------------ litters and puppies
@@ -558,6 +731,102 @@ async function createPuppy(request, env) {
     auditStmt(env, 'breeder', breeder.email, 'puppy.create', 'puppy', id, null, f),
   ]);
   return json({ id }, 201);
+}
+
+// Plan P2.4. Faster entry for a whole litter.
+const MAX_AT_ONCE = 15;
+
+function newPuppySlug(name, breedName, id) {
+  return `${slugify(`${name} ${breedName}`)}-${id.slice(-6).toLowerCase()}`;
+}
+
+/**
+ * Add a litter's puppies in one step. The body gives how many girls, boys and puppies whose
+ * sex is not set yet, and an optional shared price, deposit and color. Each puppy is named
+ * "Girl 1", "Boy 1" or "Puppy 1" and so on, counting on from any already named that way, and
+ * every field stays editable afterwards.
+ */
+async function addPuppies(request, env, ctx, litterId) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const litter = await owned(env, 'litter', litterId, breeder.id);
+  if (litter.archived_at) throw bad('That litter has been removed.');
+  const body = await readJson(request);
+  const count = (v) => { const n = v === '' || v == null ? 0 : Number(v); if (!Number.isInteger(n) || n < 0 || n > MAX_AT_ONCE) throw bad(`Each count is a whole number up to ${MAX_AT_ONCE}.`); return n; };
+  const groups = [['female', 'Girl', count(body.girls)], ['male', 'Boy', count(body.boys)], [null, 'Puppy', count(body.unknown)]];
+  const total = groups.reduce((n, g) => n + g[2], 0);
+  if (!total) throw bad('Say how many puppies to add.');
+  if (total > MAX_AT_ONCE) throw bad(`Add up to ${MAX_AT_ONCE} puppies at a time.`);
+  const shared = { price_cents: cents(body.price), deposit_cents: cents(body.deposit), color: clean(body.color, 60) };
+  const breed = await env.DB.prepare('SELECT name FROM breeds WHERE id = ?').bind(litter.breed_id).first();
+  const { results: names } = await env.DB.prepare("SELECT name FROM puppies WHERE litter_id = ? AND breeder_id = ? AND publication_state != 'archived'")
+    .bind(litter.id, breeder.id).all();
+  const t = now();
+  const ids = [];
+  const stmts = [];
+  for (const [sex, word, n] of groups) {
+    const rx = new RegExp(`^${word} (\\d+)$`);
+    let next = names.reduce((m, r) => { const k = rx.exec(r.name); return k ? Math.max(m, Number(k[1])) : m; }, 0);
+    for (let i = 0; i < n; i += 1) {
+      next += 1;
+      const id = ulid();
+      const name = `${word} ${next}`;
+      ids.push(id);
+      stmts.push(env.DB.prepare(
+        `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, price_cents, deposit_cents, includes_json, availability, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '[]', 'available', ?, ?)`,
+      ).bind(id, breeder.id, litter.id, newPuppySlug(name, breed.name, id), name, sex, shared.color, shared.price_cents, shared.deposit_cents, t, t));
+    }
+  }
+  stmts.push(auditStmt(env, 'breeder', breeder.email, 'puppy.create_many', 'litter', litter.id, null, { ids, ...shared }));
+  await env.DB.batch(stmts);
+  return json({ ids }, 201);
+}
+
+/** A copy of a puppy in the same litter, as a draft with no photos, named "<name> copy". */
+async function duplicatePuppy(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const src = await owned(env, 'puppy', id, breeder.id);
+  if (src.publication_state === 'archived') throw bad('That puppy has been removed.');
+  const litter = await owned(env, 'litter', src.litter_id, breeder.id);
+  if (litter.archived_at) throw bad('That litter has been removed.');
+  const breed = await env.DB.prepare('SELECT name FROM breeds WHERE id = ?').bind(litter.breed_id).first();
+  const newId = ulid();
+  const name = `${src.name} copy`.slice(0, 80);
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, price_cents, deposit_cents, description,
+         breeder_url, includes_json, hypoallergenic, availability, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?)`,
+    ).bind(newId, breeder.id, litter.id, newPuppySlug(name, breed.name, newId), name, src.sex, src.color, src.price_cents, src.deposit_cents,
+      src.description, src.breeder_url, src.includes_json, src.hypoallergenic, t, t),
+    auditStmt(env, 'breeder', breeder.email, 'puppy.duplicate', 'puppy', newId, null, { from: src.id }),
+  ]);
+  return json({ id: newId }, 201);
+}
+
+/** Mark a puppy available, pending or placed straight from the list. */
+async function setAvailability(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const before = await owned(env, 'puppy', id, breeder.id);
+  if (before.publication_state === 'archived') throw bad('That puppy has been removed.');
+  const body = await readJson(request);
+  const availability = String(body.availability || '');
+  if (!['available', 'pending', 'placed'].includes(availability)) throw bad('Status is available, pending or placed.');
+  const stmts = [
+    env.DB.prepare('UPDATE puppies SET availability = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ? AND version = ?')
+      .bind(availability, now(), id, breeder.id, Number(body.version)),
+    auditStmt(env, 'breeder', breeder.email, 'puppy.availability', 'puppy', id, { availability: before.availability }, { availability }),
+  ];
+  if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
+  checkVersion((await env.DB.batch(stmts))[0], 'puppy');
+  return json({ ok: true });
 }
 
 async function updatePuppy(request, env, ctx, id) {
@@ -703,14 +972,26 @@ async function listings(request, env) {
   const litters = await littersWithPuppies(env, breeder.id);
   const s = await settings(env);
   const pubIds = new Set((await env.DB.prepare('SELECT id FROM public_puppies WHERE breeder_id = ?').bind(breeder.id).all()).results.map((r) => r.id));
+  // Plan P2.5, this breeder's views and clicks per puppy over the last 30 days.
+  const counts = Object.fromEntries((await breederStats(env, breeder.id, 30)).puppies.map((r) => [r.id, r]));
+  const site = siteOrigin(env);
   for (const l of litters) {
     for (const p of l.puppies) {
       p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position }));
       p.is_public = pubIds.has(p.id);
       p.pay_block = breeder.status === 'approved' ? await payability(env, p, s, p.photos.length, p.held_by) : 'Account not approved.';
+      // Plan P2.1. Everything a draft is missing, not only the first thing payability() names.
+      p.needs = [];
+      if (p.price_cents == null) p.needs.push('a price');
+      const short = s.minPhotos - p.photos.length;
+      if (short > 0) p.needs.push(short === 1 ? (p.photos.length ? 'one more photo' : 'a photo') : `${short} more photos`);
+      // Plan P2.2. Where buyers see this puppy, once it is live.
+      p.site_url = site && p.is_public ? `${site}/puppy.html?slug=${encodeURIComponent(p.slug)}` : null;
+      p.views = counts[p.id]?.views || 0;
+      p.clicks = counts[p.id]?.clicks || 0;
     }
   }
-  return json({ litters, fee_cents: s.feeCents, listing_days: s.listingDays });
+  return json({ litters, fee_cents: s.feeCents, listing_days: s.listingDays, warn_days: s.warnDays, min_photos: s.minPhotos });
 }
 
 async function startCheckout(request, env) {
@@ -878,12 +1159,25 @@ const ROUTES = [
   ['GET', /^\/api\/me$/, me],
   ['PUT', /^\/api\/profile$/, saveProfile],
   ['POST', /^\/api\/profile\/submit$/, submitProfile],
+  ['PUT', /^\/api\/profile\/extras$/, saveExtras],
+  ['POST', /^\/api\/profile\/(logo|kennel)$/, uploadBrand],
+  ['POST', /^\/api\/profile\/(logo|kennel)\/card$/, uploadBrandCard],
+  ['DELETE', /^\/api\/profile\/(logo|kennel)$/, removeBrand],
+  ['GET', /^\/brand\/([\w-]+)\/logo$/, brandLogo],
+  ['GET', /^\/brand\/([\w-]+)\/kennel$/, brandKennel],
+  ['GET', /^\/api\/account$/, account],
+  ['POST', /^\/api\/account\/close$/, askToClose],
+  ['POST', /^\/api\/account\/close\/withdraw$/, withdrawClose],
+  ['GET', /^\/api\/stats$/, myStats],
   ['GET', /^\/api\/breeds$/, (r, e) => listBreeds(e)],
   ['GET', /^\/api\/listings$/, listings],
   ['POST', /^\/api\/litters$/, createLitter],
   ['PUT', /^\/api\/litters\/([\w-]+)$/, updateLitter],
   ['POST', /^\/api\/litters\/([\w-]+)\/archive$/, archiveLitter],
+  ['POST', /^\/api\/litters\/([\w-]+)\/puppies$/, addPuppies],
   ['POST', /^\/api\/puppies$/, createPuppy],
+  ['POST', /^\/api\/puppies\/([\w-]+)\/duplicate$/, duplicatePuppy],
+  ['PUT', /^\/api\/puppies\/([\w-]+)\/availability$/, setAvailability],
   ['PUT', /^\/api\/puppies\/([\w-]+)$/, updatePuppy],
   ['POST', /^\/api\/puppies\/([\w-]+)\/archive$/, archivePuppy],
   ['POST', /^\/api\/puppies\/([\w-]+)\/photos$/, uploadPhoto],

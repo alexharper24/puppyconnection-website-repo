@@ -34,6 +34,8 @@
     "GOOGLE_CLIENT_ID": "751105615126-cu5h48psv53a59nci3e9g5u0n0mmfuir.apps.googleusercontent.com",
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
+    // Plan P2.2. The public site, for the View on the site links.
+    "SITE_ORIGIN": "https://site.puppyconnection.workers.dev",
     "DEV_MODE": "staging",
     "EMAIL_MODE": "log",
     "PAYMENTS_MODE": "sim"

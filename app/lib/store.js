@@ -29,7 +29,8 @@ export async function owned(env, kind, id, breederId) {
 export async function loadBreeder(env, breederId) {
   return env.DB.prepare(
     `SELECT b.*, p.business_name, p.slug, p.contact_name, p.public_phone, p.public_email,
-            p.website_url, p.city, p.state, p.description, p.version AS profile_version
+            p.website_url, p.city, p.state, p.description, p.version AS profile_version,
+            p.logo_key, p.kennel_key, p.facebook_url
        FROM breeders b LEFT JOIN breeder_profiles p ON p.breeder_id = b.id
       WHERE b.id = ?`,
   ).bind(breederId).first();
@@ -188,4 +189,62 @@ export function noticeContactChange(env, ctx, breeder, after, by) {
   }).catch((e) => console.error('contact change notice failed', e));
   if (ctx && ctx.waitUntil) ctx.waitUntil(send);
   return changes.length;
+}
+
+// ------------------------------------------------------------------ profile extras (plan P2.3)
+
+// Optional extras on the breeder page: a logo, one kennel photo, the breeds they raise and a
+// Facebook page. The images live in R2 under brand/<breeder id>/ with a ".card" copy beside
+// the full one, made in the browser the same way as puppy photos.
+export const BRAND = { logo: 'logo_key', kennel: 'kennel_key' };
+
+const FACEBOOK_RX = /^https:\/\/(www\.|m\.|web\.)?facebook\.com\/[^\s<>"']+$/i;
+
+/** A Facebook page address, or null. Only facebook.com addresses are taken. */
+export function facebookUrl(v) {
+  let s = clean(v, 300);
+  if (!s) return null;
+  if (/^(www\.|m\.|web\.)?facebook\.com\//i.test(s)) s = `https://${s}`;
+  s = s.replace(/^http:\/\//i, 'https://');
+  if (!FACEBOOK_RX.test(s)) throw bad('The Facebook page needs to be a facebook.com address, like https://www.facebook.com/yourkennel');
+  return s;
+}
+
+/** The breeds a breeder raises, by name. */
+export async function breederBreeds(env, breederId) {
+  const { results } = await env.DB.prepare(
+    'SELECT br.id, br.name FROM breeder_breeds bb JOIN breeds br ON br.id = bb.breed_id WHERE bb.breeder_id = ? ORDER BY br.name',
+  ).bind(breederId).all();
+  return results;
+}
+
+/** Where a brand image is served. The v changes with the file, so a replaced logo is fetched fresh. */
+export function brandUrl(base, breederId, kind, key) {
+  if (!key) return null;
+  const v = String(key).split('/').pop().split('.')[0].slice(-10).toLowerCase();
+  return `${base}/brand/${breederId}/${kind}?v=${v}`;
+}
+
+/**
+ * A logo or kennel photo. Anyone may have it while the breeder is public; otherwise only a
+ * caller that allowPrivate() says may see it (the breeder themselves, or an operator).
+ * Returns null when it should answer 404.
+ */
+export async function serveBrand(env, breederId, kind, { card = false, allowPrivate = async () => false } = {}) {
+  const col = BRAND[kind];
+  if (!col || !breederId) return null;
+  const row = await env.DB.prepare(
+    `SELECT p.${col} AS k, EXISTS (SELECT 1 FROM public_breeders pb WHERE pb.breeder_id = p.breeder_id) AS pub
+       FROM breeder_profiles p WHERE p.breeder_id = ?`,
+  ).bind(breederId).first();
+  if (!row || !row.k) return null;
+  if (!row.pub && !(await allowPrivate())) return null;
+  const obj = (card && await env.FILES.get(`${row.k}.card`)) || await env.FILES.get(row.k);
+  if (!obj) return null;
+  return new Response(obj.body, {
+    headers: {
+      'content-type': obj.httpMetadata?.contentType || 'application/octet-stream',
+      'cache-control': row.pub ? 'public, max-age=86400' : 'private, no-store',
+    },
+  });
 }

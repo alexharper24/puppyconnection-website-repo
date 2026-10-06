@@ -133,6 +133,18 @@ directly.
 node app/dev/e2e.mjs            # the whole journey, 41 checks
 node app/dev/access-tests.mjs   # the ten acceptance tests from build spec section 4
 node app/dev/signin-test.mjs    # the sign-in code, 60-day sessions, the contact change notice
+node app/dev/jobs-test.mjs      # the scheduled jobs
+node app/dev/google-test.mjs    # Continue with Google, against a stand-in Google on 8799
+node app/dev/legal-staging-test.mjs     # the privacy and terms pages and the staging mode
+node app/dev/portal-features-test.mjs   # plan P2: standing, site links, extras, batches, views, account
+```
+
+`portal-features-test.mjs` also needs the public site Worker running locally on 8791, which it
+uses for the view and click beacon. Build its pages and start it from `C:\Git_Repos`:
+
+```bash
+node puppyconnection-website-repo/app/dev/build-site.mjs
+node teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js dev --config puppyconnection-website-repo/app/site/wrangler.jsonc --persist-to puppyconnection-website-repo/app/.state --port 8791
 ```
 
 Both run against the servers above. The access tests call every portal route that takes an
@@ -191,6 +203,20 @@ simulation cannot email a real breeder.
   the concept groups breeders by website domain and assumes every photo is on Wix.
 - The admin and the portal share `portal/public/portal.css`. `setup.mjs` copies it into the
   admin, so edit the portal's copy.
+- Views and clicks (plan P2.5) are counted by a beacon on the public site Worker
+  (`POST /api/beacon`, `lib/stats.js`). It stores one row per puppy per UTC day with two
+  numbers, and nothing about the visitor. It sets no cookie, drops visitors that announce
+  themselves as bots, takes beacons only from the site's own pages, allows 30 a minute from one
+  address, and counts a repeat view or click of the same puppy from one address once a minute.
+  The address is only a key the rate limiter forgets within the minute.
+- A breeder's logo and kennel photo (plan P2.3) are served at `/brand/<breeder id>/logo` and
+  `/kennel` by the portal and the site, to anyone only while the breeder is public, and before
+  that only to the breeder and to operators. Each address carries `?v=` from the file name, so
+  a replaced logo is fetched fresh.
+- Asking to close an account (plan P2.7) records a request in `account_requests` and tells the
+  operators. Nothing is deleted, and the admin marks the request handled after following up.
+- `listing_days` 0 hides every end date and renewal in the portal (plan P2.1, D8). Setting it
+  above 0 brings them back with no code change.
 
 ## Pending
 
@@ -206,3 +232,9 @@ simulation cannot email a real breeder.
 - [ ] The scheduled jobs (spec section 10) and the publish commit (spec section 9)
 - [ ] Stripe, Resend, Turnstile and Access, each per the table above
 - [ ] Amber's own breed list, and the real listing-to-breeder pairing for the migration
+- [ ] The kennel photo, breeds and Facebook page are in the site export but the concept pages
+      have no place for them, so only the logo shows on the site today. They wait for the
+      generated pages (plan P4.3)
+- [ ] How long the daily view and click counts are kept. Nothing prunes `puppy_stats` today,
+      and it is small (one row per listed puppy per day it is viewed). A question for Amber
+      with the other retention questions

@@ -42,6 +42,8 @@
   "triggers": { "crons": ["*/15 * * * *", "0 13 * * *"] },
   "vars": {
     "PORTAL_ORIGIN": "http://localhost:8787",
-    "ADMIN_ORIGIN": "http://localhost:8788"
+    "ADMIN_ORIGIN": "http://localhost:8788",
+    // Plan P2.2. The public site, for the View on the site links.
+    "SITE_ORIGIN": "http://localhost:8789"
   }
 }

@@ -19,6 +19,7 @@
     var d = new Date(iso.length === 10 ? iso + 'T12:00:00Z' : iso);
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
@@ -174,13 +175,16 @@
   }
 
   // ------------------------------------------------------------ shell
+  // A pending or declined breeder sees only the screens that work for them (plan P1.5).
   function nav(status) {
-    var listing = [['', 'Overview'], ['litters', 'Litters and puppies'], ['pay', 'Pay to list']];
-    var account = [['profile', 'Profile'], ['payments', 'Payments']];
-    if (status === 'pending') return [['Getting started', [['', 'Overview'], ['profile', 'Profile']]]];
-    if (status === 'declined') return [['Account', [['', 'Overview']]]];
+    var listing = [['', 'Overview'], ['litters', 'Litters and puppies'], ['pay', 'Pay to list'], ['stats', 'Views and clicks']];
+    var account = [['profile', 'Profile'], ['payments', 'Payments'], ['account', 'Account'], ['help', 'Help']];
+    if (status === 'pending') return [['Getting started', [['', 'Overview'], ['profile', 'Profile']]], ['Account', [['account', 'Account'], ['help', 'Help']]]];
+    if (status === 'declined') return [['Account', [['', 'Overview'], ['account', 'Account'], ['help', 'Help']]]];
     return [['Your listings', listing], ['Account', account]];
   }
+  // The screens each status may open. Anything else goes back to the overview.
+  var OPEN_TO = { pending: ['', 'profile', 'account', 'help'], declined: ['', 'account', 'help'] };
 
   function statusPill(s) {
     return { pending: '<span class="pill pill-warn">Waiting for approval</span>', approved: '<span class="pill pill-ok">Approved</span>',
@@ -202,6 +206,8 @@
       }).join('') + (me.status === 'pending' ? '<p class="nav-note">Litters, puppies and payments open once Puppy Connection approves your account.</p>' : '') + '</nav>' +
       '<div class="rail-foot"><span class="dot' + (me.status === 'approved' ? '' : ' wait') + '"></span><div><b>' + esc(foot[0]) + '</b><span>' + esc(foot[1]) + '</span></div></div></aside>' +
       '<div class="main"><header class="topbar"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
+      // Plan P2.2. The breeder's own page on the public site, once they are public.
+      (me.site_url ? '<a class="btn btn-sm" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') +
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
       (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
@@ -254,13 +260,18 @@
       var ready = all.filter(function (x) { return !x.pay_block; }).length;
       var soon = all.filter(function (x) { return x.is_public && x.expires_at && new Date(x.expires_at) - Date.now() < 7 * 86400000; }).length;
       var placed = all.filter(function (x) { return x.availability === 'placed'; }).length;
+      var views = all.reduce(function (n, x) { return n + (x.views || 0); }, 0);
+      var clicks = all.reduce(function (n, x) { return n + (x.clicks || 0); }, 0);
       shell(html + '<div class="stats">' +
         '<a class="stat" href="#/litters"><b>' + live + '</b><span>Live on the site</span></a>' +
         '<a class="stat" href="#/litters"><b>' + drafts + '</b><span>Drafts</span></a>' +
         '<a class="stat" href="#/pay"><b>' + ready + '</b><span>Ready to pay for</span></a>' +
         (L.listing_days > 0 ? '<a class="stat" href="#/pay"><b>' + soon + '</b><span>Expiring within a week</span></a>' : '<a class="stat" href="#/litters"><b>' + placed + '</b><span>Placed</span></a>') + '</div>' +
         '<div class="card"><h2>' + (all.length ? 'Next steps' : 'Add your first litter') + '</h2><p>Add a litter, add each puppy with photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it ' + term(L) + '.</p>' +
-        '<div class="btn-row"><a class="btn btn-primary" href="#/litters">Litters and puppies</a>' + (ready ? '<a class="btn btn-gold" href="#/pay">Pay to list ' + ready + '</a>' : '') + '</div></div>');
+        '<div class="btn-row"><a class="btn btn-primary" href="#/litters">Litters and puppies</a>' + (ready ? '<a class="btn btn-gold" href="#/pay">Pay to list ' + ready + '</a>' : '') +
+        (me.site_url ? '<a class="btn" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">See your page on the site</a>' : '') + '</div></div>' +
+        (live || views ? '<div class="card"><h2>Views and clicks</h2><p>In the last 30 days buyers opened your puppies\' pages ' + plural(views, 'time') + ' and clicked through to you ' + plural(clicks, 'time') + '.</p>' +
+          '<a class="btn btn-sm" href="#/stats">See each puppy</a></div>' : ''));
     });
   }
 
@@ -281,7 +292,8 @@
       f('website_url', 'Your website', 'url', 'Optional. Starts with https://') +
       f('contact_name', 'Contact name', 'text', 'Private, for Puppy Connection only.') +
       '<div class="field"><label for="f-description">About your kennel</label><textarea id="f-description" name="description"' + dis + '>' + esc(p.description || '') + '</textarea><div class="hint">A few short paragraphs. Leave a blank line between them.</div></div>' +
-      (editable ? '<button class="btn btn-primary" type="submit">Save profile</button>' : '') + '</form>';
+      (editable ? '<button class="btn btn-primary" type="submit">Save profile</button>' : '') + '</form>' +
+      '<div id="extras-slot"></div>';
     if (me.status === 'pending' && !me.profile_submitted_at) {
       html += '<form id="submit" class="card" novalidate><h2>Submit for approval</h2>' +
         '<div class="notice"><b>REPLACE THIS:</b> the listing terms, in Amber\'s own words, go here before launch (build spec section 14). Version ' + esc(me.terms_version) + '. <a href="/terms" target="_blank" rel="noopener">Open the listing terms page</a>.</div>' +
@@ -291,6 +303,7 @@
       html += '<p class="notice">Submitted ' + esc(day(me.profile_submitted_at)) + '. Puppy Connection will email you when it is approved.</p>';
     }
     shell(html, true);
+    loadBreeds().then(function () { extras(editable); });
     var pf = $('#profile');
     if (editable) pf.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -306,6 +319,62 @@
     });
   }
 
+  /* Plan P2.3. The optional extras on the breeder page: a logo, one kennel photo, the breeds
+     they raise and a Facebook page. Images go through the same in-browser shrink as puppy
+     photos and upload as soon as they are chosen. */
+  function extras(editable) {
+    var slot = $('#extras-slot');
+    if (!slot) return;
+    var x = state.me.extras || { breeds: [] };
+    var dis = editable ? '' : ' disabled';
+    var mine = {}; x.breeds.forEach(function (b) { mine[b.id] = true; });
+    function pic(kind, label, url, hint) {
+      return '<div class="brand-slot" data-kind="' + kind + '"><b>' + esc(label) + '</b>' +
+        (url ? '<img src="' + esc(url) + '&size=card" alt="' + esc(label) + '">' : '<div class="brand-empty">None yet</div>') +
+        '<div class="hint">' + esc(hint) + '</div>' +
+        (editable ? '<div class="btn-row"><label class="btn btn-sm" for="in-' + kind + '">' + (url ? 'Replace' : 'Upload') + '</label>' +
+          '<input id="in-' + kind + '" type="file" accept="image/*" hidden>' + (url ? '<button type="button" class="btn btn-sm btn-quiet" data-unbrand="' + kind + '">Remove</button>' : '') + '</div>' : '') +
+        '<p class="error" hidden></p></div>';
+    }
+    slot.innerHTML = '<section class="card" id="extras"><h2>Extras for your page</h2><p class="muted small">All optional. Add any of these if you have them, and leave the rest blank.</p>' +
+      '<div class="brand-grid">' + pic('logo', 'Logo', x.logo_url, 'Shown on your breeder page.') + pic('kennel', 'Kennel photo', x.kennel_url, 'One photo of your home, kennel or family with the dogs.') + '</div>' +
+      '<form id="extras-form" novalidate><fieldset class="breed-picks"><legend>Breeds you raise</legend>' + state.breeds.map(function (b) {
+        return '<label class="check"><input type="checkbox" name="breed" value="' + esc(b.id) + '"' + (mine[b.id] ? ' checked' : '') + dis + '> ' + esc(b.name) + '</label>';
+      }).join('') + '</fieldset>' +
+      '<div class="field"><label for="f-facebook">Facebook page</label><input id="f-facebook" name="facebook_url" type="url" value="' + esc(x.facebook_url || '') + '" placeholder="https://www.facebook.com/yourkennel"' + dis + '>' +
+      '<div class="hint">Optional. The address of your kennel\'s Facebook page.</div></div>' +
+      (editable ? '<button class="btn btn-primary" type="submit">Save extras</button>' : '') + '</form></section>';
+    if (!editable) return;
+    var form = $('#extras-form');
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var ids = $$('input[name=breed]:checked', form).map(function (c) { return c.value; });
+      api('PUT', '/api/profile/extras', { facebook_url: $('#f-facebook').value, breed_ids: ids })
+        .then(function (me2) { state.me = me2; toast('Extras saved'); profile(); }).catch(function (err) { showError(form, err); });
+    });
+    $$('.brand-slot', slot).forEach(function (box) {
+      var kind = box.dataset.kind, input = $('input[type=file]', box), err = $('.error', box);
+      function done(msg) { return api('GET', '/api/me').then(function (me2) { state.me = me2; toast(msg); profile(); }); }
+      if (input) input.addEventListener('change', function () {
+        var file = input.files && input.files[0];
+        if (!file) return;
+        err.hidden = true;
+        shrink(file).then(function (s) {
+          return api('POST', '/api/profile/' + kind, undefined, s.full).then(function () {
+            if (s.card) return api('POST', '/api/profile/' + kind + '/card', undefined, s.card).catch(function () {});
+          });
+        }).then(function () { return done(kind === 'logo' ? 'Logo saved' : 'Kennel photo saved'); })
+          .catch(function (e2) { err.hidden = false; err.textContent = e2.message; });
+      });
+      var rm = $('[data-unbrand]', box);
+      if (rm) rm.addEventListener('click', function () {
+        if (!confirm(kind === 'logo' ? 'Remove your logo?' : 'Remove your kennel photo?')) return;
+        api('DELETE', '/api/profile/' + kind).then(function () { return done(kind === 'logo' ? 'Logo removed' : 'Kennel photo removed'); })
+          .catch(function (e2) { err.hidden = false; err.textContent = e2.message; });
+      });
+    });
+  }
+
   // ------------------------------------------------------------ litters and puppies
   function loadListings() {
     return api('GET', '/api/listings').then(function (L) { state.listings = L; return L; });
@@ -315,17 +384,49 @@
     return api('GET', '/api/breeds').then(function (b) { state.breeds = b; return b; });
   }
 
+  // End dates and renewals exist only when listings expire (listing_days above 0, plan D8).
+  function expiring() { return !!(state.listings && state.listings.listing_days > 0); }
+
   function puppyChips(x) {
     var chips = [];
     if (x.publication_state === 'archived') chips.push('<span class="pill">Removed</span>');
-    else if (x.is_public) chips.push('<span class="pill pill-ok">' + (x.expires_at ? 'Listed until ' + esc(day(x.expires_at)) : 'Listed') + '</span>');
-    else if (x.publication_state === 'expired') chips.push('<span class="pill pill-warn">Expired</span>');
+    else if (x.is_public) chips.push('<span class="pill pill-ok">' + (expiring() && x.expires_at ? 'Listed until ' + esc(day(x.expires_at)) : 'Listed') + '</span>');
+    else if (x.publication_state === 'expired') chips.push('<span class="pill pill-warn">Listing ended</span>');
     else if (x.publication_state === 'published') chips.push('<span class="pill pill-warn">Paid, not showing</span>');
+    else if (!x.pay_block) chips.push('<span class="pill pill-gold">Draft, ready to pay for</span>');
     else chips.push('<span class="pill">Draft</span>');
     if (x.operator_hold) chips.push('<span class="pill pill-alert">Paused by Puppy Connection</span>');
     if (x.held_by) chips.push('<span class="pill pill-gold">In checkout</span>');
     if (x.availability !== 'available') chips.push('<span class="pill">' + (x.availability === 'placed' ? 'Placed' : 'Pending') + '</span>');
     return chips.join('');
+  }
+
+  /* Plan P2.1. Where a puppy stands, in one sentence a breeder can act on. A draft names
+     exactly what it still needs before it can be paid for, from the server's own check. */
+  function standing(x) {
+    var L = state.listings || {};
+    var fee = money(L.fee_cents);
+    if (x.publication_state === 'archived') return { tone: '', text: 'Removed from your listings.' };
+    if (x.operator_hold) return { tone: 'alert', text: 'Paused by Puppy Connection, so it is off the site for now. Contact Puppy Connection to restore it.' };
+    if (x.held_by) return { tone: 'gold', text: 'In checkout. A payment has started and not finished. If it is not finished, the puppy is free to pay for again within the hour.' };
+    var place = x.availability === 'placed' ? ' Buyers see it marked placed.' : x.availability === 'pending' ? ' Buyers see it marked pending.' : '';
+    if (x.is_public) {
+      var until = expiring() && x.expires_at ? ' until ' + day(x.expires_at) : '';
+      var renew = expiring() && !x.pay_block ? ' Renewal is open now.' : '';
+      return { tone: 'ok', text: 'Listed on the site' + until + '.' + place + renew, renew: expiring() && !x.pay_block, plain: !until && !place && !renew };
+    }
+    if (x.publication_state === 'expired') return { tone: 'warn', text: 'The listing ended' + (x.expires_at ? ' on ' + day(x.expires_at) : '') + '. Renew it for ' + fee + ' to put it back on the site.', renew: !x.pay_block };
+    if (x.publication_state === 'published') return { tone: 'warn', text: 'Paid for, but not showing on the site right now, because your account is paused.' };
+    if (!x.pay_block) return { tone: 'gold', text: 'Ready to list for ' + fee + '.' + place, pay: true };
+    var needs = (x.needs && x.needs.length) ? 'Before it can be paid for, it needs ' + x.needs.join(' and ') + '.' : x.pay_block;
+    return { tone: '', text: needs };
+  }
+  function standingLine(x) {
+    var s = standing(x);
+    // The Listed pill already says it all for a plain listing, so the line is left out.
+    if (s.plain) return '';
+    return '<div class="standing' + (s.tone ? ' standing-' + s.tone : '') + '">' + esc(s.text) +
+      (s.pay ? ' <a href="#/pay">Pay to list</a>' : s.renew ? ' <a href="#/pay">Renew</a>' : '') + '</div>';
   }
 
   function litters() {
@@ -342,13 +443,19 @@
         html += '<section class="card" aria-label="' + esc(l.breed_name) + ' litter"><div class="card-head"><div><h2>' + esc(l.breed_name) + '</h2>' +
           '<div class="muted small">' + (l.born_on ? 'Born ' + esc(day(l.born_on)) : 'Birth date not set') + (l.ready_on ? ', ready ' + esc(day(l.ready_on)) : '') +
           (l.mom_weight_lb || l.dad_weight_lb ? '. Parents ' + (l.mom_weight_lb ? esc(l.mom_weight_lb) + ' lb mom' : '') + (l.mom_weight_lb && l.dad_weight_lb ? ', ' : '') + (l.dad_weight_lb ? esc(l.dad_weight_lb) + ' lb dad' : '') : '') + '</div></div>' +
-          (canEdit ? '<div class="btn-row" style="margin:0"><button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button><button class="btn btn-sm btn-primary" data-add-puppy="' + esc(l.id) + '">Add a puppy</button></div>' : '') + '</div>' +
+          (canEdit ? '<div class="btn-row" style="margin:0"><button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button><button class="btn btn-sm" data-add-many="' + esc(l.id) + '">Add several</button><button class="btn btn-sm btn-primary" data-add-puppy="' + esc(l.id) + '">Add a puppy</button></div>' : '') + '</div>' +
           (pups.length ? '<div class="puppy-grid">' + pups.map(function (x) {
             var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
-            return '<div class="puppy-row">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + esc(money(x.price_cents)) +
-              (x.sex ? ', ' + esc(x.sex) : '') + (x.color ? ', ' + esc(x.color) : '') + '. ' + x.photos.length + ' photo' + (x.photos.length === 1 ? '' : 's') + '</span>' +
-              '<div class="chips">' + puppyChips(x) + '</div></div>' +
-              '<button class="btn btn-sm" data-edit-puppy="' + esc(x.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button></div>';
+            var live = x.availability === 'placed' ? ['available', 'Mark available'] : ['placed', 'Mark placed'];
+            return '<div class="puppy-row">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + (x.price_cents == null ? 'No price yet' : esc(money(x.price_cents))) +
+              (x.sex ? ', ' + esc(x.sex) : '') + (x.color ? ', ' + esc(x.color) : '') + '. ' + plural(x.photos.length, 'photo') +
+              (x.is_public ? '. ' + plural(x.views || 0, 'view') + ', ' + plural(x.clicks || 0, 'click') + ' in 30 days' : '') + '</span>' +
+              '<div class="chips">' + puppyChips(x) + '</div>' + standingLine(x) + '</div>' +
+              '<button class="btn btn-sm" data-edit-puppy="' + esc(x.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button>' +
+              '<div class="row-actions">' +
+              (canEdit && (x.is_public || x.availability !== 'available') ? '<button class="btn btn-sm btn-quiet" data-avail="' + esc(x.id) + '" data-to="' + live[0] + '">' + live[1] + '</button>' : '') +
+              (canEdit ? '<button class="btn btn-sm btn-quiet" data-dup="' + esc(x.id) + '">Duplicate</button>' : '') +
+              (x.site_url ? '<a class="btn btn-sm btn-quiet" href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') + '</div></div>';
           }).join('') + '</div>' : '<p class="muted small">No puppies in this litter yet.</p>') + '</section>';
       });
       shell(html);
@@ -356,7 +463,52 @@
       $$('[data-edit-litter]').forEach(function (b) { b.addEventListener('click', function () { litterDrawer(findLitter(b.dataset.editLitter)); }); });
       $$('[data-add-puppy]').forEach(function (b) { b.addEventListener('click', function () { puppyDrawer(null, b.dataset.addPuppy); }); });
       $$('[data-edit-puppy]').forEach(function (b) { b.addEventListener('click', function () { puppyDrawer(findPuppy(b.dataset.editPuppy)); }); });
+      $$('[data-add-many]').forEach(function (b) { b.addEventListener('click', function () { manyDrawer(findLitter(b.dataset.addMany)); }); });
+      // Plan P2.4. Placed or available straight from the list, and a copy of a puppy in one press.
+      $$('[data-avail]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var x = findPuppy(b.dataset.avail);
+          b.disabled = true;
+          api('PUT', '/api/puppies/' + x.id + '/availability', { availability: b.dataset.to, version: x.version })
+            .then(function () { toast(x.name + (b.dataset.to === 'placed' ? ' marked placed' : ' marked available')); litters(); })
+            .catch(function (err) { b.disabled = false; toast(err.message); });
+        });
+      });
+      $$('[data-dup]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var x = findPuppy(b.dataset.dup);
+          b.disabled = true;
+          api('POST', '/api/puppies/' + x.id + '/duplicate', {})
+            .then(function (r) { toast('Copied ' + x.name + '. Add its photos next.'); return loadListings().then(function () { litters(); puppyDrawer(findPuppy(r.id)); }); })
+            .catch(function (err) { b.disabled = false; toast(err.message); });
+        });
+      });
     });
+  }
+
+  /* Plan P2.4. A whole litter in one step. Each puppy gets a plain name to change later, and
+     the shared price, deposit and color can be changed puppy by puppy afterwards. */
+  function manyDrawer(l) {
+    function n(name, label) {
+      return '<div class="field"><label for="m-' + name + '">' + esc(label) + '</label><input id="m-' + name + '" name="' + name + '" type="number" min="0" max="15" step="1" inputmode="numeric" value=""></div>';
+    }
+    openDrawer('Add several puppies',
+      '<p class="muted small">' + esc(l.breed_name) + ' litter. Puppies are named Girl 1, Boy 1 or Puppy 1 and so on, and you can rename each one and add its photos afterwards.</p>' +
+      '<form id="many" novalidate><div class="grid-3">' + n('girls', 'Girls') + n('boys', 'Boys') + n('unknown', 'Not sure yet') + '</div>' +
+      '<div class="grid-2"><div class="field"><label for="m-price">Price for each ($)</label><input id="m-price" name="price" type="text" inputmode="decimal"></div>' +
+      '<div class="field"><label for="m-dep">Deposit for each ($)</label><input id="m-dep" name="deposit" type="text" inputmode="decimal"></div></div>' +
+      '<div class="field"><label for="m-color">Color</label><input id="m-color" name="color" type="text"><div class="hint">Optional. Leave it blank if the colors differ.</div></div>' +
+      '<div class="btn-row"><button class="btn btn-primary" type="submit">Add puppies</button></div></form>',
+      function (d) {
+        var form = $('#many', d);
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var body = formData(form);
+          api('POST', '/api/litters/' + l.id + '/puppies', body)
+            .then(function (r) { closeDrawer(); toast(plural(r.ids.length, 'puppy', 'puppies') + ' added. Add photos to each one next.'); litters(); })
+            .catch(function (err) { showError(form, err); });
+        });
+      });
   }
 
   function findLitter(id) { return state.listings.litters.filter(function (l) { return l.id === id; })[0]; }
@@ -405,7 +557,9 @@
       }).join('') + '</div><input type="hidden" name="availability" value="' + esc(x ? x.availability : 'available') + '">';
     }
     openDrawer(x ? x.name : 'Add a puppy',
-      (x ? '<div class="chips" style="margin-bottom:.8rem">' + puppyChips(x) + '</div>' : '') +
+      (x ? '<div class="chips">' + puppyChips(x) + '</div>' + standingLine(x) +
+        (x.site_url ? '<p class="small" style="margin:.4rem 0 0"><a href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View ' + esc(x.name) + ' on the site</a></p>' : '') +
+        '<div style="margin-bottom:.8rem"></div>' : '') +
       '<form id="puppy" novalidate>' + (x ? '<input type="hidden" name="version" value="' + esc(x.version) + '">' : '') +
       '<div class="field"><label for="p-name">Name</label><input id="p-name" name="name" type="text" value="' + esc(x ? x.name : '') + '" required' + dis + '></div>' +
       '<div class="grid-2"><div class="field"><label for="p-sex">Sex</label><select id="p-sex" name="sex"' + dis + '><option value="">Not set</option><option value="female"' + (x && x.sex === 'female' ? ' selected' : '') + '>Female</option><option value="male"' + (x && x.sex === 'male' ? ' selected' : '') + '>Male</option></select></div>' +
@@ -563,13 +717,13 @@
           var img = r.x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(r.x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
           return '<label class="pay-row check"><input type="checkbox" name="p" value="' + esc(r.x.id) + '" aria-label="' + esc('Pay for ' + r.x.name) + '">' + img +
             '<span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' +
-            (r.x.publication_state === 'published' ? 'Renew, listed until ' + esc(day(r.x.expires_at)) : r.x.publication_state === 'expired' ? 'Expired, relist' : 'Draft') + '</span></span></label>';
+            (r.x.publication_state === 'published' ? 'Renew, listed until ' + esc(day(r.x.expires_at)) : r.x.publication_state === 'expired' ? 'Listing ended, renew it' : 'Draft') + '</span></span></label>';
         }).join('') : '<p class="muted">Nothing is ready to pay for right now.</p>') +
         '<div class="total" style="margin-top:1rem"><span>Total</span><b id="total">$0</b></div>' +
         '<div class="btn-row"><button class="btn btn-gold" type="submit" id="paybtn" disabled>Continue to payment</button></div></form>';
       if (blocked.length) {
         html += '<div class="card"><h2>Not ready yet</h2>' + blocked.map(function (r) {
-          return '<div class="pay-row"><span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' + esc(r.x.pay_block) + '</span></span></div>';
+          return '<div class="pay-row"><span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' + esc(standing(r.x).text) + '</span></span></div>';
         }).join('') + '</div>';
       }
       shell(html, true);
@@ -605,6 +759,83 @@
     });
   }
 
+  // ------------------------------------------------------------ views and clicks (plan P2.5)
+  function stats() {
+    api('GET', '/api/stats').then(function (S) {
+      var t = S.total;
+      shell(head('Views and clicks', 'How often buyers opened each puppy\'s page on the site, and how often they went on to your website, phone or email. Nothing about the buyers themselves is kept.') +
+        '<div class="stats">' +
+        '<div class="stat"><b>' + t.views + '</b><span>Views in the last 30 days</span></div>' +
+        '<div class="stat"><b>' + t.clicks + '</b><span>Clicks through to you in 30 days</span></div>' +
+        '<div class="stat"><b>' + t.views_all + '</b><span>Views, all time</span></div>' +
+        '<div class="stat"><b>' + t.clicks_all + '</b><span>Clicks, all time</span></div></div>' +
+        '<section class="panel">' + (S.puppies.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Puppy</th><th class="num">Views</th><th class="num">Clicks</th>' +
+          '<th class="num hide-sm">All-time views</th><th class="num hide-sm">All-time clicks</th></tr></thead><tbody>' +
+          S.puppies.map(function (p) {
+            return '<tr><td><b>' + esc(p.name) + '</b><span class="sub">' + esc(p.breed) + '</span></td><td class="num">' + p.views + '</td><td class="num">' + p.clicks + '</td>' +
+              '<td class="num hide-sm">' + p.views_all + '</td><td class="num hide-sm">' + p.clicks_all + '</td></tr>';
+          }).join('') + '<tr class="total-row"><td><b>Total</b></td><td class="num"><b>' + t.views + '</b></td><td class="num"><b>' + t.clicks + '</b></td>' +
+          '<td class="num hide-sm"><b>' + t.views_all + '</b></td><td class="num hide-sm"><b>' + t.clicks_all + '</b></td></tr></tbody></table></div>'
+          : empty('No views yet', 'Counts appear here once your puppies are listed and buyers start opening their pages.', '<a class="btn" href="#/litters">Litters and puppies</a>')) + '</section>' +
+        '<p class="hint">A view is counted when a puppy\'s page opens, and a click when someone follows your website, phone or email link from it. Repeat visits within a minute count once, and search engines and other automated visitors are left out.</p>');
+    });
+  }
+
+  // ------------------------------------------------------------ account (plan P2.7)
+  function accountScreen() {
+    api('GET', '/api/account').then(function (A) {
+      var req = A.close_request;
+      shell(head('Account', 'How you sign in, and the choices you have about your account.') +
+        '<section class="card"><h2>Signing in</h2><table class="kv"><tbody><tr><td>Sign-in email</td><td><b>' + esc(A.email) + '</b></td></tr>' +
+        '<tr><td>Signed in on</td><td>' + plural(A.sessions, 'device or browser', 'devices or browsers') + '</td></tr></tbody></table>' +
+        '<p class="small muted">This address is private. To sign in with a different one, ask Puppy Connection to change it for you.</p></section>' +
+        '<section class="card"><h2>Sign out of every device</h2><p>If you signed in on a shared or lost phone or computer, this signs you out everywhere at once, including here. You can sign straight back in with your email.</p>' +
+        '<div class="btn-row"><button class="btn" id="signout-all">Sign out of every device</button></div></section>' +
+        '<section class="card" id="close-card"><h2>Close your account</h2>' + (req
+          ? '<p class="notice">You asked Puppy Connection to close your account on ' + esc(day(req.created_at)) + '. They will be in touch before anything is removed.</p>' +
+            '<div class="btn-row"><button class="btn" id="withdraw-close">I changed my mind</button></div>'
+          : '<p>If you no longer want to list with Puppy Connection, ask here. Nothing is removed straight away. Puppy Connection will contact you to confirm and to sort out any listings you still have.</p>' +
+            '<form id="close-form" novalidate><div class="field"><label for="close-reason">Anything you would like to tell us <span class="muted">(optional)</span></label><textarea id="close-reason" name="reason" style="min-height:80px"></textarea></div>' +
+            '<button class="btn btn-danger" type="submit">Ask to close my account</button></form>') + '</section>' +
+        '<section class="card"><h2>Your information</h2><p>Read how Puppy Connection uses and protects what you give us.</p><div class="btn-row"><a class="btn" href="/privacy" target="_blank" rel="noopener">Privacy policy</a><a class="btn" href="/terms" target="_blank" rel="noopener">Listing terms</a></div></section>', true);
+      $('#signout-all').addEventListener('click', function () {
+        if (!confirm('Sign out of every device, including this one?')) return;
+        api('POST', '/auth/signout-all', {}).then(function () { state.me = null; location.hash = '#/'; render(); toast('Signed out everywhere'); });
+      });
+      var cf = $('#close-form');
+      if (cf) cf.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!confirm('Ask Puppy Connection to close your account?')) return;
+        api('POST', '/api/account/close', { reason: $('#close-reason').value }).then(function () { toast('Request sent'); accountScreen(); })
+          .catch(function (err) { showError(cf, err); });
+      });
+      var w = $('#withdraw-close');
+      if (w) w.addEventListener('click', function () {
+        api('POST', '/api/account/close/withdraw', {}).then(function () { toast('Request withdrawn'); accountScreen(); })
+          .catch(function (err) { showError($('#close-card'), err); });
+      });
+    });
+  }
+
+  // ------------------------------------------------------------ help (plan P2.8)
+  function help() {
+    var me = state.me, c = state.config || {};
+    var fee = money(me.fee_cents);
+    var photos = me.min_photos === 1 ? 'at least one photo' : 'at least ' + me.min_photos + ' photos';
+    var lasts = me.listing_days > 0 ? 'Each payment lists a puppy for ' + me.listing_days + ' days, and you can renew it near the end date.'
+      : 'You pay once, and the listing stays up until you remove the puppy. There is nothing to renew.';
+    function q(title, body) { return '<section class="card help"><h2>' + esc(title) + '</h2>' + body + '</section>'; }
+    shell(head('Help', 'Short answers to the questions breeders ask most.') +
+      q('How do I get approved?', '<p>Fill in your profile with your business name, a phone or email buyers can use, and your town and state. Then accept the listing terms and submit it. Puppy Connection looks over every new breeder before they can list, and emails you when your account is approved.</p><p>Until then you can still edit your profile, and the menu shows only what you can use.</p>') +
+      q('How does listing work?', '<p>Add a litter first, with the breed and the dates. Then add each puppy to it with a price and ' + photos + '. If a litter has several puppies, use Add several to put them all in at once, then rename each one and add its photos.</p><p>A puppy stays a draft, which only you can see, until you pay to list it. The Litters and puppies screen says what each draft still needs.</p>') +
+      q('What does it cost?', '<p>Listing costs ' + esc(fee) + ' per puppy. ' + esc(lasts) + '</p><p>You can pay for a whole litter in one go on the Pay to list screen. Payment is by card through Stripe, and Stripe emails your receipt. Puppy Connection never sees your card number.</p>') +
+      q('What happens when a puppy goes home?', '<p>Mark it placed, either from the list or in the puppy\'s own page in the portal. It stays on the site marked as placed, so buyers can still see the litter and know that puppy is spoken for. You can mark it available again if plans change.</p><p>If you would rather take a puppy off the site entirely, open it and choose Remove puppy.</p>') +
+      q('What makes a good photo?', '<p>Clear daylight photos of one puppy at a time work best, and the first photo is the one buyers see first. A puppy can have up to ' + me.max_photos + ' photos.</p><p>The portal makes each photo smaller before it uploads, so large phone photos are fine, and it removes the hidden location and camera details phones add.</p>') +
+      q('How do I sign in?', '<p>There is no password. Enter your email and we send you a six-digit code and a link. Type the code on the sign-in screen, or open the link, and you are in.' + (c.google ? ' You can also choose Continue with Google.' : '') + '</p>' +
+        '<p>You stay signed in on that device for 60 days, and each time you use the portal the 60 days start again. If you lose a phone or used a shared computer, use Sign out of every device on the Account screen.</p>') +
+      q('Who can see what?', '<p>Buyers see your business name, the phone and email you give for them, your website, your town and state, and the words about your kennel. Your sign-in email and contact name stay private. The <a href="/privacy" target="_blank" rel="noopener">privacy policy</a> has the details.</p>'), true);
+  }
+
   // ------------------------------------------------------------ router
   function render() {
     closeDrawer();
@@ -617,10 +848,10 @@
       location.replace('#/litters');
       return;
     }
-    if (state.me.status === 'declined' && r !== '') return overview();
-    if (state.me.status === 'pending' && ['litters', 'pay', 'payments'].indexOf(r) >= 0) { location.replace('#/'); return; }
+    var allowed = OPEN_TO[state.me.status];
+    if (allowed && allowed.indexOf(r) < 0) { if (r) { location.replace('#/'); return; } }
     window.scrollTo(0, 0);
-    ({ '': overview, profile: profile, litters: litters, pay: pay, payments: payments }[r] || overview)();
+    ({ '': overview, profile: profile, litters: litters, pay: pay, payments: payments, stats: stats, account: accountScreen, help: help }[r] || overview)();
   }
 
   window.addEventListener('hashchange', function () {

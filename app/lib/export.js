@@ -4,6 +4,21 @@
 // serves it live. The real build replaces this with the generator's export (spec 9).
 
 import { slugify } from './util.js';
+import { brandUrl } from './store.js';
+
+/**
+ * The address the concept groups a breeder under, meaning their website's host, or a
+ * stand-in "<slug>.puppyconnection" when they have none (dev/site-copy.mjs keeps the stand-in
+ * from showing as a website).
+ */
+export function siteDomain(b) {
+  try { return b.website_url ? new URL(b.website_url).hostname.replace(/^www\./, '') : `${b.slug}.puppyconnection`; } catch { return `${b.slug}.puppyconnection`; }
+}
+
+/** The slug the public site's breeder page answers to, breeder.html?slug=<this> (plan P2.2). */
+export function siteBreederSlug(b) {
+  return slugify(siteDomain(b).replace(/\.[a-z]+$/, ''));
+}
 
 const fmtDate = (iso) => {
   if (!iso) return null;
@@ -27,9 +42,7 @@ export async function buildExport(env, mediaBase) {
   }
   const perLitter = {};
   for (const p of puppies) perLitter[p.litter_id] = (perLitter[p.litter_id] || 0) + 1;
-  const domainOf = (b) => {
-    try { return b.website_url ? new URL(b.website_url).hostname.replace(/^www\./, '') : `${b.slug}.puppyconnection`; } catch { return `${b.slug}.puppyconnection`; }
-  };
+  const domainOf = siteDomain;
 
   const listings = puppies.map((p) => {
     const b = byBreeder[p.breeder_id];
@@ -51,9 +64,20 @@ export async function buildExport(env, mediaBase) {
       breeder_url_tier: p.breeder_url ? 'puppy' : null, lead_aspect: ph[0]?.aspect || 1.5,
     };
   });
+  // Plan P2.3. The optional extras ride along in each profile for the site to use. The site
+  // shows the logo today (dev/site-copy.mjs). The kennel photo, breeds and Facebook page have
+  // no place on the concept's pages yet and wait for the generated pages (P4.3).
+  const brandBase = mediaBase.replace(/\/media$/, '');
+  const raised = {};
+  for (const r of (await env.DB.prepare(
+    `SELECT bb.breeder_id, br.name FROM breeder_breeds bb JOIN breeds br ON br.id = bb.breed_id
+      WHERE bb.breeder_id IN (SELECT breeder_id FROM public_breeders) ORDER BY br.name`,
+  ).all()).results) (raised[r.breeder_id] ||= []).push(r.name);
   const profiles = breeders.filter((b) => b.slug !== 'unassigned').map((b) => ({
-    slug: slugify(domainOf(b).replace(/\.[a-z]+$/, '')), name: b.business_name, people: [b.city, b.state].filter(Boolean).join(', '),
+    slug: siteBreederSlug(b), name: b.business_name, people: [b.city, b.state].filter(Boolean).join(', '),
     kennel: b.business_name, body: String(b.description || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean),
+    logo: brandUrl(brandBase, b.breeder_id, 'logo', b.logo_key), kennel_photo: brandUrl(brandBase, b.breeder_id, 'kennel', b.kennel_key),
+    breeds: raised[b.breeder_id] || [], facebook: b.facebook_url || null,
   }));
   const site = await env.DB.prepare('SELECT generation FROM site_state WHERE id = 1').first();
   return { generation: site.generation, listings, profiles };

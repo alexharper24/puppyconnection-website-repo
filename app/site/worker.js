@@ -4,11 +4,16 @@
 // uploaded photos, but only those belonging to a public puppy.
 //
 // This stands in for spec section 9 (the cron publish, the commit and the generator) while
-// the site is in test. It reads the database and never writes to it. It is deployed without
-// DEV_MODE, so gate() lets every request through, the same as the real public site.
+// the site is in test. It reads the database, and its one write is the view and click count
+// (plan P2.5, lib/stats.js), which stores a number per puppy per day and nothing about the
+// visitor. It is deployed without DEV_MODE, so gate() lets every request through, the same as
+// the real public site. Breeder logos and kennel photos (plan P2.3) are served from
+// /brand/<breeder id>/logo and /kennel, only while the breeder is public.
 
 import { gate, json } from '../lib/util.js';
 import { buildExport, siteDataJs } from '../lib/export.js';
+import { recordBeacon } from '../lib/stats.js';
+import { serveBrand } from '../lib/store.js';
 
 // data.js is built from several queries, and every page loads it. One build is kept per
 // isolate for MEMO_MS, and browsers keep it for a minute and then revalidate by ETag, so
@@ -83,6 +88,9 @@ export default {
       if (url.pathname === '/data/data.js') return await dataJs(request, env);
       const m = url.pathname.match(/^\/media\/([\w-]+)(\/card)?$/);
       if (m) return await media(env, m[1], !!m[2]);
+      if (url.pathname === '/api/beacon') return (await recordBeacon(request, env)).response;
+      const brand = url.pathname.match(/^\/brand\/([\w-]+)\/(logo|kennel)$/);
+      if (brand) return (await serveBrand(env, brand[1], brand[2], { card: url.searchParams.get('size') === 'card' })) || new Response('Not found.', { status: 404 });
       if (url.pathname === '/data/base.json') return new Response('Not found.', { status: 404 });
       return await asset(request, env, url);
     } catch (e) {

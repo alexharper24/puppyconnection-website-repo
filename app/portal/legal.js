@@ -9,6 +9,8 @@
 //   payments                     lib/payments.js, Stripe Checkout, no card data reaches us
 //   backups                      lib/jobs.js backup, 90 days in R2
 //   email                        lib/mail.js, Resend (or Cloudflare Email Sending at launch)
+//   view and click counts        lib/stats.js, a number per puppy per day, nothing about the visitor
+//   profile extras               portal/worker.js saveExtras and uploadBrand (logo, kennel photo, breeds, Facebook)
 // The terms are Amber's own words (build spec section 14). Until she supplies them the page
 // shows a clearly marked placeholder, and the README pending list carries it.
 
@@ -32,6 +34,7 @@ export function privacyPage() {
 <li>The business name you give when you sign up.</li>
 <li>The profile you fill in. That is your business name, the phone and email buyers can use, your website, your town and state, and the words about your kennel. A contact name is optional and stays private to Puppy Connection.</li>
 <li>Your litters and puppies, with the details and photos you add.</li>
+<li>Any extras you choose to add to your profile, meaning a logo, a kennel photo, the breeds you raise and a Facebook page.</li>
 <li>A record of your listing payments, meaning the amount, the date and which puppies each payment covers.</li>
 <li>The date you accepted the listing terms, and which version you accepted.</li>
 <li>An activity record of changes to your account and listings, showing what changed and when.</li>
@@ -39,7 +42,7 @@ export function privacyPage() {
 <p>We never ask for your street address, and we do not keep one.</p>
 
 <h2>What shows on the public site</h2>
-<p>Only what you choose to publish. Your business name, the phone and email you give for buyers, your website, your town and state, and the words about your kennel show on your breeder page. A puppy shows once its listing is paid for, with the details and photos you added. Your sign-in email and your contact name are never shown.</p>
+<p>Only what you choose to publish. Your business name, the phone and email you give for buyers, your website, your town and state, and the words about your kennel show on your breeder page. Any extras you add, such as your logo or Facebook page, can show there too. A puppy shows once its listing is paid for, with the details and photos you added. Your sign-in email and your contact name are never shown.</p>
 
 <h2>Your photos</h2>
 <p>Photos taken on a phone can carry hidden details, such as where the photo was taken and what camera took it. The portal takes those details out of every photo you upload before it is saved, so they never reach the public site. Photos are also resized in your browser before they upload.</p>
@@ -63,13 +66,14 @@ export function privacyPage() {
 
 <h2>Buyers</h2>
 <p>Buyers contact breeders directly with the details on the breeder's page, so those conversations do not pass through Puppy Connection.</p>
+<p>The public site counts how many times each puppy's page is opened, and how many times a visitor follows the breeder's website, phone or email link from it. It keeps only those two numbers for each puppy for each day, and shows them to that puppy's breeder. It sets no cookie and keeps nothing about the visitor.</p>
 
 <h2>How long we keep things</h2>
 <p>We keep your account, profile and listings while your account is open. A copy of the database is saved every night for recovery, and each nightly copy is deleted after 90 days.</p>
 <p class="review-note"><b>For Amber to decide:</b> how long the activity record and payment records are kept after an account closes. Today the activity record is kept with the account and is not deleted on a schedule.</p>
 
 <h2>Closing your account</h2>
-<p>To close your account, write to ${CONTACT} from your sign-in email address. We take your listings and breeder page off the site and remove your profile. Records of past payments may be kept for accounting.</p>
+<p>To close your account, use Ask to close my account on the Account screen of the portal, or write to ${CONTACT} from your sign-in email address. We take your listings and breeder page off the site and remove your profile. Records of past payments may be kept for accounting.</p>
 
 <h2>Questions</h2>
 <p>Write to ${CONTACT} with any question about this policy or the information we keep about you.</p>

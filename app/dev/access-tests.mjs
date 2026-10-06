@@ -69,6 +69,8 @@ async function main() {
   const B = await makeBreeder('b', 'approved');
   const C = await makeBreeder('c', 'pending');
   const D = await makeBreeder('d', 'suspended');
+  await C.c.req('POST', '/api/profile/logo', JPG, { headers: { 'content-type': 'image/jpeg' } });
+  await C.c.req('POST', '/api/profile/kennel', JPG, { headers: { 'content-type': 'image/jpeg' } });
 
   // The routes a breeder can reach with an id, taken from the portal router itself.
   const router = fs.readFileSync(path.join(APP, 'portal/worker.js'), 'utf8');
@@ -83,6 +85,13 @@ async function main() {
     orderPhotos: ['PUT', `/api/puppies/${B.draft}/photo-order`, { ids: [B.draftPhoto] }],
     deletePhoto: ['DELETE', `/api/photos/${B.draftPhoto}`, null],
     uploadCard: ['POST', `/api/photos/${B.draftPhoto}/card`, JPG],
+    // Plan P2.4 and P2.3. A batch into B's litter, a copy of B's puppy, marking it placed, and
+    // C's logo and kennel photo, which stay private while C is pending.
+    addPuppies: ['POST', `/api/litters/${B.litter}/puppies`, { girls: 2 }],
+    duplicatePuppy: ['POST', `/api/puppies/${B.draft}/duplicate`, {}],
+    setAvailability: ['PUT', `/api/puppies/${B.draft}/availability`, { availability: 'placed', version: 1 }],
+    brandLogo: ['GET', `/brand/${C.id}/logo`, null],
+    brandKennel: ['GET', `/brand/${C.id}/kennel`, null],
   };
   const covered = idRoutes.every((m) => attacks[m[3]]);
   check(0, `every id route in the portal router is attacked (${idRoutes.map((m) => m[3]).join(', ')})`, covered,
@@ -109,6 +118,23 @@ async function main() {
   const bDraft = bDetail.litters.flatMap((l) => l.puppies).find((p) => p.id === B.draft);
   check(2, "B's puppy, litter and photo are unchanged afterwards",
     bDraft.name === 'b draft' && bDraft.publication_state === 'draft' && bDraft.photos.length === 1 && !bDetail.litters[0].archived_at);
+  check(2, "B's litter gained no puppies and B's draft is still available",
+    bDetail.litters.flatMap((l) => l.puppies).length === 2 && bDraft.availability === 'available');
+  check(2, "C's own logo is there, so the 404s above were the ownership rule", (await C.c.get(`/brand/${C.id}/logo`)).status === 200);
+
+  // The profile extras, counts and account routes take no id at all, so a breeder can only
+  // ever reach their own. These prove it from the other side (plan P2.3, P2.5, P2.7).
+  await B.c.put('/api/profile/extras', { facebook_url: 'https://www.facebook.com/bkennel', breed_ids: ['breed-havanese'] });
+  await B.c.post('/api/account/close', { reason: 'access test' });
+  await A.c.put('/api/profile/extras', { facebook_url: '', breed_ids: [], breeder_id: B.id });
+  await A.c.req('DELETE', '/api/profile/logo');
+  await A.c.post('/api/account/close/withdraw', {});
+  const bMe = (await B.c.get('/api/me')).data;
+  check(2, "A's extras and account changes leave B's extras and close request alone",
+    bMe.extras.facebook_url === 'https://www.facebook.com/bkennel' && bMe.extras.breeds.length === 1 && (await B.c.get('/api/account')).data.close_request !== null);
+  check(1, "A's view counts and account screen show none of B's", !(await A.c.get('/api/stats')).data.puppies.some((x) => [B.draft, B.paid].includes(x.id))
+    && (await A.c.get('/api/account')).data.close_request === null && (await A.c.get('/api/account')).data.email === A.email);
+  await B.c.post('/api/account/close/withdraw', {});
 
   // 3. A cannot attach a photo to B's puppy, refused by the database itself
   const direct = sql(`INSERT INTO photos (id, breeder_id, puppy_id, external_url, position, created_at)

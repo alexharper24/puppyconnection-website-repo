@@ -36,8 +36,43 @@ CREATE TABLE IF NOT EXISTS breeder_profiles (
   description   TEXT,
   logo_key      TEXT,
   updated_at    TEXT NOT NULL,
-  version       INTEGER NOT NULL DEFAULT 1
+  version       INTEGER NOT NULL DEFAULT 1,
+  -- Plan P2.3, the optional profile extras (migrations/0002_portal_features.sql). logo_key and
+  -- kennel_key are R2 keys under brand/<breeder id>/, each with a ".card" copy beside it.
+  kennel_key    TEXT,
+  facebook_url  TEXT
 );
+
+-- Plan P2.3. The breeds a breeder raises, picked from the breeds table. Optional.
+CREATE TABLE IF NOT EXISTS breeder_breeds (
+  breeder_id TEXT NOT NULL REFERENCES breeders(id),
+  breed_id   TEXT NOT NULL REFERENCES breeds(id),
+  PRIMARY KEY (breeder_id, breed_id)
+);
+
+-- Plan P2.5. Views of a puppy page and clicks through to its breeder, counted per puppy per
+-- UTC day by the public site's beacon. Nothing about the visitor is stored.
+CREATE TABLE IF NOT EXISTS puppy_stats (
+  puppy_id TEXT NOT NULL REFERENCES puppies(id),
+  day      TEXT NOT NULL,
+  views    INTEGER NOT NULL DEFAULT 0,
+  clicks   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (puppy_id, day)
+);
+
+-- Plan P2.7. A breeder asking Puppy Connection to close their account. Nothing is deleted
+-- here; an operator sees the request and marks it handled.
+CREATE TABLE IF NOT EXISTS account_requests (
+  id          TEXT PRIMARY KEY,
+  breeder_id  TEXT NOT NULL REFERENCES breeders(id),
+  kind        TEXT NOT NULL CHECK (kind IN ('close')),
+  reason      TEXT,
+  created_at  TEXT NOT NULL,
+  withdrawn_at TEXT,
+  resolved_at TEXT,
+  resolved_by TEXT
+);
+CREATE INDEX IF NOT EXISTS account_requests_breeder ON account_requests(breeder_id, created_at);
 
 CREATE TABLE IF NOT EXISTS login_tokens (
   token_hash  TEXT PRIMARY KEY,
@@ -317,7 +352,7 @@ DROP VIEW IF EXISTS public_breeders;
 
 CREATE VIEW public_breeders AS
 SELECT p.breeder_id, p.business_name, p.slug, p.public_phone, p.public_email,
-       p.website_url, p.city, p.state, p.description, p.logo_key
+       p.website_url, p.city, p.state, p.description, p.logo_key, p.kennel_key, p.facebook_url
 FROM breeder_profiles p JOIN breeders b ON b.id = p.breeder_id
 WHERE p.slug IS NOT NULL
   AND (b.status = 'approved'

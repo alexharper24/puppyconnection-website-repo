@@ -15,5 +15,11 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
   ],
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }]
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  // Plan P2.5, the view and click beacon (lib/stats.js). Up to 30 beacons a minute from one
+  // address, and one view and one click per address per puppy a minute.
+  "ratelimits": [
+    { "name": "BEACON_LIMITER", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } },
+    { "name": "BEACON_ONCE", "namespace_id": "4103", "simple": { "limit": 1, "period": 60 } }
+  ]
 }

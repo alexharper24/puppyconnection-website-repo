@@ -109,7 +109,8 @@ async function reconcile(env) {
 // Every table as JSON, gzipped, one file per day in the photo bucket under backups/. The
 // media route serves only rows in photos, so nothing under backups/ is reachable from outside.
 const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'people', 'breeds', 'litters', 'puppies', 'photos', 'checkouts', 'checkout_items',
-  'puppy_holds', 'payments', 'stripe_events', 'settings', 'site_state', 'audit_log', 'email_log', 'job_runs'];
+  'puppy_holds', 'payments', 'stripe_events', 'settings', 'site_state', 'audit_log', 'email_log', 'job_runs',
+  'breeder_breeds', 'puppy_stats', 'account_requests'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;

@@ -29,6 +29,17 @@ const PATCHES = [
     "if (!seen[s]) seen[s] = { slug: s, name: breederLabel(l), domain: /\\.puppyconnection$/.test(l.breeder_domain) ? '' : l.breeder_domain, listings: [] };"],
   ["'<li><a href=\"https://' + esc(biz.domain) + '\" target=\"_blank\" rel=\"noopener\"><b>Website</b> ' + esc(biz.domain) + '</a></li>' +",
     "(biz.domain ? '<li><a href=\"https://' + esc(biz.domain) + '\" target=\"_blank\" rel=\"noopener\"><b>Website</b> ' + esc(biz.domain) + '</a></li>' : '') +"],
+  // Patch 5 (plan P2.5). A puppy page counts one view, and a click on the breeder's website,
+  // phone or email link counts one click through to the breeder. The beacon carries only the
+  // kind and the puppy's slug, sets no cookie, and a failure is silent.
+  ["  /* \"fit\" letterboxes", "  function pcBeacon(k, s) {\n    try {\n      var body = JSON.stringify({ k: k, s: s });\n      if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'text/plain' }));\n      else fetch('/api/beacon', { method: 'POST', body: body, keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(function () {});\n    } catch (e) { /* counting never gets in the way of the page */ }\n  }\n  /* \"fit\" letterboxes"],
+  ["    var d = document.querySelector('#dDesc');",
+    "    if (l && l.slug === qs('slug')) {\n      pcBeacon('view', l.slug);\n      document.querySelector('#dBreeder').addEventListener('click', function (e) {\n        if (e.target.closest && e.target.closest('.contact-list a')) pcBeacon('click', l.slug);\n      });\n    }\n    var d = document.querySelector('#dDesc');"],
+  // Patch 6 (plan P2.3). A breeder who uploaded a logo in the portal has it on their page. The
+  // export also carries the kennel photo, breeds and Facebook page, which the concept's pages
+  // have no place for yet, so they wait for the generated pages (P4.3).
+  ["      } else { logo.hidden = true; }",
+    "      } else if (prof && prof.logo) {\n        logo.innerHTML = '<img src=\"' + esc(prof.logo) + '\" alt=\"' + esc(name) + ' logo\" loading=\"lazy\" decoding=\"async\">';\n      } else { logo.hidden = true; }"],
 ];
 
 // Patch 4 (plan P7.1). The privacy policy and listing terms live on the portal, so every

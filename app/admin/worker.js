@@ -8,7 +8,7 @@ import {
 } from '../lib/util.js';
 import {
   loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithPuppies, photoUrl,
-  profileFields, profileStmt, profileBefore, noticeContactChange,
+  profileFields, profileStmt, profileBefore, noticeContactChange, breederBreeds, brandUrl, serveBrand,
 } from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
 import { identify } from './identity.js';
@@ -52,6 +52,8 @@ async function stats(req, env) {
     open_checkouts: await one("SELECT COUNT(*) AS n FROM checkouts WHERE status = 'open' AND expires_at > ?", t),
     needs_review: await one("SELECT COUNT(*) AS n FROM checkouts WHERE status = 'needs_review'"),
     unpublished_changes: site.generation - site.published_generation,
+    // Plan P2.7. Breeders who asked to close their account and have not been followed up yet.
+    close_requests: await one('SELECT COUNT(DISTINCT breeder_id) AS n FROM account_requests WHERE withdrawn_at IS NULL AND resolved_at IS NULL'),
   });
 }
 
@@ -59,10 +61,11 @@ async function stats(req, env) {
 
 async function listBreeders(req, env) {
   const status = new URL(req.url).searchParams.get('status');
-  const where = status === 'queue' ? "WHERE b.status = 'pending' AND b.profile_submitted_at IS NOT NULL"
+  const where = status === 'closing' ? 'WHERE b.id IN (SELECT breeder_id FROM account_requests WHERE withdrawn_at IS NULL AND resolved_at IS NULL)'
+    : status === 'queue' ? "WHERE b.status = 'pending' AND b.profile_submitted_at IS NOT NULL"
     : status === 'signing_up' ? "WHERE b.status = 'pending' AND b.profile_submitted_at IS NULL"
       : status ? 'WHERE b.status = ?' : '';
-  const binds = status && !['queue', 'signing_up'].includes(status) ? [status] : [];
+  const binds = status && !['queue', 'signing_up', 'closing'].includes(status) ? [status] : [];
   const { results } = await env.DB.prepare(
     `SELECT b.id, b.email, b.status, b.created_at, b.profile_submitted_at, b.decided_at, b.legacy,
             p.business_name, p.city, p.state, p.slug,
@@ -92,7 +95,27 @@ async function breederDetail(req, env, ctx, id) {
          OR entity_id IN (SELECT id FROM checkouts WHERE breeder_id = ?)
       ORDER BY id DESC LIMIT 60`,
   ).bind(id, id, id, id).all()).results;
-  return json({ breeder: b, litters, checkouts, audit });
+  // Plan P2.3 and P2.7. The optional profile extras, and an open request to close the account.
+  const extras = {
+    facebook_url: b.facebook_url || null, breeds: await breederBreeds(env, id),
+    logo_url: brandUrl('', id, 'logo', b.logo_key), kennel_url: brandUrl('', id, 'kennel', b.kennel_key),
+  };
+  const closeRequest = await env.DB.prepare(
+    'SELECT id, reason, created_at FROM account_requests WHERE breeder_id = ? AND withdrawn_at IS NULL AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 1',
+  ).bind(id).first();
+  return json({ breeder: b, litters, checkouts, audit, extras, close_request: closeRequest || null });
+}
+
+/** Mark a breeder's request to close their account as followed up. Nothing is deleted. */
+async function resolveClose(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const t = now();
+  const r = await env.DB.batch([
+    env.DB.prepare('UPDATE account_requests SET resolved_at = ?, resolved_by = ? WHERE breeder_id = ? AND withdrawn_at IS NULL AND resolved_at IS NULL').bind(t, who.email, id),
+    auditStmt(env, 'operator', who.email, 'account.close_handled', 'breeder', id, null, null),
+  ]);
+  if (!r[0].meta.changes) throw notFound();
+  return breederDetail(req, env, ctx, id);
 }
 
 async function uniqueSlug(env, name, breederId) {
@@ -351,13 +374,21 @@ async function media(req, env, ctx, id, card) {
   return new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType || photo.content_type || 'application/octet-stream', 'cache-control': 'private, no-store' } });
 }
 
+/** A breeder's logo or kennel photo. Operators see them whether or not the breeder is public. */
+async function brand(req, env, id, kind) {
+  const res = await serveBrand(env, id, kind, { card: new URL(req.url).searchParams.get('size') === 'card', allowPrivate: async () => true });
+  if (!res) throw notFound();
+  res.headers.set('cache-control', 'private, no-store');
+  return res;
+}
+
 /** Every test email, for the operator. Only in a test mode, behind the admin's own gate. */
 async function devMail(req, env) {
   if (env.EMAIL_MODE !== 'log' || !['local', 'hosted-test', 'hosted-access', 'staging'].includes(env.DEV_MODE)) throw notFound();
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=6"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=7"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
@@ -371,6 +402,9 @@ const ROUTES = [
   ['POST', /^\/api\/breeders\/([\w-]+)\/(approve|decline|suspend|reinstate|reopen)$/, null],
   ['PUT', /^\/api\/breeders\/([\w-]+)\/email$/, changeEmail],
   ['PUT', /^\/api\/breeders\/([\w-]+)\/profile$/, editProfile],
+  ['POST', /^\/api\/breeders\/([\w-]+)\/close-request\/resolve$/, resolveClose],
+  ['GET', /^\/brand\/([\w-]+)\/logo$/, (r, e, c, id) => brand(r, e, id, 'logo')],
+  ['GET', /^\/brand\/([\w-]+)\/kennel$/, (r, e, c, id) => brand(r, e, id, 'kennel')],
   ['GET', /^\/api\/listings$/, listListings],
   ['POST', /^\/api\/puppies\/([\w-]+)\/hold$/, holdPuppy],
   ['POST', /^\/api\/puppies\/([\w-]+)\/comp$/, compPuppy],

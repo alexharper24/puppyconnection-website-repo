@@ -179,6 +179,7 @@
         [s.needs_review, 'payment', 'payments', 'to review, where money arrived and no listing went live', '#/payments', 'Open'],
         [s.held, 'listing', 'listings', 'on hold', '#/listings?filter=held', 'Open'],
         [s.unpublished_changes, 'change', 'changes', 'not on the public site yet', '#/settings', 'Details'],
+        [s.close_requests, 'breeder', 'breeders', 'asked to close their account', '#/breeders?status=closing', 'Open'],
       ].filter(function (t) { return t[0]; });
       shell(head('Overview', 'What needs you today, and how the directory stands.') +
         '<div class="stats">' +
@@ -218,7 +219,7 @@
   function breeders() {
     var p = params(), f = p.status || '';
     Promise.all([refreshStats(), api('GET', '/api/breeders' + (f ? '?status=' + f : ''))]).then(function (r) {
-      var tabs = [['', 'All'], ['status=queue', 'Waiting'], ['status=signing_up', 'Signing up'], ['status=approved', 'Approved'], ['status=suspended', 'Suspended'], ['status=declined', 'Declined']];
+      var tabs = [['', 'All'], ['status=queue', 'Waiting'], ['status=signing_up', 'Signing up'], ['status=approved', 'Approved'], ['status=suspended', 'Suspended'], ['status=declined', 'Declined'], ['status=closing', 'Asked to close']];
       shell(head('Breeders', 'Every breeder account, including the ones imported from Wix. Open one to see their puppies, payments and history.') +
         listPanel({ id: 'breeders', find: 'Name, email or town', q: p.q, tabs: seg('breeders', f ? 'status=' + f : '', tabs, 'Breeder status') }));
       list($('#breeders'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, text: breederText,
@@ -228,7 +229,7 @@
 
   function breederDrawer(id) {
     api('GET', '/api/breeders/' + id).then(function (data) {
-      var b = data.breeder;
+      var b = data.breeder, x = data.extras;
       var pups = []; data.litters.forEach(function (l) { l.puppies.forEach(function (p) { if (p.publication_state !== 'archived') { p.breed = l.breed_name; pups.push(p); } }); });
       var actions = {
         pending: b.profile_submitted_at ? '<button class="btn btn-primary" data-do="approve">Approve</button><button class="btn btn-danger" data-do="decline">Decline</button>' : '<p class="muted small">Still signing up. Approval opens when they submit their profile.</p>',
@@ -244,8 +245,15 @@
         row('Public email', esc(b.public_email)) + row('Where', esc([b.city, b.state].filter(Boolean).join(', '))) +
         row('Website', b.website_url ? '<a href="' + esc(b.website_url) + '" target="_blank" rel="noopener">' + esc(b.website_url) + '</a>' : '') +
         row('Joined', esc(day(b.created_at))) + row('Submitted', esc(day(b.profile_submitted_at))) + row('Terms', esc(b.terms_version)) +
-        row('Decided', b.decided_at ? esc(day(b.decided_at)) + ' by ' + esc(b.decided_by) : '') + '</tbody></table>' +
+        row('Decided', b.decided_at ? esc(day(b.decided_at)) + ' by ' + esc(b.decided_by) : '') +
+        row('Facebook', x.facebook_url ? '<a href="' + esc(x.facebook_url) + '" target="_blank" rel="noopener">' + esc(x.facebook_url) + '</a>' : '') +
+        row('Breeds raised', esc(x.breeds.map(function (r) { return r.name; }).join(', '))) + '</tbody></table>' +
+        (x.logo_url || x.kennel_url ? '<div class="brand-pics">' + (x.logo_url ? '<figure><img src="' + esc(x.logo_url) + '&size=card" alt="' + esc(b.business_name) + ' logo"><figcaption>Logo</figcaption></figure>' : '') +
+          (x.kennel_url ? '<figure><img src="' + esc(x.kennel_url) + '&size=card" alt="' + esc(b.business_name) + ' kennel photo"><figcaption>Kennel photo</figcaption></figure>' : '') + '</div>' : '') +
         (b.description ? '<div class="card"><h3 style="margin-top:0">About</h3>' + String(b.description).split(/\n\s*\n/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div>' : '') +
+        (data.close_request ? '<div class="notice notice-alert" id="close-req"><p><b>Asked to close their account</b> on ' + esc(day(data.close_request.created_at)) + '.' +
+          (data.close_request.reason ? ' Their reason: ' + esc(data.close_request.reason) : '') + '</p><p class="small">Nothing has been removed. Follow up with them, then mark it handled.</p>' +
+          '<div class="btn-row"><button class="btn btn-sm" id="close-handled">Mark handled</button></div></div>' : '') +
         '<div id="decide"><div class="btn-row">' + actions + '</div></div>' +
         '<h3>Puppies (' + pups.length + ')</h3>' + (pups.length ? pups.map(function (p) {
           return '<div class="puppy-row">' + (p.photos[0] ? '<img class="thumb" src="' + esc(thumb(p.photos[0].url)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
@@ -263,6 +271,11 @@
         function (d) {
           $$('[data-do]', d).forEach(function (btn) { btn.addEventListener('click', function () { decide(d, b, btn.dataset.do); }); });
           wireHolds(d, function () { breederDrawer(id); });
+          var ch = $('#close-handled', d);
+          if (ch) ch.addEventListener('click', function () {
+            api('POST', '/api/breeders/' + b.id + '/close-request/resolve', {}).then(function () { toast('Marked handled'); refreshStats(); breederDrawer(id); })
+              .catch(function (err) { showError($('#close-req', d), err); });
+          });
           $('#email-form', d).addEventListener('submit', function (e) {
             e.preventDefault();
             api('PUT', '/api/breeders/' + b.id + '/email', { email: $('[name=email]', d).value }).then(function () { toast('Email changed'); breederDrawer(id); })

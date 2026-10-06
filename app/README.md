@@ -15,6 +15,7 @@ one in changes a setting and a secret rather than the code around it.
 
 ```bash
 node app/dev/setup.mjs --reset      # local database, the seed, the .dev.vars files
+node app/dev/setup.mjs --reset --demo   # the same, plus the three made-up demo breeders (plan P5.1)
 ```
 
 Then start the three servers. They are in `C:\Git_Repos\.claude\launch.json` as
@@ -117,6 +118,8 @@ directly.
 
 ## Walking the journey
 
+`docs/walkthrough-for-amber.md` is the same journey written for Amber, with the staging addresses.
+
 1. At the portal, enter any `@breeders.test` address and a business name.
 2. Open the local mailbox and type the six-digit code into the portal tab, or press **Open the link**, then **Sign in**.
 3. Fill in the profile, tick the terms, and submit.
@@ -141,6 +144,7 @@ node app/dev/admin-features-test.mjs    # plan P3: every admin route operator-on
 node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stand-in GitHub on 8798, the generator, the binding, the cron, CPU
 node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
+node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
 ```
 
 `publish-test.mjs` starts its own stand-in GitHub and a second admin on 8794 with `PUBLISH_MODE`
@@ -186,6 +190,29 @@ under that breeder, and the 23 that name none go under one "Unassigned Wix listi
 breeder, because the real pairing waits on Amber. One listing's breed, "Mini Poodle", is
 mapped to Miniature Poodle. Every sign-in address is `<slug>@breeders.test`, so the
 simulation cannot email a real breeder.
+
+A breeder the concept names only by its website gets a name split from the domain, so
+heartlandminischnauzers.com becomes Heartland Mini Schnauzers. The split uses a word list and is
+kept only when the words cover the domain in exactly one way, otherwise the domain is the name.
+
+`setup.mjs --reset` empties `app/.state` but keeps every `staging-*.sql` backup in it.
+
+### Demo data and Reset demo data (plan P5.1)
+
+`lib/demo.js` holds three made-up breeders, Buttercup Lane Puppies (signing up), Thistledown
+Pups (waiting for approval) and Maple Brook Doodles (approved, two litters, three puppies listed
+through one practice payment, one placed, one draft needing a photo, a week of views and clicks,
+and a private operator note). Their addresses are `@breeders.test`, phones are 555-01xx, websites
+end in `.example`, and the pictures are drawings made by `dev/make-demo-images.mjs` into
+`lib/demo-images.js`. `setup.mjs --demo` loads them locally. The suites expect them absent, so
+run the suites after a plain `--reset`.
+
+The admin's Settings screen has Reset demo data, and only staging allows it (`DEV_MODE staging`,
+checked on the server, so local and production answer 403). The operator types RESET DEMO, the
+backup job runs first and the reset stops if it fails, and then one batch removes every breeder
+whose id does not start with `seed-` with everything hanging off them, clears sign-ins, sessions,
+the test mailbox and the view counts, and loads the demo breeders again. Seed listings, breeds,
+settings, terms and operators are not touched. The audit log and email log are kept, as records.
 
 ## Deliberate choices, so nobody "fixes" them back
 
@@ -274,6 +301,13 @@ simulation cannot email a real breeder.
 
 ## Pending
 
+- [ ] Press Reset demo data on staging once, signed in to the admin through Access, so staging
+      holds the three demo breeders. It was built and deployed on 2026-10-06 but not run there,
+      because nobody signed in to Access overnight
+- [ ] The four seed breeders on staging named "Unassigned Wix listings" although their listings
+      name a website (Heartland Mini Schnauzers, Cornerstone Cavaliers, Bless Your Paws Puppies,
+      Winding Streams Companions). The seed is fixed, and staging takes the names when Alex
+      approves a one-line update or the next reseed
 - [ ] Look at every screen at full size. Screenshots timed out in the browser pane during
       the 2026-09-30 build, so the layouts are measured (no sideways overflow at 320 and 375 in the portal and at 320 in the admin)
       but have not been looked at

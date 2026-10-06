@@ -1,6 +1,7 @@
 // Reads and writes shared by both Workers, the ownership rule, and the audit trail.
 
-import { now, notFound, forbidden, HttpError } from './util.js';
+import { now, notFound, forbidden, bad, clean, HttpError } from './util.js';
+import { sendMail } from './mail.js';
 
 /**
  * The ownership rule (spec 7), the Williams Sisters ownedRecipe pattern. Every breeder
@@ -124,4 +125,67 @@ export async function littersWithPuppies(env, breederId) {
 
 export function photoUrl(photo) {
   return photo.r2_key ? `/media/${photo.id}` : photo.external_url;
+}
+
+// ------------------------------------------------------------------ the breeder profile
+
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** A profile edit, checked the same way whether the breeder or an operator makes it. */
+export function profileFields(body) {
+  const website = clean(body.website_url, 300);
+  if (website && !/^https?:\/\/[^\s]+\.[^\s]+$/i.test(website)) throw bad('The website needs to start with https://');
+  const pubEmail = clean(body.public_email, 200);
+  if (pubEmail && !EMAIL_RX.test(pubEmail)) throw bad('The public email does not look right.');
+  const name = clean(body.business_name, 120);
+  if (!name) throw bad('Your business name is required.');
+  return {
+    business_name: name, contact_name: clean(body.contact_name, 120), public_phone: clean(body.public_phone, 40),
+    public_email: pubEmail, website_url: website, city: clean(body.city, 80), state: clean(body.state, 40),
+    description: clean(body.description, 4000),
+  };
+}
+
+/** The profile write, landing only on the version the editor started from. */
+export function profileStmt(env, breederId, f, version) {
+  return env.DB.prepare(
+    `UPDATE breeder_profiles SET business_name = ?, contact_name = ?, public_phone = ?, public_email = ?, website_url = ?,
+       city = ?, state = ?, description = ?, updated_at = ?, version = version + 1
+     WHERE breeder_id = ? AND version = ?`,
+  ).bind(f.business_name, f.contact_name, f.public_phone, f.public_email, f.website_url, f.city, f.state, f.description, now(),
+    breederId, Number(version));
+}
+
+/** The profile as it stood, for the audit row's before side. */
+export function profileBefore(b) {
+  const out = {};
+  for (const k of ['business_name', 'contact_name', 'public_phone', 'public_email', 'website_url', 'city', 'state', 'description']) out[k] = b[k] ?? null;
+  return out;
+}
+
+// Plan P6.6. The contact details buyers use. A change to any of them is emailed to the
+// breeder's sign-in address, never the new public one, so a stranger who changed them is
+// noticed by the real owner.
+const CONTACT_FIELDS = [['public_phone', 'Public phone'], ['public_email', 'Public email'], ['website_url', 'Website']];
+
+export function contactChanges(before, after) {
+  return CONTACT_FIELDS
+    .filter(([k]) => (before[k] || null) !== (after[k] || null))
+    .map(([k, label]) => ({ field: k, label, from: before[k] || null, to: after[k] || null }));
+}
+
+/**
+ * Send the contact change notice after a profile write has landed. A breeder still filling
+ * in the profile for the first time (never submitted) gets no notice, because nothing they
+ * enter is public or under review yet and every sign-up would otherwise get one.
+ */
+export function noticeContactChange(env, ctx, breeder, after, by) {
+  if (!breeder.profile_submitted_at) return 0;
+  const changes = contactChanges(breeder, after);
+  if (!changes.length) return 0;
+  const send = sendMail(env, breeder.email, 'contact_changed', {
+    business: after.business_name || breeder.business_name, changes, by, portalUrl: env.PORTAL_ORIGIN || '',
+  }).catch((e) => console.error('contact change notice failed', e));
+  if (ctx && ctx.waitUntil) ctx.waitUntil(send);
+  return changes.length;
 }

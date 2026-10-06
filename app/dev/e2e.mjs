@@ -72,7 +72,7 @@ async function main() {
 
   // Sign up and sign in
   const { c, start, link, token, verify } = await signUp(email, `E2E Kennel ${stamp}`);
-  check('sign-up answers with the neutral message', start.status === 200 && /Check your email/.test(start.data.message));
+  check('sign-up answers with the neutral message', start.status === 200 && /sign-in code and link/.test(start.data.message));
   check('a sign-in link reached the local mailbox', !!link, JSON.stringify(start.data));
   const scanner = await new Client(PORTAL).get(`/auth/verify?t=${encodeURIComponent(token)}`);
   check('opening the link with GET changes nothing (mail scanners)', scanner.status === 200 && /Sign in/.test(scanner.data));

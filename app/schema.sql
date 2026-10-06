@@ -48,7 +48,14 @@ CREATE TABLE IF NOT EXISTS login_tokens (
   ip          TEXT,
   created_at  TEXT NOT NULL,
   expires_at  TEXT NOT NULL,
-  used_at     TEXT
+  used_at     TEXT,
+  -- Plan P6.2, the six-digit code sent beside the link (migrations/0001_signin_code.sql).
+  -- code_hash is SHA-256 of the browser's sign-in cookie and the code, so the code is only
+  -- good in the browser that asked. browser_hash finds that browser's rows, and code_tries
+  -- counts wrong codes until the row is spent.
+  code_hash    TEXT,
+  browser_hash TEXT,
+  code_tries   INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS login_tokens_email_created ON login_tokens(email, created_at);
 

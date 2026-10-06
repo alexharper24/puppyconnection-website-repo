@@ -6,12 +6,12 @@ import {
   now, addDays, addMinutes, ulid, randomToken, sha256hex, slugify, esc, clean, cents,
   HttpError, notFound, forbidden, bad, json, html, redirect, readJson, requireSameOrigin,
   parseCookies, sessionCookieName, setCookie, isLocal, PORTAL_SECURITY_HEADERS as SECURITY_HEADERS, withHeaders, gate,
-  showTestNotices, isOpenHosted,
+  showTestNotices, isOpenHosted, timingSafeEqual,
 } from '../lib/util.js';
 import { privacyPage, termsPage } from './legal.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
-  littersWithPuppies, photoUrl,
+  littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
 } from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
@@ -21,12 +21,22 @@ import {
 import { cleanImage } from '../lib/images.js';
 import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle, randomString } from '../lib/google.js';
 
-const SESSION_DAYS = 30;
+// Plan P6.3. A session lasts 60 days from its last renewal. Using it more than a day into
+// its current window pushes the end out to 60 days from now and refreshes the cookie, so an
+// active breeder stays signed in and an idle one is signed out after 60 days.
+const SESSION_DAYS = 60;
 const TOKEN_MINUTES = 15;
 const LINKS_PER_HOUR = 5;
+// Plan P6.2. Wrong codes allowed per emailed code before it is spent, and per address in a day.
+const CODE_TRIES = 5;
+const CODE_TRIES_PER_DAY = 20;
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // ------------------------------------------------------------------ sessions
+
+// The refreshed session cookie for a request whose session was renewed, added to the
+// response by the router (fetch, below) unless the handler set the session cookie itself.
+const RENEWED = new WeakMap();
 
 async function currentSession(request, env) {
   const token = parseCookies(request)[sessionCookieName(request)];
@@ -37,7 +47,11 @@ async function currentSession(request, env) {
   if (!s || s.revoked_at || s.expires_at <= t) return null;
   const breeder = await loadBreeder(env, s.breeder_id);
   if (!breeder) return null;
-  if (s.last_seen_at < addMinutes(t, -5)) {
+  if (s.expires_at < addDays(t, SESSION_DAYS - 1)) {
+    const r = await env.DB.prepare('UPDATE sessions SET expires_at = ?, last_seen_at = ? WHERE token_hash = ? AND revoked_at IS NULL')
+      .bind(addDays(t, SESSION_DAYS), t, hash).run();
+    if (r.meta.changes === 1) RENEWED.set(request, setCookie(request, sessionCookieName(request), token, SESSION_DAYS * 86400));
+  } else if (s.last_seen_at < addMinutes(t, -5)) {
     await env.DB.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').bind(t, hash).run();
   }
   return { hash, breeder };
@@ -88,36 +102,111 @@ async function authStart(request, env, ctx) {
     const { success } = await env.AUTH_LIMITER.limit({ key: `ip:${ip}` });
     if (!success) throw new HttpError(429, 'Too many requests. Please wait a minute and try again.');
   }
-  const neutral = { ok: true, message: 'Check your email for a sign-in link. It works once and expires in 15 minutes.' };
+  const neutral = { ok: true, message: 'We sent a sign-in code and link to that address. Type the code below, or open the link. Each works once and stops working after 15 minutes.' };
+  // Plan P6.2. This browser's sign-in cookie. The emailed code only works alongside it, so a
+  // code read over someone's shoulder is no use in another browser.
+  let binder = parseCookies(request)[signinCookieName(request)];
+  if (!binder || !/^[\w-]{40,50}$/.test(binder)) binder = randomToken();
+  const res = json(neutral, 200, { 'set-cookie': setCookie(request, signinCookieName(request), binder, TOKEN_MINUTES * 60) });
   const t = now();
   const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM login_tokens WHERE email = ? AND created_at > ?')
     .bind(email, addMinutes(t, -60)).first();
-  if (recent.n >= LINKS_PER_HOUR) return json(neutral);   // same answer, no new link (test 9)
+  if (recent.n >= LINKS_PER_HOUR) return res;   // same answer, no new link (test 9)
 
   const existing = await env.DB.prepare('SELECT id FROM breeders WHERE email = ?').bind(email).first();
   const token = randomToken();
+  const code = randomCode();
   const purpose = existing ? 'signin' : 'signup';
   await env.DB.prepare(
-    `INSERT INTO login_tokens (token_hash, email, breeder_id, purpose, signup_name, ip, created_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(await sha256hex(token), email, existing?.id || null, purpose, clean(body.business_name, 120), ip, t, addMinutes(t, TOKEN_MINUTES)).run();
+    `INSERT INTO login_tokens (token_hash, email, breeder_id, purpose, signup_name, ip, created_at, expires_at, code_hash, browser_hash)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(await sha256hex(token), email, existing?.id || null, purpose, clean(body.business_name, 120), ip, t, addMinutes(t, TOKEN_MINUTES),
+    await sha256hex(`${binder}:${code}`), await sha256hex(binder)).run();
   const link = `${new URL(request.url).origin}/auth/verify?t=${encodeURIComponent(token)}`;
-  ctx.waitUntil(sendMail(env, email, 'signin_link', { link, purpose }).catch((e) => console.error('sign-in mail failed', e)));
+  ctx.waitUntil(sendMail(env, email, 'signin_link', { link, code, purpose }).catch((e) => console.error('sign-in mail failed', e)));
   if (env.EMAIL_MODE === 'log' && isLocal(request, env)) {
     // Test only: tie this address to this browser, so the mailbox can show it to them alone.
     let box = parseCookies(request).pc_mailbox;
     if (!box || !/^[\w-]{40,50}$/.test(box)) box = randomToken();
     await env.DB.prepare('INSERT OR IGNORE INTO dev_mailbox_owners (token, email, created_at) VALUES (?, ?, ?)').bind(box, email, t).run();
-    return json(neutral, 200, { 'set-cookie': setCookie(request, 'pc_mailbox', box, 30 * 86400) });
+    res.headers.append('set-cookie', setCookie(request, 'pc_mailbox', box, 30 * 86400));
   }
-  return json(neutral);
+  return res;
+}
+
+function signinCookieName(request) {
+  return new URL(request.url).protocol === 'https:' ? '__Host-pc_signin' : 'pc_signin';
+}
+
+/** Six digits, every value equally likely. */
+function randomCode() {
+  const limit = 4294967296 - (4294967296 % 1000000);
+  for (;;) {
+    const n = crypto.getRandomValues(new Uint32Array(1))[0];
+    if (n < limit) return String(n % 1000000).padStart(6, '0');
+  }
+}
+
+/**
+ * Plan P6.2. Sign in with the emailed code, in the browser that asked for it. The code is
+ * checked only against this browser's live sign-in rows. A wrong code counts against every
+ * one of them, and a row is spent (code and link together) after CODE_TRIES wrong codes. An
+ * address also stops taking codes for a day after CODE_TRIES_PER_DAY wrong ones, which caps
+ * guessing by someone who keeps asking for new codes, while its emailed links keep working.
+ */
+async function authCode(request, env) {
+  requireSameOrigin(request);
+  const body = await readJson(request);
+  const code = String(body.code || '').replace(/\D/g, '');
+  if (!/^\d{6}$/.test(code)) throw bad('The code is the six numbers in the email.');
+  if (env.AUTH_LIMITER) {
+    const { success } = await env.AUTH_LIMITER.limit({ key: `code:${request.headers.get('cf-connecting-ip') || 'local'}` });
+    if (!success) throw new HttpError(429, 'Too many tries. Please wait a minute and try again.');
+  }
+  const binder = parseCookies(request)[signinCookieName(request)];
+  const gone = 'That code has expired, or it was asked for in a different browser. Ask for a new one, or open the link in the email.';
+  if (!binder || !/^[\w-]{40,50}$/.test(binder)) throw bad(gone);
+  const browser = await sha256hex(binder);
+  const t = now();
+  let { results: live } = await env.DB.prepare(
+    'SELECT token_hash, email, code_hash, code_tries FROM login_tokens WHERE browser_hash = ? AND used_at IS NULL AND expires_at > ? AND code_hash IS NOT NULL',
+  ).bind(browser, t).all();
+  if (!live.length) throw bad(gone);
+  const emails = [...new Set(live.map((r) => r.email.toLowerCase()))];
+  const { results: tries } = await env.DB.prepare(
+    `SELECT lower(email) AS email, SUM(code_tries) AS n FROM login_tokens
+      WHERE lower(email) IN (${emails.map(() => '?').join(',')}) AND created_at > ? GROUP BY lower(email)`,
+  ).bind(...emails, addDays(t, -1)).all();
+  const capped = new Set(tries.filter((r) => r.n >= CODE_TRIES_PER_DAY).map((r) => r.email));
+  live = live.filter((r) => !capped.has(r.email.toLowerCase()));
+  if (!live.length) throw new HttpError(429, 'Too many wrong codes have been tried for this address today. Open the link in the email instead.');
+  const tooMany = 'That was too many wrong codes, so this code and its link no longer work. Please ask for a new one.';
+
+  const want = await sha256hex(`${binder}:${code}`);
+  const hit = live.find((r) => timingSafeEqual(r.code_hash, want));
+  if (!hit) {
+    await env.DB.prepare(
+      `UPDATE login_tokens SET code_tries = code_tries + 1, used_at = CASE WHEN code_tries + 1 >= ? THEN ? ELSE used_at END
+        WHERE browser_hash = ? AND used_at IS NULL AND expires_at > ? AND code_hash IS NOT NULL`,
+    ).bind(CODE_TRIES, t, browser, t).run();
+    if (live.every((r) => r.code_tries + 1 >= CODE_TRIES)) throw new HttpError(429, tooMany);
+    throw bad('That code is not right. Check the email and try again.');
+  }
+  const used = await env.DB.prepare('UPDATE login_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?')
+    .bind(t, hit.token_hash, t).run();
+  if (used.meta.changes !== 1) throw bad(gone);
+  const tok = await env.DB.prepare('SELECT * FROM login_tokens WHERE token_hash = ?').bind(hit.token_hash).first();
+  const breederId = await breederForVerifiedEmail(env, tok.email, { businessName: tok.signup_name, method: 'code' });
+  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId) });
+  res.headers.append('set-cookie', setCookie(request, signinCookieName(request), '', 0));
+  return res;
 }
 
 /** A plain server-rendered page. wide is for reading pages such as the privacy policy. */
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=5"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=6"></head>
 <body class="plain"><main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
@@ -259,6 +348,17 @@ async function signOut(request, env) {
   return json({ ok: true }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
 }
 
+/** Sign out of every device, this one included (plan P6.3; P2.7 gives it a screen). */
+async function signOutAll(request, env) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  const r = await env.DB.batch([
+    env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL').bind(now(), breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'breeder.signout_all', 'breeder', breeder.id, null, null),
+  ]);
+  return json({ ok: true, ended: r[0].meta.changes }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
+}
+
 // ------------------------------------------------------------------ profile
 
 function publicBreeder(b, s) {
@@ -285,39 +385,20 @@ async function me(request, env) {
   return json(out);
 }
 
-function profileFields(body) {
-  const website = clean(body.website_url, 300);
-  if (website && !/^https?:\/\/[^\s]+\.[^\s]+$/i.test(website)) throw bad('The website needs to start with https://');
-  const pubEmail = clean(body.public_email, 200);
-  if (pubEmail && !EMAIL_RX.test(pubEmail)) throw bad('The public email does not look right.');
-  const name = clean(body.business_name, 120);
-  if (!name) throw bad('Your business name is required.');
-  return {
-    business_name: name, contact_name: clean(body.contact_name, 120), public_phone: clean(body.public_phone, 40),
-    public_email: pubEmail, website_url: website, city: clean(body.city, 80), state: clean(body.state, 40),
-    description: clean(body.description, 4000),
-  };
-}
-
-async function saveProfile(request, env) {
+async function saveProfile(request, env, ctx) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
   if (!['pending', 'approved'].includes(breeder.status)) throw forbidden('Your profile cannot be changed right now.');
   const body = await readJson(request);
   const f = profileFields(body);
-  const t = now();
   const stmts = [
-    env.DB.prepare(
-      `UPDATE breeder_profiles SET business_name = ?, contact_name = ?, public_phone = ?, public_email = ?, website_url = ?,
-         city = ?, state = ?, description = ?, updated_at = ?, version = version + 1
-       WHERE breeder_id = ? AND version = ?`,
-    ).bind(f.business_name, f.contact_name, f.public_phone, f.public_email, f.website_url, f.city, f.state, f.description, t,
-      breeder.id, Number(body.version)),
-    auditStmt(env, 'breeder', breeder.email, 'profile.update', 'breeder', breeder.id, null, f),
+    profileStmt(env, breeder.id, f, body.version),
+    auditStmt(env, 'breeder', breeder.email, 'profile.update', 'breeder', breeder.id, profileBefore(breeder), f),
   ];
   if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
   const res = await env.DB.batch(stmts);
   checkVersion(res[0], 'profile');
+  noticeContactChange(env, ctx, breeder, f, 'breeder');
   return me(request, env);
 }
 
@@ -784,7 +865,9 @@ const ROUTES = [
   ['POST', /^\/auth\/start$/, authStart],
   ['GET', /^\/auth\/verify$/, (r) => authVerifyPage(r)],
   ['POST', /^\/auth\/verify$/, authVerify],
+  ['POST', /^\/auth\/code$/, authCode],
   ['POST', /^\/auth\/signout$/, signOut],
+  ['POST', /^\/auth\/signout-all$/, signOutAll],
   ['GET', /^\/auth\/google$/, googleStart],
   ['GET', /^\/auth\/google\/callback$/, googleCallback],
   ['GET', /^\/auth\/google\/nonce$/, oneTapNonce],
@@ -832,8 +915,13 @@ export default {
         if (!m) continue;
         if (request.method !== method) continue;
         // Every handler takes (request, env, ctx, id), with id from the route when it has one.
-        const res = await fn(request, env, ctx, m[1]);
-        return withHeaders(res, SECURITY_HEADERS);
+        const res = withHeaders(await fn(request, env, ctx, m[1]), SECURITY_HEADERS);
+        // A renewed session refreshes its cookie (plan P6.3), unless the handler set or
+        // cleared the session cookie itself, or the response may be cached publicly.
+        const renewed = RENEWED.get(request);
+        if (renewed && !(res.headers.get('set-cookie') || '').includes(`${sessionCookieName(request)}=`)
+          && !/public/.test(res.headers.get('cache-control') || '')) res.headers.append('set-cookie', renewed);
+        return res;
       }
       if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) throw notFound();
       const asset = await env.ASSETS.fetch(new Request(new URL(url.pathname === '/' ? '/index.html' : url.pathname, url), request));

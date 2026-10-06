@@ -90,9 +90,13 @@
     var c = state.config || {};
     app.innerHTML = '<main class="plain-card"><div class="plain-mark"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></div>' +
       (sent ? '<h1>Check your email</h1><p>' + esc(sent) + '</p>' +
+        // Plan P6.2. The code is typed here, in the tab that asked, so a phone never has to switch to the email's own browser.
+        '<form id="codeform" novalidate><div class="field"><label for="code">Sign-in code</label>' +
+        '<input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required class="code-input"></div>' +
+        '<button class="btn btn-primary" type="submit">Sign in</button></form>' +
         // The mailbox follows EMAIL_MODE alone (plan P7.3). Staging keeps it, without the test-version wording, until real email is on.
-        (c.mailbox ? (c.notices ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your link.</p>'
-          : '<p class="muted small">Email delivery is not switched on yet, so your link is waiting in the <a href="/dev/mail">portal mailbox</a>.</p>') : '') +
+        (c.mailbox ? (c.notices ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your code and link.</p>'
+          : '<p class="muted small">Email delivery is not switched on yet, so your code and link are waiting in the <a href="/dev/mail">portal mailbox</a>.</p>') : '') +
         '<p class="muted small">Wrong address? <a href="/" data-restart>Start again</a>.</p>'
       : '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection. There is no password to remember.</p>' +
         (/google=failed/.test(location.search) ? '<p class="notice notice-alert">Google sign-in did not go through. Please try again, or use your email below.</p>' : '') +
@@ -105,6 +109,19 @@
         (c.local && c.notices ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '')) +
       '</main><footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer>';
     var r = $('[data-restart]'); if (r) r.addEventListener('click', function (e) { e.preventDefault(); renderSignIn(); });
+    var cf = $('#codeform');
+    if (cf) {
+      $('#code', cf).focus();
+      cf.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var code = ($('#code', cf).value || '').replace(/\D/g, '');
+        if (code.length !== 6) return showError(cf, new Error('The code is the six numbers in the email.'));
+        var b = $('button[type=submit]', cf); b.disabled = true;
+        api('POST', '/auth/code', { code: code })
+          .then(function () { location.hash = '#/'; location.reload(); })
+          .catch(function (err) { b.disabled = false; showError(cf, err); });
+      });
+    }
     if (c.google && !sent) startGoogle();
     if (c.turnstile_site_key && !window.turnstile) {
       var s = document.createElement('script'); s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'; s.async = true; document.head.appendChild(s);

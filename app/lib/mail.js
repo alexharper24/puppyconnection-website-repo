@@ -16,12 +16,27 @@ function signOff() {
 }
 
 export const TEMPLATES = {
-  signin_link: ({ link, purpose }) => ({
+  // Plan P6.2. The code is for the browser that asked, typed into the page still open there,
+  // and the link works anywhere. Either one signs in once, and both end after 15 minutes.
+  signin_link: ({ link, code, purpose }) => ({
     subject: purpose === 'signup' ? 'Finish creating your Puppy Connection account' : 'Your Puppy Connection sign-in link',
-    text: `${purpose === 'signup' ? 'Thanks for signing up.' : 'Here is the sign-in link you asked for.'} ` +
-      `Open this link and press Sign in to continue. It works once and expires in 15 minutes.\n\n${link}\n\n` +
-      'If you did not ask for this, you can ignore it and nothing will change.' + signOff(),
+    text: (purpose === 'signup' ? 'Thanks for signing up.' : 'Here is the sign-in you asked for.') +
+      (code ? `\n\nYour sign-in code is\n\n    ${code}\n\nType it into the Puppy Connection page you have open, in the same browser where you asked for it.` : '') +
+      `\n\n${code ? 'Or open this link' : 'Open this link'} and press Sign in.\n\n${link}\n\n` +
+      `${code ? 'The code and the link each work once' : 'The link works once'} and stop working after 15 minutes. ` +
+      `If you did not ask for this, you can ignore it and nothing will change.${code ? ' Never share the code with anyone.' : ''}` + signOff(),
     link,
+  }),
+  // Plan P6.6. Sent to the sign-in address, so the real owner hears about a change they did not make.
+  contact_changed: ({ business, changes, by, portalUrl }) => ({
+    subject: 'Your Puppy Connection contact details were changed',
+    text: `The contact details buyers see for ${business || 'your kennel'} on Puppy Connection were just changed ` +
+      `${by === 'operator' ? 'by the Puppy Connection team' : 'in the breeder portal'}.\n\n` +
+      changes.map((c) => `  ${c.label}\n    was ${c.from || '(blank)'}\n    now ${c.to || '(blank)'}`).join('\n\n') +
+      '\n\nIf you made this change, there is nothing to do. If you did not, please contact Puppy Connection right away ' +
+      'by replying to this email, so we can put your details back and keep your account safe.' +
+      (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
+    link: portalUrl || undefined,
   }),
   profile_submitted: ({ business, adminUrl }) => ({
     subject: `New breeder waiting for approval: ${business}`,

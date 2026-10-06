@@ -6,7 +6,10 @@ import {
   now, addDays, slugify, clean, cents, HttpError, notFound, bad, json, readJson,
   requireSameOrigin, SECURITY_HEADERS, withHeaders, gate, showTestNotices,
 } from '../lib/util.js';
-import { loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithPuppies, photoUrl } from '../lib/store.js';
+import {
+  loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithPuppies, photoUrl,
+  profileFields, profileStmt, profileBefore, noticeContactChange,
+} from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
 import { identify } from './identity.js';
 import { buildExport } from '../lib/export.js';
@@ -160,6 +163,27 @@ async function changeEmail(req, env, ctx, id, who) {
     if (/UNIQUE/i.test(e.message)) throw bad('Another account already uses that address.');
     throw e;
   }
+  return breederDetail(req, env, ctx, id);
+}
+
+/**
+ * An operator edits a breeder's profile on their behalf. The write is checked exactly as the
+ * portal checks it, recorded in the audit as done by the operator, and a change to the public
+ * phone, email or website is emailed to the breeder (plan P6.6). P3.1 gives it a screen.
+ */
+async function editProfile(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const b = await loadBreeder(env, id);
+  if (!b) throw notFound();
+  const body = await readJson(req);
+  const f = profileFields(body);
+  const stmts = [
+    profileStmt(env, id, f, body.version),
+    auditStmt(env, 'operator', who.email, 'profile.update', 'breeder', id, profileBefore(b), f),
+  ];
+  if (b.status === 'approved') stmts.push(dirtyStmt(env));
+  checkVersion((await env.DB.batch(stmts))[0], 'profile');
+  noticeContactChange(env, ctx, b, f, 'operator');
   return breederDetail(req, env, ctx, id);
 }
 
@@ -333,7 +357,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=5"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=6"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
@@ -346,6 +370,7 @@ const ROUTES = [
   ['GET', /^\/api\/breeders\/([\w-]+)$/, breederDetail],
   ['POST', /^\/api\/breeders\/([\w-]+)\/(approve|decline|suspend|reinstate|reopen)$/, null],
   ['PUT', /^\/api\/breeders\/([\w-]+)\/email$/, changeEmail],
+  ['PUT', /^\/api\/breeders\/([\w-]+)\/profile$/, editProfile],
   ['GET', /^\/api\/listings$/, listListings],
   ['POST', /^\/api\/puppies\/([\w-]+)\/hold$/, holdPuppy],
   ['POST', /^\/api\/puppies\/([\w-]+)\/comp$/, compPuppy],

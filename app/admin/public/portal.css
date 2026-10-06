@@ -233,6 +233,8 @@ body.plain { display: grid; place-items: start center; min-height: 100dvh; paddi
 .gsi-button:empty { display: none; }
 .or { display: flex; align-items: center; gap: .8rem; color: var(--muted); font-size: .85rem; margin: 1.1rem 0 .2rem; }
 .or::before, .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+/* Plan P6.2, the emailed sign-in code. Big, spaced digits that read easily off a phone. */
+.code-input { font-size: 1.5rem; letter-spacing: .35em; font-variant-numeric: tabular-nums; max-width: 12rem; }
 .brandmark img { width: 100%; height: auto; display: block; }
 .plain-mark { display: grid; place-items: center; background: var(--rail-bg); border-radius: 10px; padding: 1rem; margin: -.4rem -.4rem 1.2rem; }
 .plain-mark img { width: 10rem; height: auto; display: block; }

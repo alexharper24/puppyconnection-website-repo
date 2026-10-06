@@ -118,7 +118,7 @@ directly.
 ## Walking the journey
 
 1. At the portal, enter any `@breeders.test` address and a business name.
-2. Open the local mailbox, press **Open the link**, then **Sign in**.
+2. Open the local mailbox and type the six-digit code into the portal tab, or press **Open the link**, then **Sign in**.
 3. Fill in the profile, tick the terms, and submit.
 4. In the operator screens, open **Approvals**, pick the breeder and approve.
 5. Back in the portal, add a litter, add a puppy, and add at least one photo.
@@ -130,8 +130,9 @@ directly.
 ## Tests
 
 ```bash
-node app/dev/e2e.mjs            # the whole journey, 37 checks
+node app/dev/e2e.mjs            # the whole journey, 41 checks
 node app/dev/access-tests.mjs   # the ten acceptance tests from build spec section 4
+node app/dev/signin-test.mjs    # the sign-in code, 60-day sessions, the contact change notice
 ```
 
 Both run against the servers above. The access tests call every portal route that takes an
@@ -173,6 +174,18 @@ simulation cannot email a real breeder.
   GPS and published photos land in this public repository.
 - `GET /auth/verify` changes nothing and shows a button. Only the `POST` spends the link,
   because mail scanners open every link first.
+- The six-digit sign-in code works only in the browser that asked for it. `/auth/start` sets a
+  15-minute HttpOnly cookie, and the stored hash covers that cookie and the code together, so a
+  code read over someone's shoulder is no use elsewhere. Five wrong codes spend that sign-in,
+  link included, and an address takes no codes for a day after 20 wrong ones (its links still
+  work). The link works in any browser, as it always has.
+- Breeder sessions run 60 days from their last renewal. Any use more than a day into the window
+  renews it and refreshes the cookie, so only an idle breeder is signed out.
+- A change to the public phone, public email or website, by the breeder or an operator, is
+  emailed to the sign-in address and never to the new public one. A breeder filling in the
+  profile before first submitting it gets no notice, because nothing is public yet.
+- Schema changes to an existing table go in `migrations/`, run once on each database after a
+  backup. `schema.sql` already carries them for a new database.
 - `dev/preview.mjs` patches its own copy of the concept's `js/main.js` in several places, which
   are listed in the script. The live concept is never changed. The patches exist because
   the concept groups breeders by website domain and assumes every photo is on Wix.

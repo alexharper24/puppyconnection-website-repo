@@ -212,7 +212,7 @@ WARNING: Deleting rows cannot be undone. Export a backup to `app/.state/` first.
 - [ ] Confirm the payment shows in the admin Payments screen.
 - [ ] Refund the payment in Stripe.
 - [ ] Confirm the refund shows in the admin and the operators get the refund alert.
-- [ ] Take the listing down in the admin. Today a refund leaves the listing up until an operator decides (plan P3.8).
+- [ ] Make sure the refunded puppy is off the site and shows as a draft in the portal. A full refund takes its listings down through `charge.refunded` (plan P3.8).
 
 ## L15 Restore rehearsal
 

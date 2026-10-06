@@ -137,6 +137,7 @@ node app/dev/jobs-test.mjs      # the scheduled jobs
 node app/dev/google-test.mjs    # Continue with Google, against a stand-in Google on 8799
 node app/dev/legal-staging-test.mjs     # the privacy and terms pages and the staging mode
 node app/dev/portal-features-test.mjs   # plan P2: standing, site links, extras, batches, views, account
+node app/dev/admin-features-test.mjs    # plan P3: every admin route operator-only, edits, notes, breeds, terms, publish, refunds, reports
 ```
 
 `portal-features-test.mjs` also needs the public site Worker running locally on 8791, which it
@@ -217,14 +218,37 @@ simulation cannot email a real breeder.
   operators. Nothing is deleted, and the admin marks the request handled after following up.
 - `listing_days` 0 hides every end date and renewal in the portal (plan P2.1, D8). Setting it
   above 0 brings them back with no code change.
+- An operator editing a breeder's profile, litter or puppy (plan P3.1) goes through the same
+  `profileFields`, `litterFields` and `puppyFields` in `lib/store.js` that the portal uses, so the
+  two can never accept different things. An edit may send only the fields that change. Every such
+  edit is in the activity log under the operator's address.
+- Operator notes (plan P3.2) are in `operator_notes`. Nothing the portal, the site export or a
+  report reads touches that table, and the activity log records only that a note was added. The
+  nightly backup does carry them, so they survive a restore.
+- The listing terms (plan P3.4) live in `terms_versions`. The row `draft` is the working copy, each
+  published version is its own row, and `settings.terms_version` names the current one, so the
+  Settings screen no longer edits it. A breeder on an older version sees a banner and an accept
+  button on every screen, and nothing is blocked while they have not accepted.
+- Publish now (plan P3.5) calls `publishNow()` in `lib/publish.js`. `PUBLISH_MODE` unset (mark)
+  only records the site as published, because staging reads the database live. P4.4 fills the
+  `portal` publisher, which calls the portal through a `PORTAL` service binding.
+- A refund (plan P3.8) always takes one path. The practice provider's `refund()` hands back the
+  `charge.refunded` event Stripe would send, and `handleEvent()` runs `applyRefund()`, exactly as
+  it will for Stripe's own webhook. A full refund takes the puppies it paid for off the site
+  (`payment_state` refunded, back to a draft), audits it and emails the breeder. A partial refund
+  and a dispute are recorded, shown and alerted, and leave the listing up. The admin's Refund
+  and dispute buttons work only with the practice provider until P4.5 proves the Stripe one.
+- Report CSVs (plan P3.7) are built on the server, and any text cell starting with `=`, `+`, `-`,
+  `@`, a tab or a carriage return gets a leading apostrophe, so a puppy named like a formula
+  cannot run in Amber's spreadsheet (`lib/csv.js`).
 
 ## Pending
 
 - [ ] Look at every screen at full size. Screenshots timed out in the browser pane during
       the 2026-09-30 build, so the layouts are measured (no sideways overflow at 320 and 375 in the portal and at 320 in the admin)
       but have not been looked at
-- [ ] Listing terms text from Amber, which replaces the REPLACE THIS on the profile screen
-      and on the portal's `/terms` page (`portal/legal.js`)
+- [ ] Listing terms text from Amber. It goes in on the admin's Terms screen, replacing the
+      REPLACE THIS draft, and Publish shows it on `/terms` and in the profile submit card
 - [ ] Amber's review of the draft privacy policy at `/privacy` (`portal/legal.js`), and the
       Puppy Connection contact email address, which replaces the REPLACE THIS in it twice.
       She also decides how long the activity record and payment records are kept after an
@@ -235,6 +259,10 @@ simulation cannot email a real breeder.
 - [ ] The kennel photo, breeds and Facebook page are in the site export but the concept pages
       have no place for them, so only the logo shows on the site today. They wait for the
       generated pages (plan P4.3)
+- [ ] Questions for Amber from the operator screens (plan P3): whether a dispute should take a
+      listing down while it is open (today it is recorded and shown, and the listing stays up),
+      whether a breeder who has not accepted new listing terms may still pay to list (today they
+      may), and her own breed list and guide text on the Breeds screen
 - [ ] How long the daily view and click counts are kept. Nothing prunes `puppy_stats` today,
       and it is small (one row per listed puppy per day it is viewed). A question for Amber
       with the other retention questions

@@ -33,7 +33,8 @@ const nowS = () => Math.floor(Date.now() / 1000);
 const good = (over = {}) => ({ iss: 'https://accounts.google.com', aud: CLIENT_ID, sub: '1234567890', email: 'test@example.com', email_verified: true, nonce: 'n-1', iat: nowS(), exp: nowS() + 3600, name: 'Test Person', ...over });
 
 async function part1() {
-  const k = await keyPair('k1'), other = await keyPair('k2');
+  // A new key id each run, as Google's rotation would, so a portal still holding the last run's keys fetches them again.
+  const k = await keyPair(`k1-${Date.now().toString(36)}`), other = await keyPair('k2');
   const keys = [k.jwk];
   const v = (token, nonce = 'n-1') => verifyIdToken(token, { clientId: CLIENT_ID, nonce, keys }).then(() => 'ok', (e) => e.message);
   check('a genuine token passes', await v(await sign(k, good())) === 'ok');

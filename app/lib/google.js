@@ -58,9 +58,15 @@ export async function exchangeCode(env, code, verifier, redirectUri) {
 }
 
 let keyCache = null;
-async function googleKeys(env) {
+// Google rotates its keys, so a token naming a key the cache does not hold fetches the list
+// again, at most once a minute so forged key ids cannot make the Worker fetch on every request.
+let lastForced = 0;
+async function googleKeys(env, kid) {
   const url = endpoint(env, 'GOOGLE_JWKS_URL', JWKS_URL);
-  if (keyCache && keyCache.url === url && keyCache.until > Date.now()) return keyCache.keys;
+  const fresh = keyCache && keyCache.url === url && keyCache.until > Date.now();
+  const missing = kid && fresh && !keyCache.keys.some((k) => k.kid === kid) && Date.now() - lastForced > 60000;
+  if (fresh && !missing) return keyCache.keys;
+  if (missing) lastForced = Date.now();
   const res = await fetch(url);
   if (!res.ok) throw new Error(`Could not fetch Google's signing keys (${res.status})`);
   const keys = (await res.json()).keys || [];
@@ -95,5 +101,7 @@ export async function verifyIdToken(idToken, { clientId, nonce, keys, nowSeconds
 }
 
 export async function verifyWithGoogle(env, idToken, nonce) {
-  return verifyIdToken(idToken, { clientId: env.GOOGLE_CLIENT_ID, nonce, keys: await googleKeys(env) });
+  let kid = null;
+  try { kid = json(String(idToken || '').split('.')[0]).kid || null; } catch { /* verifyIdToken reports it */ }
+  return verifyIdToken(idToken, { clientId: env.GOOGLE_CLIENT_ID, nonce, keys: await googleKeys(env, kid) });
 }

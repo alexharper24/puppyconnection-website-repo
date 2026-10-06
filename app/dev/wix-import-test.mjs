@@ -11,11 +11,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { DatabaseSync } from 'node:sqlite';
-import { APP, localD1File } from './node-env.mjs';
+import { APP, localD1File, d1 } from './node-env.mjs';
+import { exportSite } from '../lib/shape.js';
 
 const REPO = path.resolve(APP, '..');
+const WRANGLER = path.resolve(REPO, '../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-import-'));
 const PAIRING = path.join(APP, 'dev/fixtures/pairing-made-up.json');
 const JPEG = fs.readFileSync(path.join(APP, 'dev/fixtures/gps-test.jpg'));
@@ -71,6 +73,32 @@ try {
   check('each puppy keeps its Wix slug and address for the 301 map', count(db, "SELECT COUNT(*) AS n FROM puppies WHERE id LIKE 'wix-p-%' AND legacy_slug = slug AND legacy_url LIKE 'https://www.puppy-connection.com/product-page/%'") === listings.length);
   check('the import is audited and marks the site for publishing', count(db, "SELECT COUNT(*) AS n FROM audit_log WHERE action = 'import.wix'") === 1 && count(db, 'SELECT dirty AS n FROM site_state') === 1);
   check('the local database itself is untouched', count(local, 'SELECT COUNT(*) AS n FROM puppies') === localBefore);
+
+  // Decision D11: each photo sits under the portal's own upload key with its Wix address kept, and
+  // the published data names it at media/<id>, which the site Worker serves from R2.
+  check('each imported photo has the upload key the /media route serves, and keeps its Wix address',
+    count(db, "SELECT COUNT(*) AS n FROM photos WHERE id LIKE 'wix-ph-%' AND r2_key = 'uploads/' || breeder_id || '/' || id || '.jpg' AND external_url LIKE 'https://static.wixstatic.com/%'") === photoTotal);
+  {
+    const copy = d1(db);
+    const exp = await exportSite({ DB: copy });
+    copy.close();
+    const all = JSON.parse(exp.files['data/puppies.json']).filter((p) => listings.some((l) => l.slug === p.slug)).flatMap((p) => p.photos);
+    check('the published data names every imported photo at media/<id>, none at Wix', all.length === photoTotal && all.every((ph) => /^media\/wix-ph-[\w-]+$/.test(ph.src) && ph.card === `${ph.src}/card`), JSON.stringify(all.slice(0, 2)));
+  }
+
+  // --upload-to copies the stored files into R2, here wrangler's local R2 in a temporary folder.
+  const small = ['--pairing', PAIRING, '--db', path.join(TMP, 'small.sqlite'), '--files', path.join(TMP, 'r2small'), '--image-host', 'http://localhost:8797', '--drop-seed', '--allow-unpaired', '--limit', '1'];
+  const wr = path.join(TMP, 'wrangler-r2');
+  const up1 = await run([...small, '--upload-to', 'puppyconnection-files', '--upload-local', wr]);
+  const smallPhotos = count(path.join(TMP, 'small.sqlite'), "SELECT COUNT(*) AS n FROM photos WHERE id LIKE 'wix-ph-%'");
+  check(`--upload-to copies each imported photo into R2 (${smallPhotos} for one listing)`, up1.code === 0 && smallPhotos > 0 && new RegExp(`ok   copied ${smallPhotos} photos to puppyconnection-files`).test(up1.out), up1.out.slice(-600));
+  const ledger = JSON.parse(fs.readFileSync(path.join(TMP, 'r2small', '.uploaded-puppyconnection-files-local.json'), 'utf8'));
+  const firstKey = ledger[0];
+  const back = path.join(TMP, 'back.jpg');
+  const got = spawnSync(process.execPath, [WRANGLER, 'r2', 'object', 'get', `puppyconnection-files/${firstKey}`, '--file', back, '--local', '--persist-to', wr], { cwd: TMP });
+  check('... and a copied photo reads back from R2 byte for byte', got.status === 0 && fs.existsSync(back) && fs.readFileSync(back).equals(fs.readFileSync(path.join(TMP, 'r2small', ...firstKey.split('/')))), String(got.stderr).slice(-300));
+  const up2 = await run([...small, '--upload-to', 'puppyconnection-files', '--upload-local', wr]);
+  check('a second run copies nothing it already copied', up2.code === 0 && new RegExp(`${smallPhotos} photos, ${smallPhotos} already there, 0 to copy`).test(up2.out), up2.out.slice(-400));
 
   const hitsAfterFirst = hits;
   const again = await run(common);

@@ -701,7 +701,9 @@
         (s.last_error ? '<div class="notice notice-alert"><p><b>The last publish failed' + (s.last_error_at ? ' on ' + esc(when(s.last_error_at)) : '') + '.</b></p><p class="small">' + esc(s.last_error) + '</p></div>' : '') +
         '<section class="card"><h2>How the site updates</h2><p class="small">' + (s.mode === 'mark'
           ? 'This copy of the site reads the database live, so a change shows within about a minute and a half. Publish now records that the site is up to date. When the generated site arrives, the same button builds and publishes it.'
-          : 'Publish now asks the portal to build the site and publish it.') + '</p>' +
+          : s.mode === 'hook'
+            ? 'Publish now starts a fresh build of the public site from what the database shows now. The build takes a minute or two, then the changes are live. Changes also go out on their own every 15 minutes.'
+            : 'Publish now asks the portal to build the site and publish it.') + '</p>' +
           (s.recent.length ? '<h3>Recent publishes</h3>' + s.recent.map(function (p) {
             return '<div class="pay-row"><span class="when small">' + esc(when(p.at)) + '</span><span class="small">' + esc(p.actor) + '</span>' +
               (p.ok ? '<span class="pill pill-ok">Published</span>' : '<span class="pill pill-alert">Failed</span>') + '</div>';
@@ -715,7 +717,7 @@
         }).join('') + '</tbody></table></div></section>');
       $('#publish-now').addEventListener('click', function () {
         var b = $('#publish-now'); b.disabled = true; b.textContent = 'Publishing';
-        api('POST', '/api/site/publish', {}).then(function () { toast('Published'); publishScreen(); })
+        api('POST', '/api/site/publish', {}).then(function (res) { toast(res && res.nothing ? 'Nothing was waiting' : s.mode === 'hook' ? 'Build started. The site updates in a minute or two' : 'Published'); publishScreen(); })
           .catch(function (err) { toast(err.message); publishScreen(); });
       });
       $$('[data-run]').forEach(function (b) {

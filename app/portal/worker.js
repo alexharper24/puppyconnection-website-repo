@@ -19,6 +19,7 @@ import { siteBreederSlug } from '../lib/export.js';
 import { breederStats } from '../lib/stats.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
 import { publishSite } from '../lib/publish.js';
+import { exportSite } from '../lib/shape.js';
 import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
 } from '../lib/payments.js';
@@ -1148,6 +1149,18 @@ async function internalPublish(request, env) {
   return json(r, r.ok ? 200 : r.off ? 503 : 502);
 }
 
+/**
+ * The public data the site build reads (hook mode, lib/publish.js). It is exactly what
+ * lib/shape.js gives a publish, read from the public views and breeds only, so it holds nothing
+ * the site itself does not show. The build in the site repository fetches it, writes each file
+ * as data/<name>.json and builds the pages from them. Never cached, so a build always gets the
+ * database as it is.
+ */
+async function dataExport(request, env) {
+  const exp = await exportSite(env);
+  return json({ generation: exp.generation, counts: exp.counts, files: exp.files }, 200, { 'cache-control': 'no-store' });
+}
+
 // ------------------------------------------------------------------ router
 
 const ROUTES = [
@@ -1206,6 +1219,7 @@ const ROUTES = [
   ['GET', /^\/dev\/mail$/, devMail],
   ['GET', /^\/dev\/mail\.json$/, devMailJson],
   ['POST', /^\/internal\/publish$/, internalPublish],
+  ['GET', /^\/data\/export\.json$/, dataExport],
 ];
 
 export default {

@@ -36,6 +36,16 @@
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
     // Plan P2.2. The public site, for the View on the site links.
     "SITE_ORIGIN": "https://site.puppyconnection.workers.dev",
+    // Publishing (decisions D10 and D11, and Alex 2026-10-06). PUBLISH_MODE hook POSTs the site
+    // Worker's Workers Builds deploy hook, the secret PUBLISH_HOOK_URL, and the build in
+    // alexharper24/puppyconnection-site fetches /data/export.json from here. Until the secret is
+    // set the publish does nothing and says so. The GITHUB_* settings are for PUBLISH_MODE commit
+    // only, kept for later (for example on Workers Paid), and are unused in hook mode, so the
+    // GITHUB_TOKEN secret already on staging writes nothing.
+    "PUBLISH_MODE": "hook",
+    "GITHUB_REPO": "alexharper24/puppyconnection-site",
+    "GITHUB_BRANCH": "main",
+    "PUBLISH_DIR": "",
     "DEV_MODE": "staging",
     "EMAIL_MODE": "log",
     "PAYMENTS_MODE": "sim"

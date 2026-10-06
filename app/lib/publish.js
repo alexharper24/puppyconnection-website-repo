@@ -4,18 +4,27 @@
 // publisher chosen by PUBLISH_MODE. The portal does the real publish, publishSite(), from its
 // */15 cron (publishIfDue) and from /internal/publish, which the admin reaches through the
 // PORTAL service binding. The real publish lives in the portal because the portal already
-// runs the cron, and so the admin never holds the GitHub token.
+// runs the cron, and so the admin never holds the deploy hook or a token.
 //
-// PUBLISH_MODE (on the admin)
-//   mark    the default. Records the site as published. The staging site reads the database
-//           live, so there is nothing to build, and this only clears "changes waiting".
-//   portal  asks the portal, through the PORTAL service binding, to publish now. The portal
+// PUBLISH_MODE on the admin
+//   mark    the default when unset. Records the site as published and builds nothing, for a
+//           site that reads the database live.
+//   hook, commit or portal
+//           asks the portal, through the PORTAL service binding, to publish now. The portal
 //           keeps the bookkeeping, so this side only reports what it answered.
 //
-// publishSite() writes data/*.json (lib/shape.js) and every uploaded photo the pages need that
-// the repository does not have yet, as ONE commit through the Git Data API (lib/github.js),
-// under PUBLISH_DIR (default "site") in GITHUB_REPO. Without GITHUB_TOKEN it changes nothing
-// and says so.
+// PUBLISH_MODE on the portal, which does the work
+//   hook    the default (Alex, 2026-10-06). POSTs the Cloudflare Workers Builds deploy hook of
+//           the site Worker (secret PUBLISH_HOOK_URL). The build in the site repository,
+//           alexharper24/puppyconnection-site (decision D10), fetches /data/export.json from the
+//           portal, the same bytes lib/shape.js gives, builds every page and deploys. The
+//           Worker's own work is one request, which fits the free plan's 10 ms of CPU, where the
+//           commit below measured 13 to 50 ms. Without PUBLISH_HOOK_URL it does nothing and says so.
+//   commit  writes data/*.json as ONE commit through the Git Data API (lib/github.js) to
+//           GITHUB_REPO on GITHUB_BRANCH under PUBLISH_DIR, and the commit starts the build.
+//           Kept for later, for example on Workers Paid. Without GITHUB_TOKEN it does nothing.
+// Either way no photo is published to the repository (decision D11). The site Worker serves
+// every photo from R2 at /media.
 
 import { now } from './util.js';
 import { auditStmt } from './store.js';
@@ -47,6 +56,10 @@ const publishers = {
     },
   },
 };
+
+// The admin hands every real mode to the portal, which reads its own PUBLISH_MODE.
+publishers.hook = { ...publishers.portal, name: 'hook' };
+publishers.commit = { ...publishers.portal, name: 'commit' };
 
 export function publisher(env) {
   const p = publishers[env.PUBLISH_MODE || 'mark'];
@@ -111,18 +124,70 @@ export async function publishNow(env, actor) {
   }
 }
 
-// The most new files one publish sends. Each is one request to GitHub, and the free Workers plan
-// allows 50 outside requests per run, six of which the publish needs for itself.
-const maxFiles = (env) => Math.max(1, Number(env.PUBLISH_MAX_FILES) || 40);
-const DIR = (env) => String(env.PUBLISH_DIR ?? 'site').replace(/^\/+|\/+$/g, '');
+const DIR = (env) => String(env.PUBLISH_DIR ?? '').replace(/^\/+|\/+$/g, '');
 const join = (dir, p) => (dir ? `${dir}/${p}` : p);
 
+/** The portal's publish method: hook unless PUBLISH_MODE says commit. */
+export const portalMode = (env) => (env.PUBLISH_MODE === 'commit' ? 'commit' : 'hook');
+
+/** What is missing before the portal can publish in its mode, or null. */
+export function publishMissing(env) {
+  return portalMode(env) === 'commit' ? githubMissing(env) : hookMissing(env);
+}
+
+/** What is missing before the deploy hook can be called, or null. */
+export function hookMissing(env) {
+  const u = env.PUBLISH_HOOK_URL;
+  if (!u) return 'PUBLISH_HOOK_URL is not set, so the site is not rebuilt. Alex creates the Workers Builds deploy hook and sets it (launch checklist L16).';
+  // A deployed Worker only ever calls Cloudflare's API. The local test runs a stand-in hook.
+  const local = env.DEV_MODE === 'local' && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(u);
+  if (!local && !/^https:\/\/api\.cloudflare\.com\//.test(u)) return 'PUBLISH_HOOK_URL is not a Cloudflare deploy hook address, so it was not called.';
+  return null;
+}
+
 /**
- * The real publish, run by the portal. Returns { ok, sha, generation, files, photos, nothing }
- * or { ok: false, error, recorded } after recording the failure, or { ok: false, off: true,
- * error } without touching anything when GitHub is not set up.
+ * The real publish, run by the portal. Returns { ok, sha, generation, nothing, ... }, or
+ * { ok: false, error, recorded } after recording the failure, or { ok: false, off: true, error }
+ * without touching anything when the mode is not set up.
  */
 export async function publishSite(env, actor = { type: 'system', email: 'publish' }) {
+  return portalMode(env) === 'commit' ? publishCommit(env, actor) : publishHook(env, actor);
+}
+
+/**
+ * Hook mode. Starts one site build for everything up to the generation read here. Once the hook
+ * accepts, that generation counts as published, so the same changes never start a second build,
+ * and the build itself reads the data when it runs, which is at least this new.
+ */
+export async function publishHook(env, actor = { type: 'system', email: 'publish' }) {
+  const missing = hookMissing(env);
+  if (missing) return { ok: false, off: true, error: missing };
+  const s = await env.DB.prepare('SELECT generation, published_generation, last_publish_sha FROM site_state WHERE id = 1').first();
+  const gen = s.generation;
+  if (gen <= s.published_generation) return { ok: true, nothing: true, sha: s.last_publish_sha || 'nothing', generation: gen };
+  try {
+    const res = await fetch(env.PUBLISH_HOOK_URL, { method: 'POST', headers: { 'user-agent': 'puppyconnection-publish' } });
+    const text = await res.text();
+    // The address is the secret, so it never goes into a message, only the answer does.
+    if (!res.ok) throw new Error(`The deploy hook answered ${res.status}: ${text.slice(0, 200)}`);
+    let out = {};
+    try { out = JSON.parse(text); } catch { /* an empty or plain answer is still accepted */ }
+    if (out && out.success === false) throw new Error(`The deploy hook refused the build: ${JSON.stringify(out.errors || out).slice(0, 200)}`);
+    const id = (out && out.result && (out.result.build_uuid || out.result.id)) || 'accepted';
+    const sha = `hook:${String(id).slice(0, 60)}`;
+    await env.DB.batch(recordSuccess(env, gen, sha, actor, 'hook', { build: id }));
+    return { ok: true, sha, generation: gen, build: id };
+  } catch (e) {
+    const msg = String(e.message || e).slice(0, 500);
+    await recordFailure(env, gen, actor, 'hook', msg);
+    return { ok: false, error: msg, recorded: true };
+  }
+}
+
+/**
+ * Commit mode, kept for later. Writes data/*.json as one commit, and the commit starts the build.
+ */
+export async function publishCommit(env, actor = { type: 'system', email: 'publish' }) {
   const missing = githubMissing(env);
   if (missing) return { ok: false, off: true, error: missing };
   const { generation: gen } = await env.DB.prepare('SELECT generation FROM site_state WHERE id = 1').first();
@@ -131,65 +196,20 @@ export async function publishSite(env, actor = { type: 'system', email: 'publish
     const exp = await exportSite(env);
     const base = await branchTree(env, dir ? `${dir}/` : '');
     const enc = new TextEncoder();
-    const dataChanges = [];
+    const changes = [];
     for (const [p, t] of Object.entries(exp.files)) {
       const bytes = enc.encode(t);
-      if (base.paths.get(join(dir, p)) !== await gitBlobSha(bytes)) dataChanges.push({ path: join(dir, p), bytes, binary: false });
+      if (base.paths.get(join(dir, p)) !== await gitBlobSha(bytes)) changes.push({ path: join(dir, p), bytes, binary: false });
     }
-    // A photo's or logo's file name never changes its content, so one already in the tree is
-    // already published. Anything else comes from R2. A card copy older uploads lack is the
-    // full file again, so no page points at a file that is not there.
-    const missingFiles = [];
-    const files = [];
-    let waitingFiles = 0;
-    for (const u of exp.uploads) {
-      if (base.paths.has(join(dir, u.path))) continue;
-      if (files.length >= maxFiles(env)) { waitingFiles += 1; continue; }
-      const obj = (await env.FILES.get(u.key)) || (u.fallback ? await env.FILES.get(u.fallback) : null);
-      if (!obj) { missingFiles.push(u.path); continue; }
-      files.push({ path: join(dir, u.path), bytes: new Uint8Array(await obj.arrayBuffer()), binary: true, upload: u });
-    }
-    // More new files than one run may send (the free plan allows 50 outside requests per run).
-    // This run commits photos only, ahead of the data that names them, and the site stays dirty so
-    // the next run carries on. The data goes up in the run that has every file it points at.
-    const partial = waitingFiles > 0;
-    const changes = partial ? files : [...dataChanges, ...files];
-    const photoIds = [...new Set(exp.uploads.filter((u) => u.kind === 'photo' && !u.committed
-      && (base.paths.has(join(dir, u.path)) || files.some((c) => c.upload === u))).map((u) => u.id))];
-    const photos = files.length;
-
     let sha = base.parent;
     if (changes.length) {
       const c = exp.counts;
-      sha = await commitChanges(env, base, changes, partial
-        ? `Publish ${photos} photo files ahead of the data\n\n${waitingFiles} more wait for the next run, generation ${gen}, by ${actor.email}.\nWritten by the Puppy Connection publish.`
-        : `Publish the site: ${c.puppies} puppies from ${c.breeders} breeders\n\n`
-        + `${changes.length - photos} data file${changes.length - photos === 1 ? '' : 's'} and ${photos} photo file${photos === 1 ? '' : 's'}, `
-        + `generation ${gen}, by ${actor.email}.\nWritten by the Puppy Connection publish. data/*.json belongs to the database, so do not edit it here.`);
+      sha = await commitChanges(env, base, changes, `Publish the site: ${c.puppies} puppies from ${c.breeders} breeders\n\n`
+        + `${changes.map((x) => x.path).join(', ')}, generation ${gen}, by ${actor.email}.\n`
+        + 'Written by the Puppy Connection publish. data/*.json belongs to the database, so do not edit it here.');
     }
-    if (partial) {
-      const t = now();
-      const stmts = [
-        env.DB.prepare('UPDATE site_state SET last_error = NULL WHERE id = 1'),
-        auditStmt(env, actor.type, actor.email, 'site.publish_photos', 'site', 'github', null, { generation: gen, sha, photos, waiting: waitingFiles }),
-      ];
-      for (let i = 0; i < photoIds.length; i += 90) {
-        const ids = photoIds.slice(i, i + 90);
-        stmts.push(env.DB.prepare(`UPDATE photos SET committed_at = ? WHERE committed_at IS NULL AND id IN (${ids.map(() => '?').join(',')})`).bind(t, ...ids));
-      }
-      await env.DB.batch(stmts);
-      return { ok: true, partial: true, sha, generation: gen, files: 0, photos, waiting_files: waitingFiles, missing: missingFiles };
-    }
-    const t = now();
-    const stmts = recordSuccess(env, gen, sha, actor, 'github', {
-      files: changes.length - photos, photos, nothing: !changes.length, ...(missingFiles.length ? { missing: missingFiles.slice(0, 20) } : {}),
-    });
-    for (let i = 0; i < photoIds.length; i += 90) {
-      const ids = photoIds.slice(i, i + 90);
-      stmts.push(env.DB.prepare(`UPDATE photos SET committed_at = ? WHERE committed_at IS NULL AND id IN (${ids.map(() => '?').join(',')})`).bind(t, ...ids));
-    }
-    await env.DB.batch(stmts);
-    return { ok: true, sha, generation: gen, files: changes.length - photos, photos, nothing: !changes.length, missing: missingFiles };
+    await env.DB.batch(recordSuccess(env, gen, sha, actor, 'github', { files: changes.length, nothing: !changes.length }));
+    return { ok: true, sha, generation: gen, files: changes.length, nothing: !changes.length };
   } catch (e) {
     const msg = String(e.message || e).slice(0, 500);
     await recordFailure(env, gen, actor, 'github', msg);
@@ -199,18 +219,25 @@ export async function publishSite(env, actor = { type: 'system', email: 'publish
 
 /**
  * The cron's half (spec 9). Nothing happens unless the site has changes waiting and the first
- * of them is at least 60 seconds old, so a burst of edits becomes one commit.
+ * of them is at least 60 seconds old, so a burst of edits becomes one build. In hook mode it also
+ * waits while the last build may still be running (PUBLISH_HOOK_GAP_SECONDS, default 180), so a
+ * Publish now just before the cron does not start a second build on top of the first.
  */
 export async function publishIfDue(env, { minAgeMs = 60000 } = {}) {
-  const s = await env.DB.prepare('SELECT generation, published_generation, dirty_since FROM site_state WHERE id = 1').first();
+  const s = await env.DB.prepare('SELECT generation, published_generation, dirty_since, last_publish_at FROM site_state WHERE id = 1').first();
   const waiting = s.generation - s.published_generation;
   if (waiting <= 0) return { waiting: 0 };
   const age = s.dirty_since ? Date.now() - Date.parse(s.dirty_since) : Infinity;
   if (age < minAgeMs) return { waiting, wait: true, age_seconds: Math.floor(age / 1000) };
-  const missing = githubMissing(env);
+  const missing = publishMissing(env);
   if (missing) return { waiting, off: true, reason: missing };
+  if (portalMode(env) === 'hook' && s.last_publish_at) {
+    const gap = Number(env.PUBLISH_HOOK_GAP_SECONDS ?? 180) * 1000;
+    const since = Date.now() - Date.parse(s.last_publish_at);
+    if (since < gap) return { waiting, wait: true, build_running: true, since_seconds: Math.floor(since / 1000) };
+  }
   const r = await publishSite(env, { type: 'system', email: 'publish-cron' });
   // A failure is already recorded and alerted once by publishSite, so the job does not alert again.
   if (!r.ok) return { waiting, failed: r.error };
-  return { waiting, sha: r.sha, generation: r.generation, files: r.files, photos: r.photos, nothing: r.nothing };
+  return { waiting, mode: portalMode(env), sha: r.sha, generation: r.generation, files: r.files, build: r.build, nothing: r.nothing };
 }

@@ -3,8 +3,16 @@
 // metadata and stored as uploads, then checked: counts match and every photo is present.
 //
 // It works on a COPY of the database and a folder standing in for R2, never on the live
-// database. Moving the copy and the photos to D1 and R2 at launch is a separate, reviewed step
-// (docs/launch-checklist.md).
+// database. Moving the copy's rows to D1 at launch is a separate, reviewed step
+// (docs/launch-checklist.md, L17).
+//
+// Photos (decision D11). Each photo is stored under uploads/<breeder id>/<photo id>.<ext>, the
+// same key the portal gives a breeder's own upload, and its row keeps that key in r2_key and the
+// Wix address in external_url. The site Worker serves any photo with an r2_key at
+// /media/<photo id> (lib/media.js), so an imported photo needs nothing else once its file is in
+// R2, and a photo row without an r2_key keeps showing from Wix. --upload-to copies the stored
+// files into the real bucket, and it must finish before the rows reach D1, or the pages would
+// name photos R2 does not have yet.
 //
 //   node app/ops/wix-import.mjs --pairing <file> [options]
 //
@@ -20,6 +28,13 @@
 //   --limit <n>          import only the first n paired listings (a quick real-Wix check)
 //   --allow-unpaired     import what is paired even when some listings are not
 //   --dry-run            change nothing and fetch nothing, and print what would happen
+//   --upload-to <bucket> after the import, copy every imported photo file into this R2 bucket with
+//                        wrangler (CLOUDFLARE_ACCOUNT_ID set, signed in), four at a time and each
+//                        tried twice before it counts as failed. A file already copied
+//                        is listed in <files>/.uploaded-<bucket>.json and skipped, so an
+//                        interrupted run carries on where it stopped
+//   --upload-local <dir> with --upload-to, copy into wrangler's local R2 under <dir> instead of
+//                        the real bucket (the test)
 //
 // Running it again changes nothing that is already in place: ids come from the listing slugs,
 // rows are inserted only when missing, and a photo already stored is not fetched again.
@@ -27,6 +42,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import { DatabaseSync } from 'node:sqlite';
+import { spawn } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { d1, r2, freshSchema, localD1File } from '../dev/node-env.mjs';
@@ -36,6 +52,7 @@ import { dirtyStmt, auditStmt } from '../lib/store.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
 const REPO = path.resolve(APP, '..');
+const WRANGLER = path.resolve(REPO, '../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
 
 const argv = process.argv.slice(2);
 const opt = (n, d) => { const i = argv.indexOf(`--${n}`); return i >= 0 ? argv[i + 1] : d; };
@@ -191,6 +208,7 @@ export async function main() {
         }
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const img = cleanImage(new Uint8Array(await res.arrayBuffer()));
+        // The portal's own upload key, so /media/<photo id> serves it like any upload (D11).
         const key = `uploads/${p.breeder_id}/${p.id}.${EXT[img.type]}`;
         await files.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
         const aspect = img.size && img.size.h ? Math.round((img.size.w / img.size.h) * 1000) / 1000 : null;
@@ -207,8 +225,52 @@ export async function main() {
 
   // ---- prove it
   const check = await verify(db, files, todo, plan);
+  let upload = null;
+  if (opt('upload-to')) upload = await uploadPhotos(db, filesDir, opt('upload-to'), { localDir: opt('upload-local') });
   db.close();
-  return { plan, fetched, failed: failed.length, ...check };
+  return { plan, fetched, failed: failed.length, ...check, upload, ok: check.ok && (!upload || !upload.failed) };
+}
+
+/**
+ * Copy every imported photo file into an R2 bucket with wrangler, four at a time, skipping any
+ * the ledger says is already there. Each file goes up with the content type its row records.
+ */
+export async function uploadPhotos(db, filesDir, bucket, { localDir = null } = {}) {
+  if (!/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(bucket)) fail(`--upload-to needs an R2 bucket name, not "${bucket}"`);
+  const ledgerFile = path.join(filesDir, `.uploaded-${bucket}${localDir ? '-local' : ''}.json`);
+  const done = new Set(fs.existsSync(ledgerFile) ? JSON.parse(fs.readFileSync(ledgerFile, 'utf8')) : []);
+  const rows = (await db.prepare("SELECT r2_key, content_type FROM photos WHERE id LIKE 'wix-ph-%' AND r2_key IS NOT NULL ORDER BY r2_key").all()).results;
+  const todo = rows.filter((r) => !done.has(r.r2_key));
+  console.log(`upload to ${bucket}${localDir ? ' (local)' : ''}: ${rows.length} photos, ${rows.length - todo.length} already there, ${todo.length} to copy`);
+  const where = localDir ? ['--local', '--persist-to', path.resolve(localDir)] : ['--remote'];
+  const putOnce = (r) => new Promise((resolve) => {
+    const child = spawn(process.execPath, [WRANGLER, 'r2', 'object', 'put', `${bucket}/${r.r2_key}`, '--file', path.join(filesDir, ...r.r2_key.split('/')),
+      '--content-type', r.content_type, ...where], { stdio: ['ignore', 'ignore', 'pipe'] });
+    let err = '';
+    child.stderr.on('data', (d) => { err += d; });
+    child.on('close', (code) => resolve(code === 0 ? null : `${r.r2_key}: ${err.trim().split('\n').pop()}`));
+  });
+  // One more try after a pause, because a single put can drop its connection.
+  const put = async (r) => { const e = await putOnce(r); if (!e) return null; await new Promise((ok) => setTimeout(ok, 1500)); return putOnce(r); };
+  const failed = [];
+  let copied = 0;
+  const queue = todo.slice();
+  const save = () => fs.writeFileSync(ledgerFile, JSON.stringify([...done].sort()));
+  async function worker() {
+    for (let r = queue.shift(); r; r = queue.shift()) {
+      const e = await put(r);
+      if (e) { failed.push(e); continue; }
+      done.add(r.r2_key);
+      copied += 1;
+      if (copied % 50 === 0) { save(); console.log(`  ${copied} of ${todo.length} copied`); }
+    }
+  }
+  // Four at a time to the real bucket. Wrangler's local store takes one at a time, because
+  // several local puts at once can lose their connection while it starts up (seen 2026-10-06).
+  await Promise.all(Array.from({ length: localDir ? 1 : 4 }, worker));
+  save();
+  console.log(`${failed.length ? 'BAD ' : 'ok  '} copied ${copied} photos to ${bucket}${failed.length ? `, ${failed.length} failed:\n  ${failed.slice(0, 10).join('\n  ')}` : ''}`);
+  return { copied, skipped: rows.length - todo.length, failed: failed.length };
 }
 
 /** Counts match the harvest, every photo row has its file, and every puppy is public. */

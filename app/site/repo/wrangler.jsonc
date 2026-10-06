@@ -1,0 +1,42 @@
+// The public Puppy Connection site. Cloudflare Workers Builds runs build/ci-build.sh, which fetches
+// the public data from the portal and builds the pages, then `npx wrangler deploy`, whenever the
+// portal calls the deploy hook (a publish) and on every push to main (a code change).
+//
+// Written by app/site/repo/wrangler.jsonc in alexharper24/puppyconnection-website-repo and copied
+// here by app/build/sync-site-repo.mjs. Change it there.
+//
+// WARNING: the name is "site", the staging site at site.puppyconnection.workers.dev. Connecting
+// Workers Builds to that Worker replaces the live-read stand-in with these generated pages, which
+// is the switch-over. Do not run `wrangler deploy` from a laptop before then.
+{
+  "name": "site",
+  "account_id": "4f6e9dc25ab751960763628b06e6c108",
+  "main": "worker/site.js",
+  "compatibility_date": "2026-08-18",
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "dist",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    // "none" because every link, canonical and sitemap entry ends in .html. The default would send
+    // each of them to its extensionless twin with a redirect. It also turns off / -> index.html,
+    // so the Worker serves the home page.
+    "html_handling": "none",
+    // Only these paths cost a Worker run. Everything else is a page or a file from dist.
+    "run_worker_first": ["/", "/media/*", "/brand/*", "/api/*"]
+  },
+  // The same database and file store as the portal and the admin. The Worker reads only the
+  // public views, and writes only the view and click count.
+  "d1_databases": [
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  // Plan P2.5. Up to 30 beacons a minute from one address, and one view and one click per address
+  // per puppy a minute.
+  "ratelimits": [
+    { "name": "BEACON_LIMITER", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } },
+    { "name": "BEACON_ONCE", "namespace_id": "4103", "simple": { "limit": 1, "period": 60 } }
+  ]
+}

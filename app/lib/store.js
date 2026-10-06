@@ -2,6 +2,7 @@
 
 import { now, notFound, forbidden, bad, clean, cents, HttpError } from './util.js';
 import { sendMail } from './mail.js';
+import { BRAND, serveBrand } from './media.js';
 
 /**
  * The ownership rule (spec 7), the Williams Sisters ownedRecipe pattern. Every breeder
@@ -199,7 +200,9 @@ export function noticeContactChange(env, ctx, breeder, after, by) {
 // Optional extras on the breeder page: a logo, one kennel photo, the breeds they raise and a
 // Facebook page. The images live in R2 under brand/<breeder id>/ with a ".card" copy beside
 // the full one, made in the browser the same way as puppy photos.
-export const BRAND = { logo: 'logo_key', kennel: 'kennel_key' };
+// BRAND and serveBrand live in lib/media.js, so the small site Worker can use them without
+// this file's imports. They are re-exported here for the portal and the admin.
+export { BRAND, serveBrand };
 
 const FACEBOOK_RX = /^https:\/\/(www\.|m\.|web\.)?facebook\.com\/[^\s<>"']+$/i;
 
@@ -226,30 +229,6 @@ export function brandUrl(base, breederId, kind, key) {
   if (!key) return null;
   const v = String(key).split('/').pop().split('.')[0].slice(-10).toLowerCase();
   return `${base}/brand/${breederId}/${kind}?v=${v}`;
-}
-
-/**
- * A logo or kennel photo. Anyone may have it while the breeder is public; otherwise only a
- * caller that allowPrivate() says may see it (the breeder themselves, or an operator).
- * Returns null when it should answer 404.
- */
-export async function serveBrand(env, breederId, kind, { card = false, allowPrivate = async () => false } = {}) {
-  const col = BRAND[kind];
-  if (!col || !breederId) return null;
-  const row = await env.DB.prepare(
-    `SELECT p.${col} AS k, EXISTS (SELECT 1 FROM public_breeders pb WHERE pb.breeder_id = p.breeder_id) AS pub
-       FROM breeder_profiles p WHERE p.breeder_id = ?`,
-  ).bind(breederId).first();
-  if (!row || !row.k) return null;
-  if (!row.pub && !(await allowPrivate())) return null;
-  const obj = (card && await env.FILES.get(`${row.k}.card`)) || await env.FILES.get(row.k);
-  if (!obj) return null;
-  return new Response(obj.body, {
-    headers: {
-      'content-type': obj.httpMetadata?.contentType || 'application/octet-stream',
-      'cache-control': row.pub ? 'public, max-age=86400' : 'private, no-store',
-    },
-  });
 }
 
 // ------------------------------------------------------------------ litter and puppy fields

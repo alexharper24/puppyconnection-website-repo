@@ -1,45 +1,97 @@
 #!/usr/bin/env bash
-# The site build that runs after every publish (spec section 9, plan P4.3).
+# The site build (spec section 9, decisions D10 and D11). Cloudflare Workers Builds runs this in
+# the site repository, alexharper24/puppyconnection-site, whenever the portal calls the site's
+# deploy hook (a publish) and on every push to main (a code change), and then runs
+# `npx wrangler deploy`. This file is the source of build/ci-build.sh there, copied by
+# app/build/sync-site-repo.mjs, so it is written for that repository's layout.
 #
-# The publish commits only data/*.json and new photos under PUBLISH_DIR (default "site"). This
-# script turns them into the public pages, refuses to go on if site-checks finds an error, and
-# leaves the pages in OUT for the deploy step. Without it a publish reaches GitHub and stops there,
-# which is the Teapup lesson of 2026-09-12.
+# THIS IS THE STEP THAT TURNS A PUBLISH INTO PAGES. Without it the deploy ships no pages, and a
+# breeder's change never reaches the site, which is the Teapup lesson of 2026-09-12.
 #
-#   bash app/build/ci-build.sh
+#   Build command in Workers Builds:   bash build/ci-build.sh
+#   Deploy command:                     npx wrangler deploy
+#   Locally, from the site repository: bash build/ci-build.sh   (add --deploy to deploy too)
 #
-# Settings, all optional:
-#   PUBLISH_DIR     the folder the publish writes to, default site
-#   OUT             where the pages go, default $RUNNER_TEMP/pc-site or /tmp/pc-site. Keep it
-#                   outside the git checkout, because check_site.py treats any file in a checkout
-#                   that git does not track as an image nobody committed.
+# Where the data comes from. In hook mode, the default, nothing commits data here, so the build
+# fetches it from DATA_URL, the portal's /data/export.json, which is read from the database's
+# public views. In commit mode the publish commits data/*.json here, and when all four files are
+# in the checkout the build uses them and fetches nothing.
+#
+# It builds the pages into a folder outside the checkout, checks them with check_site.py, and
+# only then copies them into dist/, which wrangler.jsonc names as the assets folder. Anything
+# that fails stops the build, so the site already deployed stays as it was. The pages are built
+# outside the checkout because check_site.py treats any file in a checkout that git does not track
+# as an image nobody committed.
+#
+# Settings, all optional, set as build variables in Workers Builds:
+#   DATA_URL        default https://portal.puppyconnection.workers.dev/data/export.json
 #   SITE_URL        the address pages name as canonical, default https://site.puppyconnection.workers.dev/
-#   PORTAL_ORIGIN   where the footer's privacy and terms links go
-#   SITE_INDEXABLE  1 at launch, to drop noindex (docs/launch-checklist.md)
-#   SITE_CHECKS     a checkout of github.com/alexharper24/site-checks, default ../site-checks
-#   PYTHON          the Python to run it with, default python3
-#
-# The deploy itself (wrangler deploy of the site Worker over OUT) needs a Cloudflare API token in
-# the CI secrets, which is Alex's to create, so it is not in this script yet.
+#   PORTAL_ORIGIN   where the footer's privacy and terms links go, default the staging portal
+#   SITE_INDEXABLE  1 at launch, to drop noindex (docs/launch-checklist.md in the app repository)
+#   SITE_CHECKS_URL where to fetch check_site.py, default the public alexharper24/site-checks.
+#                   When it cannot be fetched, the copy in build/check_site.py is used.
+#   PYTHON          the Python to run it with, default python3, then python
 
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+cd "$(dirname "$0")/.."
 
-PUBLISH_DIR="${PUBLISH_DIR:-site}"
-OUT="${OUT:-${RUNNER_TEMP:-/tmp}/pc-site}"
-SITE_CHECKS="${SITE_CHECKS:-../site-checks}"
+WORK="${TMPDIR:-/tmp}/pc-site-build"
+OUT="$WORK/pages"
+CHECKER="$WORK/check_site.py"
+DATA_URL="${DATA_URL:-https://portal.puppyconnection.workers.dev/data/export.json}"
+SITE_CHECKS_URL="${SITE_CHECKS_URL:-https://raw.githubusercontent.com/alexharper24/site-checks/main/check_site.py}"
 
 echo "=== node"
 node --version
 
+rm -rf "$WORK"
+mkdir -p "$WORK"
+
+echo "=== data"
+committed=1
+for f in breeds breeders litters puppies; do [ -f "data/$f.json" ] || committed=0; done
+if [ "$committed" = "1" ]; then
+  echo "using the data/*.json committed here (commit mode)"
+  DATA_DIR="."
+else
+  echo "fetching $DATA_URL"
+  node build/fetch-data.mjs "$DATA_URL" "$WORK/data-src"
+  DATA_DIR="$WORK/data-src"
+fi
+
 echo "=== pages"
-args=(--data "$PUBLISH_DIR" --out "$OUT")
+args=(--data "$DATA_DIR" --templates templates --out "$OUT")
 [ -n "${SITE_URL:-}" ] && args+=(--base "$SITE_URL")
 [ -n "${PORTAL_ORIGIN:-}" ] && args+=(--portal "$PORTAL_ORIGIN")
 [ "${SITE_INDEXABLE:-}" = "1" ] && args+=(--indexable)
-node app/build/generate.mjs "${args[@]}"
+node build/generate.mjs "${args[@]}"
 
 echo "=== site-checks"
-"${PYTHON:-python3}" "$SITE_CHECKS/check_site.py" "$OUT"
+if command -v curl >/dev/null 2>&1 && curl -fsSL --max-time 30 "$SITE_CHECKS_URL" -o "$CHECKER"; then
+  echo "using check_site.py from $SITE_CHECKS_URL"
+else
+  cp build/check_site.py "$CHECKER"
+  echo "using the copy in build/check_site.py"
+fi
+PY="${PYTHON:-}"
+if [ -z "$PY" ]; then
+  # Run each one rather than only finding it, because Windows has a python3 that only opens the Store.
+  if python3 -c '' >/dev/null 2>&1; then PY=python3; else PY=python; fi
+fi
+"$PY" --version
+PYTHONIOENCODING=utf-8 "$PY" "$CHECKER" "$OUT"
 
-echo "=== done, pages in $OUT"
+echo "=== dist"
+rm -rf dist
+mkdir -p dist
+cp -R "$OUT"/. dist/
+# The checker's settings are for the check only, so they are not served.
+rm -f dist/.sitecheck.json
+echo "$(find dist -name '*.html' | wc -l | tr -d ' ') pages in dist"
+
+if [ "${1:-}" = "--deploy" ]; then
+  echo "=== deploy"
+  npx wrangler deploy
+fi
+
+echo "=== done"

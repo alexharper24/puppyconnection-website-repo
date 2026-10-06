@@ -1,12 +1,26 @@
 // The public site generator (spec section 9, plan P4.3). It builds every public page from the
 // data files the publish commits (lib/shape.js), in the concept site's look: the concept's head,
 // header, footer, css/style.css and js/main.js, with one static page per puppy, breed and breeder.
-// Node only, no npm. CI runs it after each publish (app/build/ci-build.sh), then check_site.py as
-// a gate, then deploys the output.
+// Node only, no npm.
 //
-//   node app/build/generate.mjs --data <folder with data/ and img/> --out <folder>
-//        [--base https://site.puppyconnection.workers.dev/] [--portal https://portal...]
-//        [--indexable]
+// It runs in two places. The site repository (alexharper24/puppyconnection-site, decision D10)
+// carries a copy at build/generate.mjs, beside the concept's files in templates/, and Cloudflare
+// Workers Builds runs it there through build/ci-build.sh after each publish, over the data that
+// build/fetch-data.mjs fetches from the portal, then check_site.py as a gate, then deploys the
+// pages with the site Worker. This file is the source of that copy:
+// change it here, test it here, and send it across with app/build/sync-site-repo.mjs.
+//
+//   node build/generate.mjs --data <folder holding data/*.json> --out <folder>
+//        [--templates <folder>] [--base https://site.puppyconnection.workers.dev/]
+//        [--portal https://portal...] [--indexable]
+//
+// --templates is the folder holding the concept's index.html, puppies.html, list-with-us.html,
+// css/, img/ and js/main.js. It defaults to ../templates beside this file when that exists (the
+// site repository) and to the repository root otherwise (this repository, where the concept is).
+//
+// No photo is copied or committed (decision D11). The data names each photo as media/<id> or
+// brand/<breeder id>/<kind>, which the site Worker serves from R2, or as a Wix address for a
+// photo not imported yet.
 //
 // Without --indexable (or SITE_INDEXABLE=1) every page carries noindex and robots.txt turns
 // crawlers away, which is right for staging and for review. Launch turns it on (launch L-list).
@@ -25,6 +39,12 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '../..');
+/** The concept's files: ../templates in the site repository, the repository root here. */
+export function templatesDir(given) {
+  if (given) return path.resolve(given);
+  const beside = path.resolve(HERE, '../templates');
+  return fs.existsSync(path.join(beside, 'index.html')) ? beside : REPO;
+}
 const CONCEPT_BASE = 'https://alexharper24.github.io/puppyconnection-website-repo/';
 const FOOTER_ANCHOR = '<li><a href="list-with-us.html#pricing">Pricing</a></li>';
 
@@ -41,8 +61,8 @@ const longDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d\d)-(
 const shortDate = (iso) => (longDate(iso) || '').replace(/,? \d{4}$/, '');
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : `${t.slice(0, t.lastIndexOf(' ', n - 1) > 40 ? t.lastIndexOf(' ', n - 1) : n - 1)}...`; };
 
-// The concept's image helpers, for photos still on Wix. A committed photo is served from the site
-// itself, and a slot 640 px wide or less takes its card copy.
+// The concept's image helpers, for photos still on Wix. A photo in R2 is served by the site Worker
+// at media/<id>, and a slot 640 px wide or less takes its card copy at media/<id>/card.
 const isWix = (u) => /wixstatic\.com/.test(u || '');
 function wix(base, w, h) { return `${base}/v1/fill/w_${w},h_${h},al_t,q_82,usm_0.66_1.00_0.01,enc_auto/i.jpg`; }
 function wixFit(base, w, h) { return `${base}/v1/fit/w_${w},h_${h},q_85,enc_auto/i.jpg`; }
@@ -53,10 +73,10 @@ export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-$
 
 // js/main.js is copied with these changes, each of which must still match the concept's file.
 const MAIN_PATCHES = [
-  // Committed photos are served by the site, and narrow slots take the card copy.
+  // Photos in R2 are served by the site Worker at media/<id>, and narrow slots take the card copy.
   ["  function wix(base, w, h) {\n    if (!base) return '';", "  function wix(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return pcLocal(base, w);"],
   ["  function wixFit(base, w, h) {\n    if (!base) return '';", "  function wixFit(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return pcLocal(base, w);"],
-  ["  /* \"fit\" letterboxes", "  function pcLocal(base, w) {\n    return w <= 640 && /^img\\/p\\/[\\w-]+\\.\\w+$/.test(base) ? base.replace(/(\\.\\w+)$/, '.card$1') : base;\n  }\n  /* \"fit\" letterboxes"],
+  ["  /* \"fit\" letterboxes", "  function pcLocal(base, w) {\n    return w <= 640 && /^media\\/[\\w-]+$/.test(base) ? base + '/card' : base;\n  }\n  /* \"fit\" letterboxes"],
   // Breeder pages are named by the breeder's own slug, not their website.
   ['function breederSlug(l) { return l.breeder_domain ?', 'function breederSlug(l) { return l.breeder_slug || null; } function pcOldSlug(l) { return l.breeder_domain ?'],
   // A breeder with no website gets a stand-in domain for grouping, never shown as a website.
@@ -138,7 +158,11 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
 
 /** Read the data files and join them into what the pages need. */
 export function loadData(dataDir) {
-  const read = (f) => JSON.parse(fs.readFileSync(path.join(dataDir, 'data', f), 'utf8'));
+  const read = (f) => {
+    const file = path.join(dataDir, 'data', f);
+    if (!fs.existsSync(file)) throw new Error(`generate.mjs: ${file} is missing. The publish writes data/*.json, so nothing can be built until it has run once.`);
+    return JSON.parse(fs.readFileSync(file, 'utf8'));
+  };
   const breeds = read('breeds.json'), breeders = read('breeders.json'), litters = read('litters.json'), puppies = read('puppies.json');
   const breedBy = Object.fromEntries(breeds.map((b) => [b.slug, b]));
   const breederBy = Object.fromEntries(breeders.map((b) => [b.slug, b]));
@@ -162,10 +186,11 @@ const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 const order = { available: 0, pending: 1, placed: 2 };
 const byStanding = (a, b) => (order[a.availability] - order[b.availability]) || String(b.published_at).localeCompare(String(a.published_at)) || a.slug.localeCompare(b.slug);
 
-export function build({ dataDir, out, base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
+export function build({ dataDir, out, templates, base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
   if (!base.endsWith('/')) base += '/';
+  const T = templatesDir(templates);
   const D = loadData(dataDir);
-  const concept = (f) => fs.readFileSync(path.join(REPO, f), 'utf8').replace(/\r\n/g, '\n');
+  const concept = (f) => fs.readFileSync(path.join(T, f), 'utf8').replace(/\r\n/g, '\n');
   const idx = concept('index.html');
   const cssV = (idx.match(/css\/style\.css\?v=(\d+)/) || [])[1];
   const head0 = idx.slice(0, idx.indexOf('<title>'));
@@ -180,8 +205,7 @@ export function build({ dataDir, out, base = 'https://site.puppyconnection.worke
 
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
-  for (const dir of ['css', 'img']) fs.cpSync(path.join(REPO, dir), path.join(out, dir), { recursive: true });
-  for (const dir of ['img/p', 'img/b']) if (fs.existsSync(path.join(dataDir, dir))) fs.cpSync(path.join(dataDir, dir), path.join(out, dir), { recursive: true });
+  for (const dir of ['css', 'img']) fs.cpSync(path.join(T, dir), path.join(out, dir), { recursive: true });
   fs.mkdirSync(path.join(out, 'js'), { recursive: true });
   fs.mkdirSync(path.join(out, 'data'), { recursive: true });
   const mainJs = patchMain(concept('js/main.js'));
@@ -402,7 +426,7 @@ ${others.length ? `<section class="band">
   // js/main.js lists it (LOGOS), with a dark card for a white mark.
   const conceptLogos = Object.fromEntries([...concept('js/main.js').matchAll(/^\s+(\w+): \{ light: (true|false) \}/gm)].map((m) => [m[1], m[2] === 'true']));
   for (const b of breedersShown) {
-    if (!b.logo && b.slug in conceptLogos && fs.existsSync(path.join(REPO, `img/breeders/${b.slug}.webp`))) {
+    if (!b.logo && b.slug in conceptLogos && fs.existsSync(path.join(T, `img/breeders/${b.slug}.webp`))) {
       b.logo = { src: `img/breeders/${b.slug}.webp`, card: `img/breeders/${b.slug}.webp`, dark: conceptLogos[b.slug] };
     }
   }
@@ -516,7 +540,12 @@ ${others.length ? `<section class="band">
   fs.writeFileSync(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join('\n')}\n</urlset>\n`);
   fs.writeFileSync(path.join(out, 'robots.txt'), indexable ? `User-agent: *\nAllow: /\n\nSitemap: ${base}sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
   const redirects = D.puppies.filter((p) => p.legacy_slug).map((p) => `/product-page/${p.legacy_slug} /${pageFor.puppy(p.slug)} 301`).sort();
-  fs.writeFileSync(path.join(out, '_redirects'), `# Written by app/build/generate.mjs. Old Wix product pages go to the puppy's page.\n${redirects.join('\n')}\n`);
+  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page.\n${redirects.join('\n')}\n`);
+  // Stylesheets, scripts and the listing data are linked with ?v= and the number changes with the
+  // file, so they keep for a year. The concept's images keep their names when replaced, so a week.
+  // Photos from R2 get their headers from the site Worker.
+  const forever = '  Cache-Control: public, max-age=31536000, immutable';
+  fs.writeFileSync(path.join(out, '_headers'), `# Written by build/generate.mjs.\n/css/*\n${forever}\n/js/*\n${forever}\n/data/*\n${forever}\n/img/*\n  Cache-Control: public, max-age=604800\n`);
 
   // Breeders write their own descriptions, and many use em dashes. Those are their words and are
   // published as written, so check_site.py's dash check is off for the generated site. The site's
@@ -529,9 +558,9 @@ ${others.length ? `<section class="band">
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const dataDir = arg('data'), out = arg('out');
-  if (!dataDir || !out) { console.error('usage: node app/build/generate.mjs --data <folder> --out <folder> [--base URL] [--portal URL] [--indexable]'); process.exit(2); }
+  if (!dataDir || !out) { console.error('usage: node build/generate.mjs --data <folder> --out <folder> [--templates <folder>] [--base URL] [--portal URL] [--indexable]'); process.exit(2); }
   const r = build({
-    dataDir: path.resolve(dataDir), out: path.resolve(out),
+    dataDir: path.resolve(dataDir), out: path.resolve(out), templates: arg('templates', process.env.PC_TEMPLATES),
     base: arg('base', process.env.SITE_URL || 'https://site.puppyconnection.workers.dev/'),
     portal: arg('portal', process.env.PORTAL_ORIGIN || 'https://portal.puppyconnection.workers.dev'),
     indexable: process.argv.includes('--indexable') || process.env.SITE_INDEXABLE === '1',

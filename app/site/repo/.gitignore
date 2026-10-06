@@ -1,0 +1,8 @@
+# The built pages. build/ci-build.sh writes them, and Workers Builds deploys them.
+dist/
+.wrangler/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db

@@ -18,14 +18,16 @@
   "d1_databases": [
     { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
   ],
-  // Plan P4.4. Publish now with PUBLISH_MODE portal asks the portal to publish through this binding,
-  // at /internal/publish, which answers nothing that arrives any other way. PUBLISH_MODE is unset
-  // (mark) while the staging site reads the database live.
+  // Plan P4.4. Publish now with PUBLISH_MODE hook (or commit or portal) asks the portal to publish
+  // through this binding, at /internal/publish, which answers nothing that arrives any other way.
+  // The portal calls the site's deploy hook (lib/publish.js). Until PUBLISH_HOOK_URL is set on the
+  // portal, Publish now says publishing is not set up.
   "services": [{ "binding": "PORTAL", "service": "portal" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
   "vars": {
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
+    "PUBLISH_MODE": "hook",
     "DEV_MODE": "staging",
     "EMAIL_MODE": "log",
     "PAYMENTS_MODE": "sim",

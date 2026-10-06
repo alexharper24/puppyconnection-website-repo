@@ -1,0 +1,28 @@
+// The generated-pages site Worker (static-worker.js) run locally, for dev/publish-test.mjs part 3.
+// It is the same Worker and the same assets settings as the site repository's wrangler.jsonc
+// (app/site/repo/wrangler.jsonc), over the local database and file store. The test builds the
+// pages into app/.preview/static-site first, then from C:\Git_Repos:
+//   wrangler dev --config puppyconnection-website-repo/app/site/wrangler.static.jsonc --persist-to puppyconnection-website-repo/app/.state --port 8795
+{
+  "$schema": "../../../teapup-website-repo/admin/node_modules/wrangler/config-schema.json",
+  "name": "pc-site-static",
+  "main": "static-worker.js",
+  "compatibility_date": "2026-08-18",
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "../.preview/static-site",
+    "binding": "ASSETS",
+    "not_found_handling": "404-page",
+    "html_handling": "none",
+    "run_worker_first": ["/", "/media/*", "/brand/*", "/api/*"]
+  },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "00000000-0000-4000-8000-000000000c01" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  "ratelimits": [
+    { "name": "BEACON_LIMITER", "namespace_id": "4102", "simple": { "limit": 30, "period": 60 } },
+    { "name": "BEACON_ONCE", "namespace_id": "4103", "simple": { "limit": 1, "period": 60 } }
+  ]
+}

@@ -6,6 +6,18 @@ updated: 2026-10-07
 gate: G1                    # concept is built and in review, but discovery was skipped and every later gate depends on it
 review_url: "https://alexharper24.github.io/puppyconnection-website-repo/"
 live_url: "https://www.puppy-connection.com/"
+business:                   # g1-business, answered by Alex 2026-10-07, confirmed unless marked
+  model: "A listing service for breeders. The per-puppy listing fee is the only income, and nothing else is planned"
+  primary_audience: "Breeders, of every size: family breeders, larger kennels (Teapup and Sweet Puppy Paws are the examples) and others. Any breeder who applies can list"
+  secondary_audience: "Families looking for a puppy. They are what the directory sells to breeders, and the directory hands them to the breeder's own page"
+  why_breeders_list: "The network Amber has built and the exposure in their area, the way a breeder lists on several sites at once, at a low cost to list"
+  geography: "Indiana and the surrounding Midwest first, then outward, possibly beyond the Midwest"
+  conversion_family: "A click through to the breeder's own page for that puppy, set by the breeder in the portal. Checked 2026-10-07: 241 of 276 staging puppies link to their own page and all 241 answer and stay on it"
+  conversion_breeder: "A breeder signs up and pays to list"
+  volume_now: "About 67 listings a month (Alex's estimate, not yet from Amber)"
+  desired_state: "Hundreds of listings a month. Amber has not set a number"
+  breeds: "Any breed a breeder lists. A breed missing from the site gets its own page when a breeder asks for it. The breeds on the site today set the first keyword entities"
+  still_open: ["delivery or pickup is set by each breeder, so it is not a directory question", "which breeds list and go home fastest (Amber, round 1)", "which states come first after Indiana, to scope the keyword pull"]
 open:
   # G1 Discovery
   - {id: g1-inputs, gate: G1, blocked_on: alex, item: "Business name, owner, services, phone, email, service area, logo and photos gathered. Anything missing becomes a visible REPLACE THIS placeholder"}

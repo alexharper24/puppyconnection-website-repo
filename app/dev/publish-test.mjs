@@ -262,8 +262,21 @@ async function part1() {
   check('the generated site passes check_site.py (breeder dash check off)', chk.ok, chk.out.split('\n').filter((l) => /ERROR|error\(s\)/.test(l)).slice(0, 6).join('\n'));
   const pup = fs.readFileSync(path.join(out, 'puppy-pepper-havanese-test.html'), 'utf8');
   check('a puppy page has a stable address, title, description, canonical and Open Graph tags',
-    pup.includes('<title>Pepper, Havanese puppy | Puppy Connection</title>') && pup.includes('<meta name="description" content="Pepper is a female Havanese puppy from Publish Test Kennel in Goshen, IN.')
+    pup.includes('<title>Pepper, Havanese Puppy for Sale | Puppy Connection</title>') && pup.includes('<meta name="description" content="Pepper is a female Havanese puppy from Publish Test Kennel in Goshen, IN.')
     && pup.includes('<link rel="canonical" href="https://site.puppyconnection.workers.dev/puppy-pepper-havanese-test.html">') && pup.includes('og:title') && pup.includes('og:image'));
+  // SEO plan batch 1 (2026-10-07): P5, P7, P11, P13, P14, P15.
+  const hav = fs.readFileSync(path.join(out, 'breed-havanese.html'), 'utf8');
+  check('a breed page is titled for "<breed> puppies for sale", naming a state only when every listed breeder shares it',
+    /<title>Havanese Puppies for Sale( in [A-Z][a-z]+)? \| Puppy Connection<\/title>/.test(hav) && hav.includes('<h1>Havanese puppies for sale</h1>'), (hav.match(/<title>[^<]*/) || [''])[0]);
+  check('a breed page description comes from the listings, not a cut-off guide sentence', /<meta name="description" content="\d+ Havanese puppies? for sale from (a small family breeder|small family breeders)/.test(hav), (hav.match(/<meta name="description" content="[^"]*/) || [''])[0]);
+  const itemList = [...hav.matchAll(/<script type="application\/ld\+json">([^<]*)<\/script>/g)].map((m) => JSON.parse(m[1])).find((o) => o['@type'] === 'ItemList');
+  check('a breed page carries an ItemList of the puppies it shows', !!itemList && itemList.itemListElement.length === itemList.numberOfItems && itemList.itemListElement.every((x) => x.url.startsWith('https://site.puppyconnection.workers.dev/puppy-')), JSON.stringify(itemList || {}).slice(0, 200));
+  check('a breed page links its breeders from the body copy', /come from <a href="breeder-[a-z0-9-]+\.html">/.test(hav));
+  check('the puppy page names its breeder in an h2, not an h3 under the h1', pup.includes('<h2 class="breeder-name">') && !/<h3>/.test(pup.split('<main')[1] || ''));
+  const hub = fs.readFileSync(path.join(out, 'breeders.html'), 'utf8');
+  check('the breeders hub is titled for the breeder search', hub.includes('<title>Dog Breeders in Indiana and the Midwest | Puppy Connection</title>') && hub.includes('<h1>Dog breeders in Indiana and the Midwest</h1>'));
+  const sm = fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8');
+  check('the sitemap carries image entries for the pages that show photos', sm.includes('xmlns:image=') && /<image:loc>[^<]+media\/tph0<\/image:loc>/.test(sm), (sm.match(/<image:loc>[^<]*/g) || []).length + ' image entries');
   check('staging pages keep noindex and robots.txt turns crawlers away', pup.includes('<meta name="robots" content="noindex, nofollow">') && /Disallow: \//.test(fs.readFileSync(path.join(out, 'robots.txt'), 'utf8')));
   check('the puppy page shows the photo from media/, and the breeder contact', pup.includes('src="media/tph0"') && pup.includes('tel:5745550100') && pup.includes('breeder-publish-test-kennel.html'));
   const salt = fs.readFileSync(path.join(out, 'puppy-salt-havanese-test.html'), 'utf8');

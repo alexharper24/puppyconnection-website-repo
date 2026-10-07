@@ -293,18 +293,47 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
   ].join('\n');
   const absolute = (src) => (!src ? null : /^https?:/.test(src) ? src : base + src);
 
-  function write(file, { title, desc, body, trail, current, image, scripts = 'pages' }) {
+  // Photos each page shows, by page, for the sitemap's image entries (SEO plan P15). Google Images
+  // answers searches such as "havanese puppy", and the generator owns the sitemap.
+  const pageImages = {};
+  const imageUrl = (ph) => (!ph ? null : isWix(ph.src) ? wixFit(ph.src, 1200, 1200) : absolute(ph.src));
+
+  function write(file, { title, desc, body, trail, current, image, scripts = 'pages', ld = [], images = [] }) {
     const url = file === 'index.html' ? base : base + file;
     let h = hdr;
     if (current) h = h.replace(`href="${current}"`, `href="${current}" aria-current="page"`);
     const tail = scripts === 'data'
       ? `<script src="data/data.js?v=${dataV}"></script>\n<script src="js/main.js?v=${mainV}"></script>\n`
       : `<script src="js/main.js?v=${mainV}"></script>\n<script src="js/pages.js?v=${pagesV}"></script>\n`;
+    const extra = ld.map((o) => `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', ...o })}</script>\n`).join('');
     const htmlOut = `${headBase}<title>${esc(title)}</title>\n<meta name="description" content="${esc(desc)}">\n${social(title, desc, url, image)}\n`
-      + `${trail ? `${crumbs(trail)}\n` : ''}${fonts}\n</head>\n<body>\n\n${h}${body}\n\n${ftr}\n${tail}</body>\n</html>\n`;
+      + `${trail ? `${crumbs(trail)}\n` : ''}${extra}${fonts}\n</head>\n<body>\n\n${h}${body}\n\n${ftr}\n${tail}</body>\n</html>\n`;
     fs.writeFileSync(path.join(out, file), htmlOut);
     pages.push(file);
+    const imgs = [...new Set(images.filter(Boolean))];
+    if (imgs.length) pageImages[url] = imgs;
   }
+
+  // The place a page may name. Breeders list from more than Indiana as the directory grows (Alex,
+  // 2026-10-07), so a breed page names a state only when every breeder listing that breed has
+  // the same state on record, and names none otherwise.
+  const STATES = { AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado', CT: 'Connecticut', DE: 'Delaware', FL: 'Florida', GA: 'Georgia', HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas', KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts', MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana', NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico', NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma', OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota', TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington', WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming' };
+  const stateName = (s) => { const t = String(s || '').trim(); return STATES[t.toUpperCase()] || (Object.values(STATES).includes(t) ? t : null); };
+  const sharedState = (list) => {
+    const states = new Set(list.map((p) => (realBreeder(p.br) ? stateName(p.br.state) : null)));
+    return states.size === 1 && !states.has(null) ? [...states][0] : null;
+  };
+  const priceRange = (list) => {
+    const v = list.map((p) => p.price).filter((x) => x != null && x > 0);
+    if (!v.length) return '';
+    const lo = Math.min(...v), hi = Math.max(...v);
+    return lo === hi ? `, priced at ${money(lo)}` : `, priced ${money(lo)} to ${money(hi)}`;
+  };
+  // A sentence of links, "A, B and C", for links inside body copy (SEO plan P13).
+  const linkList = (items) => {
+    const a = items.map(([href, name]) => `<a href="${href}">${esc(name)}</a>`);
+    return a.length < 2 ? a.join('') : `${a.slice(0, -1).join(', ')} and ${a[a.length - 1]}`;
+  };
 
   // A card, as js/main.js draws it, so a static grid and a rendered one look the same.
   let cardN = 0;
@@ -364,7 +393,7 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
       ${p.includes.length ? `<section><p class="eyebrow">Goes home with</p><ul class="includes">${p.includes.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></section>` : ''}
       <div class="breeder-box" id="dBreeder">
         <div class="eyebrow">Raised by</div>
-        <h3>${esc(b ? b.name : 'Breeder to be confirmed')}</h3>
+        <h2 class="breeder-name">${esc(b ? b.name : 'Breeder to be confirmed')}</h2>
         <p class="breeder-note">Puppy Connection lists this puppy. The sale is arranged directly with the breeder.</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         ${b ? `<p style="margin:.9rem 0 0"><a href="${pageFor.breeder(b.slug)}">See all puppies from ${esc(b.name)}</a></p>` : ''}
@@ -383,9 +412,11 @@ ${mates.length ? `<section class="band band-warm">
     const who = b ? ` from ${b.name}${place(b) ? ` in ${place(b)}` : ''}` : '';
     const when = p.placed ? 'Adopted.' : p.l.ready_on ? `Ready to go home ${longDate(p.l.ready_on)}.` : 'Available now.';
     write(pageFor.puppy(p.slug), {
-      title: `${p.name}, ${p.b.name} puppy | Puppy Connection`,
+      // SEO plan P11. "for sale" only while the puppy is, since an adopted puppy's page stays up.
+      title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
       desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 158),
       body, trail: [['Available puppies', `${base}puppies.html`], [p.name, `${base}${pageFor.puppy(p.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      images: p.photos.map(imageUrl),
     });
   }
 
@@ -401,17 +432,24 @@ ${mates.length ? `<section class="band band-warm">
     const open = pups.filter((p) => !p.placed);
     const lead = leadOf(pups);
     const others = listedBreeds.filter((x) => x.slug !== b.slug).slice(0, 8);
+    const shown = open.length ? open : pups;
+    const where = sharedState(open.length ? open : pups);
+    // SEO plan P13: the breeders listing this breed, linked from a sentence rather than only a card.
+    const by = [...new Map(shown.filter((p) => realBreeder(p.br)).map((p) => [p.br.slug, p.br])).values()];
+    const byLine = by.length
+      ? `<p>${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}. Each breeder's page shows the rest of their puppies and how to reach them.</p>`
+      : '';
     const body = `<main id="breedPage">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem">
   <div class="wrap">
     <p class="eyebrow"><a href="breeds.html" style="color:inherit">Breeds</a></p>
-    <h1>${esc(b.name)}</h1>
+    <h1>${esc(b.name)} puppies for sale</h1>
     <p class="meta">${open.length} available now</p>
   </div>
 </section>
 <section class="band" style="padding-top:0">
   <div class="wrap split">
-    <div class="guide">${b.guide.length ? paras(b.guide) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}</div>
+    <div class="guide">${b.guide.length ? paras(b.guide) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}${byLine}</div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
@@ -435,10 +473,19 @@ ${others.length ? `<section class="band">
   </div>
 </section>` : ''}
 </main>`;
+    // SEO plan P5. The breed page is the money page for "<breed> puppies for sale". Its description
+    // comes from the live listings, never the guide's first sentence cut off mid-word.
+    const n = open.length;
     write(pageFor.breed(b.slug), {
-      title: `${b.name} puppies | Puppy Connection`,
-      desc: clip(b.guide[0] || `${b.name} puppies listed by small family breeders. ${open.length} available now, and you contact the breeder directly.`, 158),
+      title: `${b.name} Puppies for Sale${where ? ` in ${where}` : ''} | Puppy Connection`,
+      desc: clip(n
+        ? `${n} ${b.name} ${n === 1 ? 'puppy' : 'puppies'} for sale from ${by.length === 1 ? 'a small family breeder' : 'small family breeders'}${where ? ` in ${where}` : ''}${priceRange(open)}. See each puppy and contact its breeder directly.`
+        : `${b.name} puppies from small family breeders. None are listed right now, so see recent litters here or browse the other breeds.`, 158),
       body, trail: [['Breeds', `${base}breeds.html`], [b.name, `${base}${pageFor.breed(b.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      // SEO plan P14. The puppies the page lists, in the order it shows them.
+      ld: [{ '@type': 'ItemList', name: `${b.name} puppies`, numberOfItems: shown.length,
+        itemListElement: shown.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.puppy(p.slug)}`, name: `${p.name}, ${p.b.name}` })) }],
+      images: [imageUrl(lead)],
     });
   }
 
@@ -469,6 +516,11 @@ ${others.length ? `<section class="band">
       b.facebook ? `<li><a href="${esc(b.facebook)}" target="_blank" rel="noopener"><b>Facebook</b> ${esc(b.name)}</a></li>` : '',
     ].join('');
     const others = breedersShown.filter((x) => x !== b).slice(0, 6);
+    // SEO plan P13: the breeds this breeder lists, from their own listings, linked from a sentence.
+    const listedBreedsOf = [...new Map(theirs.filter((p) => !p.placed).map((p) => [p.b.slug, p.b])).values()];
+    const listedLine = listedBreedsOf.length
+      ? `<p>${esc(b.name)} currently lists ${linkList(listedBreedsOf.map((x) => [pageFor.breed(x.slug), x.name]))} puppies on Puppy Connection.</p>`
+      : '';
     const body = `<main id="profile">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.6rem">
   <div class="wrap">
@@ -479,7 +531,7 @@ ${others.length ? `<section class="band">
 <section class="band" style="padding-top:0">
   <div class="wrap split">
     <div>
-      <div class="prose">${paras(b.about)}</div>
+      <div class="prose">${paras(b.about)}${listedLine}</div>
       ${b.kennel_photo ? `<figure class="breed-photo"><img src="${esc(b.kennel_photo.src)}" alt="${esc(b.name)}" loading="lazy" decoding="async"></figure>` : ''}
       ${raised.length ? `<p class="eyebrow">Breeds they raise</p><ul class="includes">${raised.map((r) => `<li><a href="${pageFor.breed(r.slug)}">${esc(r.name)}</a></li>`).join('')}</ul>` : ''}
     </div>
@@ -511,6 +563,7 @@ ${others.length ? `<section class="band">
       title: `${b.name} | Puppy Connection`,
       desc: clip(b.about[0] || `Puppies listed by ${b.name}${place(b) ? ` in ${place(b)}` : ''}. Contact the breeder directly.`, 158),
       body, trail: [['Breeders', `${base}breeders.html`], [b.name, `${base}${pageFor.breeder(b.slug)}`]], image: absolute(b.kennel_photo && b.kennel_photo.src),
+      images: [b.kennel_photo && absolute(b.kennel_photo.src)],
     });
   }
 
@@ -528,11 +581,13 @@ ${others.length ? `<section class="band">
 </main>`,
   });
   write('breeders.html', {
-    title: 'Breeders | Puppy Connection', current: 'breeders.html',
-    desc: 'The small family breeders who raise and sell the puppies listed on Puppy Connection.',
+    // SEO plan P7. "dog breeders in indiana" is the breeder search, and the network starts in
+    // Indiana and the Midwest and grows from there (Alex, 2026-10-07).
+    title: 'Dog Breeders in Indiana and the Midwest | Puppy Connection', current: 'breeders.html',
+    desc: 'The small family dog breeders in Indiana and the Midwest who list their puppies on Puppy Connection. See each breeder\'s puppies and contact them directly.',
     trail: [['Breeders', `${base}breeders.html`]],
     body: `<main id="breederIndex-page">\n<span id="content" tabindex="-1"></span>
-<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Directory</p><h1>The breeders behind the listings</h1>
+<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Directory</p><h1>Dog breeders in Indiana and the Midwest</h1>
 <p class="lede">Every puppy on this site is raised and sold by one of these breeders. We list their puppies. They handle the sale, the paperwork and the conversation with your family.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2>${breedersShown.length} breeders</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
@@ -566,7 +621,12 @@ ${others.length ? `<section class="band">
 
   // ---- sitemap, robots and the Wix 301 map
   const urls = pages.map((f) => (f === 'index.html' ? base : base + f)).sort();
-  fs.writeFileSync(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls.map((u) => `  <url><loc>${u}</loc></url>`).join('\n')}\n</urlset>\n`);
+  const xml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const urlEntry = (u) => {
+    const imgs = (pageImages[u] || []).slice(0, 20).map((i) => `\n    <image:image><image:loc>${xml(i)}</image:loc></image:image>`).join('');
+    return `  <url><loc>${xml(u)}</loc>${imgs}${imgs ? '\n  ' : ''}</url>`;
+  };
+  fs.writeFileSync(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${urls.map(urlEntry).join('\n')}\n</urlset>\n`);
   fs.writeFileSync(path.join(out, 'robots.txt'), indexable ? `User-agent: *\nAllow: /\n\nSitemap: ${base}sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
   const redirects = D.puppies.filter((p) => p.legacy_slug).map((p) => `/product-page/${p.legacy_slug} /${pageFor.puppy(p.slug)} 301`).sort();
   fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page.\n${redirects.join('\n')}\n`);

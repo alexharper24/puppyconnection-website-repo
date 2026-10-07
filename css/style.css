@@ -330,7 +330,7 @@ p{margin:0 0 1rem;max-width:70ch}
 /* the primary action: contacting the breeder */
 .breeder-box{border:2px solid var(--ink);background:var(--paper-warm);padding:1.3rem 1.4rem;margin-top:1.6rem}
 .breeder-box .eyebrow{margin-bottom:.35rem}
-.breeder-box h3{font-size:1.35rem;margin-bottom:.2rem}
+.breeder-box h3,.breeder-box h2.breeder-name{font-size:1.35rem;margin-bottom:.2rem}
 .contact-list{list-style:none;padding:0;margin:.9rem 0 0;display:flex;flex-direction:column;gap:.5rem}
 .contact-list a{display:flex;align-items:baseline;gap:.6rem;text-decoration:none;color:var(--ink);
   padding:.5rem .7rem;border:var(--rule);background:var(--paper)}

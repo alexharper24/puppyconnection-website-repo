@@ -24,7 +24,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&family=Barlow:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=23">
+<link rel="stylesheet" href="css/style.css?v=25">
 </head>
 <body>
 
@@ -57,36 +57,29 @@
 </section>
 
 <section class="band" style="padding-top:0">
-  <div class="wrap rail-layout">
-    <button type="button" class="rail-trigger" id="railOpen" aria-expanded="false" aria-controls="rail">
-      Filters
-    </button>
-    <div class="rail-backdrop" id="railBackdrop" hidden></div>
-    <aside class="rail" id="rail">
-      <div class="rail-head">
-        <span>Filters</span>
-        <button type="button" class="rail-close" id="railClose" aria-label="Close filters">Close</button>
+  <div class="wrap">
+    <!-- The same filter bar as Teapup and Sweet Puppy Paws (Alex, 2026-10-07): tags with small
+         menus above the grid on a computer, a Filters button and a bottom sheet on a phone. -->
+    <div class="avail-head" id="availHead">
+      <p class="count"><span id="resultCount"></span> <span class="count-sort">Sorted by price</span></p>
+      <div class="ftags" role="search" aria-label="Filter the puppies">
+        <span class="ft-wrap" data-wrap="breed"><button type="button" class="ft" data-k="breed" aria-haspopup="listbox" aria-expanded="false"><span class="ft-text">Breed</span><svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="ft-x" data-clear="breed" aria-label="Clear breed" hidden>&times;</button><ul class="ft-menu" role="listbox" aria-label="Breed" hidden></ul></span>
+        <span class="ft-wrap" data-wrap="max"><button type="button" class="ft" data-k="max" aria-haspopup="listbox" aria-expanded="false"><span class="ft-text">Price</span><svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="ft-x" data-clear="max" aria-label="Clear price" hidden>&times;</button><ul class="ft-menu" role="listbox" aria-label="Price" hidden></ul></span>
+        <span class="ft-wrap" data-wrap="show"><button type="button" class="ft" data-k="show" aria-haspopup="listbox" aria-expanded="false"><span class="ft-text">Available only</span><svg class="chev" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><button type="button" class="ft-x" data-clear="show" aria-label="Show available puppies only" hidden>&times;</button><ul class="ft-menu" role="listbox" aria-label="Availability" hidden></ul></span>
+        <label class="ft ft-search"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="2"/><path d="M20 20l-4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg><input type="search" data-name autocomplete="off" placeholder="Name" aria-label="Search by name"></label>
       </div>
-      <h2>Breed</h2>
-      <div id="filterBreeds"></div>
-      <h2>Price up to</h2>
-      <label><input type="radio" name="max" value="1500"><span>$1,500</span></label>
-      <label><input type="radio" name="max" value="2000"><span>$2,000</span></label>
-      <label><input type="radio" name="max" value="2500"><span>$2,500</span></label>
-      <label><input type="radio" name="max" value="3500"><span>$3,500</span></label>
-      <h2>Availability</h2>
-      <label><input type="checkbox" name="avail"><span>Hide adopted puppies</span></label>
-      <button type="button" class="rail-reset" id="reset">Clear all filters</button>
-      <button type="button" class="btn btn-primary rail-done" id="railDone">Show results</button>
-    </aside>
-    <div>
-      <div class="result-bar">
-        <span class="count" id="resultCount"></span>
-        <span class="count">Sorted by price</span>
-      </div>
-      <div class="grid grid-4" id="results"></div>
-      <div class="more-row" id="moreRow"></div>
+      <button type="button" class="f-open" aria-haspopup="dialog"><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>Filters <span class="dot" hidden></span></button>
+      <div class="f-active"></div>
     </div>
+    <p class="f-empty" hidden>No puppies match those choices right now. <button type="button" class="link-btn" data-reset>Show all puppies</button></p>
+    <div class="grid grid-4 cols-4" id="results"></div>
+    <div class="more-row" id="moreRow"></div>
+  </div>
+  <div class="f-scrim" hidden></div>
+  <div class="f-sheet" role="dialog" aria-modal="true" aria-label="Filter puppies" hidden>
+    <div class="f-sheet-head"><h3>Filter puppies</h3><button type="button" class="f-sheet-close" aria-label="Close">&times;</button></div>
+    <div class="f-sheet-body"></div>
+    <div class="f-sheet-foot"><button type="button" class="f-clear-all">Clear all</button><button type="button" class="f-show">Show puppies</button></div>
   </div>
 </section>
 </main>
@@ -118,6 +111,6 @@
   </div>
 </footer>
 <script src="data/data.js?v=10"></script>
-<script src="js/main.js?v=28"></script>
+<script src="js/main.js?v=29"></script>
 </body>
 </html>

@@ -236,14 +236,65 @@
 
   /* ---------- browse ---------- */
   if (document.querySelector('#results')) {
-    var state = { breed: qs('breed') || '', max: '', avail: true };
-    var availBox = document.querySelector('input[name="avail"]');
-    if (availBox) availBox.checked = true;
+    /* The filter bar, the same design as Teapup and Sweet Puppy Paws (Alex, 2026-10-07).
+       Each field is [value, menu text, tag text]. An empty value is the field's resting
+       state, shown under the field's label, so "Available only" is the default. */
+    var FIELDS = {
+      breed: { label: 'Breed', any: 'Any breed', opts: BREEDS.map(function (b) { return [b.name, b.name + ' (' + b.demo_count + ')', b.name]; }) },
+      max: { label: 'Price', any: 'Any price', opts: [['1500', 'Up to $1,500', 'Up to $1,500'], ['2000', 'Up to $2,000', 'Up to $2,000'], ['2500', 'Up to $2,500', 'Up to $2,500'], ['3500', 'Up to $3,500', 'Up to $3,500']] },
+      show: { label: 'Available only', any: 'Available only', opts: [['all', 'Include adopted puppies', 'Including adopted']] }
+    };
+    var KEYS = Object.keys(FIELDS);
+    var head = document.querySelector('#availHead');
+    var fEmpty = document.querySelector('.f-empty');
+    var scrim = document.querySelector('.f-scrim'), fsheet = document.querySelector('.f-sheet');
+    var sheetBody = fsheet.querySelector('.f-sheet-body');
+    var LENS = head.querySelector('.ft-search svg').outerHTML;
+    var blank = function () { return { breed: '', max: '', show: '', name: '' }; };
+    var state = blank();
+    var asked = qs('breed') || '';
+    if (BREEDS.some(function (b) { return b.name === asked; })) state.breed = asked;
 
-    document.querySelector('#filterBreeds').innerHTML = BREEDS.map(function (b) {
-      return '<label><input type="radio" name="breed" value="' + esc(b.name) + '"' +
-        (state.breed === b.name ? ' checked' : '') + '><span>' + esc(b.name) + '</span><i>' + b.demo_count + '</i></label>';
-    }).join('');
+    var shortOf = function (k) {
+      var o = FIELDS[k].opts.filter(function (x) { return x[0] === state[k]; })[0];
+      return o ? o[2] : FIELDS[k].label;
+    };
+    var fillSheet = function () {
+      var html = '';
+      KEYS.forEach(function (k) {
+        var title = k === 'show' ? 'Availability' : FIELDS[k].label;
+        html += '<div class="f-group"><h4>' + title + '</h4><div class="f-chips">' +
+          [['', FIELDS[k].any, FIELDS[k].any]].concat(FIELDS[k].opts).map(function (x) {
+            return '<button type="button" class="f-chip" data-k="' + k + '" data-v="' + esc(x[0]) + '" aria-pressed="' + (state[k] === x[0]) + '">' + esc(x[2]) + '</button>';
+          }).join('') + '</div></div>';
+      });
+      html += '<div class="f-group"><h4>Name</h4><label class="f-name">' + LENS +
+        '<input type="search" data-name autocomplete="off" placeholder="A puppy&#39;s name" value="' + esc(state.name) + '"></label></div>';
+      sheetBody.innerHTML = html;
+    };
+    var renderTags = function () {
+      head.querySelectorAll('button.ft[data-k]').forEach(function (b) {
+        var k = b.getAttribute('data-k'), on = !!state[k];
+        b.querySelector('.ft-text').textContent = shortOf(k);
+        b.classList.toggle('on', on);
+        head.querySelector('.ftags [data-clear="' + k + '"]').hidden = !on;
+      });
+      document.querySelectorAll('input[data-name]').forEach(function (i) { if (i !== document.activeElement) i.value = state.name; });
+      var html = '', n = 0;
+      KEYS.forEach(function (k) {
+        if (!state[k]) return;
+        n++;
+        html += '<span class="ft-wrap"><span class="ft on">' + esc(shortOf(k)) + '</span><button type="button" class="ft-x" data-clear="' + k + '" aria-label="Clear ' + FIELDS[k].label.toLowerCase() + '">&times;</button></span>';
+      });
+      if (state.name) {
+        n++;
+        html += '<span class="ft-wrap"><span class="ft on">Name: ' + esc(state.name) + '</span><button type="button" class="ft-x" data-clear="name" aria-label="Clear name">&times;</button></span>';
+      }
+      head.querySelector('.f-active').innerHTML = html;
+      var dot = head.querySelector('.f-open .dot'); dot.textContent = n; dot.hidden = !n;
+      var typing = fsheet.contains(document.activeElement) && document.activeElement.hasAttribute('data-name');
+      if (!fsheet.hidden && !typing) fillSheet();
+    };
 
     /* Render in pages. Building 200 cards with 200 images on every filter
        change is what made selection feel sluggish. */
@@ -261,24 +312,27 @@
     };
 
     var apply = function () {
+      var q = state.name.trim().toLowerCase();
       current = L.filter(function (l) {
         if (state.breed && l.breed !== state.breed) return false;
         if (state.max && (l.price || 0) > +state.max) return false;
-        if (state.avail && isPlaced(l)) return false;
+        if (!state.show && isPlaced(l)) return false;
+        if (q && String(l.puppy_name || l.name || '').toLowerCase().indexOf(q) === -1) return false;
         return true;
       });
       current.sort(function (a, b) { return (a.price || 0) - (b.price || 0); });
       shown = PAGE;
       paint();
       var label = current.length + (current.length === 1 ? ' puppy' : ' puppies');
-      document.querySelector('#resultCount').textContent = label + (state.breed ? ' · ' + state.breed : '');
-      var done = document.querySelector('#railDone');
-      if (done) done.textContent = 'Show ' + label;
-      var trig = document.querySelector('#railOpen');
-      if (trig) trig.textContent = 'Filters · ' + label;
+      document.querySelector('#resultCount').textContent = label;
+      fEmpty.hidden = current.length > 0;
+      var showBtn = fsheet.querySelector('.f-show');
+      if (showBtn) showBtn.textContent = current.length ? 'Show ' + label : 'No matches';
       var h = document.querySelector('#browseTitle');
-      if (h) h.textContent = state.breed || 'All available puppies';
+      if (h) h.textContent = state.breed ? state.breed + ' puppies' : 'All available puppies';
+      renderTags();
     };
+    var setF = function (k, v) { state[k] = v; apply(); };
 
     /* From the grid, the next click is almost always a listing, so warm the
        larger gallery rendition for the first few results. */
@@ -290,42 +344,63 @@
       paint();
     });
 
-    /* On phones the rail is a drawer rather than a block above the results. */
-    var rail = document.querySelector('#rail');
-    var backdrop = document.querySelector('#railBackdrop');
-    var opener = document.querySelector('#railOpen');
-    var setDrawer = function (open) {
-      rail.classList.toggle('open', open);
-      backdrop.hidden = !open;
-      document.body.classList.toggle('rail-open', open);
-      opener.setAttribute('aria-expanded', open ? 'true' : 'false');
-      if (open) {
-        var first = rail.querySelector('input');
-        if (first) first.focus({ preventScroll: true });
-      } else {
-        opener.focus({ preventScroll: true });
-      }
+    var closeMenus = function () {
+      head.querySelectorAll('.ft-menu').forEach(function (m) { m.hidden = true; });
+      head.querySelectorAll('button.ft[aria-expanded]').forEach(function (b) { b.setAttribute('aria-expanded', 'false'); });
     };
-    opener.addEventListener('click', function () { setDrawer(true); });
-    backdrop.addEventListener('click', function () { setDrawer(false); });
-    document.querySelector('#railClose').addEventListener('click', function () { setDrawer(false); });
-    document.querySelector('#railDone').addEventListener('click', function () { setDrawer(false); });
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape' && rail.classList.contains('open')) setDrawer(false);
+    var openMenu = function (b) {
+      var k = b.getAttribute('data-k'), m = b.parentNode.querySelector('.ft-menu');
+      m.innerHTML = [['', FIELDS[k].any]].concat(FIELDS[k].opts).map(function (o) {
+        return '<li role="option" data-v="' + esc(o[0]) + '" aria-selected="' + (state[k] === o[0]) + '">' + esc(o[1]) + '</li>';
+      }).join('');
+      m.classList.remove('flip'); m.hidden = false; b.setAttribute('aria-expanded', 'true');
+      if (m.getBoundingClientRect().right > document.documentElement.clientWidth - 8) m.classList.add('flip');
+      var f = m.querySelector('li[aria-selected="true"]') || m.querySelector('li');
+      if (f) { f.classList.add('act'); f.scrollIntoView({ block: 'nearest' }); }
+    };
+    var openSheet = function () {
+      fillSheet(); scrim.hidden = false; fsheet.hidden = false; document.body.style.overflow = 'hidden';
+      fsheet.querySelector('.f-sheet-close').focus();
+    };
+    var closeSheet = function () {
+      scrim.hidden = true; fsheet.hidden = true; document.body.style.overflow = '';
+      head.querySelector('.f-open').focus();
+    };
+    head.addEventListener('click', function (e) {
+      var x = e.target.closest('[data-clear]');
+      if (x) { setF(x.getAttribute('data-clear'), ''); closeMenus(); return; }
+      var li = e.target.closest('.ft-menu li');
+      if (li) { var b = li.closest('.ft-wrap').querySelector('button.ft'); setF(b.getAttribute('data-k'), li.getAttribute('data-v')); closeMenus(); b.focus(); return; }
+      if (e.target.closest('.f-open')) { openSheet(); return; }
+      var t = e.target.closest('button.ft[data-k]');
+      if (t) { var shut = t.parentNode.querySelector('.ft-menu').hidden; closeMenus(); if (shut) openMenu(t); }
     });
-
-    document.querySelector('.rail').addEventListener('change', function (e) {
-      var t = e.target;
-      if (t.name === 'breed') state.breed = t.value;
-      if (t.name === 'max') state.max = t.value;
-      if (t.name === 'avail') state.avail = t.checked;
-      apply();
+    head.addEventListener('keydown', function (e) {
+      var m = [].slice.call(head.querySelectorAll('.ft-menu')).filter(function (x) { return !x.hidden; })[0];
+      if (!m) return;
+      var items = [].slice.call(m.querySelectorAll('li')), i = items.indexOf(m.querySelector('li.act'));
+      if (e.key === 'Escape') { closeMenus(); m.parentNode.querySelector('button.ft').focus(); }
+      else if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault(); if (i >= 0) items[i].classList.remove('act');
+        i = Math.max(0, Math.min(items.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
+        items[i].classList.add('act'); items[i].scrollIntoView({ block: 'nearest' });
+      } else if (e.key === 'Enter' && i >= 0) { e.preventDefault(); items[i].click(); }
     });
-    document.querySelector('#reset').addEventListener('click', function () {
-      state = { breed: '', max: '', avail: false };
-      document.querySelectorAll('.rail input').forEach(function (i) { i.checked = false; });
-      apply();
+    document.addEventListener('click', function (e) { if (!head.contains(e.target)) closeMenus(); });
+    document.addEventListener('input', function (e) { if (e.target.hasAttribute && e.target.hasAttribute('data-name')) setF('name', e.target.value); });
+    fsheet.addEventListener('click', function (e) {
+      var c = e.target.closest('.f-chip');
+      if (c) { setF(c.getAttribute('data-k'), c.getAttribute('data-v')); return; }
+      if (e.target.closest('.f-show') || e.target.closest('.f-sheet-close')) { closeSheet(); return; }
+      if (e.target.closest('.f-clear-all')) { state = blank(); apply(); }
     });
+    scrim.addEventListener('click', closeSheet);
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !fsheet.hidden) closeSheet(); });
+    document.querySelector('[data-reset]').addEventListener('click', function () { state = blank(); apply(); });
+    /* On a phone the bar stays pinned under the header, whose height changes with the
+       width, so measure it rather than guess. */
+    var pin = function () { var hd = document.querySelector('.site-header'); head.style.setProperty('--pin', (hd ? hd.offsetHeight : 0) + 'px'); };
+    pin(); window.addEventListener('resize', pin);
     apply();
   }
 

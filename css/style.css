@@ -218,29 +218,63 @@ p{margin:0 0 1rem;max-width:70ch}
 .tag-litter{top:auto;bottom:.7rem;left:.7rem;background:rgba(252,252,252,.94);color:var(--ink)}
 .card.is-sold .card-media img{filter:grayscale(.85)}
 
-/* ---------- browse layout ---------- */
-.rail-layout{display:grid;grid-template-columns:250px 1fr;gap:clamp(1.4rem,3vw,2.6rem);align-items:start}
-@media(max-width:940px){.rail-layout{grid-template-columns:1fr}}
-/* The rail scrolls on its own rather than making you scroll the whole result
-   set to reach the last filter. */
-.rail{
-  position:sticky;top:88px;border:var(--rule);background:var(--paper-warm);
-  padding:1.1rem 1.2rem;max-height:calc(100vh - 108px);overflow-y:auto;
-  scrollbar-width:thin;scrollbar-color:var(--line-strong) transparent;
-}
-.rail::-webkit-scrollbar{width:8px}
-.rail::-webkit-scrollbar-thumb{background:var(--line-strong)}
-.rail::-webkit-scrollbar-track{background:transparent}
-@media(max-width:940px){.rail{position:static;max-height:none;overflow:visible}}
-.rail h2{font-family:var(--cond);font-size:.9rem;letter-spacing:.16em;text-transform:uppercase;
-  color:var(--muted);margin:1.3rem 0 .55rem;font-weight:600}
-.rail h2:first-of-type{margin-top:0}
-.rail label{display:flex;align-items:center;gap:.5rem;font-size:.96rem;padding:.2rem 0;cursor:pointer}
-.rail label span{flex:1;min-width:0}
-.rail label i{font-style:normal;font-family:var(--cond);color:var(--muted);font-size:.86rem}
-.rail-reset{background:none;border:0;padding:0;margin-top:1.2rem;font-family:var(--cond);
-  letter-spacing:.1em;text-transform:uppercase;font-size:.86rem;color:var(--olive);cursor:pointer;
-  border-bottom:1px solid var(--bronze)}
+/* ---------- browse filter bar ----------
+   The same design as Teapup and Sweet Puppy Paws (Alex, 2026-10-07), in this site's ink and
+   gold. On a computer, tags above the grid, each opening a small menu; a chosen tag fills in
+   and its cross clears it. On a phone the tags give way to one Filters button and a bottom
+   sheet, the chosen filters show as tags, and the bar stays pinned under the header. The grid
+   runs four across now that no sidebar takes a column. */
+.avail-head{display:flex;align-items:center;justify-content:space-between;gap:.75rem 1.5rem;flex-wrap:wrap;
+  margin-bottom:1.4rem;padding-bottom:.9rem;border-bottom:2px solid var(--ink)}
+.avail-head .count{margin:0;font-family:var(--cond);font-size:1rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink)}
+.avail-head .count-sort{color:var(--muted);margin-left:.6rem}
+.ftags{display:flex;flex-wrap:wrap;gap:.5rem;justify-content:flex-end;align-items:center}
+.ft-wrap{position:relative;display:inline-flex}
+.ft{display:inline-flex;align-items:center;gap:.4rem;min-height:42px;padding:0 .9rem;border:1.5px solid var(--line-strong);
+  background:#fff;font:inherit;font-size:.95rem;color:var(--ink);cursor:pointer;white-space:nowrap}
+.ft:hover{border-color:var(--ink)}
+.ft:focus-visible,.ft-search:focus-within,.ft-x:focus-visible,.f-open:focus-visible,.f-chip:focus-visible{outline:none;box-shadow:0 0 0 3px var(--gold)}
+.ft .chev{color:var(--olive)}
+.ft.on{background:var(--ink);border-color:var(--ink);color:var(--gold)}
+.ft.on .chev{display:none}
+.ft-x{min-width:38px;border:0;background:var(--ink);color:var(--gold);font-size:1.15rem;line-height:1;cursor:pointer;border-left:1px solid rgba(247,213,127,.35)}
+.ft-search{cursor:text;color:var(--muted);width:10rem}
+.ft-search input{border:0;outline:0;background:none;font:inherit;color:var(--ink);width:100%;min-width:0}
+.ft-menu{position:absolute;top:calc(100% + .35rem);left:0;z-index:45;list-style:none;margin:0;padding:.3rem;min-width:15rem;
+  max-height:22rem;overflow-y:auto;background:#fff;border:1px solid var(--line-strong);box-shadow:0 12px 28px -10px rgba(38,38,38,.4)}
+.ft-menu.flip{left:auto;right:0}
+.ft-menu li{padding:.55rem .8rem;cursor:pointer;white-space:nowrap}
+.ft-menu li:hover,.ft-menu li.act{background:var(--paper-warm)}
+.ft-menu li[aria-selected="true"]{font-weight:600}
+.ft-menu li[aria-selected="true"]::after{content:"\2713";float:right;margin-left:1rem;color:var(--olive)}
+.f-open,.f-active{display:none}
+/* These set their own display, which would otherwise beat the hidden attribute and leave the
+   phone sheet and its scrim showing on every screen. */
+.f-sheet[hidden],.f-scrim[hidden],.ft-x[hidden],.ft-menu[hidden],.f-empty[hidden]{display:none}
+.f-empty{margin:0 0 1.5rem}
+.link-btn{background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
+.f-scrim{position:fixed;inset:0;z-index:90;background:rgba(20,20,20,.5)}
+.f-sheet{position:fixed;left:0;right:0;bottom:0;z-index:91;max-height:82vh;display:flex;flex-direction:column;background:var(--paper);
+  box-shadow:0 -12px 32px -12px rgba(38,38,38,.45);padding-bottom:env(safe-area-inset-bottom)}
+.f-sheet-head{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.1rem .5rem}
+.f-sheet-head h3{margin:0;font-size:1.25rem}
+.f-sheet-close{width:44px;height:44px;border:0;background:none;font-size:1.6rem;line-height:1;color:var(--ink);cursor:pointer}
+.f-sheet-body{overflow-y:auto;padding:.25rem 1.1rem 1rem}
+.f-sheet-foot{display:flex;gap:.75rem;padding:.75rem 1.1rem 1rem;border-top:var(--rule)}
+.f-sheet-foot button{flex:1;min-height:48px;font-family:var(--cond);font-size:1rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+.f-clear-all{border:1.5px solid var(--line-strong);background:#fff;color:var(--ink)}
+.f-show{border:0;background:var(--ink);color:var(--gold)}
+.f-group{margin-bottom:1.1rem}
+.f-group h4{margin:.4rem 0 .55rem;font-family:var(--cond);font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.f-chips{display:flex;flex-wrap:wrap;gap:.45rem}
+.f-chip{min-height:42px;padding:0 .9rem;border:1.5px solid var(--line-strong);background:#fff;font:inherit;color:var(--ink);cursor:pointer}
+.f-chip[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--gold)}
+.f-name{display:flex;align-items:center;gap:.5rem;min-height:46px;padding:0 .9rem;border:1.5px solid var(--line-strong);background:#fff;color:var(--muted)}
+.f-name input{border:0;outline:0;background:none;font:inherit;font-size:1rem;width:100%;color:var(--ink)}
+@media (prefers-reduced-motion:no-preference){.f-sheet{animation:fSheetUp .22s ease-out}}
+@keyframes fSheetUp{from{transform:translateY(24px);opacity:.6}to{transform:none;opacity:1}}
+.grid-4.cols-4{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:1100px){.grid-4.cols-4{grid-template-columns:repeat(3,minmax(0,1fr))}}
 .result-bar{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;
   margin-bottom:1.2rem;padding-bottom:.7rem;border-bottom:2px solid var(--ink)}
 .result-bar .count{font-family:var(--cond);letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
@@ -411,52 +445,22 @@ p{margin:0 0 1rem;max-width:70ch}
   .d-detail{margin-top:1.8rem}
 }
 
-/* ---------- browse filters: a drawer on small screens ---------- */
-.rail-trigger{display:none}
-.rail-head{display:none}
-.rail-done{display:none}
-.rail-backdrop{display:none}
-
-@media(max-width:940px){
-  .rail-trigger{
-    display:block;width:100%;margin-bottom:1.1rem;
-    font-family:var(--cond);font-size:1rem;letter-spacing:.12em;text-transform:uppercase;
-    padding:.8rem 1.2rem;border:1px solid var(--ink);background:var(--paper);
-    color:var(--ink);cursor:pointer;text-align:center;
-  }
-  .rail-trigger:hover{background:var(--paper-warm)}
-
-  .rail{
-    position:fixed;inset:0 auto 0 0;z-index:80;
-    width:min(88vw,360px);max-height:none;height:100%;
-    margin:0;border:0;border-right:1px solid var(--line-strong);
-    background:var(--paper-warm);overflow-y:auto;
-    transform:translateX(-100%);transition:transform .22s ease;
-    padding:0 1.2rem 1.4rem;
-  }
-  .rail.open{transform:translateX(0)}
-  .rail-head{
-    display:flex;align-items:center;justify-content:space-between;gap:1rem;
-    position:sticky;top:0;background:var(--paper-warm);z-index:1;
-    padding:1rem 0 .8rem;margin-bottom:.4rem;border-bottom:1px solid var(--line-strong);
-    font-family:var(--cond);font-size:.9rem;letter-spacing:.16em;text-transform:uppercase;
-    font-weight:600;color:var(--ink);
-  }
-  .rail-close{
-    background:none;border:0;padding:.2rem 0;cursor:pointer;color:var(--olive);
-    font-family:var(--cond);font-size:.86rem;letter-spacing:.12em;text-transform:uppercase;
-    border-bottom:1px solid var(--bronze);
-  }
-  .rail-done{display:block;width:100%;margin-top:1.4rem}
-  /* Driven by the same body class as everything else. Setting display here
-     unconditionally would beat the [hidden] attribute and leave a full-screen
-     overlay permanently over the page. */
-  body.rail-open .rail-backdrop{
-    display:block;position:fixed;inset:0;z-index:79;
-    background:rgba(20,20,20,.5);
-  }
-  body.rail-open{overflow:hidden}
+/* ---------- browse filter bar on a phone ---------- */
+@media(max-width:760px){
+  .avail-head{position:sticky;top:var(--pin,64px);z-index:40;background:var(--paper);
+    margin-inline:calc(var(--gut) * -1);padding:.6rem var(--gut) .7rem;border-bottom:var(--rule);
+    box-shadow:0 8px 14px -12px rgba(38,38,38,.5)}
+  .avail-head .count-sort{display:none}
+  .ftags{display:none}
+  .f-open{display:inline-flex;align-items:center;gap:.45rem;min-height:42px;padding:0 .95rem;border:1.5px solid var(--ink);
+    background:#fff;color:var(--ink);font-family:var(--cond);font-size:1rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer}
+  .f-open .dot{min-width:20px;height:20px;border-radius:10px;background:var(--ink);color:var(--gold);font-size:.75rem;
+    display:inline-flex;align-items:center;justify-content:center;padding:0 .3rem;letter-spacing:0}
+  .f-active:not(:empty){display:flex;flex-wrap:wrap;gap:.4rem;flex-basis:100%}
+  .f-active .ft{min-height:36px;font-size:.9rem}
+  .grid-4.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
+@media(max-width:480px){.grid-4.cols-4{grid-template-columns:1fr}}
 
 /* ---------- breed page: the sidebar photo is redundant on a phone ---------- */
 @media(max-width:940px){

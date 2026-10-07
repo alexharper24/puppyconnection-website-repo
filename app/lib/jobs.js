@@ -4,7 +4,7 @@
 // The free Workers plan allows five cron triggers per account, so the portal uses two:
 //   */15 * * * *   reconcile   checkouts left open or paid without a listing
 //                  publish     the site, when changes have waited a minute (lib/publish.js, plan P4.4)
-//   0 13 * * *     daily       expiry warnings and expiry, housekeeping, then the backup
+//   0 13 * * *     daily       expiry warnings and expiry, housekeeping, the backup, then the breeder link check
 // 13:00 UTC is 8 or 9 in the morning in Indiana, so warnings arrive at the start of the day.
 // Each job records its last run in job_runs, which the admin shows.
 
@@ -132,7 +132,55 @@ async function backup(env) {
   return { key, rows, bytes: bytes.length, pruned: drop.length };
 }
 
-export const JOBS = { expiry, housekeeping, reconcile, backup };
+// The breeder link check (Alex, 2026-10-07). A family's conversion is the click from a listing
+// to the breeder's own page for that puppy, so each puppy's link and each breeder's website is
+// fetched about once a week. A link that fails, or now lands on the breeder's home page because
+// the puppy's page was taken down, shows in Needs attention. Each run takes the links never
+// checked first, then the ones checked longest ago, up to the link_batch setting.
+const LINK_TIMEOUT_MS = 10000;
+async function checkLink(url) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), LINK_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, { redirect: 'follow', signal: ctl.signal, headers: { 'user-agent': 'Mozilla/5.0 (compatible; PuppyConnection link check)' } });
+    res.body?.cancel?.();
+    const asked = new URL(url).pathname.replace(/\/+$/, '');
+    const landed = new URL(res.url || url).pathname.replace(/\/+$/, '');
+    if (res.status >= 400) return { status: res.status, final_url: res.url || url, verdict: 'broken' };
+    if (asked && !landed) return { status: res.status, final_url: res.url, verdict: 'home' };
+    return { status: res.status, final_url: res.url || url, verdict: 'ok' };
+  } catch (e) {
+    return { status: null, final_url: null, verdict: 'broken' };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function links(env) {
+  const s = await settings(env);
+  const { results } = await env.DB.prepare(
+    `WITH used(url) AS (
+       SELECT breeder_url FROM public_puppies WHERE breeder_url LIKE 'http%'
+       UNION SELECT website_url FROM public_breeders WHERE website_url LIKE 'http%')
+     SELECT u.url, lc.verdict, lc.failing_since FROM used u LEFT JOIN link_checks lc ON lc.url = u.url
+      ORDER BY lc.checked_at IS NOT NULL, lc.checked_at, u.url LIMIT ?`,
+  ).bind(s.linkBatch).all();
+  const t = now();
+  const tally = { checked: 0, working: 0, broken: 0, home: 0 };
+  for (const r of results) {
+    const c = await checkLink(r.url);
+    const since = c.verdict === 'ok' ? null : (r.verdict && r.verdict !== 'ok' && r.failing_since) || t;
+    await env.DB.prepare(
+      `INSERT INTO link_checks (url, checked_at, status, final_url, verdict, failing_since) VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT (url) DO UPDATE SET checked_at = excluded.checked_at, status = excluded.status, final_url = excluded.final_url,
+         verdict = excluded.verdict, failing_since = excluded.failing_since`,
+    ).bind(r.url, t, c.status, c.final_url, c.verdict, since).run();
+    tally.checked += 1; tally[c.verdict === 'ok' ? 'working' : c.verdict] += 1;
+  }
+  return tally;
+}
+
+export const JOBS = { expiry, housekeeping, reconcile, backup, links };
 
 export function runJob(env, name) {
   if (!JOBS[name]) throw new Error(`Unknown job ${name}`);
@@ -146,6 +194,6 @@ export async function scheduled(event, env) {
   // because only the portal holds the GitHub token.
   if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await record(env, 'publish', () => publishIfDue(env))];
   const out = [];
-  for (const j of ['expiry', 'housekeeping', 'backup']) out.push(await runJob(env, j));
+  for (const j of ['expiry', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
   return out;
 }

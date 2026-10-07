@@ -205,7 +205,7 @@
   /* Plan P3.9. Everything that needs an operator, from /api/attention: approvals, payments to
      review, disputes, a failed publish or job, close requests, and public contact details
      that changed in the last week. */
-  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check' };
+  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check' };
   function attentionItems(a) {
     var li = function (text, href, btn, sub) {
       return '<li><span>' + text + (sub ? '<span class="att-sub">' + sub + '</span>' : '') + '</span><a class="btn btn-sm" href="' + href + '">' + btn + '</a></li>';
@@ -225,6 +225,15 @@
         esc(c.fields.join(', ')) + (c.by.indexOf('operator') >= 0 ? ', by an operator' : ', by the breeder')));
     });
     if (cc.length > 5) out.push(li('<b>' + plural(cc.length - 5, 'more breeder') + '</b> changed contact details this week', '#/activity?q=profile', 'Activity'));
+    /* Breeder links that stopped working or now land on the breeder's home page, from the
+       weekly link check. A family clicking one never reaches the puppy. */
+    var bl = a.broken_links || [];
+    bl.slice(0, 5).forEach(function (l) {
+      out.push(li('<b>' + esc(l.puppy ? l.puppy + ', ' + (l.business_name || 'a breeder') : (l.business_name || 'A breeder') + ' website') + '</b> link ' +
+        (l.verdict === 'home' ? 'now lands on the breeder\'s home page' : 'is not working'), '#/breeders/' + encodeURIComponent(l.breeder_id), 'Open',
+        esc(l.url) + (l.failing_since ? ', since ' + esc(when(l.failing_since)) : '')));
+    });
+    if (bl.length > 5) out.push(li('<b>' + plural(bl.length - 5, 'more breeder link') + '</b> not working', '#/publish', 'Jobs'));
     if (a.held) out.push(li('<b>' + plural(a.held, 'listing') + '</b> on hold', '#/listings?filter=held', 'Open'));
     if (a.unpublished_changes) out.push(li('<b>' + plural(a.unpublished_changes, 'change') + '</b> not on the public site yet', '#/publish', 'Publish'));
     return out;

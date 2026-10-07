@@ -719,6 +719,16 @@ async function attention(req, env) {
     contact_changes: Object.values(contact),
     held: await one('SELECT COUNT(*) AS n FROM puppies WHERE operator_hold = 1'),
     unpublished_changes: site.waiting,
+    // The breeder link check (lib/jobs.js, links): live links that fail or now land on a home page.
+    broken_links: (await env.DB.prepare(
+      `SELECT lc.url, lc.verdict, lc.failing_since, p.name AS puppy, bp.business_name, p.breeder_id
+         FROM link_checks lc JOIN public_puppies p ON p.breeder_url = lc.url
+         LEFT JOIN breeder_profiles bp ON bp.breeder_id = p.breeder_id WHERE lc.verdict <> 'ok'
+       UNION ALL
+       SELECT lc.url, lc.verdict, lc.failing_since, NULL, pb.business_name, pb.breeder_id
+         FROM link_checks lc JOIN public_breeders pb ON pb.website_url = lc.url WHERE lc.verdict <> 'ok'
+       ORDER BY failing_since`,
+    ).all()).results,
   });
 }
 

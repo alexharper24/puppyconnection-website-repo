@@ -111,8 +111,38 @@ async function body() {
   check('the backup holds every table', r.data.ok && r.data.rows > 1000 && /^backups\/\d{4}-\d{2}-\d{2}\.json\.gz$/.test(r.data.key), JSON.stringify(r.data));
   check('the backup is not served by the media route', (await fetch(`${PORTAL}/media/${encodeURIComponent(r.data.key)}`)).status === 404);
 
+  // The breeder link check (2026-10-07). Three puppies point at the local site Worker: a page
+  // that answers, one that does not exist, and /index.html, which lands on the home page. Local
+  // http:// addresses sort before every real https:// link, so a batch of three checks only these.
+  const pups = sql("SELECT id, breeder_url FROM puppies WHERE id IN (SELECT id FROM public_puppies) ORDER BY id LIMIT 3");
+  const SITE = 'http://localhost:8791';
+  const targets = [`${SITE}/breeds.html`, `${SITE}/no-such-page-${Date.now()}.html`, `${SITE}/index.html`];
+  const batchBefore = sql("SELECT value FROM settings WHERE key = 'link_batch'")[0]?.value;
+  try {
+    sql("INSERT INTO settings (key, value) VALUES ('link_batch', '3') ON CONFLICT (key) DO UPDATE SET value = '3'");
+    pups.forEach((p, i) => sql(`UPDATE puppies SET breeder_url = '${targets[i]}' WHERE id = '${p.id}'`));
+    r = await req(ADMIN, 'POST', '/api/jobs/links/run', {});
+    check('the link check takes three links and sorts them as working, broken and home page', r.data.ok && r.data.checked === 3 && r.data.working === 1 && r.data.broken === 1 && r.data.home === 1, JSON.stringify(r.data));
+    const rows = sql(`SELECT url, verdict, failing_since FROM link_checks WHERE url LIKE '${SITE}%' ORDER BY url`);
+    const v = Object.fromEntries(rows.map((x) => [x.url, x]));
+    check('a working link is recorded ok with no failing date', v[targets[0]]?.verdict === 'ok' && !v[targets[0]].failing_since, JSON.stringify(rows));
+    check('a missing page is recorded broken, and one that lands on the home page as home', v[targets[1]]?.verdict === 'broken' && v[targets[1]].failing_since && v[targets[2]]?.verdict === 'home', JSON.stringify(rows));
+    const att = (await req(ADMIN, 'GET', '/api/attention')).data;
+    const listed = (att.broken_links || []).map((x) => x.url);
+    check('Needs attention lists the broken and home-page links and not the working one', listed.includes(targets[1]) && listed.includes(targets[2]) && !listed.includes(targets[0]), JSON.stringify(att.broken_links));
+    const since = v[targets[1]].failing_since;
+    await new Promise((res) => setTimeout(res, 1100));
+    r = await req(ADMIN, 'POST', '/api/jobs/links/run', {});
+    const again = sql(`SELECT failing_since FROM link_checks WHERE url = '${targets[1]}'`)[0];
+    check('a link still broken on the next run keeps the date it first failed', r.data.ok && again.failing_since === since, JSON.stringify([since, again]));
+  } finally {
+    pups.forEach((p) => sql(`UPDATE puppies SET breeder_url = ${p.breeder_url == null ? 'NULL' : `'${String(p.breeder_url).replace(/'/g, "''")}'`} WHERE id = '${p.id}'`));
+    sql(`DELETE FROM link_checks WHERE url LIKE '${SITE}%'`);
+    sql(batchBefore == null ? "DELETE FROM settings WHERE key = 'link_batch'" : `UPDATE settings SET value = '${batchBefore}' WHERE key = 'link_batch'`);
+  }
+
   const jobs = (await req(ADMIN, 'GET', '/api/jobs')).data;
-  check('the admin shows a last run for all four jobs', jobs.length === 4 && jobs.every((j) => j.last_run_at && !j.last_error), JSON.stringify(jobs));
+  check('the admin shows a last run for all five jobs', jobs.length === 5 && jobs.every((j) => j.last_run_at && !j.last_error), JSON.stringify(jobs));
   check('an unknown job is refused', (await req(ADMIN, 'POST', '/api/jobs/nothing/run', {})).status === 404);
   check('Run now refuses a request from another site', (await fetch(`${ADMIN}/api/jobs/expiry/run`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' })).status === 403);
 

@@ -59,6 +59,9 @@ export async function settings(env) {
     maxPhotos: Number(s.max_photos || 12),
     termsVersion: s.terms_version || 'draft',
     feeCents: Number(s.fee_cents || 1499),
+    // Breeder links checked per daily run. The free Workers plan allows 50 outside requests a
+    // run, shared with the day's emails, so 30 covers about 280 links in a little over a week.
+    linkBatch: Math.max(1, Math.min(40, Number(s.link_batch || 30))),
   };
 }
 

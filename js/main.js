@@ -240,7 +240,7 @@
        Each field is [value, menu text, tag text]. An empty value is the field's resting
        state, shown under the field's label, so "Available only" is the default. */
     var FIELDS = {
-      breed: { label: 'Breed', any: 'Any breed', opts: BREEDS.map(function (b) { return [b.name, b.name + ' (' + b.demo_count + ')', b.name]; }) },
+      breed: { label: 'Breed', any: 'Any breed', opts: [] },
       max: { label: 'Price', any: 'Any price', opts: [['1500', 'Up to $1,500', 'Up to $1,500'], ['2000', 'Up to $2,000', 'Up to $2,000'], ['2500', 'Up to $2,500', 'Up to $2,500'], ['3500', 'Up to $3,500', 'Up to $3,500']] },
       show: { label: 'Available only', any: 'Available only', opts: [['all', 'Include adopted puppies', 'Including adopted']] }
     };
@@ -255,6 +255,15 @@
     var asked = qs('breed') || '';
     if (BREEDS.some(function (b) { return b.name === asked; })) state.breed = asked;
 
+    /* A breed's count follows the availability choice, so "Mini Aussiedoodle (8)" never
+       opens onto an empty grid because all eight have gone home. */
+    var countBreeds = function () {
+      var n = {};
+      L.forEach(function (l) { if (state.show || !isPlaced(l)) n[l.breed] = (n[l.breed] || 0) + 1; });
+      FIELDS.breed.opts = BREEDS.filter(function (b) { return n[b.name] || b.name === state.breed; })
+        .map(function (b) { return [b.name, b.name + ' (' + (n[b.name] || 0) + ')', b.name]; });
+    };
+    countBreeds();
     var shortOf = function (k) {
       var o = FIELDS[k].opts.filter(function (x) { return x[0] === state[k]; })[0];
       return o ? o[2] : FIELDS[k].label;
@@ -312,6 +321,7 @@
     };
 
     var apply = function () {
+      countBreeds();
       var q = state.name.trim().toLowerCase();
       current = L.filter(function (l) {
         if (state.breed && l.breed !== state.breed) return false;

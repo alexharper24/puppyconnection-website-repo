@@ -55,6 +55,10 @@ WARNING: A live key takes real money. Set live keys only on the production porta
 - [ ] Confirm Amber's Stripe account shows as verified and able to take payments.
 - [ ] Create the listing product in live mode.
 - [ ] Create one price of $14.99, one-time, on that product.
+- [ ] Add the product image, the Puppy Connection logo on charcoal (`#262626`), 800 px square.
+- [ ] Set Branding: the white logo, the square icon, brand color `#262626`, accent color `#f7d57f`.
+- [ ] Turn Link off in Payment methods, so checkout offers cards and Apple Pay only.
+- [ ] Set the public business name to Puppy Connection.
 - [ ] Create a webhook endpoint at `https://<portal hostname>/stripe/webhook`.
 - [ ] Select these events on the endpoint.
   - `checkout.session.completed`

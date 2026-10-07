@@ -74,6 +74,7 @@ const stripeProvider = {
       expires_at: secs(o.expiresAt),
       success_url: `${o.origin}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${o.origin}/checkout/cancel?c=${o.checkoutId}`,
+      ...(o.note ? { custom_text: { submit: { message: o.note } } } : {}),
     }, o.checkoutId);
     return { id: s.id, url: s.url, amount_total: s.amount_total, expires_at: isoFromSecs(s.expires_at) };
   },
@@ -167,6 +168,20 @@ const simProvider = {
   },
 };
 
+/**
+ * The line Stripe's checkout shows above the Pay button, naming the puppies being listed, so
+ * the breeder sees more than "Puppy listing x 3". Stripe allows 1,200 characters, so a long
+ * batch is cut short with a count of the rest.
+ */
+export function listingNote(puppies) {
+  const names = puppies.map((x) => x.name).filter(Boolean);
+  if (!names.length) return null;
+  let shown = names.slice();
+  const join = (list, rest) => list.join(', ') + (rest ? `, and ${rest} more` : '');
+  while (shown.length > 1 && join(shown, names.length - shown.length).length > 1000) shown.pop();
+  return `Listing on Puppy Connection: ${join(shown, names.length - shown.length)}. Each puppy is paid for once and stays listed until you remove it or mark it placed.`;
+}
+
 export function provider(env) {
   if (env.PAYMENTS_MODE === 'sim') return simProvider;
   if (env.PAYMENTS_MODE === 'stripe') return stripeProvider;
@@ -245,6 +260,7 @@ export async function createCheckout(env, breeder, puppyIds, origin) {
       checkoutId, breederId: breeder.id, priceId: p.priceId(env), quantity: qty, unitAmount: s.feeCents,
       customer, email: breeder.email, origin, expiresAt: addMinutes(t, HOLD_MINUTES),
       description: `${qty} puppy listing${qty === 1 ? '' : 's'}, Puppy Connection`,
+      note: listingNote(puppies),
     });
   } catch (e) {
     await releaseCheckout(env, checkoutId, 'failed');

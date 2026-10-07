@@ -95,6 +95,10 @@ function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wix
 
 export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html` };
 
+// Whether a breed page names the breeders behind its puppies in its body copy (SEO plan P13).
+// Off until the Wix pairing is confirmed, see the breed page below.
+export const SHOW_BREED_BREEDERS = false;
+
 // js/main.js is copied with these changes, each of which must still match the concept's file.
 const MAIN_PATCHES = [
   // Photos in R2 are served by the site Worker at media/<id>, and narrow slots take the card copy.
@@ -436,7 +440,10 @@ ${mates.length ? `<section class="band band-warm">
     const where = sharedState(open.length ? open : pups);
     // SEO plan P13: the breeders listing this breed, linked from a sentence rather than only a card.
     const by = [...new Map(shown.filter((p) => realBreeder(p.br)).map((p) => [p.br.slug, p.br])).values()];
-    const byLine = by.length
+    // Off until the Wix pairing confirms which breeder raised each imported puppy (Alex,
+    // 2026-10-07). The import guessed breeders from web addresses on each Wix page, and some
+    // guesses are wrong, so a breed page should not name them yet. Turn on once paired.
+    const byLine = SHOW_BREED_BREEDERS && by.length
       ? `<p>${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}. Each breeder's page shows the rest of their puppies and how to reach them.</p>`
       : '';
     const body = `<main id="breedPage">\n<span id="content" tabindex="-1"></span>

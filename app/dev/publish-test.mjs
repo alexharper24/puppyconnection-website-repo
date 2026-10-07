@@ -271,7 +271,8 @@ async function part1() {
   check('a breed page description comes from the listings, not a cut-off guide sentence', /<meta name="description" content="\d+ Havanese puppies? for sale from (a small family breeder|small family breeders)/.test(hav), (hav.match(/<meta name="description" content="[^"]*/) || [''])[0]);
   const itemList = [...hav.matchAll(/<script type="application\/ld\+json">([^<]*)<\/script>/g)].map((m) => JSON.parse(m[1])).find((o) => o['@type'] === 'ItemList');
   check('a breed page carries an ItemList of the puppies it shows', !!itemList && itemList.itemListElement.length === itemList.numberOfItems && itemList.itemListElement.every((x) => x.url.startsWith('https://site.puppyconnection.workers.dev/puppy-')), JSON.stringify(itemList || {}).slice(0, 200));
-  check('a breed page links its breeders from the body copy', /come from <a href="breeder-[a-z0-9-]+\.html">/.test(hav));
+  // The breeder sentence is off until the Wix pairing is confirmed (SHOW_BREED_BREEDERS).
+  check('a breed page does not name its breeders until the pairing is confirmed', !/come from <a href="breeder-/.test(hav));
   check('the puppy page names its breeder in an h2, not an h3 under the h1', pup.includes('<h2 class="breeder-name">') && !/<h3>/.test(pup.split('<main')[1] || ''));
   const hub = fs.readFileSync(path.join(out, 'breeders.html'), 'utf8');
   check('the breeders hub is titled for the breeder search', hub.includes('<title>Dog Breeders in Indiana and the Midwest | Puppy Connection</title>') && hub.includes('<h1>Dog breeders in Indiana and the Midwest</h1>'));

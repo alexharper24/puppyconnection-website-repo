@@ -312,7 +312,7 @@
     function f(name, label, type, hint, attrs) {
       return '<div class="field"><label for="f-' + name + '">' + esc(label) + '</label><input id="f-' + name + '" name="' + name + '" type="' + (type || 'text') + '" value="' + esc(p[name] || '') + '"' + dis + (attrs || '') + '>' + (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
     }
-    var html = head('Your profile', 'This is what buyers see on your breeder page. Your sign-in email (' + esc(me.email) + ') stays private.') +
+    var html = head('Your profile', 'This is what buyers see on your breeder page. Your sign-in email (' + esc(me.email) + ') stays private.' + (me.site_url ? ' Changes show on your page within about 15 minutes.' : '')) +
       '<form id="profile" class="card" novalidate><input type="hidden" name="version" value="' + esc(p.version) + '">' +
       f('business_name', 'Business name', 'text', null, ' required') +
       '<div class="grid-2">' + f('public_phone', 'Phone buyers can call', 'tel') + f('public_email', 'Email buyers can write to', 'email') + '</div>' +
@@ -590,6 +590,7 @@
     openDrawer(x ? x.name : 'Add a puppy',
       (x ? '<div class="chips">' + puppyChips(x) + '</div>' + standingLine(x) +
         (x.site_url ? '<p class="small" style="margin:.4rem 0 0"><a href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View ' + esc(x.name) + ' on the site</a></p>' : '') +
+        (x.is_public ? '<p class="hint" style="margin:.4rem 0 0">Changes you save here, photos included, show on the site within about 15 minutes.</p>' : '') +
         '<div style="margin-bottom:.8rem"></div>' : '') +
       '<form id="puppy" novalidate>' + (x ? '<input type="hidden" name="version" value="' + esc(x.version) + '">' : '') +
       '<div class="field"><label for="p-name">Name</label><input id="p-name" name="name" type="text" value="' + esc(x ? x.name : '') + '" required' + dis + '></div>' +
@@ -875,7 +876,7 @@
     var r = state.route.split('?')[0];
     var q = state.route.split('?')[1] || '';
     if (r === 'listings') {
-      if (q.indexOf('paid=') >= 0) toast(q.indexOf('result=paid') >= 0 ? 'Payment received. Your listings are going live.' : 'Payment received. Your listings will go live shortly.');
+      if (q.indexOf('paid=') >= 0) toast(q.indexOf('result=paid') >= 0 ? 'Payment received. Your puppies appear on the site within about 15 minutes.' : 'Payment received. Your listings will go live shortly.');
       location.replace('#/litters');
       return;
     }

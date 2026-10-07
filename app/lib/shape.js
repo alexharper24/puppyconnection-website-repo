@@ -53,8 +53,10 @@ export async function exportSite(env) {
   const litters = (await db.prepare('SELECT * FROM public_litters ORDER BY id').all()).results;
   const puppies = (await db.prepare('SELECT * FROM public_puppies ORDER BY published_at DESC, slug').all()).results;
   const photos = {};
+  // Size and focus point from ops/measure_photos.py, carried only once a photo has been measured.
+  const framing = (ph) => (ph.width && ph.height ? { w: ph.width, h: ph.height, fx: ph.focus_x ?? 0.5, fy: ph.focus_y ?? 0.38 } : {});
   for (const r of (await db.prepare(
-    `SELECT id, puppy_id, r2_key, external_url, aspect FROM photos
+    `SELECT id, puppy_id, r2_key, external_url, aspect, width, height, focus_x, focus_y FROM photos
       WHERE puppy_id IN (SELECT id FROM public_puppies) ORDER BY puppy_id, position, id`,
   ).all()).results) (photos[r.puppy_id] ||= []).push(r);
 
@@ -75,9 +77,9 @@ export async function exportSite(env) {
       price: p.price_cents == null ? null : p.price_cents / 100, deposit: p.deposit_cents == null ? null : p.deposit_cents / 100,
       availability: p.availability, hypoallergenic: !!p.hypoallergenic, includes: JSON.parse(p.includes_json || '[]'),
       about: paras(p.description), breeder_url: p.breeder_url, legacy_slug: p.legacy_slug || null, published_at: p.published_at,
-      photos: (photos[p.id] || []).map((ph) => (ph.r2_key
+      photos: (photos[p.id] || []).map((ph) => ({ ...(ph.r2_key
         ? { ...photoPath(ph), aspect: ph.aspect }
-        : { src: ph.external_url, card: null, aspect: ph.aspect })),
+        : { src: ph.external_url, card: null, aspect: ph.aspect }), ...framing(ph) })),
     }))),
   };
   return { generation: site.generation, files, counts: { breeds: breeds.length, breeders: breeders.length, litters: litters.length, puppies: puppies.length } };

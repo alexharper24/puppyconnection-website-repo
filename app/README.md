@@ -22,7 +22,7 @@ Then start the three servers. They are in `C:\Git_Repos\.claude\launch.json` as
 `pc-portal`, `pc-admin` and `pc-preview`, or by hand from `C:\Git_Repos`:
 
 ```bash
-node teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js dev --config puppyconnection-website-repo/app/portal/wrangler.jsonc --persist-to puppyconnection-website-repo/app/.state --port 8787
+node teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js dev --config puppyconnection-website-repo/app/portal/wrangler.jsonc --persist-to puppyconnection-website-repo/app/.state --port 8787 --test-scheduled
 ```
 
 ```bash

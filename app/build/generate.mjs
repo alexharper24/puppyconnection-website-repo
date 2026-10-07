@@ -66,7 +66,31 @@ const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); 
 const isWix = (u) => /wixstatic\.com/.test(u || '');
 function wix(base, w, h) { return `${base}/v1/fill/w_${w},h_${h},al_t,q_82,usm_0.66_1.00_0.01,enc_auto/i.jpg`; }
 function wixFit(base, w, h) { return `${base}/v1/fit/w_${w},h_${h},q_85,enc_auto/i.jpg`; }
-function fill(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wix(photo.src, w, h) : (w <= 640 && photo.card ? photo.card : photo.src); }
+// A measured photo (ops/measure_photos.py) is cropped to the slot's shape around its focus point,
+// the part of the frame that holds the puppy, and then scaled. Anchoring to the top edge instead
+// kept empty wall above a puppy sitting low in a tall photo.
+function wixCrop(photo, w, h) {
+  const t = w / h;
+  const [cw, ch] = photo.w / photo.h < t ? [photo.w, Math.round(photo.w / t)] : [Math.round(photo.h * t), photo.h];
+  const x = Math.min(Math.max(Math.round(photo.fx * photo.w - cw / 2), 0), photo.w - cw);
+  const y = Math.min(Math.max(Math.round(photo.fy * photo.h - ch / 2), 0), photo.h - ch);
+  return `${photo.src}/v1/crop/x_${x},y_${y},w_${cw},h_${ch}/fill/w_${w},h_${h},al_c,q_82,usm_0.66_1.00_0.01,enc_auto/i.jpg`;
+}
+function fill(photo, w, h) {
+  if (!photo) return '';
+  if (isWix(photo.src)) return photo.w && photo.h ? wixCrop(photo, w, h) : wix(photo.src, w, h);
+  return w <= 640 && photo.card ? photo.card : photo.src;
+}
+
+// The photo that stands for a breed or a breeder on a card. It is chosen from every photo of the
+// puppies still available, preferring a landscape photo, which fills a 3:2 card with little crop,
+// and one wide enough not to be enlarged. Unmeasured photos rank below measured good ones.
+function photoScore(ph, i) {
+  const a = ph.aspect || (ph.w && ph.h ? ph.w / ph.h : null);
+  const shape = a == null ? 0.4 : a >= 1.25 && a <= 1.8 ? 1 : a >= 1 ? 0.65 : 0.3;
+  const width = ph.w ? Math.min(ph.w, a && a < 1.5 ? ph.w : ph.h * 1.5, 900) / 900 : 0.5;
+  return shape * 0.6 + width * 0.4 + (i === 0 ? 0.05 : 0);
+}
 function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wixFit(photo.src, w, h) : (w <= 640 && photo.card ? photo.card : photo.src); }
 
 export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html` };
@@ -74,7 +98,7 @@ export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-$
 // js/main.js is copied with these changes, each of which must still match the concept's file.
 const MAIN_PATCHES = [
   // Photos in R2 are served by the site Worker at media/<id>, and narrow slots take the card copy.
-  ["  function wix(base, w, h) {\n    if (!base) return '';", "  function wix(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return pcLocal(base, w);"],
+  ["  function wix(base, w, h) {\n    if (!base) return '';", "  function wix(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return pcLocal(base, w);\n    if (base.indexOf('/v1/') > 0) return base;"],
   ["  function wixFit(base, w, h) {\n    if (!base) return '';", "  function wixFit(base, w, h) {\n    if (!base) return '';\n    if (base.indexOf('wixstatic.com') < 0) return pcLocal(base, w);"],
   ["  /* \"fit\" letterboxes", "  function pcLocal(base, w) {\n    return w <= 640 && /^media\\/[\\w-]+$/.test(base) ? base + '/card' : base;\n  }\n  /* \"fit\" letterboxes"],
   // Breeder pages are named by the breeder's own slug, not their website.
@@ -216,7 +240,12 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
   // ---- the listing data the home page and the puppy browser render with js/main.js
   const breedCounts = {};
   for (const p of D.puppies) breedCounts[p.b.slug] = (breedCounts[p.b.slug] || 0) + 1;
-  const leadOf = (list) => { const p = list.find((x) => !x.placed && x.photos.length) || list.find((x) => x.photos.length); return p ? p.photos[0] : null; };
+  const leadOf = (list) => {
+    const pool = list.some((x) => !x.placed && x.photos.length) ? list.filter((x) => !x.placed) : list;
+    let best = null; let top = -1;
+    for (const p of pool) p.photos.forEach((ph, i) => { const sc = photoScore(ph, i); if (sc > top) { top = sc; best = ph; } });
+    return best;
+  };
   const listedBreeds = D.breeds.filter((b) => breedCounts[b.slug] || b.guide.length);
   const pcListings = D.puppies.map((p) => ({
     slug: p.slug, name: `${p.name} - ${p.b.name}`, price: p.price, in_stock: !p.placed,
@@ -232,7 +261,7 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
   }));
   const pcBreeds = listedBreeds.map((b) => {
     const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
-    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: b.guide, photo: lead ? lead.src : null };
+    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: b.guide, photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : null };
   });
   const dataJs = `// Written by app/build/generate.mjs from data/*.json. Do not edit.\nwindow.PC_LISTINGS=${JSON.stringify(pcListings)};\nwindow.PC_BREEDS=${JSON.stringify(pcBreeds)};\nwindow.PC_BREEDERS=[];\n`;
   fs.writeFileSync(path.join(out, 'data/data.js'), dataJs);

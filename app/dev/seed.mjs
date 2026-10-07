@@ -21,6 +21,9 @@ const OUT = path.join(REPO, 'app/.state/seed.sql');
 const src = fs.readFileSync(path.join(REPO, 'data/data.js'), 'utf8');
 const grab = (name) => JSON.parse(src.match(new RegExp(`window\\.${name}\\s*=\\s*(\\[.*?\\]);`, 's'))[1]);
 const LISTINGS = grab('PC_LISTINGS');
+// Photo size and focus point from app/ops/measure_photos.py, when it has been run.
+const FRAMING_FILE = path.join(REPO, '_harvest/data/framing.json');
+const FRAMING = fs.existsSync(FRAMING_FILE) ? JSON.parse(fs.readFileSync(FRAMING_FILE, 'utf8')) : {};
 const BREEDS = grab('PC_BREEDS');
 
 const q = (v) => (v == null ? 'NULL' : typeof v === 'number' ? String(v) : `'${String(v).replace(/'/g, "''")}'`);
@@ -127,8 +130,10 @@ VALUES (${q(pid)}, ${q(b.id)}, ${q(litterId)}, ${q(l.slug)}, ${q(l.puppy_name ||
   ${q(l.deposit != null ? Math.round(l.deposit * 100) : null)}, ${q(l.description)}, ${q(l.breeder_url)}, ${q(JSON.stringify(l.includes || []))}, ${l.hypoallergenic ? 1 : 0},
   'comped', 'published', ${q(availability)}, ${q(NOW)}, ${q(EXPIRES)}, ${q(l.slug)}, ${q(NOW)}, ${q(NOW)});`);
   (l.images || []).forEach((url, i) => {
-    sql.push(`INSERT OR IGNORE INTO photos (id, breeder_id, puppy_id, external_url, position, aspect, created_at)
-VALUES (${q(`${pid}-img${i}`)}, ${q(b.id)}, ${q(pid)}, ${q(url)}, ${i}, ${q(i === 0 ? l.lead_aspect : null)}, ${q(NOW)});`);
+    const f = FRAMING[url];
+    sql.push(`INSERT OR IGNORE INTO photos (id, breeder_id, puppy_id, external_url, position, aspect, width, height, focus_x, focus_y, created_at)
+VALUES (${q(`${pid}-img${i}`)}, ${q(b.id)}, ${q(pid)}, ${q(url)}, ${i}, ${q(f ? Math.round((f.w / f.h) * 1000) / 1000 : i === 0 ? l.lead_aspect : null)},
+  ${q(f ? f.w : null)}, ${q(f ? f.h : null)}, ${q(f ? f.fx : null)}, ${q(f ? f.fy : null)}, ${q(NOW)});`);
   });
 }
 

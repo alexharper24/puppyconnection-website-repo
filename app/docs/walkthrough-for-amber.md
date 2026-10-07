@@ -11,7 +11,7 @@ nobody else can find on Google.
 | Your admin, where you approve breeders and look after the directory | https://admin.puppyconnection.workers.dev |
 | The public site, what buyers see | https://site.puppyconnection.workers.dev |
 
-The staging copy already holds the 273 listings from your current Wix site and three made-up
+The staging copy already holds the listings from your current Wix site and three made-up
 breeders, so there is something to look at on every screen. The made-up breeders are Buttercup
 Lane Puppies, Thistledown Pups and Maple Brook Doodles. Their names, phone numbers and pictures
 are invented for this tour, and none of them is a real kennel.
@@ -41,9 +41,9 @@ sign-in page with the Puppy Connection logo.
 
 There are two ways in, and neither needs a password.
 
-- **Continue with Google.** The breeder picks their Google account and they are in.
-  **Waiting** on Alex to finish the Google setup, so on staging today this button may not let
-  every account through yet.
+- **Continue with Google.** The breeder picks their Google account and they are in. On a
+  computer already signed in to Google, a small box may offer the account before they press
+  anything.
 - **Use your email.** The breeder types their email and, the first time, their business name,
   then presses **Email me a sign-in link**. The page changes to **Check your email**. The email
   holds a six-digit code and a link. They type the code into the box on that page, or open the
@@ -92,8 +92,8 @@ wording for the terms, which you can type into the admin's **Terms** screen your
 
 Open the admin at https://admin.puppyconnection.workers.dev. You sign in with your Google account
 or with a code sent to your email, and then confirm a second step on your phone, such as an
-authenticator app. Only people you have added as operators get past that point. **Waiting** on
-Alex to finish the Google sign-in and on each operator setting up the second step the first time.
+authenticator app. Only people you have added as operators get past that point. Each operator
+sets up the second step the first time they sign in.
 
 The admin opens on the **Overview**. At the top, **Needs attention** lists anything waiting for
 you, and the first line says a breeder is waiting for your approval.
@@ -147,9 +147,9 @@ everything else, and each one has its own page with its photos and the breeder's
 breeder's own page shows their logo, their town and all of their puppies. From the portal, the
 breeder can press **View on the site** to jump straight to their page or to any puppy.
 
-On staging a listing shows up within about a minute and a half. When the finished site is
-switched on, it updates through **Publish** in the admin instead. **Waiting** on Alex to connect
-the finished site's automatic build in Cloudflare, which is free.
+The site picks up new listings and changes about every 15 minutes. To see a change straight
+away, press **Publish now** on the **Publish** screen in the admin, and the site updates within a
+few minutes.
 
 Try Maple, Biscuit and Clover from Maple Brook Doodles.
 
@@ -199,7 +199,7 @@ Everything below is in the admin menu on the left.
 - **Settings** holds a few listing rules, such as how many photos a puppy needs.
 - **Reset demo data** is at the bottom of **Settings**, on the staging copy only. It puts staging
   back to the three made-up breeders, removes anyone who signed up while you were trying things
-  out, and leaves the 273 Wix listings alone. It takes a backup first, and you have to type
+  out, and leaves the Wix listings alone. It takes a backup first, and you have to type
   RESET DEMO before the button works. Use it before showing the directory to someone, so they
   see a clean copy.
 - **Activity** is the full history of who did what and when.
@@ -219,11 +219,9 @@ sign-in link**, and open the **portal mailbox** link on the next page to find th
 | --- | --- |
 | Real email, so codes and notices arrive in real inboxes | Alex, choosing where staging sends email from |
 | Real card payments through Stripe, first in test mode and then your own account | Alex for the test account, then you for your Stripe account |
-| Continue with Google for breeders, and Google sign-in for the admin | Alex, finishing the Google setup |
 | The second step on your phone when you sign in to the admin | Each operator, the first time they sign in |
 | The listing terms in your own words | Amber |
 | The privacy page, written as a draft for your review | Amber |
 | Which breeder each Wix listing belongs to, before the real import | Amber |
-| The finished public site, generated and published from the directory | Alex, connecting the site's automatic build in Cloudflare (free) |
 | What staff can do compared with the owner | Amber |
 | Whether a kennel can have more than one person signing in | Amber |

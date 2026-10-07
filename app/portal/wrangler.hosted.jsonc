@@ -48,6 +48,13 @@
     "PUBLISH_DIR": "",
     "DEV_MODE": "staging",
     "EMAIL_MODE": "log",
-    "PAYMENTS_MODE": "sim"
+    // Stripe sandbox (plan P7.4, 2026-10-06). Product "Puppy listing", one-time $14.99 price, and
+    // the webhook puppy-connection-staging at /stripe/webhook on API version 2026-08-26.dahlia
+    // with the seven events in docs/launch-checklist.md L1. STRIPE_SECRET_KEY (sandbox sk_test)
+    // and STRIPE_WEBHOOK_SECRET are secrets Alex sets.
+    "PAYMENTS_MODE": "stripe",
+    "STRIPE_MODE": "test",
+    "STRIPE_API_VERSION": "2026-08-26.dahlia",
+    "STRIPE_PRICE_ID": "price_1UNj2R2wFuCkAYt5hqjlsugi"
   }
 }

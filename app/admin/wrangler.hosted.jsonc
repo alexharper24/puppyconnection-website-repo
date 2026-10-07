@@ -30,7 +30,11 @@
     "PUBLISH_MODE": "hook",
     "DEV_MODE": "staging",
     "EMAIL_MODE": "log",
-    "PAYMENTS_MODE": "sim",
+    // Stripe sandbox, the same as the portal. The admin needs STRIPE_SECRET_KEY for refunds.
+    "PAYMENTS_MODE": "stripe",
+    "STRIPE_MODE": "test",
+    "STRIPE_API_VERSION": "2026-08-26.dahlia",
+    "STRIPE_PRICE_ID": "price_1UNj2R2wFuCkAYt5hqjlsugi",
     "ACCESS_TEAM_DOMAIN": "dry-snowflake-0e9c",
     "ACCESS_AUD": "ed2540a85f73e26cbd10f0ab48a416aac70dad4ffecf8cc5f01f8553643debfa"
   }

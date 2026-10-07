@@ -2,16 +2,17 @@
 name: puppyconnection-website-repo
 description: Project state for Puppy Connection, read first every session
 kind: other                 # listing directory, not a breeder. See pc-strategy-row
-updated: 2026-09-30
+updated: 2026-10-07
 gate: G1                    # concept is built and in review, but discovery was skipped and every later gate depends on it
 review_url: "https://alexharper24.github.io/puppyconnection-website-repo/"
 live_url: "https://www.puppy-connection.com/"
 open:
   # G1 Discovery
   - {id: g1-inputs, gate: G1, blocked_on: alex, item: "Business name, owner, services, phone, email, service area, logo and photos gathered. Anything missing becomes a visible REPLACE THIS placeholder"}
-  - {id: g1-old-site, gate: G1, blocked_on: claude, item: "Every legacy Wix URL inventoried for the 301 map, any Search Console export, and every hot-linked image recorded. The 2026-08-30 harvest captured listings and images but not a URL inventory"}
+  - {id: g1-old-site, gate: G1, blocked_on: claude, item: "Every legacy Wix URL inventoried for the 301 map, any Search Console export, and every hot-linked image recorded. The 2026-08-30 harvest captured listings and images but not a URL inventory. 2026-10-07: the live Wix sitemaps list 338 addresses, 282 puppy pages (redirected) and 56 others, each mapped to a proposed target in hs-seo-data/puppyconnection/2026-10-07. Search Console export still to come"}
   - {id: g1-context, gate: G1, blocked_on: claude, item: "Client context block written in this file, the conversion that counts (a breeder paying to list, and a buyer clicking through to a breeder), and national or regional reach, each fact marked confirmed or published"}
-  - {id: g1-data, gate: G1, blocked_on: alex, item: "Keyword source recorded (Semrush trial via Chrome, pulls cached in hs-seo-data). Search Console for the live domain still to record, and the trial ends within days"}
+  - {id: g1-data, gate: G1, blocked_on: alex, item: "Keyword source recorded (Semrush trial via Chrome, pulls cached in hs-seo-data). Search Console for the live domain still to record, and the trial ends within days. 2026-10-07: SE Ranking in Alex's Chrome is the current keyword source"}
+  - {id: g1-business, gate: G1, blocked_on: alex, item: "Business model and both audiences answered before any more keyword work: how it earns, the breeders it wants and the families it serves, the desired state in numbers a year out, the geography now and where it grows, and the conversion for each audience. Questions drafted 2026-10-07 in hs-seo-data/puppyconnection/2026-10-07/business-questions.md, for Alex first and then Amber in rounds"}
   - {id: g1-sales-by-entity, gate: G1, blocked_on: client, item: "Which breeds list and place fastest through Puppy Connection, recorded with the date. The order of work stays provisional until this is in"}
   - {id: g1-competitors, gate: G1, blocked_on: claude, item: "Competitor set confirmed on four results pages 2026-09-28 as the national marketplaces (AKC Marketplace, Adopt a Pet, Good Dog, puppies.com, Lancaster Puppies, PuppySpot). puppiesofindiana.com, fourth for puppies for sale in indiana, turned out to be a single poodle breeder ranking from its home page title (hs-seo-data competitors file). The marketplaces themselves are not yet profiled"}
   - {id: g1-design, gate: G1, blocked_on: claude, item: "Character statement written to the README and layout archetype chosen, after checking the built-sites ledger"}
@@ -47,6 +48,9 @@ closed:
   - {id: g1-money-searches, closed: 2026-09-28, evidence: "Keyword method run in full with a directory config, 623 of 623 template searches returned and 0 missing, competition measured on puppies.com for all 25 breeds, four results pages read. hs-seo-data/puppyconnection/2026-09-28/keyword-plan.md"}
   - {id: g3-noindex, closed: 2026-09-28, evidence: "site-audit run 2026-09-28, 8 of 8 pages carry noindex and robots.txt disallows all"}
 decisions:
+  - {date: 2026-10-07, decision: "Not Indiana only. A listing service starting with Indiana and the Midwest and growing past them (Alex). The home page and breeders hub name Indiana and the Midwest, and breed titles name no place until every listed breeder of a breed shares a state on record"}
+  - {date: 2026-10-07, decision: "SEO batch 1 applied to staging at G1, ahead of Discovery, and kept because it is low-regret: breed, home, hub and puppy titles, body links, ItemList and sitemap images. No further SEO batch until g1-business, g1-sales-by-entity and an extended keyword pull are done"}
+  - {date: 2026-10-07, decision: "Imported puppies carry breeders guessed from web addresses on their Wix pages, and some are wrong (Alex). Breed pages stop naming breeders (SHOW_BREED_BREEDERS off) until a pairing sheet, filled by Alex or Amber, corrects them by database migration"}
   - {date: 2026-10-02, decision: "The hosted test copy moved to its own Puppy Connection Cloudflare account, as Teapup and Sweet Puppy Paws did. portal, admin and site on puppyconnection.workers.dev, the admin behind Cloudflare Access with an emailed code, the old copy in the main account kept until Alex signs in to the new one. See app/docs/account-move.md"}
   - {date: 2026-09-30, decision: "Hosted test deployment on Alex's Cloudflare account: puppyconnection-portal, -admin and -site on alexharper.workers.dev, a new D1 and R2 of their own, all behind one test password (TEST_GATE). See app/README.md"}
   - {date: 2026-09-30, decision: "The portal and operator screens are built first as a local simulation in app/, so sign-up, approval, listing and a simulated payment run end to end before any account, Stripe or paid plan exists"}

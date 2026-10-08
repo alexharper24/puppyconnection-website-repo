@@ -265,7 +265,9 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
   }));
   const pcBreeds = listedBreeds.map((b) => {
     const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
-    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: b.guide, photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : null };
+    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: b.guide, photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : null,
+      // The phone home page shows breed cards at portrait 4:5 (Alex, 2026-10-07), cropped around the same focus point.
+      photo_tall: lead && isWix(lead.src) ? fill(lead, 480, 600) : null };
   });
   const dataJs = `// Written by app/build/generate.mjs from data/*.json. Do not edit.\nwindow.PC_LISTINGS=${JSON.stringify(pcListings)};\nwindow.PC_BREEDS=${JSON.stringify(pcBreeds)};\nwindow.PC_BREEDERS=[];\n`;
   fs.writeFileSync(path.join(out, 'data/data.js'), dataJs);

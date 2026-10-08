@@ -16,6 +16,8 @@
   };
 
   var L = window.PC_LISTINGS || [];
+  /* Below 760px the card grids run two across with portrait 4:5 photos (see card()). */
+  var PHONE = window.matchMedia ? window.matchMedia('(max-width: 760px)') : { matches: false };
   var BREEDS = window.PC_BREEDS || [];
   var BREEDERS = window.PC_BREEDERS || [];
 
@@ -90,6 +92,11 @@
        portrait into the 3:2 slot cuts the dog in half whichever edge we anchor
        to, so those sit whole on the card's own ground instead. */
     var tall = (l.lead_aspect || 9) < 1.2;
+    /* On a phone the grids run two across and the card photo is portrait 4:5, Teapup's tile
+       shape (Alex, 2026-10-07), so the photo is asked for at that shape and fills the tile,
+       portrait or not. */
+    var phone = PHONE.matches;
+    if (phone) tall = false;
     var placed = isPlaced(l);
     var label = statusLabel(l);
     var mates = byLitter(l.litter).length;
@@ -100,10 +107,10 @@
              whole image, so the card reads edge to edge without losing the dog.
              60px wide is all a 22px blur needs, so it costs about a kilobyte. */
           (tall ? ' style="--fill:url(' + esc(wix(img(l), 60, 40)) + ')"' : '') + '>' +
-          (img(l) ? '<img src="' + esc(tall ? wixFit(img(l), 600, 400) : wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
+          (img(l) ? '<img src="' + esc(phone ? wix(img(l), 480, 600) : tall ? wixFit(img(l), 600, 400) : wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
             esc(l.breed || 'puppy') + '" ' +
             (eager ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"') +
-            ' width="600" height="400">' : '') +
+            (phone ? ' width="480" height="600">' : ' width="600" height="400">') : '') +
           (label ? '<span class="tag ' + (placed ? 'tag-sold' : 'tag-pending') + '">' + label + '</span>' : '') +
           (mates > 1 ? '<span class="tag tag-litter">Litter of ' + mates + '</span>' : '') +
         '</div>' +
@@ -256,8 +263,8 @@
     if (bl) {
       bl.innerHTML = BREEDS.slice(0, 12).map(function (b) {
         return '<a class="card" href="breed.html?slug=' + esc(b.slug) + '">' +
-          '<div class="card-media">' + (b.photo ? '<img src="' + esc(wix(b.photo, 600, 400)) +
-            '" alt="' + esc(b.name) + '" loading="lazy" decoding="async" width="600" height="400">' : '') + '</div>' +
+          '<div class="card-media">' + (b.photo ? '<img src="' + esc(PHONE.matches ? wix(b.photo_tall || b.photo, 480, 600) : wix(b.photo, 600, 400)) +
+            '" alt="' + esc(b.name) + '" loading="lazy" decoding="async" ' + (PHONE.matches ? 'width="480" height="600"' : 'width="600" height="400"') + '>' : '') + '</div>' +
           '<div class="card-body"><div class="card-name">' + esc(b.name) + '</div>' +
           '<div class="card-breed">' + b.demo_count + ' listed</div></div></a>';
       }).join('');

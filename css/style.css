@@ -402,10 +402,19 @@ p{margin:0 0 1rem;max-width:70ch}
   .home-grid,.grid-4.cols-4{grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
   /* At two across a card is about 170px wide, so the price and the ready date stack rather
      than squeezing the date onto three lines beside the price. */
-  .home-grid .card-body,.grid-4.cols-4 .card-body{padding:.75rem .8rem .9rem}
-  .home-grid .card-name,.grid-4.cols-4 .card-name{font-size:1.12rem}
-  .home-grid .card-foot,.grid-4.cols-4 .card-foot{flex-direction:column;align-items:flex-start;gap:.15rem}
-  .home-grid .card-ready,.grid-4.cols-4 .card-ready{white-space:nowrap}
+  /* Portrait 4:5 photos, Teapup's tile shape, and a shorter text block, so the photo leads the
+     card (Alex chose this, option B, 2026-10-07). js/main.js asks for each photo at 4:5. */
+  .home-grid .card-media,.grid-4.cols-4 .card-media{aspect-ratio:4/5}
+  .home-grid .card-media img,.grid-4.cols-4 .card-media img{object-position:center}
+  .home-grid .card-body,.grid-4.cols-4 .card-body{padding:.6rem .7rem .75rem;gap:.15rem}
+  .home-grid .card-name,.grid-4.cols-4 .card-name{font-size:1.02rem;line-height:1.15}
+  .home-grid .card-breed,.grid-4.cols-4 .card-breed{font-size:.74rem;letter-spacing:.06em}
+  .home-grid .card-foot,.grid-4.cols-4 .card-foot{flex-direction:column;align-items:flex-start;gap:0;padding-top:.35rem}
+  .home-grid .price,.grid-4.cols-4 .price{font-size:1.02rem}
+  .home-grid .card-ready,.grid-4.cols-4 .card-ready{white-space:nowrap;font-size:.68rem;letter-spacing:.04em}
+  .home-grid .tag,.grid-4.cols-4 .tag{font-size:.62rem;padding:.25rem .4rem;left:.45rem}
+  .home-grid .tag:not(.tag-litter),.grid-4.cols-4 .tag:not(.tag-litter){top:.45rem}
+  .home-grid .tag-litter,.grid-4.cols-4 .tag-litter{bottom:.45rem}
 }
 
 /* demo watermark */

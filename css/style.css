@@ -250,7 +250,7 @@ p{margin:0 0 1rem;max-width:70ch}
 .f-open,.f-active{display:none}
 /* These set their own display, which would otherwise beat the hidden attribute and leave the
    phone sheet and its scrim showing on every screen. */
-.f-sheet[hidden],.f-scrim[hidden],.ft-x[hidden],.ft-menu[hidden],.f-empty[hidden]{display:none}
+.f-sheet[hidden],.f-scrim[hidden],.ft-x[hidden],.ft-menu[hidden],.f-empty[hidden],.f-open .dot[hidden]{display:none}
 .f-empty{margin:0 0 1.5rem}
 .link-btn{background:none;border:0;padding:0;font:inherit;color:inherit;text-decoration:underline;cursor:pointer}
 .f-scrim{position:fixed;inset:0;z-index:90;background:rgba(20,20,20,.5)}
@@ -399,13 +399,13 @@ p{margin:0 0 1rem;max-width:70ch}
 .home-grid > [hidden]{display:none}
 .reveal-row{justify-content:center}
 @media(max-width:760px){
-  .home-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+  .home-grid,.grid-4.cols-4{grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
   /* At two across a card is about 170px wide, so the price and the ready date stack rather
      than squeezing the date onto three lines beside the price. */
-  .home-grid .card-body{padding:.75rem .8rem .9rem}
-  .home-grid .card-name{font-size:1.12rem}
-  .home-grid .card-foot{flex-direction:column;align-items:flex-start;gap:.15rem}
-  .home-grid .card-ready{white-space:nowrap}
+  .home-grid .card-body,.grid-4.cols-4 .card-body{padding:.75rem .8rem .9rem}
+  .home-grid .card-name,.grid-4.cols-4 .card-name{font-size:1.12rem}
+  .home-grid .card-foot,.grid-4.cols-4 .card-foot{flex-direction:column;align-items:flex-start;gap:.15rem}
+  .home-grid .card-ready,.grid-4.cols-4 .card-ready{white-space:nowrap}
 }
 
 /* demo watermark */
@@ -493,7 +493,7 @@ p{margin:0 0 1rem;max-width:70ch}
   .f-active .ft{min-height:36px;font-size:.9rem}
   .grid-4.cols-4{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media(max-width:480px){.grid-4.cols-4{grid-template-columns:1fr}}
+/* Two across on every phone, as on the home page (Alex, 2026-10-07), so no single-column tier. */
 
 /* ---------- breed page: the sidebar photo is redundant on a phone ---------- */
 @media(max-width:940px){

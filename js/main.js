@@ -193,6 +193,52 @@
     });
   }
 
+  /* "Show more", on a phone, the way Teapup's home page does it (Alex, 2026-10-07). Below
+     760px the home grids run two across, so a grid shows its first `step` cards and a button
+     adds `step` more. The button ships hidden and only this shows it, so with the script off
+     every card is there, and above the line every card shows. */
+  function reveal(gridId, step) {
+    var grid = document.getElementById(gridId);
+    var btn = document.querySelector('[data-reveal-more="' + gridId + '"]');
+    if (!grid || !btn || !window.matchMedia) return;
+    var cards = [].slice.call(grid.children);
+    var small = window.matchMedia('(max-width: 760px)');
+    var shown = step;
+    var paint = function () {
+      if (!small.matches) { cards.forEach(function (c) { c.hidden = false; }); btn.hidden = true; return; }
+      cards.forEach(function (c, i) { c.hidden = i >= shown; });
+      btn.hidden = cards.length <= shown;
+    };
+    btn.addEventListener('click', function () {
+      var first = cards[shown];
+      shown += step;
+      paint();
+      if (first) { first.setAttribute('tabindex', '-1'); first.focus({ preventScroll: true }); }
+    });
+    if (small.addEventListener) small.addEventListener('change', paint);
+    paint();
+  }
+
+  /* The footer's sections, closed on a phone, as on Teapup. They are written open, so with
+     the script off every link stays in the page, and a shut <details> can only be opened
+     again from the attribute, which is why this is script and not CSS. Once somebody opens
+     or shuts one themselves, it stops second-guessing them. */
+  (function () {
+    var secs = [].slice.call(document.querySelectorAll('.foot-sec'));
+    if (!secs.length || !window.matchMedia) return;
+    var small = window.matchMedia('(max-width: 700px)');
+    var touched = false;
+    secs.forEach(function (x) {
+      x.addEventListener('toggle', function () { if (x.dataset.auto) delete x.dataset.auto; else touched = true; });
+    });
+    var apply = function () {
+      if (touched) return;
+      secs.forEach(function (x) { var want = !small.matches; if (x.open !== want) { x.dataset.auto = '1'; x.open = want; } });
+    };
+    apply();
+    if (small.addEventListener) small.addEventListener('change', apply);
+  })();
+
   /* ---------- home ---------- */
   if (document.querySelector('#homeFeatured')) {
     var seenBreed = {};
@@ -201,7 +247,10 @@
       seenBreed[l.breed] = 1;
       return true;
     });
-    renderInto('#homeFeatured', featured.slice(0, 8));
+    // Twelve on the home page: three rows of four on a computer, and on a phone, where the
+    // grid is two across, eight show before "Show more puppies" (Alex, 2026-10-07).
+    renderInto('#homeFeatured', featured.slice(0, 12));
+    reveal('homeFeatured', 8);
 
     var bl = document.querySelector('#breedList');
     if (bl) {
@@ -212,6 +261,7 @@
           '<div class="card-body"><div class="card-name">' + esc(b.name) + '</div>' +
           '<div class="card-breed">' + b.demo_count + ' listed</div></div></a>';
       }).join('');
+      reveal('breedList', 8);
     }
 
     /* Most visitors go from home to the browse grid next, so warm exactly what

@@ -374,6 +374,39 @@ p{margin:0 0 1rem;max-width:70ch}
 .site-footer a{color:var(--cream-text);text-decoration:none}
 .site-footer a:hover{color:var(--gold)}
 .foot-note{border-top:1px solid #3d3d3d;margin-top:2rem;padding-top:1.1rem;font-size:.84rem;color:#9a948a}
+/* The footer's link columns are <details>, written open and closed by js/main.js on a phone,
+   the same device as Teapup's footer (Alex, 2026-10-07), so a phone page does not end in a
+   long stack of links. With the script off they stay open. */
+.foot-sec > summary{list-style:none;cursor:pointer}
+.foot-sec > summary::-webkit-details-marker{display:none}
+.foot-sec .foot-h{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.foot-sec .foot-more{display:none;color:var(--cream-text);transition:transform .2s ease}
+.foot-sec .foot-more svg{display:block}
+.foot-sec[open] .foot-more{transform:rotate(180deg)}
+@media(max-width:700px){
+  .foot-grid{gap:0 2rem}
+  .foot-grid > div:first-child{margin-bottom:1.2rem}
+  .foot-sec > summary{min-height:48px;display:flex;align-items:center;border-top:1px solid #3d3d3d}
+  .foot-sec > summary .foot-h{width:100%;margin:0}
+  .foot-sec[open] > summary{margin-bottom:.5rem}
+  .foot-sec .foot-more{display:block}
+  .foot-sec > summary:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+}
+@media (prefers-reduced-motion:reduce){.foot-sec .foot-more{transition:none}}
+
+/* Home page grids on a phone: two across, the first eight shown and "Show more" for the
+   rest (js/main.js, reveal). A card sets its own display, so a hidden one needs saying. */
+.home-grid > [hidden]{display:none}
+.reveal-row{justify-content:center}
+@media(max-width:760px){
+  .home-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
+  /* At two across a card is about 170px wide, so the price and the ready date stack rather
+     than squeezing the date onto three lines beside the price. */
+  .home-grid .card-body{padding:.75rem .8rem .9rem}
+  .home-grid .card-name{font-size:1.12rem}
+  .home-grid .card-foot{flex-direction:column;align-items:flex-start;gap:.15rem}
+  .home-grid .card-ready{white-space:nowrap}
+}
 
 /* demo watermark */
 .demo-flag{background:var(--olive);color:#fff;text-align:center;font-family:var(--cond);

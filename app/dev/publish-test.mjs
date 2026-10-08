@@ -291,6 +291,10 @@ async function part1() {
   check('a breed page shows the guide text from breeds.guide', guideText && guide.includes(guideText.slice(0, 60).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;')));
   const sitemap = fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8');
   check('sitemap.xml lists every generated page', (sitemap.match(/<loc>/g) || []).length === g.pages && sitemap.includes('/puppy-pepper-havanese-test.html'));
+  const dataJs = fs.readFileSync(path.join(out, 'data/data.js'), 'utf8');
+  check('each listing carries a 4:5 phone photo cropped around its focus point, Cap\'n Crunch at its hand-set 0.6 (migration 0007)',
+    /"lead_tall":"https:\/\/static\.wixstatic\.com\/media\/8d80ac_f00c67917ee9451d8a12729457e762ee~mv2\.jpg\/v1\/crop\/x_360,y_0,w_576,h_720\/fill\/w_480,h_600,/.test(dataJs)
+    && (dataJs.match(/"lead_tall":"[^"]*\/v1\/crop\//g) || []).length >= 270);
   const redirects = fs.readFileSync(path.join(out, '_redirects'), 'utf8');
   check('each imported Wix product page gets a 301 to its puppy', g.redirects === 273 && /^\/product-page\/alexa-cocker-spaniel \/puppy-alexa-cocker-spaniel\.html 301$/m.test(redirects));
   const named = [pup, salt, kennel].flatMap((h) => [...h.matchAll(/(?:src|data-full)="([^"]+)"/g)].map((m) => m[1])).filter((u) => !/^https?:/.test(u));

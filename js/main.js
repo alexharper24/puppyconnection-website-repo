@@ -107,7 +107,7 @@
              whole image, so the card reads edge to edge without losing the dog.
              60px wide is all a 22px blur needs, so it costs about a kilobyte. */
           (tall ? ' style="--fill:url(' + esc(wix(img(l), 60, 40)) + ')"' : '') + '>' +
-          (img(l) ? '<img src="' + esc(phone ? wix(img(l), 480, 600) : tall ? wixFit(img(l), 600, 400) : wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
+          (img(l) ? '<img src="' + esc(phone ? (l.lead_tall || wix(img(l), 480, 600)) : tall ? wixFit(img(l), 600, 400) : wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
             esc(l.breed || 'puppy') + '" ' +
             (eager ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"') +
             (phone ? ' width="480" height="600">' : ' width="600" height="400">') : '') +

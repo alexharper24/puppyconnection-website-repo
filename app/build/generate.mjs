@@ -262,6 +262,9 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
     puppy_name: p.name, breed: p.b.name, litter: p.mates > 1 ? p.litter : null, status: p.placed ? 'adopted' : p.availability,
     breeder_name: realBreeder(p.br) ? p.br.name : null, breeder_url: p.breeder_url, breeder_url_tier: p.breeder_url ? 'puppy' : null,
     lead_aspect: (p.photos[0] && p.photos[0].aspect) || 1.5,
+    // The phone card's 4:5 photo, cut around the puppy rather than from the top edge. A top
+    // anchor kept only the middle of a landscape photo and cut off heads (Alex, 2026-10-07).
+    lead_tall: p.photos[0] && isWix(p.photos[0].src) && p.photos[0].w ? fill(p.photos[0], 480, 600) : null,
   }));
   const pcBreeds = listedBreeds.map((b) => {
     const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));

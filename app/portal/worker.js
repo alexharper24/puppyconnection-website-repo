@@ -9,6 +9,7 @@ import {
   showTestNotices, isOpenHosted, timingSafeEqual,
 } from '../lib/util.js';
 import { privacyPage, termsPage } from './legal.js';
+import { addSubscriber, unsubscribeToken } from '../lib/subscribers.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
@@ -1225,6 +1226,47 @@ async function dataExport(request, env) {
   return json({ generation: exp.generation, counts: exp.counts, files: exp.files }, 200, { 'cache-control': 'no-store' });
 }
 
+// ------------------------------------------------------------------ the mailing list
+
+// The sign-up box in the site footer posts here as a plain form, so it works with no script on
+// the site. The page that comes back links straight back to the site. The hidden "website" field
+// is a honeypot that people never see and form-filling bots fill in.
+async function subscribe(request, env) {
+  const origin = request.headers.get('origin');
+  const site = siteOrigin(env);
+  if (origin && origin !== new URL(request.url).origin && origin !== site) throw forbidden('Cross-site request refused.');
+  const form = await request.formData();
+  const back = site ? `${site}/` : '/';
+  const done = (title, text, status = 200) => html(page(title, `<h1>${esc(title)}</h1><p>${text}</p><p><a class="btn btn-primary" href="${esc(back)}">Back to Puppy Connection</a></p>`), status);
+  if (String(form.get('website') || '')) return done("You're on the list", 'Thanks for signing up.');
+  if (env.AUTH_LIMITER) {
+    const { success } = await env.AUTH_LIMITER.limit({ key: `sub:${request.headers.get('cf-connecting-ip') || 'local'}` });
+    if (!success) return done('Please try again in a minute', 'Too many sign-ups came from here just now.', 429);
+  }
+  const r = await addSubscriber(env, { email: form.get('email'), name: form.get('name'), source: 'site' });
+  if (!r.ok) return done('That address did not look right', 'Go back and check the email address, then try again.', 400);
+  return done("You're on the list", 'Thanks for signing up. We will email you about new puppies and news from Puppy Connection, and every email has a link to unsubscribe.');
+}
+
+/** GET changes nothing, because mail scanners open links first. The button posts. */
+function unsubscribePage(request) {
+  const t = new URL(request.url).searchParams.get('t') || '';
+  return html(page('Unsubscribe', `<h1>Unsubscribe from Puppy Connection emails</h1>
+<p>Press the button and we will stop sending you our emails.</p>
+<form method="post" action="/unsubscribe"><input type="hidden" name="t" value="${esc(t)}">
+<button class="btn btn-primary" type="submit">Unsubscribe</button></form>`));
+}
+
+/** The button, and the one-click POST mail providers send for List-Unsubscribe-Post (RFC 8058). */
+async function unsubscribe(request, env) {
+  const url = new URL(request.url);
+  let t = url.searchParams.get('t') || '';
+  if (!t) { const form = await request.formData().catch(() => null); t = String(form?.get('t') || ''); }
+  const row = await unsubscribeToken(env, t);
+  if (!row) return html(page('Link not recognized', '<h1>That link was not recognized</h1><p>If you still get our emails, reply to one and we will take you off the list.</p>'), 400);
+  return html(page('Unsubscribed', `<h1>You are unsubscribed</h1><p>${esc(row.email)} will not get Puppy Connection emails any more. If that was a mistake, you can sign up again from the bottom of any page on the site.</p>`));
+}
+
 // ------------------------------------------------------------------ router
 
 const ROUTES = [
@@ -1239,6 +1281,9 @@ const ROUTES = [
   ['GET', /^\/auth\/google\/nonce$/, oneTapNonce],
   ['POST', /^\/auth\/google\/onetap$/, oneTapSignIn],
   ['GET', /^\/api\/config$/, config],
+  ['POST', /^\/subscribe$/, subscribe],
+  ['GET', /^\/unsubscribe$/, (r) => unsubscribePage(r)],
+  ['POST', /^\/unsubscribe$/, unsubscribe],
   ['GET', /^\/privacy$/, (r, e) => html(page('Privacy policy', privacyPage(e), { wide: true }))],
   ['GET', /^\/terms$/, async (r, e) => html(page('Listing terms', termsPage(await currentTerms(e)), { wide: true }))],
   ['POST', /^\/api\/terms\/accept$/, acceptTerms],

@@ -241,6 +241,15 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
 `;
   const withInfo = (s) => { if (!s.includes(FOOTER_END)) throw new Error('generate.mjs: the footer no longer ends as the site-pages column expects'); return s.replace(FOOTER_END, infoCol + FOOTER_END); };
   ftr = withInfo(ftr);
+  // The mailing list sign-up (migrations/0011_mailing_list.sql). A plain form posting to the
+  // portal, so it needs no script. "website" is a honeypot that people never see.
+  const BLURB_END = 'never by us.</p>\n      </div>';
+  const signup = `never by us.</p>\n        <form class="foot-signup" method="post" action="${portal}/subscribe">\n          <label for="foot-email">Hear about new puppies and news</label>\n`
+    + '          <div class="foot-signup-row"><input id="foot-email" name="email" type="email" autocomplete="email" placeholder="Your email" required maxlength="200"><button class="btn btn-gold" type="submit">Sign up</button></div>\n'
+    + '          <div class="hp" aria-hidden="true"><label for="foot-website">Leave this empty</label><input id="foot-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>\n'
+    + '        </form>\n      </div>';
+  const withSignup = (s) => { if (!s.includes(BLURB_END)) throw new Error('generate.mjs: the footer blurb the sign-up box follows has changed'); return s.replace(BLURB_END, signup); };
+  ftr = withSignup(ftr);
   const robots = indexable ? '' : '<meta name="robots" content="noindex, nofollow">\n';
   const headBase = head0.replace(/<meta name="robots"[^>]*>\n/, '') + robots;
   if (!/color-scheme" content="light only"/.test(headBase)) throw new Error('generate.mjs: the concept head lost its light-mode lock');
@@ -774,7 +783,7 @@ ${pg.body}
     s = s.replace(/js\/main\.js\?v=\d+/, `js/main.js?v=${mainV}`);
     if (!s.includes(FOOTER_ANCHOR)) throw new Error(`generate.mjs: ${f} lost the footer link the legal links follow`);
     s = s.replace(FOOTER_ANCHOR, FOOTER_ANCHOR + legal);
-    s = withInfo(s);
+    s = withSignup(withInfo(s));
     fs.writeFileSync(path.join(out, f), s);
     pages.push(f);
   }

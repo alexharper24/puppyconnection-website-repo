@@ -18,6 +18,8 @@ import { runJob, JOBS } from '../lib/jobs.js';
 import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
+import { addSubscriber, parseSubscriberCsv, EMAIL_OK } from '../lib/subscribers.js';
+import { randomToken } from '../lib/util.js';
 import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
 
 /** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
@@ -778,7 +780,96 @@ async function devMail(req, env) {
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
 
+// ------------------------------------------------------------------ the mailing list
+// migrations/0011_mailing_list.sql. Sending waits on real email (launch checklist L4).
+
+async function listSubscribers(req, env) {
+  const url = new URL(req.url);
+  const status = url.searchParams.get('status') === 'unsubscribed' ? 'unsubscribed' : 'subscribed';
+  const q = String(url.searchParams.get('q') || '').trim().toLowerCase();
+  const counts = (await env.DB.prepare('SELECT status, source, COUNT(*) AS n FROM subscribers GROUP BY status, source').all()).results;
+  const where = q ? 'AND (email LIKE ? OR lower(name) LIKE ?)' : '';
+  const bind = q ? [status, `%${q}%`, `%${q}%`] : [status];
+  const { results } = await env.DB.prepare(
+    `SELECT id, email, name, source, created_at, unsubscribed_at FROM subscribers WHERE status = ? ${where} ORDER BY created_at DESC LIMIT 200`,
+  ).bind(...bind).all();
+  return json({ counts, rows: results, status, q });
+}
+
+async function addSubscriberAdmin(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  const r = await addSubscriber(env, { email: body.email, name: body.name, source: 'admin' });
+  if (!r.ok) throw bad('Enter a valid email address.');
+  if (r.result === 'kept_unsubscribed') throw bad('That person unsubscribed, so they stay off the list. They can sign up again from the site themselves.');
+  if (r.result === 'already') throw bad('That address is already on the list.');
+  await auditStmt(env, 'operator', who.email, 'subscriber.add', 'subscriber', r.id, null, { email: String(body.email).trim().toLowerCase() }).run();
+  return json({ ok: true, id: r.id }, 201);
+}
+
+/**
+ * Import a CSV such as the Wix contacts export. Addresses already on the list are left as they
+ * are, and anyone who unsubscribed stays unsubscribed. Done in a few batched queries rather than
+ * one per row, so a list of several thousand fits in one request.
+ */
+async function importSubscribers(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  const text = String(body.csv || '');
+  if (!text.trim()) throw bad('Choose a CSV file first.');
+  if (text.length > 3_000_000) throw bad('That file is too large. Split it into files of under 20,000 addresses.');
+  const rows = parseSubscriberCsv(text);
+  if (!rows.length) throw bad('No email column was found in that file.');
+  const seen = new Map();
+  let invalid = 0;
+  for (const r of rows) {
+    const e = r.email.trim().toLowerCase();
+    if (!EMAIL_OK.test(e) || e.length > 200) { invalid += 1; continue; }
+    if (!seen.has(e)) seen.set(e, r.name);
+  }
+  const emails = [...seen.keys()];
+  const have = new Map();
+  for (let i = 0; i < emails.length; i += 90) {
+    const part = emails.slice(i, i + 90);
+    const { results } = await env.DB.prepare(`SELECT lower(email) AS email, status FROM subscribers WHERE lower(email) IN (${part.map(() => '?').join(',')})`).bind(...part).all();
+    for (const x of results) have.set(x.email, x.status);
+  }
+  const fresh = emails.filter((e) => !have.has(e));
+  const batchId = ulid(), t = now();
+  for (let i = 0; i < fresh.length; i += 100) {
+    await env.DB.batch(fresh.slice(i, i + 100).map((e) => env.DB.prepare(
+      "INSERT OR IGNORE INTO subscribers (id, email, name, source, unsub_token, created_at, import_batch) VALUES (?, ?, ?, 'import', ?, ?, ?)",
+    ).bind(ulid(), e, clean(seen.get(e), 120), randomToken(), t, batchId)));
+  }
+  const out = {
+    added: fresh.length,
+    already: [...have.values()].filter((v) => v === 'subscribed').length,
+    kept_unsubscribed: [...have.values()].filter((v) => v === 'unsubscribed').length,
+    invalid, duplicates_in_file: rows.length - invalid - emails.length, batch: batchId,
+  };
+  await auditStmt(env, 'operator', who.email, 'subscriber.import', 'subscriber', batchId, null, out).run();
+  return json(out);
+}
+
+async function unsubscribeAdmin(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const r = await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE id = ? AND status = 'subscribed'").bind(now(), id).run();
+  if (r.meta.changes !== 1) throw notFound();
+  await auditStmt(env, 'operator', who.email, 'subscriber.unsubscribe', 'subscriber', id, null, null).run();
+  return json({ ok: true });
+}
+
+async function subscribersCsv(req, env) {
+  const { results } = await env.DB.prepare("SELECT email, name, source, created_at FROM subscribers WHERE status = 'subscribed' ORDER BY created_at").all();
+  return csvResponse('puppy-connection-mailing-list.csv', ['Email', 'Name', 'Joined from', 'Joined'], results.map((r) => [r.email, r.name, r.source, r.created_at]));
+}
+
 const ROUTES = [
+  ['GET', /^\/api\/subscribers$/, listSubscribers],
+  ['POST', /^\/api\/subscribers$/, addSubscriberAdmin],
+  ['POST', /^\/api\/subscribers\/import$/, importSubscribers],
+  ['GET', /^\/api\/subscribers\.csv$/, subscribersCsv],
+  ['POST', /^\/api\/subscribers\/([\w-]+)\/unsubscribe$/, unsubscribeAdmin],
   ['GET', /^\/dev\/mail$/, devMail],
   ['GET', /^\/api\/whoami$/, whoami],
   ['GET', /^\/api\/stats$/, stats],

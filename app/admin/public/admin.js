@@ -86,6 +86,7 @@
       ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue]]],
       ['Directory', [['breeders', 'Breeders', s.approved], ['listings', 'Listings', s.public_puppies], ['breeds', 'Breeds']]],
       ['Money', [['payments', 'Payments', s.needs_review || null], ['reports', 'Reports']]],
+      ['People', [['list', 'Mailing list']]],
       ['Site', [['publish', 'Publish', s.unpublished_changes || null], ['terms', 'Terms'], ['email', 'Email log'], ['settings', 'Settings'], ['activity', 'Activity']]],
     ];
     var waiting = s.unpublished_changes || 0;
@@ -843,6 +844,71 @@
     });
   }
 
+  // ------------------------------------------------------------ mailing list (migrations/0011)
+  var SOURCE_NAMES = { site: 'Site sign-up', import: 'Imported', admin: 'Added here' };
+  function listScreen() {
+    var p = params(), st = p.status === 'unsubscribed' ? 'unsubscribed' : '';
+    Promise.all([refreshStats(), api('GET', '/api/subscribers' + (st ? '?status=unsubscribed' : ''))]).then(function (r) {
+      var d = r[1], n = function (status, source) { return d.counts.filter(function (c) { return c.status === status && (!source || c.source === source); }).reduce(function (a, c) { return a + c.n; }, 0); };
+      shell(head('Mailing list', 'People who asked for Puppy Connection emails. Sending opens once real email is set up, so nothing is sent from here yet.',
+        '<a class="btn btn-sm" href="/api/subscribers.csv" download>Download CSV</a>') +
+        '<div class="stats">' +
+        '<div class="stat"><b>' + n('subscribed').toLocaleString('en-US') + '</b><span>On the list</span></div>' +
+        '<div class="stat"><b>' + n('subscribed', 'site').toLocaleString('en-US') + '</b><span>Signed up on the site</span></div>' +
+        '<div class="stat"><b>' + n('subscribed', 'import').toLocaleString('en-US') + '</b><span>Imported</span></div>' +
+        '<div class="stat"><b>' + n('unsubscribed').toLocaleString('en-US') + '</b><span>Unsubscribed</span></div></div>' +
+        '<div class="cols">' +
+        '<section class="card" id="import-card"><h2>Import a list</h2><p class="small muted">A CSV with an email column, such as the contacts export from Wix. Anyone already on the list is left as they are, and anyone who unsubscribed stays off.</p>' +
+        '<form id="import-form" novalidate><div class="field"><label for="import-file">CSV file</label><input id="import-file" type="file" accept=".csv,text/csv"></div>' +
+        '<button class="btn btn-primary" type="submit">Import</button></form><div id="import-result"></div></section>' +
+        '<section class="card" id="add-card"><h2>Add one person</h2><p class="small muted">Only add someone who asked to be on the list.</p>' +
+        '<form id="sub-form" novalidate><div class="field"><label for="sub-name">Name <span class="muted">(optional)</span></label><input id="sub-name" type="text" maxlength="120"></div>' +
+        '<div class="field"><label for="sub-email">Email address</label><input id="sub-email" type="email" maxlength="200" required></div>' +
+        '<button class="btn btn-primary" type="submit">Add</button></form></section></div>' +
+        listPanel({ id: 'subs', find: 'Filter by name or email', pick: ['Joined from', ['Site sign-up', 'Imported', 'Added here']],
+          tabs: seg('list', st ? 'status=unsubscribed' : '', [['', 'On the list'], ['status=unsubscribed', 'Unsubscribed']], 'Who to show') }));
+      list($('#subs'), { rows: d.rows, text: function (s) { return [s.email, s.name].join(' '); }, pick: function (s) { return SOURCE_NAMES[s.source]; },
+        head: sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from') + sh('at', st ? 'Unsubscribed' : 'Joined') + (st ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
+        sorts: { email: function (s) { return s.email; }, name: function (s) { return s.name; }, source: function (s) { return SOURCE_NAMES[s.source]; }, at: function (s) { return st ? s.unsubscribed_at : s.created_at; } },
+        sortFirst: { at: -1 },
+        row: function (s) {
+          return '<tr><td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td>' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when">' + esc(day(st ? s.unsubscribed_at : s.created_at)) + '</td>' +
+            (st ? '' : '<td class="act"><button class="btn btn-sm btn-quiet" data-unsub="' + esc(s.id) + '" data-email="' + esc(s.email) + '">Unsubscribe</button></td>') + '</tr>';
+        },
+        wire: function (box) {
+          $$('[data-unsub]', box).forEach(function (b) {
+            b.addEventListener('click', function () {
+              if (!confirm('Unsubscribe ' + b.dataset.email + '? They will stay off the list unless they sign up again themselves.')) return;
+              api('POST', '/api/subscribers/' + b.dataset.unsub + '/unsubscribe', {}).then(function () { toast('Unsubscribed'); listScreen(); });
+            });
+          });
+        },
+        emptyTitle: st ? 'Nobody has unsubscribed' : 'Nobody on the list yet', emptyText: st ? '' : 'Import the Wix list, or wait for sign-ups from the site.' });
+      $('#sub-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        api('POST', '/api/subscribers', { name: $('#sub-name').value, email: $('#sub-email').value }).then(function () { toast('Added'); listScreen(); })
+          .catch(function (err) { showError($('#sub-form'), err); });
+      });
+      $('#import-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        var f = $('#import-file').files[0];
+        if (!f) { showError($('#import-form'), new Error('Choose a CSV file first.')); return; }
+        f.text().then(function (csv) { return api('POST', '/api/subscribers/import', { csv: csv }); }).then(function (o) {
+          toast('Imported');
+          listScreen();
+          setTimeout(function () {
+            var box = $('#import-result');
+            if (box) box.innerHTML = '<p class="notice small">' + plural(o.added, 'new address', 'new addresses') + ' added. ' +
+              (o.already ? o.already + ' already on the list. ' : '') +
+              (o.kept_unsubscribed ? o.kept_unsubscribed + ' had unsubscribed and stayed off. ' : '') +
+              (o.invalid ? o.invalid + ' did not look like email addresses and were skipped. ' : '') +
+              (o.duplicates_in_file ? o.duplicates_in_file + ' appeared more than once in the file. ' : '') + '</p>';
+          }, 400);
+        }).catch(function (err) { showError($('#import-form'), err); });
+      });
+    });
+  }
+
   // ------------------------------------------------------------ reports (plan P3.7)
   function csvLink(name) { return '<a class="btn btn-sm" href="/api/reports/' + name + '.csv" download>Download CSV</a>'; }
   function reportsScreen() {
@@ -893,7 +959,7 @@
     state.route = (location.hash || '#/').replace(/^#\/?/, '');
     var r = state.route.split('?')[0].split('/')[0];
     ({ '': overview, approvals: approvals, breeders: breeders, listings: listings, payments: payments, settings: settings, activity: activity, search: search,
-      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen }[r] || overview)();
+      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, list: listScreen }[r] || overview)();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', render);

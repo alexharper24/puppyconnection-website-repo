@@ -292,6 +292,35 @@ async function main() {
   check('a suspended breeder cannot upload a logo', (await img(B.c, '/api/profile/logo')).status === 403);
   check('a suspended breeder\'s logo leaves the public site', (await fetch(`${SITE}/brand/${B.id}/logo`)).status === 404);
 
+  // ---------------------------------------------------------------- the mailing list
+  {
+    const stamp = Date.now().toString(36);
+    const form = (fields, origin = SITE_ORIGIN) => fetch(`${PORTAL}/subscribe`, { method: 'POST', redirect: 'manual', headers: { origin, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields) });
+    const subEmail = `list-${stamp}@families.test`;
+    let r = await form({ email: subEmail, website: '' });
+    check('the site footer form adds an address to the mailing list', r.status === 200 && /on the list/.test(await r.text()));
+    r = await form({ email: `bot-${stamp}@families.test`, website: 'http://spam.test' });
+    check('a form with the honeypot filled is thanked and not stored', r.status === 200);
+    check('... and only the real address is on the list', JSON.stringify(sql(`SELECT email FROM subscribers WHERE email LIKE '%-${stamp}@families.test'`).map((x) => x.email)) === JSON.stringify([subEmail]));
+    check('a sign-up from another site is refused', (await form({ email: `x-${stamp}@families.test` }, 'https://elsewhere.test')).status === 403);
+    check('a bad address is refused', (await form({ email: 'not-an-email' })).status === 400);
+    const tok = sql(`SELECT unsub_token FROM subscribers WHERE email = '${subEmail}'`)[0].unsub_token;
+    r = await fetch(`${PORTAL}/unsubscribe?t=${tok}`);
+    check('opening the unsubscribe link changes nothing until the button is pressed', r.status === 200 && sql(`SELECT status FROM subscribers WHERE email = '${subEmail}'`)[0].status === 'subscribed');
+    r = await fetch(`${PORTAL}/unsubscribe?t=${tok}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'List-Unsubscribe=One-Click' });
+    check('a one-click unsubscribe POST from a mail provider unsubscribes', r.status === 200 && sql(`SELECT status FROM subscribers WHERE email = '${subEmail}'`)[0].status === 'unsubscribed');
+    const csv = `First Name,Last Name,Email Address\nAnn,Lee,ann-${stamp}@families.test\nBob,,bob-${stamp}@families.test\n,,${subEmail}\nNope,,not-an-email\nAnn,Lee,ANN-${stamp}@families.test\n`;
+    r = await admin.post('/api/subscribers/import', { csv });
+    check('the admin imports a Wix-style CSV, keeping anyone who unsubscribed off the list', r.status === 200 && r.data.added === 2 && r.data.kept_unsubscribed === 1 && r.data.invalid === 1 && r.data.duplicates_in_file === 1, JSON.stringify(r.data));
+    check('an imported name comes from the first and last name columns', sql(`SELECT name FROM subscribers WHERE email = 'ann-${stamp}@families.test'`)[0].name === 'Ann Lee');
+    r = await admin.get(`/api/subscribers`);
+    check('the admin lists the people on the list', r.status === 200 && r.data.rows.some((x) => x.email === `bob-${stamp}@families.test`));
+    const exp = await fetch(`${ADMIN}/api/subscribers.csv`, { headers: { origin: ADMIN } });
+    check('the list downloads as CSV without the unsubscribed', (await exp.text().then((t) => t.includes(`bob-${stamp}@families.test`) && !t.includes(subEmail))));
+    r = await form({ email: subEmail });
+    check('someone who unsubscribed can sign up again themselves from the site', r.status === 200 && sql(`SELECT status FROM subscribers WHERE email = '${subEmail}'`)[0].status === 'subscribed');
+  }
+
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);
 }

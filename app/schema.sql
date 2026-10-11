@@ -464,3 +464,18 @@ SELECT l.id, l.breeder_id, l.breed_id, l.born_on, l.ready_on, l.mom_weight_lb,
 FROM litters l
 WHERE l.archived_at IS NULL
   AND EXISTS (SELECT 1 FROM public_puppies pp WHERE pp.litter_id = l.id);
+
+-- Puppy Connection's own mailing list (migrations/0011_mailing_list.sql). Nothing sends to it
+-- until real email is set up. An unsubscribed row is kept so an import cannot re-add the person.
+CREATE TABLE IF NOT EXISTS subscribers (
+  id               TEXT PRIMARY KEY,
+  email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  name             TEXT,
+  source           TEXT NOT NULL CHECK (source IN ('site','import','admin')),
+  status           TEXT NOT NULL DEFAULT 'subscribed' CHECK (status IN ('subscribed','unsubscribed')),
+  unsub_token      TEXT NOT NULL UNIQUE,
+  created_at       TEXT NOT NULL,
+  unsubscribed_at  TEXT,
+  import_batch     TEXT
+);
+CREATE INDEX IF NOT EXISTS subscribers_status ON subscribers(status, created_at);

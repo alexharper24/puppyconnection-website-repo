@@ -36,6 +36,7 @@ export function fileList() {
     ['lib/stats.js', 'app/lib/stats.js'],
     ['lib/media.js', 'app/lib/media.js'],
     ['build/generate.mjs', 'app/build/generate.mjs'],
+    ['build/info-pages.mjs', 'app/build/info-pages.mjs'],
     ['build/ci-build.sh', 'app/build/ci-build.sh'],
     ['build/fetch-data.mjs', 'app/build/fetch-data.mjs'],
     ['templates/index.html', 'index.html'],

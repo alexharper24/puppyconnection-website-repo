@@ -36,6 +36,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { INFO_PAGES } from './info-pages.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '../..');
@@ -227,6 +228,19 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
   const legal = `<li><a href="${portal}/privacy">Privacy</a></li><li><a href="${portal}/terms">Listing terms</a></li>`;
   if (!ftr.includes(FOOTER_ANCHOR)) throw new Error('generate.mjs: the footer no longer has the Pricing link the legal links follow');
   ftr = ftr.replace(FOOTER_ANCHOR, FOOTER_ANCHOR + legal);
+  // The site's own pages get a footer column on the generated site only, because the concept at the
+  // repository root does not have them and check_site.py would find the links broken there.
+  const FOOTER_END = '    </div>\n  </div>\n</footer>';
+  const chev = (ftr.match(/<span class="foot-more">.*?<\/span>/) || [''])[0];
+  const infoCol = `      <details class="foot-sec" open>
+        <summary><h2 class="foot-h">Puppy Connection${chev}</h2></summary>
+        <ul>
+${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>`).join('\n')}
+        </ul>
+      </details>
+`;
+  const withInfo = (s) => { if (!s.includes(FOOTER_END)) throw new Error('generate.mjs: the footer no longer ends as the site-pages column expects'); return s.replace(FOOTER_END, infoCol + FOOTER_END); };
+  ftr = withInfo(ftr);
   const robots = indexable ? '' : '<meta name="robots" content="noindex, nofollow">\n';
   const headBase = head0.replace(/<meta name="robots"[^>]*>\n/, '') + robots;
   if (!/color-scheme" content="light only"/.test(headBase)) throw new Error('generate.mjs: the concept head lost its light-mode lock');
@@ -367,11 +381,20 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
     const moms = span(pool.map((p) => p.l.mom_weight_lb), ' pounds'), dads = span(pool.map((p) => p.l.dad_weight_lb), ' pounds');
     return {
       count: n ? `${n} ${b.name} ${n === 1 ? 'puppy is' : 'puppies are'} listed on Puppy Connection right now.` : `No ${b.name} puppies are listed right now, and new litters appear here as breeders add them.`,
-      price_range: price ? `${b.name} puppies ${now} are priced at ${price}.` : '',
+      price_range: price ? `${b.name} puppies ${now} are priced ${price.includes(' to ') ? 'from' : 'at'} ${price}.` : '',
       deposit_range: deposit ? `Breeders who take a deposit ask ${deposit} to hold a puppy.` : '',
-      includes: inc.length && pool.length ? `Of the ${pool.length} ${pool.length === 1 ? 'listing' : 'listings'} here, ${inc.map(([w, c]) => `${c} ${c === 1 ? 'comes' : 'come'} with ${w}`).join(', ').replace(/, ([^,]*)$/, ' and $1')}. Each listing says what that puppy goes home with.` : '',
+      includes: inc.length && pool.length ? includesLine(pool.length, inc) : '',
       parent_weights: moms || dads ? `Where breeders have given the parents' adult weights, ${[moms && `the mothers weigh ${moms}`, dads && `the fathers weigh ${dads}`].filter(Boolean).join(' and ')}.` : '',
     };
+  };
+  // "All 18 listings here come with a vet exam and a microchip, and 8 come with AKC registration."
+  const andList = (xs) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+  const includesLine = (n, inc) => {
+    const all = inc.filter(([, c]) => c === n).map(([w]) => w), some = inc.filter(([, c]) => c < n);
+    const parts = [];
+    if (all.length) parts.push(n === 1 ? `The listing here comes with ${andList(all)}` : `All ${n} listings here come with ${andList(all)}`);
+    if (some.length) parts.push(`${parts.length ? '' : `Of the ${n} listings here, `}${andList(some.map(([w, c]) => `${c} ${c === 1 ? 'comes' : 'come'} with ${w}`))}`);
+    return `${parts.join(', and ')}. Each listing says what that puppy goes home with.`;
   };
   // A guide paragraph that starts with "## " is a section heading. Everything else is a paragraph.
   const guideHtml = (paragraphs, tokens) => paragraphs.map((t) => {
@@ -734,6 +757,15 @@ ${others.length ? `<section class="band">
 </main>`,
   });
 
+  // ---- the site's own pages (About, How it works, Tips, Reviews, Contact), from build/info-pages.mjs
+  for (const pg of INFO_PAGES) {
+    write(pg.file, { title: pg.title, desc: pg.desc, trail: [[pg.name, `${base}${pg.file}`]],
+      body: `<main id="info-page">
+<span id="content" tabindex="-1"></span>
+${pg.body}
+</main>` });
+  }
+
   // ---- the concept's own pages, carried over with this site's address, scripts and footer
   for (const f of ['index.html', 'puppies.html', 'list-with-us.html']) {
     let s = concept(f).split(CONCEPT_BASE).join(base);
@@ -742,6 +774,7 @@ ${others.length ? `<section class="band">
     s = s.replace(/js\/main\.js\?v=\d+/, `js/main.js?v=${mainV}`);
     if (!s.includes(FOOTER_ANCHOR)) throw new Error(`generate.mjs: ${f} lost the footer link the legal links follow`);
     s = s.replace(FOOTER_ANCHOR, FOOTER_ANCHOR + legal);
+    s = withInfo(s);
     fs.writeFileSync(path.join(out, f), s);
     pages.push(f);
   }

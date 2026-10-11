@@ -265,7 +265,7 @@ async function part1() {
   }
   const g = build({ dataDir, out });
   const pupCount = JSON.parse(fs.readFileSync(path.join(dataDir, 'data/puppies.json'), 'utf8')).length;
-  check('the generator builds one page per puppy, breed and breeder, and two per state', g.puppies === pupCount && g.states >= 1 && g.pages === pupCount + g.breeds + g.breeders + 5 + 2 * g.states, JSON.stringify(g));
+  check('the generator builds one page per puppy, breed and breeder, and two per state', g.puppies === pupCount && g.states >= 1 && g.pages === pupCount + g.breeds + g.breeders + 10 + 2 * g.states, JSON.stringify(g));
   const chk = siteChecks(out);
   check('the generated site passes check_site.py (breeder dash check off)', chk.ok, chk.out.split('\n').filter((l) => /ERROR|error\(s\)/.test(l)).slice(0, 6).join('\n'));
   const pup = fs.readFileSync(path.join(out, 'puppy-pepper-havanese-test.html'), 'utf8');
@@ -305,7 +305,12 @@ async function part1() {
   check('Indiana gets a "puppies for sale in" page listing the puppies of breeders there', inPups.includes('<title>Puppies for Sale in Indiana | Puppy Connection</title>') && inPups.includes('<h1>Puppies for sale in Indiana</h1>') && inPups.includes('puppy-pepper-havanese-test.html') && inPups.includes('"@type":"ItemList"'));
   check('Indiana gets a "dog breeders in" page listing its breeders, and each state page links the other', inBreeders.includes('<title>Dog Breeders in Indiana | Puppy Connection</title>') && inBreeders.includes('breeder-publish-test-kennel.html') && inBreeders.includes('puppies-for-sale-in-indiana.html') && inPups.includes('dog-breeders-in-indiana.html'));
   check('the breeders hub links the state pages', fs.readFileSync(path.join(out, 'breeders.html'), 'utf8').includes('href="dog-breeders-in-indiana.html"'));
-  if (fs.existsSync(path.join(out, 'breed-munchkin-bernedoodle.html')) && fs.existsSync(path.join(out, 'breed-mini-bernedoodle.html'))) {
+  const info = Object.fromEntries(['about', 'how-it-works', 'tips-on-buying-a-puppy', 'reviews', 'contact'].map((f) => [f, fs.existsSync(path.join(out, `${f}.html`)) ? fs.readFileSync(path.join(out, `${f}.html`), 'utf8') : '']));
+  check('the five site pages are built, each with one h1 and the footer linking all five', Object.values(info).every((s) => (s.match(/<h1>/g) || []).length === 1 && s.includes('href="tips-on-buying-a-puppy.html"') && s.includes('href="contact.html"')) && sm.includes('how-it-works.html'));
+  check('How it works says the directory does not sell puppies or take deposits', info['how-it-works'].includes('does not sell puppies, take deposits or handle payment'));
+  check('what only Amber can say is a visible REPLACE THIS on About, Reviews and Contact', ['about', 'reviews', 'contact'].every((f) => info[f].includes('class="replace-this"')));
+  check('a generated page footer links the site pages too', fs.readFileSync(path.join(out, 'breed-havanese.html'), 'utf8').includes('href="about.html"'));
+  if (fs.existsSync(path.join(out, 'breed-munchkin-bernedoodle.html')) &&fs.existsSync(path.join(out, 'breed-mini-bernedoodle.html'))) {
     const mb = fs.readFileSync(path.join(out, 'breed-munchkin-bernedoodle.html'), 'utf8');
     check('the Munchkin Bernedoodle page keeps its own name and links the Mini Bernedoodle page', mb.includes('<title>Munchkin Bernedoodle Puppies for Sale') && mb.includes('href="breed-mini-bernedoodle.html">Mini Bernedoodle puppies</a>'));
   }

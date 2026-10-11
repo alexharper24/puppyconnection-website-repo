@@ -327,6 +327,11 @@ every page, with a puppy page for each of the four breeders.
 ## Pending
 
 - [ ] Confirm hero image licensing
+- [ ] Amber to fill the REPLACE THIS markers on the site's own pages, written in
+      `app/build/info-pages.mjs` (2026-10-10). About needs a few sentences in her words,
+      Reviews needs her to confirm the three reviews carried from Wix, and Contact needs
+      the email and phone she wants shown. Transportation was not carried over and waits
+      on her
 - [ ] Decide whether placed puppies should also drop off the breeder page, or
       only the browse view
 - [ ] Amber to supply a real breed list, or confirm the inventory-derived one

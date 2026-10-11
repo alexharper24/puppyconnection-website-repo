@@ -127,6 +127,9 @@ function patchMain(js) {
     if (!js.includes(a)) throw new Error(`generate.mjs: a js/main.js patch no longer matches:\n${a}`);
     js = js.replace(a, b);
   }
+  // The search links through pageHref(), which the flag switches to the static pages.
+  if (!js.includes('var STATIC_PAGES = false;')) throw new Error('generate.mjs: js/main.js no longer has the STATIC_PAGES flag');
+  js = js.replace('var STATIC_PAGES = false;', 'var STATIC_PAGES = true;');
   // Every query-string address becomes the static page's address.
   js = js.replace(/(puppy|breed|breeder)\.html\?slug=' \+ esc\((.+?)\) \+(\s*)'"/g, "$1-' + esc($2) +$3'.html\"")
     .replace("'breed.html?slug=' + encodeURIComponent(heroSel.value)", "'breed-' + encodeURIComponent(heroSel.value) + '.html'");

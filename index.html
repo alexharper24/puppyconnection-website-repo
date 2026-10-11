@@ -27,7 +27,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&family=Barlow:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="css/style.css?v=37">
+<link rel="stylesheet" href="css/style.css?v=38">
 </head>
 <body>
 
@@ -57,10 +57,14 @@
     <div class="wrap">
       <h1><em>Puppies for sale in Indiana and the Midwest</em>Puppy Connection</h1>
       <p class="hero-sub">Puppies raised by small family breeders in Indiana and across the Midwest. Find one you love, then talk to the breeder yourself.</p>
-      <form class="breed-search" id="heroForm">
-        <label for="heroBreed" class="visually-hidden" style="position:absolute;left:-9999px">Choose a breed</label>
-        <select id="heroBreed"></select>
-        <button type="submit">Search</button>
+      <form class="site-search" id="heroForm" role="search" action="puppies.html">
+        <label for="heroQ" class="visually-hidden" style="position:absolute;left:-9999px">Search puppies by breed, breeder, town or price</label>
+        <div class="site-search-row">
+          <input id="heroQ" name="q" type="search" autocomplete="off" spellcheck="false" placeholder="Search a breed, breeder, town or price" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="heroSug">
+          <button type="submit">Search</button>
+          <ul id="heroSug" class="site-search-sug" role="listbox" aria-label="Suggestions" hidden></ul>
+        </div>
+        <p class="site-search-picks" id="heroPicks"></p>
       </form>
     </div>
   </div>
@@ -156,6 +160,6 @@
 </footer>
 
 <script src="data/data.js?v=10"></script>
-<script src="js/main.js?v=34"></script>
+<script src="js/main.js?v=35"></script>
 </body>
 </html>

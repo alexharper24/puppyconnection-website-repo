@@ -176,6 +176,25 @@ p{margin:0 0 1rem;max-width:70ch}
 .breed-search button{border:1px solid var(--gold);background:var(--gold);color:var(--ink);
   font-family:var(--cond);letter-spacing:.12em;text-transform:uppercase;padding:.8rem 1.4rem;cursor:pointer}
 .breed-search button:hover{background:var(--ink);color:var(--gold)}
+/* The home search (2026-10-11): one box with suggestions grouped by kind, and quick picks. */
+.site-search{position:relative;max-width:620px;margin-top:1.4rem}
+.site-search-row{display:flex;position:relative}
+.site-search input[type=search]{flex:1 1 0;min-width:0;font-family:var(--sans);font-size:1.02rem;padding:.85rem .95rem;border:1px solid #fff;background:#fff;color:var(--ink);border-radius:0}
+.site-search input[type=search]:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.site-search button{border:1px solid var(--gold);background:var(--gold);color:var(--ink);font-family:var(--cond);letter-spacing:.12em;text-transform:uppercase;padding:.8rem 1.4rem;cursor:pointer;flex:0 0 auto}
+.site-search button:hover{background:var(--ink);color:var(--gold)}
+.site-search-sug{position:absolute;left:0;right:0;top:100%;z-index:30;list-style:none;margin:0;padding:.3rem 0;background:#fff;border:1px solid var(--line);box-shadow:0 10px 28px rgba(0,0,0,.22);max-height:22rem;overflow-y:auto}
+.site-search-sug li{display:grid;grid-template-columns:5.2rem 1fr;column-gap:.7rem;padding:.55rem .9rem;cursor:pointer;color:var(--ink)}
+.site-search-sug li[aria-selected=true],.site-search-sug li[data-i]:hover{background:var(--paper-warm)}
+.site-search-sug .sug-kind{grid-row:span 2;align-self:center;font-family:var(--cond);font-size:.74rem;letter-spacing:.12em;text-transform:uppercase;color:var(--olive)}
+.site-search-sug .sug-label{font-weight:500}
+.site-search-sug .sug-sub{font-size:.85rem;color:var(--ink-soft)}
+.site-search-sug .sug-none{display:block;color:var(--ink-soft);cursor:default}
+.site-search-picks{display:flex;flex-wrap:wrap;gap:.4rem .5rem;align-items:center;margin:.75rem 0 0;font-size:.88rem}
+.site-search-picks span{color:var(--cream-text);font-family:var(--cond);letter-spacing:.12em;text-transform:uppercase;font-size:.78rem}
+.site-search-picks a{color:#fff;text-decoration:none;border:1px solid rgba(255,255,255,.45);padding:.25rem .65rem;border-radius:999px}
+.site-search-picks a:hover{border-color:var(--gold);color:var(--gold)}
+@media(max-width:420px){.site-search button{padding:.8rem 1rem}}
 
 /* ---------- puppy cards ---------- */
 .grid{display:grid;gap:clamp(1rem,2.2vw,1.7rem)}

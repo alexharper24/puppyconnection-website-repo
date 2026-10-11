@@ -177,27 +177,214 @@
     });
   }
 
-  /* ---------- hero breed select ---------- */
-  var heroSel = document.querySelector('#heroBreed');
-  if (heroSel) {
-    heroSel.innerHTML = '<option value="">Search by breed...</option>' +
-      BREEDS.map(function (b) {
-        return '<option value="' + esc(b.slug) + '">' + esc(b.name) + ' (' + b.demo_count + ')</option>';
+  /* ---------- search (Alex, 2026-10-11: "it doesn't behave flexibly to how different people
+     would expect search to work") ----------
+     One box that takes whatever a family types. A breed by its name, a nickname or a near miss
+     ("yorkie", "frenchie", "goldendoodle", "cavapoo puppies"), a breeder, a town or state, a
+     puppy's name, a price ("under $2,000"), a color, or "low shedding". Suggestions appear as
+     they type, grouped by kind, and Enter goes to the best match or to every puppy that fits. */
+  /* Search results link through pageHref(). The concept's pages take ?slug=, the generated
+     site has a page per puppy, breed and breeder, and app/build/generate.mjs turns this on. */
+  var STATIC_PAGES = false;
+  function pageHref(kind, slug) {
+    return STATIC_PAGES ? kind + '-' + encodeURIComponent(slug) + '.html' : kind + '.html' + '?slug=' + encodeURIComponent(slug);
+  }
+  var STOP = { puppy: 1, puppies: 1, pup: 1, pups: 1, dog: 1, dogs: 1, for: 1, sale: 1, near: 1, me: 1, in: 1, a: 1, an: 1, the: 1, of: 1, and: 1, available: 1, breeder: 1, breeders: 1 };
+  /* Nicknames and common names for each breed, keyed by a word in the breed's own name. */
+  var NICK = {
+    'yorkshire terrier': ['yorkie', 'yorkies', 'yorky'], 'french bulldog': ['frenchie', 'frenchies', 'frenchy'],
+    'bernese mountain dog': ['berner', 'berners', 'bernese'], 'pembroke welsh corgi': ['corgi', 'corgis'],
+    'miniature dachshund': ['doxie', 'dachshund', 'weiner', 'wiener', 'mini doxie', 'mini dachshund'],
+    'labrador retriever': ['lab', 'labs', 'labrador'], 'golden retriever': ['golden', 'goldens', 'golden retriever'],
+    'f1b mini goldendoodle': ['goldendoodle', 'mini goldendoodle', 'doodle', 'golden doodle'],
+    'mini bernedoodle': ['bernedoodle', 'doodle', 'berne doodle'], 'munchkin bernedoodle': ['bernedoodle', 'munchkin'],
+    'mini aussiedoodle': ['aussiedoodle', 'aussie', 'doodle'], 'cavapoo': ['cavoodle', 'cav a poo', 'cavapoos'],
+    'cavalier king charles spaniel': ['cavalier', 'cavaliers', 'king charles', 'ckcs'], 'teddy bear shihchon': ['teddy bear', 'shichon', 'zuchon', 'shihchon'],
+    'doberman pinscher': ['doberman', 'dobie', 'dobermann'], 'great dane': ['dane', 'danes'], 'saint bernard': ['st bernard', 'saint'],
+    'pomeranian': ['pom', 'poms'], 'shih tzu': ['shitzu', 'shihtzu', 'shih tzus'], 'miniature schnauzer': ['schnauzer', 'mini schnauzer'],
+    'miniature poodle': ['poodle', 'mini poodle'], 'toy poodle': ['poodle', 'teacup poodle'], 'english bulldog': ['bulldog', 'english bulldogs'],
+    'victorian bulldog': ['bulldog'], 'boston terrier': ['boston', 'bostons'], 'cocker spaniel': ['cocker', 'cockers'], 'havanese': ['havanese'], 'papillon': ['papillon']
+  };
+  var LOW_SHED = /\b(hypo ?allergenic|low ?shed(ding)?|non ?shed(ding)?|no ?shed(ding)?|allerg(y|ies|ic))\b/;
+  var STATES = { AL: 'Alabama', AR: 'Arkansas', IA: 'Iowa', IL: 'Illinois', IN: 'Indiana', KS: 'Kansas', KY: 'Kentucky', MI: 'Michigan', MN: 'Minnesota', MO: 'Missouri', NE: 'Nebraska', OH: 'Ohio', PA: 'Pennsylvania', TN: 'Tennessee', WI: 'Wisconsin', WV: 'West Virginia' };
+  function norm(s) {
+    return String(s || '').toLowerCase().replace(/&/g, ' and ').replace(/[^a-z0-9$ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+  function singular(w) { return w.length > 3 && /s$/.test(w) && !/ss$/.test(w) ? w.slice(0, -1) : w; }
+  function words(s) { return norm(s).split(' ').filter(function (w) { return w && !STOP[w]; }).map(singular); }
+  /* One edit (a dropped, added or swapped letter) still counts for longer words: "cavpoo", "pomeranain". */
+  function near(a, b) {
+    if (a === b) return true;
+    if (Math.abs(a.length - b.length) > 1 || Math.min(a.length, b.length) < 5 || a[0] !== b[0]) return false;
+    var i = 0, j = 0, edits = 0;
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) { i++; j++; continue; }
+      if (++edits > 1) return false;
+      if (a.length > b.length) i++; else if (b.length > a.length) j++; else if (a[i + 1] === b[j] && a[i] === b[j + 1]) { i += 2; j += 2; } else { i++; j++; }
+    }
+    return edits + (a.length - i) + (b.length - j) <= 1;
+  }
+  /* How well the typed words match a set of names: every typed word must start a word in one of
+     them, or be one edit away from a word in them. Returns 0 for no match. */
+  function score(typed, names) {
+    if (!typed.length) return 0;
+    var best = 0;
+    names.forEach(function (n) {
+      var nw = words(n), joined = nw.join('');
+      var ok = 0, exact = 0;
+      typed.forEach(function (t) {
+        var hit = nw.some(function (w) { if (w === t) { exact++; return true; } return w.indexOf(t) === 0 || near(w, t); }) || (t.length >= 4 && joined.indexOf(t) === 0);
+        if (hit) ok++;
+      });
+      if (ok === typed.length) best = Math.max(best, 10 + exact * 3 - Math.max(0, nw.length - typed.length));
+    });
+    return best;
+  }
+  function breedNames(b) {
+    var n = norm(b.name);
+    return [b.name].concat(NICK[n] || []);
+  }
+  function priceOf(q) {
+    var m = norm(q).replace(/,/g, '').match(/(?:under|below|less than|up to|max|budget|<)?\s*\$?\s*(\d{3,5})(k)?\b/);
+    if (!m) return null;
+    var n = +m[1] * (m[2] ? 1000 : 1);
+    return n >= 300 && n <= 20000 ? n : null;
+  }
+  function stripPrice(q) { return norm(q).replace(/(under|below|less than|up to|max|budget)?\s*\$?\s*\d{3,5}k?\b/g, ' ').trim(); }
+  function colorsListed() {
+    var seen = {};
+    L.forEach(function (l) { words(l.color).forEach(function (w) { if (w.length > 2) seen[w] = 1; }); });
+    return Object.keys(seen);
+  }
+  function placeOf(l) { return String(l.breeder_place || ''); }
+  function stateName(code) { return STATES[String(code || '').toUpperCase()] || null; }
+  /* Everything a typed query could mean, best first. Each is { kind, label, sub, href }. */
+  function suggest(q) {
+    var out = [], typed = words(q);
+    var price = priceOf(q), rest = words(stripPrice(q));
+    var lowShed = LOW_SHED.test(norm(q));
+    var bestBreed = null;
+    BREEDS.forEach(function (b) {
+      var sc = score(rest.length ? rest : typed, breedNames(b));
+      if (sc) out.push({ kind: 'Breed', label: b.name, sub: (b.live_count || b.demo_count || 0) + ' listed', href: pageHref('breed', b.slug), s: sc + 5, breed: b.name });
+    });
+    out.sort(function (a, b) { return b.s - a.s; });
+    bestBreed = out[0] || null;
+    var seenB = {};
+    L.forEach(function (l) {
+      var slug = breederSlug(l);
+      if (!slug || !l.breeder_name || seenB[slug]) return;
+      seenB[slug] = 1;
+      var sc = score(typed, [l.breeder_name]);
+      if (sc) out.push({ kind: 'Breeder', label: l.breeder_name, sub: placeOf(l), href: pageHref('breeder', slug), s: sc });
+    });
+    var places = {};
+    L.forEach(function (l) {
+      var p = placeOf(l); if (!p) return;
+      var town = p.split(',')[0].trim(), st = stateName((p.split(',')[1] || '').trim());
+      [town, st].forEach(function (x) { if (x) places[x] = (places[x] || 0) + (isPlaced(l) ? 0 : 1); });
+    });
+    Object.keys(places).forEach(function (p) {
+      var sc = score(typed, [p]);
+      if (sc) out.push({ kind: 'Place', label: 'Puppies in ' + p, sub: places[p] + ' available', href: 'puppies.html?q=' + encodeURIComponent(p), s: sc });
+    });
+    L.forEach(function (l) {
+      if (isPlaced(l)) return;
+      var sc = score(typed, [l.puppy_name || '']);
+      if (sc >= 13) out.push({ kind: 'Puppy', label: l.puppy_name, sub: l.breed + (l.price ? ', ' + money(l.price) : ''), href: pageHref('puppy', l.slug), s: sc - 2 });
+    });
+    /* What the words describe rather than name: a price, low shedding, a color. */
+    var cols = colorsListed().filter(function (c) { return rest.some(function (t) { return c === t || (t.length > 3 && c.indexOf(t) === 0); }); });
+    if (price || lowShed || cols.length) {
+      var bits = [], qp = [];
+      if (cols.length) { bits.push(cols.join(' ')); }
+      if (bestBreed && bestBreed.s >= 14) { bits.push(bestBreed.breed); }
+      var label = (lowShed ? 'Low-shedding ' : '') + (bits.length ? bits.join(' ') + ' puppies' : (lowShed ? 'puppies' : 'Puppies')) + (price ? ' up to ' + money(price) : '');
+      if (price) qp.push('max=' + price);
+      var text = (lowShed ? 'low shedding ' : '') + cols.join(' ');
+      if (bestBreed && bestBreed.s >= 14) qp.push('breed=' + encodeURIComponent(bestBreed.breed));
+      if (text.trim()) qp.push('q=' + encodeURIComponent(text.trim()));
+      out.push({ kind: 'Search', label: label.charAt(0).toUpperCase() + label.slice(1), sub: 'See every match', href: 'puppies.html?' + qp.join('&'), s: 40 });
+    }
+    out.sort(function (a, b) { return b.s - a.s; });
+    return out.slice(0, 8);
+  }
+  /* A typed query that names no single page goes to every puppy that fits it. */
+  function searchHref(q) {
+    var price = priceOf(q), qp = [];
+    if (price) qp.push('max=' + price);
+    var text = stripPrice(q);
+    if (text) qp.push('q=' + encodeURIComponent(text));
+    return 'puppies.html' + (qp.length ? '?' + qp.join('&') : '');
+  }
+  /* Does a listing fit free text: every typed word must appear in its name, breed (or a nickname
+     for it), color, coat, breeder or town, and "low shedding" means a hypoallergenic listing. */
+  function listingMatches(l, q) {
+    var t = norm(q);
+    if (!t) return true;
+    if (LOW_SHED.test(t)) { if (!l.hypoallergenic) return false; t = t.replace(LOW_SHED, ' '); }
+    var typed = words(t);
+    if (!typed.length) return true;
+    var breed = BREEDS.filter(function (b) { return b.name === l.breed; })[0];
+    var hay = [l.puppy_name || l.name, l.color, l.coat, l.breeder_name, placeOf(l), stateName((placeOf(l).split(',')[1] || '').trim())].concat(breed ? breedNames(breed) : [l.breed]);
+    var hw = [];
+    hay.forEach(function (h) { hw = hw.concat(words(h)); });
+    return typed.every(function (w) { return hw.some(function (x) { return x === w || x.indexOf(w) === 0 || near(x, w); }); });
+  }
+
+  var heroQ = document.querySelector('#heroQ');
+  if (heroQ) {
+    var sug = document.querySelector('#heroSug'), heroForm = document.querySelector('#heroForm');
+    var items = [], act = -1;
+    var close = function () { sug.hidden = true; heroQ.setAttribute('aria-expanded', 'false'); heroQ.removeAttribute('aria-activedescendant'); act = -1; };
+    var draw = function () {
+      var q = heroQ.value.trim();
+      items = q.length >= 2 ? suggest(q) : [];
+      if (!items.length) {
+        sug.innerHTML = q.length >= 2 ? '<li class="sug-none" role="option" aria-disabled="true">No exact match. Press Search to see puppies that come close.</li>' : '';
+        sug.hidden = q.length < 2; heroQ.setAttribute('aria-expanded', String(q.length >= 2)); return;
+      }
+      sug.innerHTML = items.map(function (it, i) {
+        return '<li role="option" id="sug-' + i + '" aria-selected="false" data-i="' + i + '"><span class="sug-kind">' + esc(it.kind) + '</span><span class="sug-label">' + esc(it.label) + '</span>' + (it.sub ? '<span class="sug-sub">' + esc(it.sub) + '</span>' : '') + '</li>';
       }).join('');
-    var goToBreed = function () {
-      location.href = heroSel.value
-        ? 'breed.html?slug=' + encodeURIComponent(heroSel.value)
-        : 'puppies.html';
+      sug.hidden = false; heroQ.setAttribute('aria-expanded', 'true'); act = -1;
     };
-    /* Picking a breed is the decision, so act on it. The button stays as a
-       fallback for re-selecting the same option, which fires no change event. */
-    heroSel.addEventListener('change', function () {
-      if (heroSel.value) goToBreed();
+    var mark = function (i) {
+      [].forEach.call(sug.querySelectorAll('li[data-i]'), function (li) { li.setAttribute('aria-selected', String(+li.dataset.i === i)); });
+      act = i;
+      if (i >= 0) heroQ.setAttribute('aria-activedescendant', 'sug-' + i); else heroQ.removeAttribute('aria-activedescendant');
+    };
+    heroQ.addEventListener('input', draw);
+    heroQ.addEventListener('focus', function () { if (heroQ.value.trim().length >= 2) draw(); });
+    heroQ.addEventListener('keydown', function (e) {
+      if (sug.hidden || !items.length) return;
+      if (e.key === 'ArrowDown') { e.preventDefault(); mark(Math.min(items.length - 1, act + 1)); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); mark(Math.max(-1, act - 1)); }
+      else if (e.key === 'Escape') { close(); }
     });
-    document.querySelector('#heroForm').addEventListener('submit', function (e) {
+    sug.addEventListener('mousedown', function (e) {
+      var li = e.target.closest('li[data-i]');
+      if (li) { e.preventDefault(); location.href = items[+li.dataset.i].href; }
+    });
+    document.addEventListener('click', function (e) { if (!heroForm.contains(e.target)) close(); });
+    heroForm.addEventListener('submit', function (e) {
       e.preventDefault();
-      goToBreed();
+      var q = heroQ.value.trim();
+      if (act >= 0 && items[act]) { location.href = items[act].href; return; }
+      if (!q) { location.href = 'puppies.html'; return; }
+      var top = suggest(q)[0];
+      /* A query that is plainly one breed, breeder or puppy goes straight there. */
+      if (top && top.kind !== 'Search' && top.kind !== 'Place' && top.s >= 15) { location.href = top.href; return; }
+      if (top && top.kind === 'Search') { location.href = top.href; return; }
+      location.href = searchHref(q);
     });
+    /* Quick picks under the box, for people who would rather tap than type. */
+    var picks = document.querySelector('#heroPicks');
+    if (picks) {
+      var popular = BREEDS.slice().sort(function (a, b) { return (b.live_count || b.demo_count || 0) - (a.live_count || a.demo_count || 0); }).slice(0, 4);
+      picks.innerHTML = '<span>Try</span>' + popular.map(function (b) { return '<a href="' + esc(pageHref('breed', b.slug)) + '">' + esc(b.name) + '</a>'; }).join('') +
+        '<a href="puppies.html?max=2000">Under $2,000</a><a href="puppies.html?q=low%20shedding">Low shedding</a>';
+    }
   }
 
   /* "Show more", on a phone, the way Teapup's home page does it (Alex, 2026-10-07). Below
@@ -322,6 +509,14 @@
     var state = blank();
     var asked = qs('breed') || '';
     if (BREEDS.some(function (b) { return b.name === asked; })) state.breed = asked;
+    /* From the home page search: ?max= sets the price, ?q= fills the search box. A price that
+       is not one of the menu's steps is added to the menu so it shows as chosen. */
+    var askedMax = +(qs('max') || 0);
+    if (askedMax >= 300) {
+      state.max = String(askedMax);
+      if (!FIELDS.max.opts.some(function (o) { return o[0] === state.max; })) FIELDS.max.opts.push([state.max, 'Up to ' + money(askedMax), 'Up to ' + money(askedMax)]);
+    }
+    if (qs('q')) state.name = qs('q');
 
     /* A breed's count follows the availability choice, so "Mini Aussiedoodle (8)" never
        opens onto an empty grid because all eight have gone home. */
@@ -345,8 +540,8 @@
             return '<button type="button" class="f-chip" data-k="' + k + '" data-v="' + esc(x[0]) + '" aria-pressed="' + (state[k] === x[0]) + '">' + esc(x[2]) + '</button>';
           }).join('') + '</div></div>';
       });
-      html += '<div class="f-group"><h4>Name</h4><label class="f-name">' + LENS +
-        '<input type="search" data-name autocomplete="off" placeholder="A puppy&#39;s name" value="' + esc(state.name) + '"></label></div>';
+      html += '<div class="f-group"><h4>Search</h4><label class="f-name">' + LENS +
+        '<input type="search" data-name autocomplete="off" placeholder="Name, color, breeder or town" aria-label="Search by name, color, breeder or town" value="' + esc(state.name) + '"></label></div>';
       sheetBody.innerHTML = html;
     };
     var renderTags = function () {
@@ -395,7 +590,7 @@
         if (state.breed && l.breed !== state.breed) return false;
         if (state.max && (l.price || 0) > +state.max) return false;
         if (!state.show && isPlaced(l)) return false;
-        if (q && String(l.puppy_name || l.name || '').toLowerCase().indexOf(q) === -1) return false;
+        if (q && !listingMatches(l, q)) return false;
         return true;
       });
       current.sort(function (a, b) { return (a.price || 0) - (b.price || 0); });

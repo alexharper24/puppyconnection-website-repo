@@ -430,7 +430,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // A card, as js/main.js draws it, so a static grid and a rendered one look the same.
   let cardN = 0;
   function card(p) {
-    const eager = cardN++ < 4;
+    const eager = cardN++ < 2;
     const lead = p.photos[0];
     const tall = ((lead && lead.aspect) || 9) < 1.2;
     const label = p.placed ? 'Adopted' : p.availability === 'pending' ? 'Pending' : '';
@@ -502,7 +502,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       <div class="gallery-main" id="dMain">${lead ? `<img src="${esc(fit(lead, 1200, 800))}" alt="${esc(p.name)}, ${esc(p.b.name)} puppy" decoding="async">` : ''}</div>
       ${p.photos.length > 1 ? `<div class="thumb-strip">
         <button class="thumb-nav prev" type="button" aria-label="Earlier photos" hidden>&#8249;</button>
-        <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img src="${esc(fill(ph, 160, 160))}" alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
+        <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img src="${esc(fill(ph, 160, 160))}" alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
         <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
       </div>` : ''}
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}
@@ -763,6 +763,15 @@ ${others.length ? `<section class="band">
   pageFor.stateBreeders = (s) => `dog-breeders-in-${stateSlug(s)}.html`;
   const stateOf = (b) => (realBreeder(b) ? stateName(b.state) : null);
   const statesListed = [...new Set(D.puppies.map((p) => stateOf(p.br)).filter(Boolean))].sort();
+  // What the listings in a state say about deposits and what comes home with a puppy, the same
+  // figures the breed guides carry, so a state page says something a family can use.
+  const stateFacts = (list) => {
+    const dep = span(list.map((p) => p.deposit));
+    const has = (...w) => list.filter((p) => { const t = p.includes.join(' ').toLowerCase(); return w.some((x) => t.includes(x)); }).length;
+    const inc = [['a vet exam', has('examination', 'vet exam')], ['a microchip', has('microchip')], ['a health record', has('health record')], ['AKC registration', has('akc regist')], ['a written health guarantee', has('guarantee')]].filter((x) => x[1]);
+    return [dep ? `<p>Breeders here who take a deposit ask ${dep} to hold a puppy, and the deposit is paid to the breeder, never to Puppy Connection.</p>` : '',
+      inc.length && list.length ? `<p>${esc(includesLine(list.length, inc))}</p>` : ''].join('');
+  };
   for (const S of statesListed) {
     const pups = D.puppies.filter((p) => stateOf(p.br) === S).sort(byStanding);
     const open = pups.filter((p) => !p.placed);
@@ -781,6 +790,8 @@ ${others.length ? `<section class="band">
     <div class="prose" style="margin-top:1rem">
       <p>These are the puppies listed by breeders in ${esc(S)}${towns.length ? `, from ${esc(towns.slice(0, 6).join(', ').replace(/, ([^,]*)$/, ' and $1'))}` : ''}. Each one is raised and sold by the breeder named on its page, and you contact that breeder directly.</p>
       ${breedsHere.length ? `<p>Breeds listed in ${esc(S)} right now: ${linkList(breedsHere.map((x) => [pageFor.breed(x.slug), x.name]))}.</p>` : ''}
+      ${stateFacts(shown)}
+      <p>Before you choose, read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a>, and ask the breeder about the parents, their health testing and what the puppy goes home with.</p>
       <p>See the <a href="${pageFor.stateBreeders(S)}">dog breeders in ${esc(S)}</a> who list here, or <a href="puppies.html">every puppy on Puppy Connection</a>.</p>
     </div>
   </div>
@@ -809,7 +820,9 @@ ${others.length ? `<section class="band">
     <p class="meta">${brs.length} ${brs.length === 1 ? 'breeder lists' : 'breeders list'} on Puppy Connection</p>
     <div class="prose" style="margin-top:1rem">
       <p>These small family breeders in ${esc(S)} list their puppies on Puppy Connection. Each breeder's page shows their town, the breeds they raise, their puppies and how to reach them. The sale, the paperwork and the conversation are between you and the breeder.</p>
-      <p>See the <a href="${pageFor.statePuppies(S)}">puppies for sale in ${esc(S)}</a> from these breeders.</p>
+      ${breedsHere.length ? `<p>Between them, breeders in ${esc(S)} have listed ${linkList(breedsHere.map((x) => [pageFor.breed(x.slug), x.name]))}.</p>` : ''}
+      ${stateFacts(shown)}
+      <p>See the <a href="${pageFor.statePuppies(S)}">puppies for sale in ${esc(S)}</a> from these breeders, or read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a> before you get in touch.</p>
     </div>
   </div>
 </section>

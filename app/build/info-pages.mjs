@@ -14,7 +14,7 @@ const replace = (what) => `<span class="replace-this">REPLACE THIS: ${what}</spa
 export const INFO_PAGES = [
   {
     file: 'about.html', name: 'About',
-    title: 'About Puppy Connection | Small Family Breeders in Indiana and the Midwest',
+    title: 'About Puppy Connection | Family Dog Breeders in Indiana',
     desc: 'Puppy Connection is a directory of small family dog breeders, based in northern Indiana. See how it began and what we ask of the breeders who list here.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">About</p><h1>About Puppy Connection</h1>
 <p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest.</p></div></section>

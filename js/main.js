@@ -535,12 +535,12 @@
       var html = '';
       KEYS.forEach(function (k) {
         var title = k === 'show' ? 'Availability' : FIELDS[k].label;
-        html += '<div class="f-group"><h4>' + title + '</h4><div class="f-chips">' +
+        html += '<div class="f-group"><h3>' + title + '</h3><div class="f-chips">' +
           [['', FIELDS[k].any, FIELDS[k].any]].concat(FIELDS[k].opts).map(function (x) {
             return '<button type="button" class="f-chip" data-k="' + k + '" data-v="' + esc(x[0]) + '" aria-pressed="' + (state[k] === x[0]) + '">' + esc(x[2]) + '</button>';
           }).join('') + '</div></div>';
       });
-      html += '<div class="f-group"><h4>Search</h4><label class="f-name">' + LENS +
+      html += '<div class="f-group"><h3>Search</h3><label class="f-name">' + LENS +
         '<input type="search" data-name autocomplete="off" placeholder="Name, color, breeder or town" aria-label="Search by name, color, breeder or town" value="' + esc(state.name) + '"></label></div>';
       sheetBody.innerHTML = html;
     };

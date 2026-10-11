@@ -19,6 +19,8 @@ import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
 import { addSubscriber, parseSubscriberCsv, EMAIL_OK } from '../lib/subscribers.js';
+import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest } from '../lib/campaigns.js';
+import { cleanImage } from '../lib/images.js';
 import { randomToken } from '../lib/util.js';
 import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
 
@@ -864,7 +866,268 @@ async function subscribersCsv(req, env) {
   return csvResponse('puppy-connection-mailing-list.csv', ['Email', 'Name', 'Joined from', 'Joined'], results.map((r) => [r.email, r.name, r.source, r.created_at]));
 }
 
+// ------------------------------------------------------------------ sending to the mailing list
+
+async function listCampaigns(req, env) {
+  const { results } = await env.DB.prepare(
+    'SELECT id, subject, body, status, created_by, created_at, updated_at, send_started_at, sent_at, total, sent_count, failed_count FROM campaigns ORDER BY created_at DESC LIMIT 50',
+  ).all();
+  const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'subscribed'").first();
+  return json({ campaigns: results, subscribed: n, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
+}
+
+function campaignInput(body) {
+  const subject = clean(body.subject, 150);
+  const text = String(body.body || '').replace(/\r\n/g, '\n').trim().slice(0, 20000);
+  if (!subject) throw bad('Give the email a subject.');
+  if (!text) throw bad('Write the email before saving it.');
+  return { subject, text };
+}
+
+async function createCampaign(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const { subject, text } = campaignInput(await readJson(req));
+  const cid = ulid(), t = now();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO campaigns (id, subject, body, created_by, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)').bind(cid, subject, text, who.email, t, t),
+    auditStmt(env, 'operator', who.email, 'campaign.create', 'campaign', cid, null, { subject }),
+  ]);
+  return json({ id: cid }, 201);
+}
+
+async function draftOf(env, id) {
+  const c = await env.DB.prepare('SELECT * FROM campaigns WHERE id = ?').bind(id).first();
+  if (!c) throw notFound();
+  return c;
+}
+
+async function updateCampaign(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const c = await draftOf(env, id);
+  if (c.status !== 'draft') throw bad('That email has been sent, so it can no longer be changed.');
+  const { subject, text } = campaignInput(await readJson(req));
+  await env.DB.batch([
+    env.DB.prepare('UPDATE campaigns SET subject = ?, body = ?, updated_at = ? WHERE id = ?').bind(subject, text, now(), id),
+    auditStmt(env, 'operator', who.email, 'campaign.update', 'campaign', id, { subject: c.subject }, { subject }),
+  ]);
+  return json({ ok: true });
+}
+
+async function deleteCampaign(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const c = await draftOf(env, id);
+  if (c.status !== 'draft') throw bad('A sent email stays in the list as a record.');
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM campaigns WHERE id = ? AND status = 'draft'").bind(id),
+    auditStmt(env, 'operator', who.email, 'campaign.delete', 'campaign', id, { subject: c.subject }, null),
+  ]);
+  return json({ ok: true });
+}
+
+async function testCampaign(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const c = await draftOf(env, id);
+  await sendCampaignTest(env, c, who.email);
+  return json({ ok: true, to: who.email });
+}
+
+async function sendCampaign(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const c = await draftOf(env, id);
+  if (c.status !== 'draft') throw bad('That email has already been sent or is sending.');
+  if (!(await mailingAddress(env))) throw bad('Add the mailing address first. The law on marketing email requires one in every email.');
+  const body = await readJson(req);
+  const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'subscribed'").first();
+  if (!n) throw bad('Nobody is on the list yet.');
+  if (Number(body.confirm_count) !== n) throw bad(`The list has ${n} people on it now. Check the number and send again.`);
+  const total = await startCampaign(env, id);
+  await auditStmt(env, 'operator', who.email, 'campaign.send', 'campaign', id, null, { subject: c.subject, total }).run();
+  ctx.waitUntil(runCampaigns(env).catch((e) => console.error('campaign run failed', e)));
+  return json({ ok: true, total });
+}
+
+async function putMailingAddress(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const address = String((await readJson(req)).address || '').replace(/\r\n/g, '\n').trim().slice(0, 300);
+  if (address.length < 10 || !/\d/.test(address)) throw bad('Enter a full postal address, such as a street address or a PO box with its city, state and ZIP.');
+  const before = await mailingAddress(env);
+  await env.DB.batch([
+    env.DB.prepare("INSERT INTO settings (key, value) VALUES ('mailing_address', ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").bind(address),
+    auditStmt(env, 'operator', who.email, 'settings.update', 'settings', 'mailing_address', { value: before || null }, { value: address }),
+  ]);
+  return json({ ok: true, address });
+}
+
+// ------------------------------------------------------------------ the people who sign in here
+
+async function listPeople(req, env) {
+  const { results } = await env.DB.prepare('SELECT email, name, role, added_at FROM people ORDER BY role, name').all();
+  return json(results);
+}
+
+async function addPerson(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  const name = clean(body.name, 120);
+  const role = body.role === 'owner' ? 'owner' : 'staff';
+  if (!EMAIL_OK.test(email)) throw bad('Enter a valid email address.');
+  if (!name) throw bad('Enter their name.');
+  if (await env.DB.prepare('SELECT 1 AS x FROM people WHERE email = ?').bind(email).first()) throw bad('That person can already sign in here.');
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO people (email, name, role, added_at) VALUES (?, ?, ?, ?)').bind(email, name, role, now()),
+    auditStmt(env, 'operator', who.email, 'person.add', 'person', email, null, { name, role }),
+  ]);
+  return listPeople(req, env);
+}
+
+async function ownersLeft(env, excluding) {
+  const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM people WHERE role = 'owner' AND email != ?").bind(excluding).first();
+  return n;
+}
+
+async function setPersonRole(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const email = decodeURIComponent(id).toLowerCase();
+  const p = await env.DB.prepare('SELECT * FROM people WHERE email = ?').bind(email).first();
+  if (!p) throw notFound();
+  const role = (await readJson(req)).role === 'owner' ? 'owner' : 'staff';
+  if (p.role === 'owner' && role === 'staff' && !(await ownersLeft(env, email))) throw bad('There has to be at least one owner.');
+  await env.DB.batch([
+    env.DB.prepare('UPDATE people SET role = ? WHERE email = ?').bind(role, email),
+    auditStmt(env, 'operator', who.email, 'person.role', 'person', email, { role: p.role }, { role }),
+  ]);
+  return listPeople(req, env);
+}
+
+async function removePerson(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const email = decodeURIComponent(id).toLowerCase();
+  const p = await env.DB.prepare('SELECT * FROM people WHERE email = ?').bind(email).first();
+  if (!p) throw notFound();
+  if (email === String(who.email).toLowerCase()) throw bad('Ask another owner to remove you.');
+  if (p.role === 'owner' && !(await ownersLeft(env, email))) throw bad('There has to be at least one owner.');
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM people WHERE email = ?').bind(email),
+    auditStmt(env, 'operator', who.email, 'person.remove', 'person', email, { name: p.name, role: p.role }, null),
+  ]);
+  return listPeople(req, env);
+}
+
+// ------------------------------------------------------------------ photos, managed for a breeder
+// The same rules as the portal's photo upload: a puppy holds up to the photo limit, camera and
+// location details are removed before storing, and the browser sends a small card copy after.
+
+const CARD_MAX_EDGE = 1000;
+const cardKeyOf = (key) => `${key}.card`;
+const isPublicPuppy = async (env, id) => !!(await env.DB.prepare('SELECT 1 AS x FROM public_puppies WHERE id = ?').bind(id).first());
+
+async function adminPuppyPhotos(req, env, ctx, id) {
+  const { results } = await env.DB.prepare('SELECT id, position, aspect, r2_key, external_url FROM photos WHERE puppy_id = ? ORDER BY position').bind(id).all();
+  // Uploaded photos come from R2 through /media; imported ones still live at their Wix address.
+  return json(results.map((r) => ({ id: r.id, position: r.position, aspect: r.aspect, url: photoUrl(r), card: r.r2_key ? `/media/${r.id}/card` : r.external_url })));
+}
+
+async function adminUploadPhoto(req, env, ctx, puppyId, who) {
+  requireSameOrigin(req);
+  const p = await env.DB.prepare('SELECT * FROM puppies WHERE id = ?').bind(puppyId).first();
+  if (!p) throw notFound();
+  if (p.publication_state === 'archived') throw bad('The breeder removed that puppy.');
+  const s = await settings(env);
+  const count = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(position), -1) AS last FROM photos WHERE puppy_id = ?').bind(puppyId).first();
+  if (count.n >= s.maxPhotos) throw bad(`A puppy can have up to ${s.maxPhotos} photos.`);
+  const raw = new Uint8Array(await req.arrayBuffer());
+  const img = cleanImage(raw);
+  const id = ulid();
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[img.type];
+  const key = `uploads/${p.breeder_id}/${id}.${ext}`;
+  await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
+  const aspect = img.size && img.size.h ? Math.round((img.size.w / img.size.h) * 1000) / 1000 : null;
+  const stmts = [
+    env.DB.prepare(`INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, p.breeder_id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, now()),
+    auditStmt(env, 'operator', who.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, breeder_id: p.breeder_id }),
+  ];
+  if (await isPublicPuppy(env, puppyId)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ id, url: `/media/${id}` }, 201);
+}
+
+async function adminUploadCard(req, env, ctx, id) {
+  requireSameOrigin(req);
+  const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
+  if (!photo || !photo.r2_key) throw notFound();
+  const img = cleanImage(new Uint8Array(await req.arrayBuffer()));
+  if (!img.size || Math.max(img.size.w, img.size.h) > CARD_MAX_EDGE) throw bad(`A card copy can be up to ${CARD_MAX_EDGE} pixels on its longest side.`);
+  await env.FILES.put(cardKeyOf(photo.r2_key), img.bytes, { httpMetadata: { contentType: img.type } });
+  return json({ ok: true }, 201);
+}
+
+async function adminDeletePhoto(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
+  if (!photo) throw notFound();
+  const stmts = [
+    env.DB.prepare('DELETE FROM photos WHERE id = ?').bind(id),
+    auditStmt(env, 'operator', who.email, 'photo.remove', 'puppy', photo.puppy_id, { photo: id, breeder_id: photo.breeder_id }, null),
+  ];
+  if (await isPublicPuppy(env, photo.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  if (photo.r2_key) await env.FILES.delete([photo.r2_key, cardKeyOf(photo.r2_key)]);
+  return json({ ok: true });
+}
+
+async function adminOrderPhotos(req, env, ctx, puppyId, who) {
+  requireSameOrigin(req);
+  const { ids } = await readJson(req);
+  const { results } = await env.DB.prepare('SELECT id FROM photos WHERE puppy_id = ?').bind(puppyId).all();
+  const have = new Set(results.map((r) => r.id));
+  if (!Array.isArray(ids) || ids.length !== have.size || !ids.every((x) => have.has(x))) throw bad('That photo order does not match this puppy.');
+  const stmts = ids.map((pid, i) => env.DB.prepare('UPDATE photos SET position = ? WHERE id = ? AND puppy_id = ?').bind(i, pid, puppyId));
+  stmts.push(auditStmt(env, 'operator', who.email, 'photo.order', 'puppy', puppyId, null, { ids }));
+  if (await isPublicPuppy(env, puppyId)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true });
+}
+
+// ------------------------------------------------------------------ staff
+// Owners can do everything. Staff manage listings for breeders and nothing more (the draft
+// Amber marks up, hs-proposals/puppyconnection/staff-permissions.html). This is an allow list,
+// so a route added later is owner-only until someone decides staff should have it.
+const STAFF_ALLOWED = [
+  ['GET', /^\/api\/(whoami|stats|attention|listings|breeds|site|email-log|audit)$/],
+  ['GET', /^\/api\/breeders(\/[\w-]+)?$/],
+  ['GET', /^\/(media|brand)\//],
+  ['GET', /^\/dev\/mail$/],
+  ['GET', /^\/api\/puppies\/[\w-]+\/photos$/],
+  ['POST', /^\/api\/breeders\/[\w-]+\/notes$/],
+  ['PUT', /^\/api\/breeders\/[\w-]+\/profile$/],
+  ['POST', /^\/api\/puppies\/[\w-]+\/(hold|photos)$/],
+  ['PUT', /^\/api\/puppies\/[\w-]+(\/photo-order)?$/],
+  ['PUT', /^\/api\/litters\/[\w-]+$/],
+  ['POST', /^\/api\/site\/publish$/],
+  ['POST', /^\/api\/photos\/[\w-]+\/card$/],
+  ['DELETE', /^\/api\/photos\/[\w-]+$/],
+];
+const staffMay = (method, pathname) => STAFF_ALLOWED.some(([m, rx]) => m === method && rx.test(pathname));
+
 const ROUTES = [
+  ['GET', /^\/api\/campaigns$/, listCampaigns],
+  ['POST', /^\/api\/campaigns$/, createCampaign],
+  ['PUT', /^\/api\/campaigns\/([\w-]+)$/, updateCampaign],
+  ['DELETE', /^\/api\/campaigns\/([\w-]+)$/, deleteCampaign],
+  ['POST', /^\/api\/campaigns\/([\w-]+)\/test$/, testCampaign],
+  ['POST', /^\/api\/campaigns\/([\w-]+)\/send$/, sendCampaign],
+  ['PUT', /^\/api\/mailing-address$/, putMailingAddress],
+  ['GET', /^\/api\/people$/, listPeople],
+  ['POST', /^\/api\/people$/, addPerson],
+  ['PUT', /^\/api\/people\/([^/]+)$/, setPersonRole],
+  ['DELETE', /^\/api\/people\/([^/]+)$/, removePerson],
+  ['GET', /^\/api\/puppies\/([\w-]+)\/photos$/, adminPuppyPhotos],
+  ['POST', /^\/api\/puppies\/([\w-]+)\/photos$/, adminUploadPhoto],
+  ['PUT', /^\/api\/puppies\/([\w-]+)\/photo-order$/, adminOrderPhotos],
+  ['POST', /^\/api\/photos\/([\w-]+)\/card$/, adminUploadCard],
+  ['DELETE', /^\/api\/photos\/([\w-]+)$/, adminDeletePhoto],
   ['GET', /^\/api\/subscribers$/, listSubscribers],
   ['POST', /^\/api\/subscribers$/, addSubscriberAdmin],
   ['POST', /^\/api\/subscribers\/import$/, importSubscribers],
@@ -928,6 +1191,9 @@ export default {
             { status: who.status, headers: { 'content-type': 'text/html; charset=utf-8', ...SECURITY_HEADERS } });
         }
         return json({ error: who.reason }, who.status);
+      }
+      if (who.person.role !== 'owner' && !staffMay(request.method, url.pathname)) {
+        if (url.pathname.startsWith('/api/')) return withHeaders(json({ error: 'Only an owner can do that.' }, 403), SECURITY_HEADERS);
       }
       for (const [method, rx, fn] of ROUTES) {
         const m = url.pathname.match(rx);

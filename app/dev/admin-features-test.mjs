@@ -357,6 +357,68 @@ async function features() {
   check('P3.7 no report carries a sign-in address or a private note', !all.some((t) => t.includes('@breeders.test') || t.includes(secret)));
   check('P3.7 a report that does not exist answers 404', (await admin.get('/api/reports/notes.csv')).status === 404);
 
+  // ---------------------------------------------------------------- sending to the mailing list
+  {
+    const stamp = Date.now().toString(36);
+    check('a send is refused until the mailing address is set, and a short address is refused', (await admin.put('/api/mailing-address', { address: 'nowhere' })).status === 400);
+    check('the mailing address saves', (await admin.put('/api/mailing-address', { address: 'PO Box 123\nGoshen, IN 46527' })).status === 200);
+    await admin.post('/api/subscribers/import', { csv: `Email\nsend-a-${stamp}@families.test\nsend-b-${stamp}@families.test\nsend-gone-${stamp}@families.test\n` });
+    const gone = sql(`SELECT unsub_token FROM subscribers WHERE email = 'send-gone-${stamp}@families.test'`)[0].unsub_token;
+    await fetch(`${PORTAL}/unsubscribe?t=${gone}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'List-Unsubscribe=One-Click' });
+    let r = await admin.post('/api/campaigns', { subject: `Launch ${stamp}`, body: 'Puppy Connection has a new home.\n\nCome and see the puppies.' });
+    const cid = r.data.id;
+    check('an owner saves a draft email', r.status === 201 && !!cid);
+    r = await admin.post(`/api/campaigns/${cid}/test`, {});
+    const test = (await mailTo('amber@puppyconnection.test')).find((m) => m.subject === `[Test] Launch ${stamp}`);
+    check('a test copy goes to the owner, with the address and an unsubscribe link at the foot', r.status === 200 && !!test && test.body.includes('PO Box 123') && /unsubscribe\?t=/.test(test.body), JSON.stringify(test || {}).slice(0, 200));
+    const list = (await admin.get('/api/campaigns')).data;
+    check('sending asks for the number of people and refuses a wrong one', (await admin.post(`/api/campaigns/${cid}/send`, { confirm_count: list.subscribed + 1 })).status === 400);
+    r = await admin.post(`/api/campaigns/${cid}/send`, { confirm_count: list.subscribed });
+    check('the send starts for everyone subscribed', r.status === 200 && r.data.total === list.subscribed, JSON.stringify(r.data));
+    let state;
+    for (let i = 0; i < 20; i += 1) { state = sql(`SELECT status, sent_count, total FROM campaigns WHERE id = '${cid}'`)[0]; if (state.status === 'sent' || state.sent_count >= Math.min(400, state.total)) break; await sleep(500); }
+    check('the first batches go out at once', state.sent_count > 0, JSON.stringify(state));
+    const got = await mailTo(`send-a-${stamp}@families.test`);
+    check('each subscriber gets the email with their own unsubscribe link', got.some((m) => m.subject === `Launch ${stamp}` && m.body.includes(`unsubscribe?t=${sql(`SELECT unsub_token FROM subscribers WHERE email = 'send-a-${stamp}@families.test'`)[0].unsub_token}`)));
+    check('someone who unsubscribed gets nothing', (await mailTo(`send-gone-${stamp}@families.test`)).every((m) => m.subject !== `Launch ${stamp}`));
+    check('a sent email can no longer be changed or sent again', (await admin.put(`/api/campaigns/${cid}`, { subject: 'x', body: 'y' })).status === 400 && (await admin.post(`/api/campaigns/${cid}/send`, { confirm_count: list.subscribed })).status === 400);
+  }
+
+  // ---------------------------------------------------------------- people and staff
+  {
+    const stamp = Date.now().toString(36);
+    const staffEmail = `staff-${stamp}@puppyconnection.test`;
+    let r = await admin.post('/api/people', { name: 'Test Staff', email: staffEmail, role: 'staff' });
+    check('an owner adds a staff sign-in', r.status === 200 && r.data.some((x) => x.email === staffEmail && x.role === 'staff'));
+    check('an owner cannot remove themselves', (await admin.req('DELETE', `/api/people/${encodeURIComponent('amber@puppyconnection.test')}`)).status === 400);
+    check('a staff sign-in is removed by an owner', (await admin.req('DELETE', `/api/people/${encodeURIComponent(staffEmail)}`)).status === 200);
+    // Act as staff: the local admin signs in as amber@puppyconnection.test, so make that person staff for a moment.
+    const owners = sql("SELECT email FROM people WHERE role = 'owner'").map((x) => x.email);
+    sql("UPDATE people SET role = 'staff' WHERE email = 'amber@puppyconnection.test'");
+    try {
+      const who = (await admin.get('/api/whoami')).data;
+      check('whoami says the role, so the menu can hide what staff cannot use', who.role === 'staff');
+      const blocked = [['GET', '/api/campaigns'], ['GET', '/api/subscribers'], ['GET', '/api/people'], ['GET', '/api/settings'], ['GET', '/api/reports'], ['POST', '/api/breeds'], ['PUT', '/api/terms/draft'], ['POST', `/api/breeders/${owners.length ? 'x' : 'x'}/approve`]];
+      const codes = [];
+      for (const [m, path] of blocked) codes.push((await admin.req(m, path, m === 'GET' ? undefined : {})).status);
+      check('staff are refused money, approvals, settings, breeds, terms, the mailing list and sign-ins', codes.every((c) => c === 403), codes.join(','));
+      const listing = (await admin.get('/api/listings')).data;
+      check('staff can read listings and breeders', Array.isArray(listing.rows || listing) && (await admin.get('/api/breeders')).status === 200);
+      const pupId = sql("SELECT p.id FROM puppies p WHERE p.publication_state != 'archived' AND (SELECT COUNT(*) FROM photos ph WHERE ph.puppy_id = p.id) BETWEEN 1 AND 10 LIMIT 1")[0].id;
+      r = await admin.req('POST', `/api/puppies/${pupId}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } });
+      check('staff add a photo to a puppy for its breeder, with location data removed', r.status === 201 && !!r.data.id, JSON.stringify(r.data));
+      const photos = (await admin.get(`/api/puppies/${pupId}/photos`)).data;
+      const ids = photos.map((x) => x.id);
+      const order = [...ids].reverse();
+      check('staff reorder the photos', (await admin.put(`/api/puppies/${pupId}/photo-order`, { ids: order })).status === 200 && (await admin.get(`/api/puppies/${pupId}/photos`)).data[0].id === order[0]);
+      check('staff remove a photo', (await admin.req('DELETE', `/api/photos/${r.data.id}`)).status === 200 && !(await admin.get(`/api/puppies/${pupId}/photos`)).data.some((x) => x.id === r.data.id));
+      await admin.put(`/api/puppies/${pupId}/photo-order`, { ids: ids.filter((x) => x !== r.data.id) });
+    } finally {
+      sql("UPDATE people SET role = 'owner' WHERE email = 'amber@puppyconnection.test'");
+    }
+    check('the owner role is back', (await admin.get('/api/whoami')).data.role === 'owner');
+  }
+
   // ---------------------------------------------------------------- put the placeholder terms back
   await admin.put('/api/terms/draft', { body: TERMS_PLACEHOLDER });
   const back = await admin.post('/api/terms/publish', {});

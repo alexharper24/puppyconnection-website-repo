@@ -479,3 +479,30 @@ CREATE TABLE IF NOT EXISTS subscribers (
   import_batch     TEXT
 );
 CREATE INDEX IF NOT EXISTS subscribers_status ON subscribers(status, created_at);
+
+-- Sending to the mailing list (migrations/0012_campaigns.sql).
+CREATE TABLE IF NOT EXISTS campaigns (
+  id              TEXT PRIMARY KEY,
+  subject         TEXT NOT NULL,
+  body            TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','sending','sent')),
+  created_by      TEXT NOT NULL,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL,
+  send_started_at TEXT,
+  sent_at         TEXT,
+  total           INTEGER NOT NULL DEFAULT 0,
+  sent_count      INTEGER NOT NULL DEFAULT 0,
+  failed_count    INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS campaign_sends (
+  campaign_id   TEXT NOT NULL REFERENCES campaigns(id),
+  subscriber_id TEXT NOT NULL REFERENCES subscribers(id),
+  status        TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','sent','failed','skipped')),
+  provider_id   TEXT,
+  error         TEXT,
+  sent_at       TEXT,
+  PRIMARY KEY (campaign_id, subscriber_id)
+);
+CREATE INDEX IF NOT EXISTS campaign_sends_pending ON campaign_sends(campaign_id, status);

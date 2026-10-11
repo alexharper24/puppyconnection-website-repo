@@ -86,9 +86,14 @@
       ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue]]],
       ['Directory', [['breeders', 'Breeders', s.approved], ['listings', 'Listings', s.public_puppies], ['breeds', 'Breeds']]],
       ['Money', [['payments', 'Payments', s.needs_review || null], ['reports', 'Reports']]],
-      ['People', [['list', 'Mailing list']]],
+      ['People', [['list', 'Mailing list'], ['people', 'Sign-ins']]],
       ['Site', [['publish', 'Publish', s.unpublished_changes || null], ['terms', 'Terms'], ['email', 'Email log'], ['settings', 'Settings'], ['activity', 'Activity']]],
     ];
+    // Staff see only what they can use (admin/worker.js STAFF_ALLOWED). The server enforces it.
+    if (state.who.role !== 'owner') {
+      var STAFF = { '': 1, breeders: 1, listings: 1, publish: 1, email: 1, activity: 1 };
+      groups = groups.map(function (g) { return [g[0], g[1].filter(function (n) { return STAFF[n[0]]; })]; }).filter(function (g) { return g[1].length; });
+    }
     var waiting = s.unpublished_changes || 0;
     var q = route === 'search' ? params().q || '' : '';
     app.innerHTML = '<div class="app"><aside class="rail" aria-label="Main menu">' +
@@ -341,7 +346,7 @@
         '<h3>Puppies (' + pups.length + ')</h3>' + (pups.length ? pups.map(function (p) {
           return '<div class="puppy-row">' + (p.photos[0] ? '<img class="thumb" src="' + esc(thumb(p.photos[0].url)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
             '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + esc(p.breed) + ', ' + esc(money(p.price_cents)) + '</span><div class="chips">' + listingChips(p) + '</div></div>' +
-            '<div class="btn-row"><button class="btn btn-sm" data-edit-puppy="' + esc(p.id) + '">Edit</button>' + holdButton(p) + '</div></div>';
+            '<div class="btn-row"><button class="btn btn-sm" data-edit-puppy="' + esc(p.id) + '">Edit</button><button class="btn btn-sm" data-photos-puppy="' + esc(p.id) + '">Photos</button>' + holdButton(p) + '</div></div>';
         }).join('') : '<p class="muted small">None yet.</p>') +
         '<h3>Payments</h3>' + (data.checkouts.length ? data.checkouts.map(function (c) {
           return '<div class="pay-row"><span>' + esc(day(c.created_at)) + '</span><span>' + plural(c.quantity, 'listing') + ', ' + esc(money(c.amount_total_cents)) + '</span><span class="pill">' + esc(c.status) + '</span></div>';
@@ -378,7 +383,97 @@
           $$('[data-edit-puppy]', d).forEach(function (btn) {
             btn.addEventListener('click', function () { puppyEditor(data, pups.filter(function (p) { return p.id === btn.dataset.editPuppy; })[0]); });
           });
+          $$('[data-photos-puppy]', d).forEach(function (btn) {
+            btn.addEventListener('click', function () { photoDrawer(data, pups.filter(function (p) { return p.id === btn.dataset.photosPuppy; })[0]); });
+          });
         });
+    });
+  }
+
+  /* Photos managed for a breeder, with the portal's own resizing: the browser makes a full copy
+     up to 1600px and a card copy up to 640px, and the server removes camera and location details. */
+  var FULL_EDGE = 1600, CARD_EDGE = 640;
+  function decodeImage(file) {
+    if (window.createImageBitmap) return createImageBitmap(file, { imageOrientation: 'from-image' });
+    return new Promise(function (ok, fail) {
+      var im = new Image(), u = URL.createObjectURL(file);
+      im.onload = function () { URL.revokeObjectURL(u); ok(im); };
+      im.onerror = function () { URL.revokeObjectURL(u); fail(new Error('decode')); };
+      im.src = u;
+    });
+  }
+  function drawImage(src, edge) {
+    var w = src.width, h = src.height, k = Math.min(1, edge / Math.max(w, h));
+    var c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * k)); c.height = Math.max(1, Math.round(h * k));
+    var g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, c.width, c.height);
+    return new Promise(function (ok) {
+      c.toBlob(function (b) { if (b && b.type === 'image/webp') return ok(b); c.toBlob(function (j) { ok(j); }, 'image/jpeg', 0.85); }, 'image/webp', 0.82);
+    });
+  }
+  function shrinkImage(file) {
+    return decodeImage(file).then(function (src) {
+      return drawImage(src, FULL_EDGE).then(function (full) {
+        return drawImage(src, CARD_EDGE).then(function (card) { if (src.close) src.close(); return { full: full && full.size < file.size ? full : file, card: card }; });
+      });
+    }).catch(function () { return { full: file, card: null }; });
+  }
+  function rawApi(method, path, blob) {
+    return fetch(path, { method: method, credentials: 'same-origin', headers: { 'content-type': blob.type || 'application/octet-stream' }, body: blob })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }); });
+  }
+  // Imported Wix photos are only served through a Wix resize address, as thumb() does at list size.
+  function photoThumb(url) {
+    return url && url.indexOf('wixstatic.com') >= 0 && url.indexOf('/v1/') < 0 ? url + '/v1/fill/w_320,h_240,al_t,q_80,enc_auto/i.jpg' : url;
+  }
+  function photoDrawer(data, p) {
+    api('GET', '/api/puppies/' + p.id + '/photos').then(function (photos) {
+      openDrawer('Photos of ' + p.name,
+        '<p class="notice small">You are changing this on behalf of ' + esc(data.breeder.business_name || data.breeder.email) + '. The change is recorded in the activity log under your name.</p>' +
+        (photos.length ? '<ul class="admin-photos">' + photos.map(function (ph, i) {
+          return '<li data-id="' + esc(ph.id) + '"><img src="' + esc(photoThumb(ph.card || ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(p.name) + '" decoding="async">' +
+            '<div class="btn-row"><button class="btn btn-sm" data-move="-1"' + (i ? '' : ' disabled') + ' aria-label="Move earlier">Earlier</button>' +
+            '<button class="btn btn-sm" data-move="1"' + (i < photos.length - 1 ? '' : ' disabled') + ' aria-label="Move later">Later</button>' +
+            '<button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first</span>') + '</li>';
+        }).join('') + '</ul>' : '<p class="muted">No photos yet.</p>') +
+        '<div class="field"><label for="ph-add">Add photos</label><input id="ph-add" type="file" accept="image/*" multiple></div>' +
+        '<p class="notice notice-alert small" id="ph-err" hidden></p>' +
+        '<div class="btn-row"><button class="btn btn-quiet" type="button" data-back>Back to the breeder</button></div>',
+      function (d) {
+        var err = $('#ph-err', d);
+        function fail(e) { err.hidden = false; err.textContent = e.message; }
+        function again() { photoDrawer(data, p); }
+        $('[data-back]', d).addEventListener('click', function () { breederDrawer(data.breeder.id); });
+        $('#ph-add', d).addEventListener('change', function (e) {
+          var files = Array.prototype.slice.call(e.target.files || []);
+          var chain = Promise.resolve();
+          files.forEach(function (f) {
+            chain = chain.then(function () {
+              return shrinkImage(f).then(function (sz) {
+                return rawApi('POST', '/api/puppies/' + p.id + '/photos', sz.full).then(function (r) {
+                  if (sz.card) return rawApi('POST', '/api/photos/' + r.id + '/card', sz.card).catch(function () {});
+                });
+              });
+            });
+          });
+          chain.then(function () { toast(files.length === 1 ? 'Photo added' : files.length + ' photos added'); again(); }).catch(function (e2) { fail(e2); });
+        });
+        $$('[data-remove]', d).forEach(function (b) {
+          b.addEventListener('click', function () {
+            if (!confirm('Remove this photo from ' + p.name + '?')) return;
+            api('DELETE', '/api/photos/' + b.closest('li').dataset.id).then(function () { toast('Photo removed'); again(); }).catch(fail);
+          });
+        });
+        $$('[data-move]', d).forEach(function (b) {
+          b.addEventListener('click', function () {
+            var ids = photos.map(function (x) { return x.id; }), id = b.closest('li').dataset.id;
+            var i = ids.indexOf(id), j = i + Number(b.dataset.move);
+            if (j < 0 || j >= ids.length) return;
+            ids.splice(j, 0, ids.splice(i, 1)[0]);
+            api('PUT', '/api/puppies/' + p.id + '/photo-order', { ids: ids }).then(again).catch(fail);
+          });
+        });
+      });
     });
   }
 
@@ -844,19 +939,59 @@
     });
   }
 
+  // ------------------------------------------------------------ the people who sign in here
+  function peopleScreen() {
+    Promise.all([refreshStats(), api('GET', '/api/people')]).then(function (r) {
+      var people = r[1];
+      shell(head('Sign-ins', 'The people who can sign in to this admin. Owners can do everything. Staff manage listings and photos for breeders, and cannot reach payments, approvals, settings or the mailing list.') +
+        '<section class="panel"><div class="table-wrap"><table class="list"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th class="act"><span class="sr">Actions</span></th></tr></thead><tbody>' +
+        people.map(function (x) {
+          var me = x.email.toLowerCase() === String(state.who.email).toLowerCase();
+          return '<tr><td>' + esc(x.name) + (me ? ' <span class="muted small">(you)</span>' : '') + '</td><td>' + esc(x.email) + '</td><td>' +
+            '<select data-role="' + esc(x.email) + '" aria-label="Role for ' + esc(x.name) + '"' + (me ? ' disabled' : '') + '><option value="owner"' + (x.role === 'owner' ? ' selected' : '') + '>Owner</option><option value="staff"' + (x.role === 'staff' ? ' selected' : '') + '>Staff</option></select></td>' +
+            '<td class="act">' + (me ? '' : '<button class="btn btn-sm btn-quiet" data-remove-person="' + esc(x.email) + '">Remove</button>') + '</td></tr>';
+        }).join('') + '</tbody></table></div></section>' +
+        '<section class="card"><h2>Add a person</h2>' +
+        '<form id="person-form" class="person-form" novalidate><div class="field"><label for="pf-name">Name</label><input id="pf-name" type="text" maxlength="120"></div>' +
+        '<div class="field"><label for="pf-email">Email address</label><input id="pf-email" type="email" maxlength="200"></div>' +
+        '<div class="field"><label for="pf-role">Role</label><select id="pf-role"><option value="staff">Staff</option><option value="owner">Owner</option></select></div>' +
+        '<button class="btn btn-primary" type="submit">Add</button></form>' +
+        '<p class="small muted">Adding someone here lets the admin accept them. Their address also has to be added to the Cloudflare Access policy for this admin, or Cloudflare never sends them a sign-in code.</p></section>');
+      $('#person-form').addEventListener('submit', function (e) {
+        e.preventDefault();
+        api('POST', '/api/people', { name: $('#pf-name').value, email: $('#pf-email').value, role: $('#pf-role').value })
+          .then(function () { toast('Added. Now add them to the Access policy'); peopleScreen(); }).catch(function (err) { showError($('#person-form'), err); });
+      });
+      $$('[data-role]').forEach(function (sel) {
+        sel.addEventListener('change', function () {
+          api('PUT', '/api/people/' + encodeURIComponent(sel.dataset.role), { role: sel.value }).then(function () { toast('Role changed'); peopleScreen(); })
+            .catch(function (err) { toast(err.message); peopleScreen(); });
+        });
+      });
+      $$('[data-remove-person]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!confirm('Remove ' + b.dataset.removePerson + '? They will no longer be able to sign in here. Take them off the Access policy too.')) return;
+          api('DELETE', '/api/people/' + encodeURIComponent(b.dataset.removePerson)).then(function () { toast('Removed'); peopleScreen(); }).catch(function (err) { toast(err.message); });
+        });
+      });
+    });
+  }
+
   // ------------------------------------------------------------ mailing list (migrations/0011)
   var SOURCE_NAMES = { site: 'Site sign-up', import: 'Imported', admin: 'Added here' };
   function listScreen() {
     var p = params(), st = p.status === 'unsubscribed' ? 'unsubscribed' : '';
-    Promise.all([refreshStats(), api('GET', '/api/subscribers' + (st ? '?status=unsubscribed' : ''))]).then(function (r) {
+    Promise.all([refreshStats(), api('GET', '/api/subscribers' + (st ? '?status=unsubscribed' : '')), api('GET', '/api/campaigns')]).then(function (r) {
+      var cmp = r[2];
       var d = r[1], n = function (status, source) { return d.counts.filter(function (c) { return c.status === status && (!source || c.source === source); }).reduce(function (a, c) { return a + c.n; }, 0); };
-      shell(head('Mailing list', 'People who asked for Puppy Connection emails. Sending opens once real email is set up, so nothing is sent from here yet.',
+      shell(head('Mailing list', 'People who asked for Puppy Connection emails. Write an email below, send yourself a test, then send it to everyone on the list.',
         '<a class="btn btn-sm" href="/api/subscribers.csv" download>Download CSV</a>') +
         '<div class="stats">' +
         '<div class="stat"><b>' + n('subscribed').toLocaleString('en-US') + '</b><span>On the list</span></div>' +
         '<div class="stat"><b>' + n('subscribed', 'site').toLocaleString('en-US') + '</b><span>Signed up on the site</span></div>' +
         '<div class="stat"><b>' + n('subscribed', 'import').toLocaleString('en-US') + '</b><span>Imported</span></div>' +
         '<div class="stat"><b>' + n('unsubscribed').toLocaleString('en-US') + '</b><span>Unsubscribed</span></div></div>' +
+        emailsPanel(cmp) +
         '<div class="cols">' +
         '<section class="card" id="import-card"><h2>Import a list</h2><p class="small muted">A CSV with an email column, such as the contacts export from Wix. Anyone already on the list is left as they are, and anyone who unsubscribed stays off.</p>' +
         '<form id="import-form" novalidate><div class="field"><label for="import-file">CSV file</label><input id="import-file" type="file" accept=".csv,text/csv"></div>' +
@@ -884,6 +1019,7 @@
           });
         },
         emptyTitle: st ? 'Nobody has unsubscribed' : 'Nobody on the list yet', emptyText: st ? '' : 'Import the Wix list, or wait for sign-ups from the site.' });
+      wireEmails(cmp);
       $('#sub-form').addEventListener('submit', function (e) {
         e.preventDefault();
         api('POST', '/api/subscribers', { name: $('#sub-name').value, email: $('#sub-email').value }).then(function () { toast('Added'); listScreen(); })
@@ -906,6 +1042,56 @@
           }, 400);
         }).catch(function (err) { showError($('#import-form'), err); });
       });
+    });
+  }
+
+  /* Sending to the list (lib/campaigns.js). A draft is written here, a test goes to the owner's
+     own address, and the send asks for the number of people to confirm it. */
+  var CAMPAIGN_STATUS = { draft: 'Draft', sending: 'Sending', sent: 'Sent' };
+  function emailsPanel(c) {
+    var drafts = c.campaigns.filter(function (x) { return x.status === 'draft'; });
+    var edit = drafts[0] || null;
+    return '<section class="card" id="emails-card"><h2>Emails to the list</h2>' +
+      '<form id="addr-form" class="addr-form" novalidate><div class="field"><label for="mail-addr">Mailing address, shown at the foot of every email</label>' +
+      '<textarea id="mail-addr" style="min-height:64px" placeholder="Street address or PO box, city, state and ZIP">' + esc(c.address || '') + '</textarea>' +
+      '<div class="hint">The law on marketing email requires a postal address in every email. A PO box is fine.</div></div>' +
+      '<button class="btn btn-sm" type="submit">Save address</button></form>' +
+      '<form id="camp-form" novalidate' + (edit ? ' data-id="' + esc(edit.id) + '"' : '') + '><div class="field"><label for="camp-subject">Subject</label><input id="camp-subject" type="text" maxlength="150" value="' + esc(edit ? edit.subject : '') + '"></div>' +
+      '<div class="field"><label for="camp-body">Email</label><textarea id="camp-body" style="min-height:180px">' + esc(edit ? edit.body : '') + '</textarea>' +
+      '<div class="hint">Plain text. Leave a blank line between paragraphs. The unsubscribe link and your mailing address are added at the end of every email.</div></div>' +
+      '<div class="btn-row"><button class="btn" type="submit">Save draft</button>' +
+      (edit ? '<button class="btn" type="button" id="camp-test">Send me a test</button><button class="btn btn-primary" type="button" id="camp-send">Send to ' + c.subscribed.toLocaleString('en-US') + ' ' + (c.subscribed === 1 ? 'person' : 'people') + '</button>' : '') +
+      '</div></form>' +
+      (c.email_mode === 'log' ? '<p class="notice small">Real email is not switched on yet, so sends land in the test mailbox.</p>' : '') +
+      (c.campaigns.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Subject</th><th>Status</th><th class="num">Sent</th><th class="num">Failed</th><th>When</th></tr></thead><tbody>' +
+        c.campaigns.map(function (x) {
+          return '<tr><td>' + esc(x.subject) + '</td><td>' + esc(CAMPAIGN_STATUS[x.status]) + (x.status === 'sending' ? ' <span class="muted small">' + x.sent_count + ' of ' + x.total + '</span>' : '') + '</td>' +
+            '<td class="num">' + (x.status === 'draft' ? '' : x.sent_count) + '</td><td class="num">' + (x.status === 'draft' ? '' : x.failed_count) + '</td>' +
+            '<td class="when">' + esc(day(x.sent_at || x.send_started_at || x.updated_at)) + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '') +
+      '<p class="small muted">A large list goes out in batches of about 400 every 15 minutes, so 3,000 people take about two hours.</p></section>';
+  }
+  function wireEmails(c) {
+    $('#addr-form').addEventListener('submit', function (e) {
+      e.preventDefault();
+      api('PUT', '/api/mailing-address', { address: $('#mail-addr').value }).then(function () { toast('Address saved'); listScreen(); }).catch(function (err) { showError($('#addr-form'), err); });
+    });
+    var f = $('#camp-form');
+    f.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var body = { subject: $('#camp-subject').value, body: $('#camp-body').value };
+      (f.dataset.id ? api('PUT', '/api/campaigns/' + f.dataset.id, body) : api('POST', '/api/campaigns', body))
+        .then(function () { toast('Draft saved'); listScreen(); }).catch(function (err) { showError(f, err); });
+    });
+    var t = $('#camp-test');
+    if (t) t.addEventListener('click', function () {
+      api('POST', '/api/campaigns/' + f.dataset.id + '/test', {}).then(function (r) { toast('Test sent to ' + r.to); }).catch(function (err) { showError(f, err); });
+    });
+    var sbtn = $('#camp-send');
+    if (sbtn) sbtn.addEventListener('click', function () {
+      if (!confirm('Send "' + $('#camp-subject').value + '" to ' + c.subscribed + ' people? Save any changes first. This cannot be undone.')) return;
+      api('POST', '/api/campaigns/' + f.dataset.id + '/send', { confirm_count: c.subscribed }).then(function (r) { toast('Sending to ' + r.total + ' people'); listScreen(); })
+        .catch(function (err) { showError(f, err); });
     });
   }
 
@@ -959,7 +1145,7 @@
     state.route = (location.hash || '#/').replace(/^#\/?/, '');
     var r = state.route.split('?')[0].split('/')[0];
     ({ '': overview, approvals: approvals, breeders: breeders, listings: listings, payments: payments, settings: settings, activity: activity, search: search,
-      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, list: listScreen }[r] || overview)();
+      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, list: listScreen, people: peopleScreen }[r] || overview)();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', render);

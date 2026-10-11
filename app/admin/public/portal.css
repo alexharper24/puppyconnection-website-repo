@@ -393,3 +393,14 @@ table.list .row-acts { margin-top: .4rem; }
 .member-form { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: .75rem; align-items: end; }
 .member-form .field { margin: 0; }
 @media (max-width: 640px) { .member-form { grid-template-columns: 1fr; } }
+
+/* Admin: photos managed for a breeder, the sign-ins form and the mailing address (2026-10-11). */
+.admin-photos { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: .8rem; }
+.admin-photos li { display: flex; flex-direction: column; gap: .35rem; }
+.admin-photos img { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; border-radius: 8px; background: var(--cream); }
+.admin-photos .btn-row { margin: 0; gap: .3rem; }
+.person-form { display: grid; grid-template-columns: 1fr 1.4fr .8fr auto; gap: .75rem; align-items: end; }
+.person-form .field, .addr-form .field { margin: 0; }
+.addr-form { display: grid; gap: .5rem; justify-items: start; margin-bottom: 1.2rem; }
+.addr-form .field { width: 100%; }
+@media (max-width: 760px) { .person-form { grid-template-columns: 1fr; } }

@@ -9,6 +9,7 @@
 // Each job records its last run in job_runs, which the admin shows.
 
 import { now } from './util.js';
+import { runCampaigns } from './campaigns.js';
 import { settings, auditStmt, dirtyStmt } from './store.js';
 import { sendMail, alertOps } from './mail.js';
 import { provider, releaseCheckout, fulfillCheckout } from './payments.js';
@@ -180,7 +181,9 @@ async function links(env) {
   return tally;
 }
 
-export const JOBS = { expiry, housekeeping, reconcile, backup, links };
+// Sending to the mailing list (lib/campaigns.js): the next batches of any email that is sending.
+const campaigns = (env) => runCampaigns(env);
+export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns };
 
 export function runJob(env, name) {
   if (!JOBS[name]) throw new Error(`Unknown job ${name}`);
@@ -192,7 +195,7 @@ export async function scheduled(event, env) {
   // Reconcile first, because a checkout it fulfills marks the site dirty. Publish is not in JOBS,
   // so the admin has no Run now for it: the admin's Publish now goes through the portal instead,
   // because only the portal holds the GitHub token.
-  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await record(env, 'publish', () => publishIfDue(env))];
+  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await record(env, 'publish', () => publishIfDue(env)), await runJob(env, 'campaigns')];
   const out = [];
   for (const j of ['expiry', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
   return out;

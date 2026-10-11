@@ -317,7 +317,7 @@ async function part1() {
   const cocker = fs.readFileSync(path.join(out, 'breed-cocker-spaniel.html'), 'utf8');
   check('a published guide becomes its own page, with its heading, the breed page link and no token left', gpage.includes('<h1>How big does a Cocker Spaniel get?</h1>') && gpage.includes('href="breed-cocker-spaniel.html"') && !gpage.includes('{{') && gpage.includes('"@type":"Article"'));
   check('a draft guide builds nothing', !fs.existsSync(path.join(out, 'guide-cocker-spaniel-shedding.html')));
-  check('the breed page shows a guides panel linking the guide, and keeps only the intro of the long guide', cocker.includes('class="guide-panel"') && cocker.includes('href="guide-cocker-spaniel-size.html">How big does a Cocker Spaniel get?</a>') && !/<h2>How much is a Cocker Spaniel puppy\?<\/h2>/.test(cocker));
+  check('the breed page shows a guides panel linking the guide, and no section on the topic the guide now covers', cocker.includes('class="guide-panel"') && cocker.includes('href="guide-cocker-spaniel-size.html">How big does a Cocker Spaniel get?</a>') && !cocker.includes('<h2>How big does a Cocker Spaniel get full grown?</h2>'));
   check('a breed with no guide pages keeps its whole guide', hav.includes('<h2>How much is a Havanese puppy?</h2>') && !hav.includes('class="guide-panel"'));
   check('the guides hub lists the guide, and the footer and sitemap reach it', fs.existsSync(path.join(out, 'guides.html')) && fs.readFileSync(path.join(out, 'guides.html'), 'utf8').includes('guide-cocker-spaniel-size.html') && hav.includes('href="guides.html"') && sm.includes('guide-cocker-spaniel-size.html'));
   if (fs.existsSync(path.join(out, 'breed-munchkin-bernedoodle.html')) &&fs.existsSync(path.join(out, 'breed-mini-bernedoodle.html'))) {

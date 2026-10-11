@@ -450,6 +450,20 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // The paragraphs of an old one-page guide before its first "## " heading, which is the breed's
   // introduction once its topics have pages of their own.
   const introOf = (paragraphs) => { const i = paragraphs.findIndex((t) => /^##\s/.test(String(t))); return i < 0 ? paragraphs.slice(0, 2) : paragraphs.slice(0, i); };
+  // The sections of the old one-page guide that stay on the breed page. Topics that searchers
+  // research on authority sites (lifespan, shedding, temperament, grooming) fold into the money
+  // page (October 11 page-one read), so a section drops only when a guide page now covers its topic.
+  const SECTION_TOPIC = [['price', /how much|cost|price/i], ['size', /how big|full grown|weigh|how tall|\bsize/i], ['lifespan', /how long .*live|lifespan|life span|watch for/i]];
+  const sectionsKept = (paragraphs, covered) => {
+    const out = [];
+    let keep = true;
+    for (const t of paragraphs.slice(introOf(paragraphs).length)) {
+      const h = String(t).match(/^##\s+(.+)$/);
+      if (h) { const topic = (SECTION_TOPIC.find(([, rx]) => rx.test(h[1])) || [])[0]; keep = !(topic && covered.has(topic)); }
+      if (keep) out.push(t);
+    }
+    return out;
+  };
   if (GUIDES.length) {
     const hubItem = '<li><a href="guides.html">Breed guides</a></li>';
     const breedsItem = '<li><a href="breeds.html">Breeds</a></li>';
@@ -559,7 +573,7 @@ ${mates.length ? `<section class="band band-warm">
 <section class="band" style="padding-top:0">
   <div class="wrap split">
     <div class="guide">${guidesFor(b.slug).length
-      ? `${guideHtml(introOf(b.guide), guideTokens(b, pups))}<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>`
+      ? `${guideHtml(introOf(b.guide), guideTokens(b, pups))}<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>${guideHtml(sectionsKept(b.guide, new Set(guidesFor(b.slug).map((g) => g.topic))), guideTokens(b, pups))}`
       : b.guide.length ? guideHtml(b.guide, guideTokens(b, pups)) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}${byLine}${seeAlso}</div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}

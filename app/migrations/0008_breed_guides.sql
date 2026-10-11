@@ -652,3 +652,5 @@ AKC scores the Yorkie 5 of 5 with young children and 4 for energy, trainability 
 ## How long do Yorkies live?
 
 Eleven to fifteen years. The national breed club recommends a patella evaluation and an eye exam by a veterinary ophthalmologist for breeding dogs. A breeder who has both results for the parents can show you them.', guide_updated_at = '2026-10-11T00:33:43.000Z' WHERE slug = 'yorkshire-terrier';
+-- Marks the site changed so the next scheduled publish carries the new guide text.
+UPDATE site_state SET dirty = 1, dirty_since = COALESCE(dirty_since, strftime('%Y-%m-%dT%H:%M:%fZ','now')), generation = generation + 1 WHERE id = 1;

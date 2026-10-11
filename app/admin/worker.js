@@ -113,7 +113,8 @@ async function breederDetail(req, env, ctx, id) {
   // Plan P3.2 and P3.4. The private notes, newest first, and which terms version they accepted.
   const terms = await currentTerms(env);
   const breeds = (await env.DB.prepare('SELECT id, name FROM breeds ORDER BY name').all()).results;
-  return json({ breeder: b, litters, checkouts, audit, extras, close_request: closeRequest || null, notes: await notesFor(env, id),
+  const members = (await env.DB.prepare('SELECT email, name, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(id).all()).results;
+  return json({ breeder: b, litters, checkouts, audit, extras, members, close_request: closeRequest || null, notes: await notesFor(env, id),
     terms: { current: terms.version, accepted: b.terms_version || null }, breeds });
 }
 

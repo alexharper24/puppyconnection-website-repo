@@ -841,9 +841,23 @@
       var req = A.close_request;
       shell(head('Account', 'How you sign in, and the choices you have about your account.') +
         '<section class="card"><h2>Signing in</h2><table class="kv"><tbody><tr><td>Sign-in email</td><td><b>' + esc(A.email) + '</b></td></tr>' +
-        '<tr><td>Signed in on</td><td>' + plural(A.sessions, 'device or browser', 'devices or browsers') + '</td></tr></tbody></table>' +
+        '<tr><td>Signed in on</td><td>' + plural(A.sessions, 'device or browser', 'devices or browsers') + '</td></tr>' +
+        (A.signed_in_as && A.signed_in_as.toLowerCase() !== A.email.toLowerCase() ? '<tr><td>You signed in as</td><td><b>' + esc(A.signed_in_as) + '</b></td></tr>' : '') + '</tbody></table>' +
         '<p class="small muted">This address is private. To sign in with a different one, ask Puppy Connection to change it for you.</p></section>' +
-        '<section class="card"><h2>Sign out of every device</h2><p>If you signed in on a shared or lost phone or computer, this signs you out everywhere at once, including here. You can sign straight back in with your email.</p>' +
+        '<section class="card" id="members-card"><h2>People who can sign in</h2>' +
+        '<p>Add the people who help run your kennel. Each one signs in with their own email address and can do everything you can here.</p>' +
+        '<ul class="member-list"><li><div><b>' + esc(A.email) + '</b><div class="small muted">Main sign-in address</div></div></li>' +
+        (A.members || []).map(function (m) {
+          return '<li><div><b>' + esc(m.name || m.email) + '</b>' + (m.name ? ' <span class="muted">' + esc(m.email) + '</span>' : '') +
+            '<div class="small muted">' + (m.joined_at ? 'Signed in first on ' + esc(day(m.joined_at)) : 'Added on ' + esc(day(m.added_at)) + ', not signed in yet') + '</div></div>' +
+            '<button class="btn btn-sm btn-danger" type="button" data-remove-member="' + esc(m.id) + '" data-email="' + esc(m.email) + '">Remove</button></li>';
+        }).join('') + '</ul>' +
+        ((A.members || []).length < (A.max_members || 5)
+          ? '<form id="member-form" class="member-form" novalidate><div class="field"><label for="member-name">Name</label><input id="member-name" name="name" type="text" autocomplete="off" maxlength="120"></div>' +
+            '<div class="field"><label for="member-email">Email address</label><input id="member-email" name="email" type="email" autocomplete="off" maxlength="200" required></div>' +
+            '<button class="btn btn-primary" type="submit">Add person</button></form><p class="small muted">We email them to say they can sign in.</p>'
+          : '<p class="small muted">A kennel can have up to ' + (A.max_members || 5) + ' extra people. Remove someone to add another.</p>') + '</section>' +
+        '<section class="card"><h2>Sign out of every device</h2><p>If a phone or computer was shared or lost, this signs everyone in your kennel out everywhere at once, including here. Each person can sign straight back in with their email.</p>' +
         '<div class="btn-row"><button class="btn" id="signout-all">Sign out of every device</button></div></section>' +
         '<section class="card" id="close-card"><h2>Close your account</h2>' + (req
           ? '<p class="notice">You asked Puppy Connection to close your account on ' + esc(day(req.created_at)) + '. They will be in touch before anything is removed.</p>' +
@@ -855,6 +869,22 @@
       $('#signout-all').addEventListener('click', function () {
         if (!confirm('Sign out of every device, including this one?')) return;
         api('POST', '/auth/signout-all', {}).then(function () { state.me = null; location.hash = '#/'; render(); toast('Signed out everywhere'); });
+      });
+      var mf = $('#member-form');
+      if (mf) mf.addEventListener('submit', function (e) {
+        e.preventDefault();
+        api('POST', '/api/account/members', { name: $('#member-name').value, email: $('#member-email').value })
+          .then(function () { toast('Person added'); accountScreen(); })
+          .catch(function (err) { showError(mf, err); });
+      });
+      document.querySelectorAll('[data-remove-member]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!confirm('Remove ' + b.getAttribute('data-email') + '? They will be signed out and can no longer sign in to your kennel.')) return;
+          api('DELETE', '/api/account/members/' + b.getAttribute('data-remove-member')).then(function (r) {
+            if (r && r.signed_out) { state.me = null; location.hash = '#/'; render(); toast('You removed yourself and are signed out'); return; }
+            toast('Person removed'); accountScreen();
+          }).catch(function (err) { showError($('#members-card'), err); });
+        });
       });
       var cf = $('#close-form');
       if (cf) cf.addEventListener('submit', function (e) {

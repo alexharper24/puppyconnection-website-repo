@@ -312,7 +312,7 @@
       openDrawer(b.business_name || b.email,
         '<p>' + breederPill(b) + (b.status_reason ? ' <span class="muted small">Reason on record: ' + esc(b.status_reason) + '</span>' : '') + '</p>' +
         '<table class="kv"><tbody>' +
-        row('Sign-in email', esc(b.email)) + row('Contact name', esc(b.contact_name)) + row('Public phone', esc(b.public_phone)) +
+        row('Sign-in email', esc(b.email)) + row('Also signs in', (data.members || []).map(function (m) { return esc(m.name ? m.name + ' (' + m.email + ')' : m.email) + (m.joined_at ? '' : ' <span class="muted small">not signed in yet</span>'); }).join('<br>')) + row('Contact name', esc(b.contact_name)) + row('Public phone', esc(b.public_phone)) +
         row('Public email', esc(b.public_email)) + row('Where', esc([b.city, b.state].filter(Boolean).join(', '))) +
         row('Website', b.website_url ? '<a href="' + esc(b.website_url) + '" target="_blank" rel="noopener">' + esc(b.website_url) + '</a>' : '') +
         row('Joined', esc(day(b.created_at))) + row('Submitted', esc(day(b.profile_submitted_at))) + row('Terms', termsLine) +

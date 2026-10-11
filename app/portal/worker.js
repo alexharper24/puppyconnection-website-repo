@@ -59,7 +59,7 @@ async function currentSession(request, env) {
   } else if (s.last_seen_at < addMinutes(t, -5)) {
     await env.DB.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').bind(t, hash).run();
   }
-  return { hash, breeder };
+  return { hash, breeder, email: s.email || breeder.email };
 }
 
 async function needSession(request, env) {
@@ -68,11 +68,11 @@ async function needSession(request, env) {
   return s;
 }
 
-async function startSession(request, env, breederId) {
+async function startSession(request, env, breederId, email = null) {
   const token = randomToken();
   const t = now();
-  await env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at) VALUES (?, ?, ?, ?, ?)')
-    .bind(await sha256hex(token), breederId, t, addDays(t, SESSION_DAYS), t).run();
+  await env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at, email) VALUES (?, ?, ?, ?, ?, ?)')
+    .bind(await sha256hex(token), breederId, t, addDays(t, SESSION_DAYS), t, email).run();
   return setCookie(request, sessionCookieName(request), token, SESSION_DAYS * 86400);
 }
 
@@ -118,7 +118,8 @@ async function authStart(request, env, ctx) {
     .bind(email, addMinutes(t, -60)).first();
   if (recent.n >= LINKS_PER_HOUR) return res;   // same answer, no new link (test 9)
 
-  const existing = await env.DB.prepare('SELECT id FROM breeders WHERE email = ?').bind(email).first();
+  const existing = await env.DB.prepare('SELECT id FROM breeders WHERE email = ?').bind(email).first()
+    || await env.DB.prepare('SELECT breeder_id AS id FROM breeder_members WHERE email = ?').bind(email).first();
   const token = randomToken();
   const code = randomCode();
   const purpose = existing ? 'signin' : 'signup';
@@ -202,7 +203,7 @@ async function authCode(request, env) {
   if (used.meta.changes !== 1) throw bad(gone);
   const tok = await env.DB.prepare('SELECT * FROM login_tokens WHERE token_hash = ?').bind(hit.token_hash).first();
   const breederId = await breederForVerifiedEmail(env, tok.email, { businessName: tok.signup_name, method: 'code' });
-  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId) });
+  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId, tok.email) });
   res.headers.append('set-cookie', setCookie(request, signinCookieName(request), '', 0));
   return res;
 }
@@ -211,7 +212,7 @@ async function authCode(request, env) {
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=8"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=9"></head>
 <body class="plain"><main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
@@ -239,7 +240,7 @@ async function authVerify(request, env) {
   }
   const tok = await env.DB.prepare('SELECT * FROM login_tokens WHERE token_hash = ?').bind(hash).first();
   const breederId = await breederForVerifiedEmail(env, tok.email, { businessName: tok.signup_name, method: 'email' });
-  const cookie = await startSession(request, env, breederId);
+  const cookie = await startSession(request, env, breederId, tok.email);
   return redirect('/', 303, { 'set-cookie': cookie });
 }
 
@@ -257,6 +258,14 @@ async function breederForVerifiedEmail(env, email, { businessName = '', contactN
     if (!existing.email_verified_at) stmts.push(env.DB.prepare('UPDATE breeders SET email_verified_at = ? WHERE id = ?').bind(t, existing.id));
     await env.DB.batch(stmts);
     return existing.id;
+  }
+  // Someone a breeder added to their kennel signs in to that kennel, never to a new account.
+  const member = await env.DB.prepare('SELECT id, breeder_id, joined_at FROM breeder_members WHERE email = ?').bind(email).first();
+  if (member) {
+    const stmts = [auditStmt(env, 'breeder', email, `breeder.signin.${method}`, 'breeder', member.breeder_id, null, { member: member.id })];
+    if (!member.joined_at) stmts.push(env.DB.prepare('UPDATE breeder_members SET joined_at = ? WHERE id = ?').bind(t, member.id));
+    await env.DB.batch(stmts);
+    return member.breeder_id;
   }
   const id = ulid();
   await env.DB.batch([
@@ -306,7 +315,7 @@ async function googleCallback(request, env) {
   const email = String(claims.email).trim().toLowerCase();
   if (!EMAIL_RX.test(email)) return fail('email address not usable');
   const breederId = await breederForVerifiedEmail(env, email, { contactName: clean(claims.name, 120), method: 'google' });
-  const session = await startSession(request, env, breederId);
+  const session = await startSession(request, env, breederId, email);
   const res = redirect('/', 303, { 'set-cookie': session });
   res.headers.append('set-cookie', clear);
   return res;
@@ -341,7 +350,7 @@ async function oneTapSignIn(request, env) {
   const email = String(claims.email).trim().toLowerCase();
   if (!EMAIL_RX.test(email)) return json({ error: 'That Google account has no usable email address.' }, 400, { 'set-cookie': clear });
   const breederId = await breederForVerifiedEmail(env, email, { contactName: clean(claims.name, 120), method: 'google' });
-  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId) });
+  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId, email) });
   res.headers.append('set-cookie', clear);
   return res;
 }
@@ -587,10 +596,63 @@ const openRequest = (env, breederId) => env.DB.prepare(
 ).bind(breederId).first();
 
 async function account(request, env) {
-  const { breeder } = await needSession(request, env);
+  const { breeder, email } = await needSession(request, env);
   const sessions = await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE breeder_id = ? AND revoked_at IS NULL AND expires_at > ?')
     .bind(breeder.id, now()).first();
-  return json({ email: breeder.email, created_at: breeder.created_at, sessions: sessions.n, close_request: await openRequest(env, breeder.id) });
+  return json({ email: breeder.email, signed_in_as: email, created_at: breeder.created_at, sessions: sessions.n,
+    members: await kennelMembers(env, breeder.id), max_members: MAX_MEMBERS, close_request: await openRequest(env, breeder.id) });
+}
+
+// ------------------------------------------------------------------ people in the kennel
+
+// Amber, 2026-10-10: a kennel run by a couple or a family wants a sign-in for each person. Each
+// extra person signs in with their own address and has the same access as the first.
+const MAX_MEMBERS = 5;
+const kennelMembers = async (env, breederId) => (await env.DB.prepare(
+  'SELECT id, email, name, added_by, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at',
+).bind(breederId).all()).results;
+
+/** Add a person who can sign in to this kennel with their own address, and email them. */
+async function addMember(request, env, ctx) {
+  requireSameOrigin(request);
+  const { breeder, email: by } = await needSession(request, env);
+  const body = await readJson(request);
+  const email = String(body.email || '').trim().toLowerCase();
+  const name = clean(body.name, 120);
+  if (!EMAIL_RX.test(email) || email.length > 200) throw bad('Enter a valid email address.');
+  if (email === String(breeder.email).toLowerCase()) throw bad('That address already signs in to this kennel.');
+  const taken = await env.DB.prepare('SELECT breeder_id FROM breeder_members WHERE email = ?').bind(email).first();
+  if (taken) throw bad(taken.breeder_id === breeder.id ? 'That person can already sign in.' : 'That address is already used by another kennel on Puppy Connection.');
+  if (await env.DB.prepare('SELECT 1 AS x FROM breeders WHERE email = ?').bind(email).first()) {
+    throw bad('That address already has its own breeder account. Use a different address, or contact Puppy Connection.');
+  }
+  const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM breeder_members WHERE breeder_id = ?').bind(breeder.id).first();
+  if (n >= MAX_MEMBERS) throw bad(`A kennel can have up to ${MAX_MEMBERS} extra people. Remove someone first.`);
+  const id = ulid();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO breeder_members (id, breeder_id, email, name, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?)').bind(id, breeder.id, email, name, by, now()),
+    auditStmt(env, 'breeder', by, 'member.add', 'breeder', breeder.id, null, { member: id, email }),
+  ]);
+  ctx.waitUntil(sendMail(env, email, 'member_added', { business: breeder.business_name || 'a kennel', by, portalUrl: new URL(request.url).origin })
+    .catch((e) => console.error('member mail failed', e)));
+  return account(request, env);
+}
+
+/** Remove a person from the kennel and end their sessions. Their past changes stay in the log. */
+async function removeMember(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder, email: by } = await needSession(request, env);
+  const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(id, breeder.id).first();
+  if (!m) throw notFound();
+  await env.DB.batch([
+    env.DB.prepare('DELETE FROM breeder_members WHERE id = ?').bind(m.id),
+    env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND email = ? AND revoked_at IS NULL').bind(now(), breeder.id, m.email),
+    auditStmt(env, 'breeder', by, 'member.remove', 'breeder', breeder.id, { member: m.id, email: m.email }, null),
+  ]);
+  if (String(by).toLowerCase() === m.email.toLowerCase()) {
+    return json({ ok: true, signed_out: true }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
+  }
+  return account(request, env);
 }
 
 /** Ask Puppy Connection to close the account. This records the request and deletes nothing. */
@@ -1191,6 +1253,8 @@ const ROUTES = [
   ['GET', /^\/brand\/([\w-]+)\/kennel$/, brandKennel],
   ['GET', /^\/api\/account$/, account],
   ['POST', /^\/api\/account\/close$/, askToClose],
+  ['POST', /^\/api\/account\/members$/, addMember],
+  ['DELETE', /^\/api\/account\/members\/([\w-]+)$/, removeMember],
   ['POST', /^\/api\/account\/close\/withdraw$/, withdrawClose],
   ['GET', /^\/api\/stats$/, myStats],
   ['GET', /^\/api\/breeds$/, (r, e) => listBreeds(e)],

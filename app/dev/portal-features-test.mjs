@@ -83,6 +83,32 @@ async function main() {
   const B = await breeder('b', true);
   const C = await breeder('c', false);
 
+  // ---------------------------------------------------------------- more than one person per kennel
+  {
+    const mEmail = `member-${Date.now().toString(36)}@breeders.test`;
+    let r = await A.c.post('/api/account/members', { name: 'Sam Helper', email: mEmail });
+    check('a breeder adds a person to their kennel', r.status === 200 && r.data.members.some((m) => m.email === mEmail && !m.joined_at), JSON.stringify(r.data).slice(0, 200));
+    const invite = (await A.c.get(`/dev/mail.json?to=${encodeURIComponent(mEmail)}`)).data;
+    check('the added person is emailed that they can sign in', invite.length === 1 && /You can now sign in to Feature Kennel/.test(invite[0].subject), JSON.stringify(invite).slice(0, 200));
+    check('the same address cannot be added twice', (await A.c.post('/api/account/members', { email: mEmail })).status === 400);
+    check("another breeder's sign-in address cannot be added", (await A.c.post('/api/account/members', { email: B.email })).status === 400);
+    check('the main address cannot be added as an extra person', (await A.c.post('/api/account/members', { email: A.email })).status === 400);
+    const M = new Client(PORTAL);
+    await call(M, 'POST', '/auth/start', { email: mEmail });
+    const mail = (await M.get(`/dev/mail.json?to=${encodeURIComponent(mEmail)}`)).data.find((x) => /sign-in link/.test(x.subject));
+    await M.req('POST', '/auth/verify', new URLSearchParams({ t: new URL(mail.link).searchParams.get('t') }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    const mMe = (await M.get('/api/me')).data;
+    check('the added person signs in to the same kennel, not a new account', mMe && mMe.id === A.id, JSON.stringify(mMe).slice(0, 160));
+    const acct = (await M.get('/api/account')).data;
+    check('the account screen says who signed in, and marks the person joined', acct.signed_in_as === mEmail && acct.email === A.email && acct.members.find((m) => m.email === mEmail).joined_at);
+    check('the added person has the same access, such as adding a litter', (await M.post('/api/litters', { breed_id: 'breed-havanese' })).status === 201);
+    check('the admin breeder view lists who else signs in', ((await admin.get(`/api/breeders/${A.id}`)).data.members || []).some((m) => m.email === mEmail));
+    check('a breeder cannot remove a person from another kennel', (await B.c.req('DELETE', `/api/account/members/${acct.members[0].id}`)).status === 404);
+    r = await A.c.req('DELETE', `/api/account/members/${acct.members[0].id}`);
+    check('removing the person takes them off the list', r.status === 200 && r.data.members.length === 0);
+    check("... and ends the removed person's session, but not the breeder's", (await M.get('/api/me')).status === 401 && (await A.c.get('/api/me')).status === 200);
+  }
+
   // ---------------------------------------------------------------- P2.1 where a puppy stands
   const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
   const bare = (await A.c.post('/api/puppies', { litter_id: litter, name: 'Pepper' })).data.id;

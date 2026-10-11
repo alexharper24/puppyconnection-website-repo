@@ -27,6 +27,14 @@ export const TEMPLATES = {
       `If you did not ask for this, you can ignore it and nothing will change.${code ? ' Never share the code with anyone.' : ''}` + signOff(),
     link,
   }),
+  // A breeder added this person to their kennel. They sign in with this address the usual way.
+  member_added: ({ business, by, portalUrl }) => ({
+    subject: `You can now sign in to ${business} on Puppy Connection`,
+    text: `${by} added you to ${business} on Puppy Connection, so you can manage its profile, litters and puppies.\n\n` +
+      `To sign in, open the breeder portal and enter this email address. We will send you a sign-in code.\n\n${portalUrl}\n\n` +
+      'If you were not expecting this, you can ignore it, or reply and let us know.' + signOff(),
+    link: portalUrl,
+  }),
   // Plan P6.6. Sent to the sign-in address, so the real owner hears about a change they did not make.
   contact_changed: ({ business, changes, by, portalUrl }) => ({
     subject: 'Your Puppy Connection contact details were changed',

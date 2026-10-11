@@ -100,9 +100,25 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at   TEXT NOT NULL,
   expires_at   TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
-  revoked_at   TEXT
+  revoked_at   TEXT,
+  -- The address this session signed in with (migrations/0010_kennel_members.sql). NULL on
+  -- older sessions, which count as the breeder's own address.
+  email        TEXT COLLATE NOCASE
 );
 CREATE INDEX IF NOT EXISTS sessions_breeder ON sessions(breeder_id);
+
+-- More than one person per kennel (migrations/0010_kennel_members.sql). Each extra person signs
+-- in with their own address and has the same access as the breeder's own address.
+CREATE TABLE IF NOT EXISTS breeder_members (
+  id          TEXT PRIMARY KEY,
+  breeder_id  TEXT NOT NULL REFERENCES breeders(id),
+  email       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  name        TEXT,
+  added_by    TEXT NOT NULL,
+  added_at    TEXT NOT NULL,
+  joined_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS breeder_members_breeder ON breeder_members(breeder_id);
 
 CREATE TABLE IF NOT EXISTS people (
   email    TEXT PRIMARY KEY COLLATE NOCASE,

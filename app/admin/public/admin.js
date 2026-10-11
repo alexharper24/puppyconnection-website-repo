@@ -629,7 +629,7 @@
       '<form id="breed-form" novalidate>' + field('name', 'Breed name', b ? b.name : '') +
       (b ? '<p class="hint">Its page on the site is at /' + esc(b.slug) + '. The address stays the same when the breed is renamed, so links to it keep working.</p>'
         : field('slug', 'Web address (optional)', '', { hint: 'Made from the name when left blank. It must be different from every other breed.' })) +
-      field('guide', 'Breed guide', b ? b.guide : '', { textarea: true, rows: 260, hint: 'Plain paragraphs, with a blank line between them. The site shows this on the breed\'s page once breed pages are built.' }) +
+      field('guide', 'Breed guide', b ? b.guide : '', { textarea: true, rows: 260, hint: 'Plain paragraphs, with a blank line between them. Start a line with ## and a space to make it a section heading. {{count}}, {{price_range}}, {{deposit_range}}, {{includes}} and {{parent_weights}} fill in from this breed\'s listings each time the site updates, so no price needs typing in.' }) +
       (b && b.guide_updated_at ? '<p class="hint">Guide last changed ' + esc(when(b.guide_updated_at)) + '.</p>' : '') +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (b ? 'Save breed' : 'Add breed') + '</button></div></form>',
     function (d) {

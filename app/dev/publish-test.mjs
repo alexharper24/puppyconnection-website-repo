@@ -89,6 +89,14 @@ async function seededEnv() {
       VALUES (?, ?, 'test-litter', ?, ?, 'female', 150000, 'paid', 'published', 'available', ?, ?, ?)`).bind(`test-pup-${i}`, B, `${n.toLowerCase()}-havanese-test`, n, t, t, t)),
     db.prepare(`INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, position, aspect, created_at) VALUES
       ('tph0', ?, 'test-pup-0', 'uploads/${B}/tph0.webp', 'image/webp', 0, 1.5, ?), ('tph1', ?, 'test-pup-1', 'uploads/${B}/tph1.webp', 'image/webp', 0, 0.8, ?)`).bind(B, t, B, t),
+    // A guide written the way the admin now allows, with a section heading and listing figures.
+    db.prepare("UPDATE breeds SET guide = ? WHERE slug = 'havanese'").bind(`The Havanese is a small companion dog. {{count}}
+
+## How much is a Havanese puppy?
+
+{{price_range}} {{deposit_range}} Each breeder sets their own price.
+
+{{parent_weights}}`),
   ]);
   await env.FILES.put(`uploads/${B}/tph0.webp`, bytes('tph0'), { httpMetadata: { contentType: 'image/webp' } });
   await env.FILES.put(`uploads/${B}/tph0.webp.card`, bytes('tph0-card'), { httpMetadata: { contentType: 'image/webp' } });
@@ -257,7 +265,7 @@ async function part1() {
   }
   const g = build({ dataDir, out });
   const pupCount = JSON.parse(fs.readFileSync(path.join(dataDir, 'data/puppies.json'), 'utf8')).length;
-  check('the generator builds one page per puppy, breed and breeder', g.puppies === pupCount && g.pages === pupCount + g.breeds + g.breeders + 5, JSON.stringify(g));
+  check('the generator builds one page per puppy, breed and breeder, and two per state', g.puppies === pupCount && g.states >= 1 && g.pages === pupCount + g.breeds + g.breeders + 5 + 2 * g.states, JSON.stringify(g));
   const chk = siteChecks(out);
   check('the generated site passes check_site.py (breeder dash check off)', chk.ok, chk.out.split('\n').filter((l) => /ERROR|error\(s\)/.test(l)).slice(0, 6).join('\n'));
   const pup = fs.readFileSync(path.join(out, 'puppy-pepper-havanese-test.html'), 'utf8');
@@ -289,8 +297,20 @@ async function part1() {
   const guide = fs.readFileSync(path.join(out, 'breed-cocker-spaniel.html'), 'utf8');
   const guideText = JSON.parse(fs.readFileSync(path.join(dataDir, 'data/breeds.json'), 'utf8')).find((b) => b.slug === 'cocker-spaniel').guide[0];
   check('a breed page shows the guide text from breeds.guide', guideText && guide.includes(guideText.slice(0, 60).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;')));
+  check('a guide line starting "## " becomes a section heading on the breed page', hav.includes('<h2>How much is a Havanese puppy?</h2>'));
+  check('the guide figures fill from the listings and leave no token behind', /Havanese puppies listed on Puppy Connection right now are priced (at|from) \$/.test(hav) && /mothers weigh \d/.test(hav) && !hav.includes('{{'));
+  check('the breed heading carries the price range of the puppies shown, and says breeders set their prices', /available now, priced \$[\d,]+( to \$[\d,]+)?<\/p>/.test(hav) && hav.includes('Each breeder sets their own price.'));
+  const inPups = fs.readFileSync(path.join(out, 'puppies-for-sale-in-indiana.html'), 'utf8');
+  const inBreeders = fs.readFileSync(path.join(out, 'dog-breeders-in-indiana.html'), 'utf8');
+  check('Indiana gets a "puppies for sale in" page listing the puppies of breeders there', inPups.includes('<title>Puppies for Sale in Indiana | Puppy Connection</title>') && inPups.includes('<h1>Puppies for sale in Indiana</h1>') && inPups.includes('puppy-pepper-havanese-test.html') && inPups.includes('"@type":"ItemList"'));
+  check('Indiana gets a "dog breeders in" page listing its breeders, and each state page links the other', inBreeders.includes('<title>Dog Breeders in Indiana | Puppy Connection</title>') && inBreeders.includes('breeder-publish-test-kennel.html') && inBreeders.includes('puppies-for-sale-in-indiana.html') && inPups.includes('dog-breeders-in-indiana.html'));
+  check('the breeders hub links the state pages', fs.readFileSync(path.join(out, 'breeders.html'), 'utf8').includes('href="dog-breeders-in-indiana.html"'));
+  if (fs.existsSync(path.join(out, 'breed-munchkin-bernedoodle.html')) && fs.existsSync(path.join(out, 'breed-mini-bernedoodle.html'))) {
+    const mb = fs.readFileSync(path.join(out, 'breed-munchkin-bernedoodle.html'), 'utf8');
+    check('the Munchkin Bernedoodle page keeps its own name and links the Mini Bernedoodle page', mb.includes('<title>Munchkin Bernedoodle Puppies for Sale') && mb.includes('href="breed-mini-bernedoodle.html">Mini Bernedoodle puppies</a>'));
+  }
   const sitemap = fs.readFileSync(path.join(out, 'sitemap.xml'), 'utf8');
-  check('sitemap.xml lists every generated page', (sitemap.match(/<loc>/g) || []).length === g.pages && sitemap.includes('/puppy-pepper-havanese-test.html'));
+  check('sitemap.xml lists every generated page', (sitemap.match(/<loc>/g) || []).length === g.pages && sitemap.includes('/puppy-pepper-havanese-test.html') && sitemap.includes('/puppies-for-sale-in-indiana.html'));
   const dataJs = fs.readFileSync(path.join(out, 'data/data.js'), 'utf8');
   check('each listing carries a 4:5 phone photo cropped around its focus point, Cap\'n Crunch at its hand-set 0.6 (migration 0007)',
     /"lead_tall":"https:\/\/static\.wixstatic\.com\/media\/8d80ac_f00c67917ee9451d8a12729457e762ee~mv2\.jpg\/v1\/crop\/x_360,y_0,w_576,h_720\/fill\/w_480,h_600,/.test(dataJs)

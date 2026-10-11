@@ -438,6 +438,9 @@ p{margin:0 0 1rem;max-width:70ch}
   /* portrait shots crop to the body at this ratio; favour the upper third */
   object-position:center 28%}
 .guide p{margin-bottom:1rem}
+/* Section headings inside a breed guide, written as "## " lines in the admin (2026-10-10). */
+.guide h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.2rem,2.4vw,1.45rem);line-height:1.25;margin:1.8rem 0 .55rem;text-wrap:balance}
+.guide h2:first-child{margin-top:0}
 .demo-note{
   font-size:.86rem;color:var(--olive);background:var(--paper-warm);
   border-left:3px solid var(--bronze);padding:.6rem .8rem;margin-bottom:1.2rem;

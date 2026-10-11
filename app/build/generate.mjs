@@ -338,6 +338,51 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
     const lo = Math.min(...v), hi = Math.max(...v);
     return lo === hi ? `, priced at ${money(lo)}` : `, priced ${money(lo)} to ${money(hi)}`;
   };
+  const priceSpan = (list) => {
+    const v = list.map((p) => p.price).filter((x) => x != null && x > 0);
+    if (!v.length) return '';
+    const lo = Math.min(...v), hi = Math.max(...v);
+    return lo === hi ? money(lo) : `${money(lo)} to ${money(hi)}`;
+  };
+  const span = (vals, unit = '') => {
+    const v = vals.filter((x) => x != null && x > 0);
+    if (!v.length) return '';
+    const lo = Math.min(...v), hi = Math.max(...v), f = (n) => (unit ? `${n}` : money(n));
+    return lo === hi ? `${f(lo)}${unit}` : `${f(lo)} to ${f(hi)}${unit}`;
+  };
+  // The listing figures a breed guide can carry (keyword research 2026-10-07: families search a
+  // breed's price, size and what comes home with it). Guides are written in the admin, where
+  // {{count}}, {{price_range}}, {{deposit_range}}, {{includes}} and {{parent_weights}} stand for
+  // a sentence computed from the breed's listings, so no price is ever typed into copy and each
+  // figure follows the listings on every publish. An empty figure drops out of its paragraph.
+  const guideTokens = (b, pups) => {
+    const open = pups.filter((p) => !p.placed);
+    const pool = open.length ? open : pups;
+    const now = open.length ? 'listed on Puppy Connection right now' : 'listed on Puppy Connection recently';
+    const n = open.length;
+    const price = priceSpan(pool), deposit = span(pool.map((p) => p.deposit));
+    const has = (...w) => pool.filter((p) => { const t = p.includes.join(' ').toLowerCase(); return w.some((x) => t.includes(x)); }).length;
+    const inc = [['a vet exam', has('examination', 'vet exam')], ['a microchip', has('microchip')], ['a health record', has('health record')], ['AKC registration', has('akc regist')], ['a written health guarantee', has('guarantee')]].filter((x) => x[1]);
+    const moms = span(pool.map((p) => p.l.mom_weight_lb), ' pounds'), dads = span(pool.map((p) => p.l.dad_weight_lb), ' pounds');
+    return {
+      count: n ? `${n} ${b.name} ${n === 1 ? 'puppy is' : 'puppies are'} listed on Puppy Connection right now.` : `No ${b.name} puppies are listed right now, and new litters appear here as breeders add them.`,
+      price_range: price ? `${b.name} puppies ${now} are priced at ${price}.` : '',
+      deposit_range: deposit ? `Breeders who take a deposit ask ${deposit} to hold a puppy.` : '',
+      includes: inc.length && pool.length ? `Of the ${pool.length} ${pool.length === 1 ? 'listing' : 'listings'} here, ${inc.map(([w, c]) => `${c} ${c === 1 ? 'comes' : 'come'} with ${w}`).join(', ').replace(/, ([^,]*)$/, ' and $1')}. Each listing says what that puppy goes home with.` : '',
+      parent_weights: moms || dads ? `Where breeders have given the parents' adult weights, ${[moms && `the mothers weigh ${moms}`, dads && `the fathers weigh ${dads}`].filter(Boolean).join(' and ')}.` : '',
+    };
+  };
+  // A guide paragraph that starts with "## " is a section heading. Everything else is a paragraph.
+  const guideHtml = (paragraphs, tokens) => paragraphs.map((t) => {
+    const filled = String(t).replace(/\{\{(\w+)\}\}/g, (m, k) => (k in tokens ? tokens[k] : m)).replace(/\s+/g, ' ').trim();
+    if (!filled) return '';
+    const h = filled.match(/^##\s+(.+)$/);
+    return h ? `<h2>${esc(h[1])}</h2>` : `<p>${esc(filled)}</p>`;
+  }).join('');
+  // Pages that name each other because families compare them (the Munchkin page keeps its own
+  // name and never calls itself Mini, per the 2026-09-28 keyword plan, but points to the Mini page).
+  const SEE_ALSO = { 'munchkin-bernedoodle': ['mini-bernedoodle'], 'mini-bernedoodle': ['munchkin-bernedoodle'] };
+
   // A sentence of links, "A, B and C", for links inside body copy (SEO plan P13).
   const linkList = (items) => {
     const a = items.map(([href, name]) => `<a href="${href}">${esc(name)}</a>`);
@@ -451,17 +496,20 @@ ${mates.length ? `<section class="band band-warm">
     const byLine = SHOW_BREED_BREEDERS && by.length
       ? `<p>${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}. Each breeder's page shows the rest of their puppies and how to reach them.</p>`
       : '';
+    const alsoBreeds = (SEE_ALSO[b.slug] || []).map((s) => listedBreeds.find((x) => x.slug === s)).filter(Boolean);
+    const seeAlso = alsoBreeds.length ? `<p>Comparing sizes? See ${linkList(alsoBreeds.map((x) => [pageFor.breed(x.slug), `${x.name} puppies`]))} too, since breeders draw the line between Bernedoodle sizes in different places.</p>` : '';
     const body = `<main id="breedPage">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem">
   <div class="wrap">
     <p class="eyebrow"><a href="breeds.html" style="color:inherit">Breeds</a></p>
     <h1>${esc(b.name)} puppies for sale</h1>
-    <p class="meta">${open.length} available now</p>
+    <p class="meta">${open.length} available now${priceSpan(shown) ? `, ${open.length ? '' : 'recently '}priced ${priceSpan(shown)}` : ''}</p>
+    ${priceSpan(shown) ? '<p class="meta" style="margin-top:.2rem">Each breeder sets their own price.</p>' : ''}
   </div>
 </section>
 <section class="band" style="padding-top:0">
   <div class="wrap split">
-    <div class="guide">${b.guide.length ? paras(b.guide) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}${byLine}</div>
+    <div class="guide">${b.guide.length ? guideHtml(b.guide, guideTokens(b, pups)) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}${byLine}${seeAlso}</div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
@@ -579,6 +627,84 @@ ${others.length ? `<section class="band">
     });
   }
 
+  // ---- state pages (keyword research 2026-10-08). Every "puppies for sale <state>" search we read
+  // is led by a marketplace page listing every puppy in that state, and "dog breeders in <state>"
+  // is easy to win in all six states read. A state gets its two pages once a breeder with that
+  // state on record has a puppy listed, so no page goes up empty.
+  const stateSlug = (s) => s.toLowerCase().replace(/[^a-z]+/g, '-');
+  pageFor.statePuppies = (s) => `puppies-for-sale-in-${stateSlug(s)}.html`;
+  pageFor.stateBreeders = (s) => `dog-breeders-in-${stateSlug(s)}.html`;
+  const stateOf = (b) => (realBreeder(b) ? stateName(b.state) : null);
+  const statesListed = [...new Set(D.puppies.map((p) => stateOf(p.br)).filter(Boolean))].sort();
+  for (const S of statesListed) {
+    const pups = D.puppies.filter((p) => stateOf(p.br) === S).sort(byStanding);
+    const open = pups.filter((p) => !p.placed);
+    const shown = open.length ? open : pups;
+    const brs = breedersShown.filter((b) => stateOf(b) === S);
+    const breedsHere = [...new Map(shown.map((p) => [p.b.slug, p.b])).values()].sort((a, c) => a.name.localeCompare(c.name));
+    const towns = [...new Set(brs.map((b) => String(b.city || '').trim()).filter(Boolean))];
+    const lead = leadOf(shown);
+    const price = priceSpan(shown);
+    const pupBody = `<main id="statePuppies">\n<span id="content" tabindex="-1"></span>
+<section class="band" style="padding-bottom:1.4rem">
+  <div class="wrap">
+    <p class="eyebrow"><a href="puppies.html" style="color:inherit">Puppies</a></p>
+    <h1>Puppies for sale in ${esc(S)}</h1>
+    <p class="meta">${open.length} available now from ${brs.length} ${brs.length === 1 ? 'breeder' : 'breeders'}${price ? `, priced ${price}` : ''}</p>
+    <div class="prose" style="margin-top:1rem">
+      <p>These are the puppies listed by breeders in ${esc(S)}${towns.length ? `, from ${esc(towns.slice(0, 6).join(', ').replace(/, ([^,]*)$/, ' and $1'))}` : ''}. Each one is raised and sold by the breeder named on its page, and you contact that breeder directly.</p>
+      ${breedsHere.length ? `<p>Breeds listed in ${esc(S)} right now: ${linkList(breedsHere.map((x) => [pageFor.breed(x.slug), x.name]))}.</p>` : ''}
+      <p>See the <a href="${pageFor.stateBreeders(S)}">dog breeders in ${esc(S)}</a> who list here, or <a href="puppies.html">every puppy on Puppy Connection</a>.</p>
+    </div>
+  </div>
+</section>
+<section class="band band-warm" id="available">
+  <div class="wrap">
+    <div class="sec-head"><div><p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p><h2>Puppies in ${esc(S)}</h2></div><a class="link-more" href="puppies.html">All puppies</a></div>
+    ${grid(shown, `No puppies are listed in ${esc(S)} at the moment.`)}
+  </div>
+</section>
+</main>`;
+    write(pageFor.statePuppies(S), {
+      title: `Puppies for Sale in ${S} | Puppy Connection`,
+      desc: clip(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from small family breeders in ${S}${price ? `, priced ${price}` : ''}. See each puppy and contact its breeder directly.`, 158),
+      body: pupBody, trail: [['Available puppies', `${base}puppies.html`], [`Puppies in ${S}`, `${base}${pageFor.statePuppies(S)}`]],
+      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      ld: [{ '@type': 'ItemList', name: `Puppies for sale in ${S}`, numberOfItems: shown.length,
+        itemListElement: shown.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.puppy(p.slug)}`, name: `${p.name}, ${p.b.name}` })) }],
+      images: shown.slice(0, 20).map((p) => imageUrl(p.photos[0])),
+    });
+    const brBody = `<main id="stateBreeders">\n<span id="content" tabindex="-1"></span>
+<section class="band" style="padding-bottom:1.4rem">
+  <div class="wrap">
+    <p class="eyebrow"><a href="breeders.html" style="color:inherit">Breeders</a></p>
+    <h1>Dog breeders in ${esc(S)}</h1>
+    <p class="meta">${brs.length} ${brs.length === 1 ? 'breeder lists' : 'breeders list'} on Puppy Connection</p>
+    <div class="prose" style="margin-top:1rem">
+      <p>These small family breeders in ${esc(S)} list their puppies on Puppy Connection. Each breeder's page shows their town, the breeds they raise, their puppies and how to reach them. The sale, the paperwork and the conversation are between you and the breeder.</p>
+      <p>See the <a href="${pageFor.statePuppies(S)}">puppies for sale in ${esc(S)}</a> from these breeders.</p>
+    </div>
+  </div>
+</section>
+<section class="band band-warm">
+  <div class="wrap">
+    <div class="sec-head"><div><p class="eyebrow">Listing now</p><h2>Breeders in ${esc(S)}</h2></div><a class="link-more" href="breeders.html">All breeders</a></div>
+    <div class="grid grid-4">${brs.map(breederCard).join('')}</div>
+  </div>
+</section>
+</main>`;
+    write(pageFor.stateBreeders(S), {
+      title: `Dog Breeders in ${S} | Puppy Connection`,
+      desc: clip(`The small family dog breeders in ${S} who list puppies on Puppy Connection. See each breeder's puppies and contact them directly.`, 158),
+      body: brBody, trail: [['Breeders', `${base}breeders.html`], [`Breeders in ${S}`, `${base}${pageFor.stateBreeders(S)}`]],
+      ld: [{ '@type': 'ItemList', name: `Dog breeders in ${S}`, numberOfItems: brs.length,
+        itemListElement: brs.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
+    });
+  }
+  const byState = statesListed.length
+    ? `<p class="lede" style="margin-top:.8rem">By state: ${statesListed.map((S) => `<a href="${pageFor.stateBreeders(S)}">breeders in ${esc(S)}</a> and <a href="${pageFor.statePuppies(S)}">puppies in ${esc(S)}</a>`).join('; ')}.</p>`
+    : '';
+
   // ---- the two directory pages, static
   write('breeds.html', {
     title: 'Breeds | Puppy Connection', current: 'breeds.html',
@@ -600,7 +726,7 @@ ${others.length ? `<section class="band">
     trail: [['Breeders', `${base}breeders.html`]],
     body: `<main id="breederIndex-page">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Directory</p><h1>Dog breeders in Indiana and the Midwest</h1>
-<p class="lede">Every puppy on this site is raised and sold by one of these breeders. We list their puppies. They handle the sale, the paperwork and the conversation with your family.</p></div></section>
+<p class="lede">Every puppy on this site is raised and sold by one of these breeders. We list their puppies. They handle the sale, the paperwork and the conversation with your family.</p>${byState}</div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2>${breedersShown.length} breeders</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
 <div class="grid grid-4">${breedersShown.map(breederCard).join('')}</div></div></section>
@@ -654,7 +780,7 @@ ${others.length ? `<section class="band">
   // breeders' dashes taken out and strictCopy set, and runs every check.
   if (!strictCopy) fs.writeFileSync(path.join(out, '.sitecheck.json'), `${JSON.stringify({ ignore_checks: ['dashes'] }, null, 2)}\n`);
 
-  return { pages: pages.length, puppies: D.puppies.length, breeds: listedBreeds.length, breeders: breedersShown.length, redirects: redirects.length };
+  return { pages: pages.length, puppies: D.puppies.length, breeds: listedBreeds.length, breeders: breedersShown.length, states: statesListed.length, redirects: redirects.length };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

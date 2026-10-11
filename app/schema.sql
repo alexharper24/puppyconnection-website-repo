@@ -118,7 +118,10 @@ CREATE TABLE IF NOT EXISTS breeds (
   -- Plan P3.3 (migrations/0003_admin_features.sql). The breed guide text an operator writes in
   -- the admin, plain paragraphs, for the site's breed pages (P4.3).
   guide            TEXT,
-  guide_updated_at TEXT
+  guide_updated_at TEXT,
+  -- Suggested colors and coat types for the puppy form, comma-separated (migrations/0009).
+  colors           TEXT,
+  coats            TEXT
 );
 
 -- Plan P3.2. Private notes operators keep on a breeder. Never shown to the breeder, and never
@@ -206,6 +209,8 @@ CREATE TABLE IF NOT EXISTS puppies (
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL,
   version           INTEGER NOT NULL DEFAULT 1,
+  -- The coat type, from the breed's coats list where it has one (migrations/0009).
+  coat              TEXT,
   UNIQUE (id, breeder_id),
   FOREIGN KEY (litter_id, breeder_id) REFERENCES litters (id, breeder_id)
 );
@@ -428,7 +433,9 @@ SELECT pu.id, pu.breeder_id, pu.litter_id, pu.slug, pu.name, pu.sex, pu.color,
        pu.price_cents, pu.deposit_cents, pu.description, pu.breeder_url, pu.includes_json,
        pu.hypoallergenic, pu.availability, pu.published_at, pu.expires_at,
        -- Plan P4.3 (migrations/0004). The old Wix product slug, for the site's 301 map.
-       pu.legacy_slug
+       pu.legacy_slug,
+       -- migrations/0009. The coat type.
+       pu.coat
 FROM puppies pu JOIN public_breeders pb ON pb.breeder_id = pu.breeder_id
 WHERE pu.publication_state = 'published'
   AND pu.payment_state IN ('paid','comped')

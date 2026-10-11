@@ -319,10 +319,10 @@ async function editPuppy(req, env, ctx, id, who) {
   const f = puppyFields({ ...puppyInput(p), ...body });
   const res = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE puppies SET name = ?, sex = ?, color = ?, price_cents = ?, deposit_cents = ?, description = ?, breeder_url = ?,
+      `UPDATE puppies SET name = ?, sex = ?, color = ?, coat = ?, price_cents = ?, deposit_cents = ?, description = ?, breeder_url = ?,
          includes_json = ?, availability = ?, updated_at = ?, version = version + 1
        WHERE id = ? AND version = ?`,
-    ).bind(f.name, f.sex, f.color, f.price_cents, f.deposit_cents, f.description, f.breeder_url, f.includes_json, f.availability, now(), id, Number(body.version)),
+    ).bind(f.name, f.sex, f.color, f.coat, f.price_cents, f.deposit_cents, f.description, f.breeder_url, f.includes_json, f.availability, now(), id, Number(body.version)),
     auditStmt(env, 'operator', who.email, 'puppy.update', 'puppy', id, { ...puppyInput(p), breeder_id: p.breeder_id }, { ...f, breeder_id: p.breeder_id }),
     dirtyStmt(env),
   ]);
@@ -428,13 +428,20 @@ async function markPublished(req, env, ctx, id, who) {
 
 async function listBreedsAdmin(req, env) {
   const { results } = await env.DB.prepare(
-    `SELECT b.id, b.slug, b.name, b.guide, b.guide_updated_at,
+    `SELECT b.id, b.slug, b.name, b.guide, b.guide_updated_at, b.colors, b.coats,
             (SELECT COUNT(*) FROM public_puppies pp JOIN litters l ON l.id = pp.litter_id WHERE l.breed_id = b.id) AS live,
             (SELECT COUNT(*) FROM puppies p JOIN litters l ON l.id = p.litter_id WHERE l.breed_id = b.id AND p.publication_state != 'archived') AS puppies,
             (SELECT COUNT(*) FROM breeder_breeds bb WHERE bb.breed_id = b.id) AS breeders
        FROM breeds b ORDER BY b.name`,
   ).all();
   return json(results);
+}
+
+/** A comma-separated suggestion list, tidied: each entry trimmed, blanks and repeats dropped. */
+function listText(v) {
+  const seen = new Set();
+  const out = String(v || '').split(',').map((x) => clean(x, 40)).filter((x) => x && !seen.has(x.toLowerCase()) && seen.add(x.toLowerCase()));
+  return out.length ? out.slice(0, 30).join(', ') : null;
 }
 
 async function breedClash(env, name, slug, exceptId) {
@@ -456,9 +463,10 @@ async function addBreed(req, env, ctx, id, who) {
   let newId = `breed-${slug}`;
   if (await env.DB.prepare('SELECT 1 AS x FROM breeds WHERE id = ?').bind(newId).first()) newId = `breed-${slug}-${ulid().slice(-6).toLowerCase()}`;
   const guide = clean(body.guide, 20000);
+  const colors = listText(body.colors), coats = listText(body.coats);
   const t = now();
   await env.DB.batch([
-    env.DB.prepare('INSERT INTO breeds (id, slug, name, guide, guide_updated_at) VALUES (?, ?, ?, ?, ?)').bind(newId, slug, name, guide, guide ? t : null),
+    env.DB.prepare('INSERT INTO breeds (id, slug, name, guide, guide_updated_at, colors, coats) VALUES (?, ?, ?, ?, ?, ?, ?)').bind(newId, slug, name, guide, guide ? t : null, colors, coats),
     auditStmt(env, 'operator', who.email, 'breed.add', 'breed', newId, null, { name, slug, guide_chars: guide ? guide.length : 0 }),
   ]);
   return json({ id: newId, slug, name }, 201);
@@ -478,10 +486,12 @@ async function editBreed(req, env, ctx, id, who) {
   const clash = name.toLowerCase() !== b.name.toLowerCase() ? await breedClash(env, name, null, id) : null;
   if (clash) throw bad(clash);
   const guide = body.guide === undefined ? b.guide : clean(body.guide, 20000);
+  const colors = body.colors === undefined ? b.colors : listText(body.colors);
+  const coats = body.coats === undefined ? b.coats : listText(body.coats);
   const t = now();
   const guideChanged = (guide || null) !== (b.guide || null);
   await env.DB.batch([
-    env.DB.prepare('UPDATE breeds SET name = ?, guide = ?, guide_updated_at = ? WHERE id = ?').bind(name, guide, guideChanged ? t : b.guide_updated_at, id),
+    env.DB.prepare('UPDATE breeds SET name = ?, guide = ?, guide_updated_at = ?, colors = ?, coats = ? WHERE id = ?').bind(name, guide, guideChanged ? t : b.guide_updated_at, colors, coats, id),
     auditStmt(env, 'operator', who.email, 'breed.update', 'breed', id, { name: b.name, guide_chars: (b.guide || '').length }, { name, guide_chars: (guide || '').length }),
     dirtyStmt(env),
   ]);

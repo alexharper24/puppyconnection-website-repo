@@ -273,7 +273,7 @@ export function puppyFields(body) {
   if (url && !/^https?:\/\//i.test(url)) throw bad('The link to your site needs to start with https://');
   const includes = Array.isArray(body.includes) ? body.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 15) : [];
   return {
-    name, sex, color: clean(body.color, 60), price_cents: cents(body.price), deposit_cents: cents(body.deposit),
+    name, sex, color: clean(body.color, 60), coat: clean(body.coat, 40), price_cents: cents(body.price), deposit_cents: cents(body.deposit),
     description: clean(body.description, 4000), breeder_url: url, includes_json: JSON.stringify(includes), availability,
   };
 }
@@ -284,7 +284,7 @@ export function litterInput(l) {
 }
 export function puppyInput(p) {
   return {
-    name: p.name, sex: p.sex, color: p.color, price: p.price_cents == null ? null : p.price_cents / 100,
+    name: p.name, sex: p.sex, color: p.color, coat: p.coat, price: p.price_cents == null ? null : p.price_cents / 100,
     deposit: p.deposit_cents == null ? null : p.deposit_cents / 100, description: p.description, breeder_url: p.breeder_url,
     includes: JSON.parse(p.includes_json || '[]'), availability: p.availability,
   };

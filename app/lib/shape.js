@@ -73,7 +73,7 @@ export async function exportSite(env) {
       mom_weight_lb: l.mom_weight_lb, dad_weight_lb: l.dad_weight_lb, about: paras(l.description),
     }))),
     'data/puppies.json': text(puppies.map((p) => ({
-      slug: p.slug, name: p.name, breeder: breederSlug[p.breeder_id], litter: p.litter_id, sex: p.sex, color: p.color,
+      slug: p.slug, name: p.name, breeder: breederSlug[p.breeder_id], litter: p.litter_id, sex: p.sex, color: p.color, coat: p.coat || null,
       price: p.price_cents == null ? null : p.price_cents / 100, deposit: p.deposit_cents == null ? null : p.deposit_cents / 100,
       availability: p.availability, hypoallergenic: !!p.hypoallergenic, includes: JSON.parse(p.includes_json || '[]'),
       about: paras(p.description), breeder_url: p.breeder_url, legacy_slug: p.legacy_slug || null, published_at: p.published_at,

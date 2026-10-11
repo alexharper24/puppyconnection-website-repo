@@ -88,8 +88,13 @@ async function main() {
   const bare = (await A.c.post('/api/puppies', { litter_id: litter, name: 'Pepper' })).data.id;
   let p = await pup(A.c, bare);
   check('P2.1 a draft with no price and no photo names both', JSON.stringify(p.needs) === '["a price","a photo"]' && /price/.test(p.pay_block), JSON.stringify([p.needs, p.pay_block]));
-  await A.c.put(`/api/puppies/${bare}`, { name: 'Pepper', price: '1800', version: p.version });
+  // Color and coat choices (migrations/0009): each breed carries its suggestions to the editor.
+  const breedList = (await A.c.get('/api/breeds')).data;
+  const hav = breedList.find((b) => b.id === 'breed-havanese'), dachs = breedList.find((b) => b.slug === 'miniature-dachshund');
+  check('the breeds the editor reads carry suggested colors, and coat types only where a breed has them', !!hav && hav.colors.includes('Cream') && hav.coats.length === 0 && !!dachs && dachs.coats.includes('Long-haired'), JSON.stringify([hav, dachs]).slice(0, 240));
+  await A.c.put(`/api/puppies/${bare}`, { name: 'Pepper', price: '1800', color: 'Cream', coat: 'Long-haired', version: p.version });
   p = await pup(A.c, bare);
+  check('a puppy keeps the color and coat the breeder chose', p.color === 'Cream' && p.coat === 'Long-haired', JSON.stringify([p.color, p.coat]));
   check('P2.1 with a price it needs only the photo', JSON.stringify(p.needs) === '["a photo"]' && /photo/.test(p.pay_block), JSON.stringify([p.needs, p.pay_block]));
   await img(A.c, `/api/puppies/${bare}/photos`);
   p = await pup(A.c, bare);

@@ -689,7 +689,7 @@ async function part4workers() {
     const keys = (f) => [...new Set(JSON.parse(body.files[f]).flatMap((o) => Object.keys(o)))].sort().join();
     check('... holding only the public fields, so no sign-in address, note or payment can be in it',
       keys('data/breeders.json') === 'about,breeds,city,email,facebook,kennel_photo,logo,name,phone,slug,state,website'
-      && keys('data/puppies.json') === 'about,availability,breeder,breeder_url,deposit,hypoallergenic,includes,legacy_slug,litter,name,photos,price,published_at,sex,slug,color'.split(',').sort().join(), `${keys('data/breeders.json')} | ${keys('data/puppies.json')}`);
+      && keys('data/puppies.json') === 'about,availability,breeder,breeder_url,deposit,hypoallergenic,includes,legacy_slug,litter,name,photos,price,published_at,sex,slug,color,coat'.split(',').sort().join(), `${keys('data/breeders.json')} | ${keys('data/puppies.json')}`);
   } finally {
     portal.kill();
   }

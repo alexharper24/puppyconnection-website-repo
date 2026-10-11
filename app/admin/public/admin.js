@@ -441,7 +441,7 @@
     editorDrawer('Edit ' + p.name, data,
       '<input type="hidden" name="version" value="' + esc(p.version) + '">' +
       field('name', 'Name', p.name) +
-      '<div class="grid-2">' + field('sex', 'Sex', p.sex || '', { select: [['', 'Not set'], ['female', 'Female'], ['male', 'Male']] }) + field('color', 'Color', p.color) + '</div>' +
+      '<div class="grid-2">' + field('sex', 'Sex', p.sex || '', { select: [['', 'Not set'], ['female', 'Female'], ['male', 'Male']] }) + field('color', 'Color', p.color) + '</div>' + field('coat', 'Coat type', p.coat || '', { hint: 'Optional, for breeds with more than one coat.' }) +
       '<div class="grid-2">' + field('price', 'Price ($)', p.price_cents == null ? '' : p.price_cents / 100, { mode: 'decimal' }) +
         field('deposit', 'Deposit ($)', p.deposit_cents == null ? '' : p.deposit_cents / 100, { mode: 'decimal' }) + '</div>' +
       field('availability', 'Status', p.availability, { select: [['available', 'Available'], ['pending', 'Pending'], ['placed', 'Placed']] }) +
@@ -629,6 +629,8 @@
       '<form id="breed-form" novalidate>' + field('name', 'Breed name', b ? b.name : '') +
       (b ? '<p class="hint">Its page on the site is at /' + esc(b.slug) + '. The address stays the same when the breed is renamed, so links to it keep working.</p>'
         : field('slug', 'Web address (optional)', '', { hint: 'Made from the name when left blank. It must be different from every other breed.' })) +
+      field('colors', 'Suggested colors', b ? (b.colors || '') : '', { hint: 'Separated by commas. Breeders pick from these when they add a puppy, and can still type their own.' }) +
+      field('coats', 'Coat types', b ? (b.coats || '') : '', { hint: 'Separated by commas, such as Smooth, Long-haired, Wire-haired. Leave blank when the breed has one coat.' }) +
       field('guide', 'Breed guide', b ? b.guide : '', { textarea: true, rows: 260, hint: 'Plain paragraphs, with a blank line between them. Start a line with ## and a space to make it a section heading. {{count}}, {{price_range}}, {{deposit_range}}, {{includes}} and {{parent_weights}} fill in from this breed\'s listings each time the site updates, so no price needs typing in.' }) +
       (b && b.guide_updated_at ? '<p class="hint">Guide last changed ' + esc(when(b.guide_updated_at)) + '.</p>' : '') +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (b ? 'Save breed' : 'Add breed') + '</button></div></form>',

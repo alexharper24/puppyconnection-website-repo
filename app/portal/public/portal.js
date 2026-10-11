@@ -528,7 +528,7 @@
       '<form id="many" novalidate><div class="grid-3">' + n('girls', 'Girls') + n('boys', 'Boys') + n('unknown', 'Not sure yet') + '</div>' +
       '<div class="grid-2"><div class="field"><label for="m-price">Price for each ($)</label><input id="m-price" name="price" type="text" inputmode="decimal"></div>' +
       '<div class="field"><label for="m-dep">Deposit for each ($)</label><input id="m-dep" name="deposit" type="text" inputmode="decimal"></div></div>' +
-      '<div class="field"><label for="m-color">Color</label><input id="m-color" name="color" type="text"><div class="hint">Optional. Leave it blank if the colors differ.</div></div>' +
+      colorField('m', '', breedOfLitter(l.id), '', 'Optional. Leave it blank if the colors differ.') +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">Add puppies</button></div></form>',
       function (d) {
         var form = $('#many', d);
@@ -578,9 +578,31 @@
       });
   }
 
+  // The breed's suggested colors and coat types (migrations/0009), offered in the editor. A breeder
+  // can still type any color; the coat choice appears only for breeds with more than one coat.
+  function breedOfLitter(id) {
+    var lit = ((state.listings && state.listings.litters) || []).filter(function (l) { return l.id === id; })[0];
+    return lit ? state.breeds.filter(function (b) { return b.id === lit.breed_id; })[0] || null : null;
+  }
+  function colorField(idp, value, br, dis, hint) {
+    var opts = br && br.colors && br.colors.length ? br.colors : [];
+    return '<div class="field"><label for="' + idp + '-color">Color</label><input id="' + idp + '-color" name="color" type="text" autocomplete="off"' +
+      (opts.length ? ' list="' + idp + '-colors"' : '') + ' value="' + esc(value || '') + '"' + (dis || '') + '>' +
+      (opts.length ? '<datalist id="' + idp + '-colors">' + opts.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist>' : '') +
+      '<div class="hint">' + (hint || (opts.length ? 'Pick a suggestion or type your own.' : 'Optional.')) + '</div></div>';
+  }
+  function coatField(value, br, dis) {
+    if (!br || !br.coats || !br.coats.length) return '';
+    var opts = br.coats.slice();
+    if (value && opts.indexOf(value) < 0) opts.push(value);
+    return '<div class="field"><label for="p-coat">Coat type</label><select id="p-coat" name="coat"' + (dis || '') + '><option value="">Not set</option>' +
+      opts.map(function (c) { return '<option' + (c === value ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div>';
+  }
+
   function puppyDrawer(x, litterId) {
     var canEdit = state.me.status === 'approved';
     var dis = canEdit ? '' : ' disabled';
+    var br = breedOfLitter(x ? x.litter_id : litterId);
     var inc = x ? x.includes.join('\n') : '';
     function seg(val) {
       return '<div class="seg" role="group" aria-label="Status">' + [['available', 'Available'], ['pending', 'Pending'], ['placed', 'Placed']].map(function (o) {
@@ -595,7 +617,7 @@
       '<form id="puppy" novalidate>' + (x ? '<input type="hidden" name="version" value="' + esc(x.version) + '">' : '') +
       '<div class="field"><label for="p-name">Name</label><input id="p-name" name="name" type="text" value="' + esc(x ? x.name : '') + '" required' + dis + '></div>' +
       '<div class="grid-2"><div class="field"><label for="p-sex">Sex</label><select id="p-sex" name="sex"' + dis + '><option value="">Not set</option><option value="female"' + (x && x.sex === 'female' ? ' selected' : '') + '>Female</option><option value="male"' + (x && x.sex === 'male' ? ' selected' : '') + '>Male</option></select></div>' +
-      '<div class="field"><label for="p-color">Color</label><input id="p-color" name="color" type="text" value="' + esc(x ? x.color : '') + '"' + dis + '></div></div>' +
+      colorField('p', x ? x.color : '', br, dis) + '</div>' + coatField(x ? x.coat : '', br, dis) +
       '<div class="grid-2"><div class="field"><label for="p-price">Price ($)</label><input id="p-price" name="price" type="text" inputmode="decimal" value="' + esc(x ? dollars(x.price_cents) : '') + '" required' + dis + '></div>' +
       '<div class="field"><label for="p-dep">Deposit ($)</label><input id="p-dep" name="deposit" type="text" inputmode="decimal" value="' + esc(x ? dollars(x.deposit_cents) : '') + '"' + dis + '></div></div>' +
       '<div class="field"><label>Status</label>' + seg() + '<div class="hint">Placed puppies stay visible in their litter, marked placed.</div></div>' +

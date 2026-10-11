@@ -255,6 +255,7 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
     slug: p.slug, name: `${p.name} - ${p.b.name}`, price: p.price, in_stock: !p.placed,
     birthdate: longDate(p.l.born_on), ready_date: longDate(p.l.ready_on), deposit: p.deposit,
     mom_weight: p.l.mom_weight_lb != null ? `${p.l.mom_weight_lb} lbs` : null, dad_weight: p.l.dad_weight_lb != null ? `${p.l.dad_weight_lb} lbs` : null,
+    color: p.color || null, coat: p.coat || null,
     breeder_phone: p.br && p.br.phone, breeder_email: p.br && p.br.email, hypoallergenic: p.hypoallergenic, includes: p.includes,
     description: p.about.join('\n\n'), images: p.photos.map((x) => x.src),
     breeder_domain: realBreeder(p.br) ? (host(p.br.website) || `${p.br.slug}.puppyconnection`) : null,
@@ -413,7 +414,7 @@ export function build({ dataDir, out, templates, base = 'https://site.puppyconne
   for (const p of D.puppies) {
     const b = realBreeder(p.br) ? p.br : null;
     const mates = D.puppies.filter((x) => x.litter === p.litter && x.slug !== p.slug).sort(byStanding);
-    const facts = [['Breed', p.b.name], ['Sex', p.sex ? p.sex[0].toUpperCase() + p.sex.slice(1) : null], ['Color', p.color],
+    const facts = [['Breed', p.b.name], ['Sex', p.sex ? p.sex[0].toUpperCase() + p.sex.slice(1) : null], ['Color', p.color], ['Coat type', p.coat],
       ['Born', longDate(p.l.born_on)], ['Ready to go home', longDate(p.l.ready_on)], ['Deposit', p.deposit ? money(p.deposit) : null],
       ['Mother', p.l.mom_weight_lb != null ? `${p.l.mom_weight_lb} lbs adult weight` : null], ['Father', p.l.dad_weight_lb != null ? `${p.l.dad_weight_lb} lbs adult weight` : null],
       ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null]].filter((f) => f[1]);

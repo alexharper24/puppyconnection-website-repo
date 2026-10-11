@@ -632,8 +632,10 @@ async function myStats(request, env) {
 // ------------------------------------------------------------------ litters and puppies
 
 async function listBreeds(env) {
-  const { results } = await env.DB.prepare('SELECT id, slug, name FROM breeds ORDER BY name').all();
-  return json(results);
+  // The color and coat suggestions travel with each breed for the puppy editor (migrations/0009).
+  const { results } = await env.DB.prepare('SELECT id, slug, name, colors, coats FROM breeds ORDER BY name').all();
+  const list = (s) => String(s || '').split(',').map((x) => x.trim()).filter(Boolean);
+  return json(results.map((b) => ({ id: b.id, slug: b.slug, name: b.name, colors: list(b.colors), coats: list(b.coats) })));
 }
 
 // litterFields and puppyFields live in lib/store.js, shared with the admin (plan P3.1).
@@ -711,10 +713,10 @@ async function createPuppy(request, env) {
   const t = now();
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, price_cents, deposit_cents, description,
+      `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, coat, price_cents, deposit_cents, description,
          breeder_url, includes_json, availability, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, breeder.id, litter.id, slug, f.name, f.sex, f.color, f.price_cents, f.deposit_cents, f.description,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, breeder.id, litter.id, slug, f.name, f.sex, f.color, f.coat, f.price_cents, f.deposit_cents, f.description,
       f.breeder_url, f.includes_json, f.availability, t, t),
     auditStmt(env, 'breeder', breeder.email, 'puppy.create', 'puppy', id, null, f),
   ]);
@@ -787,10 +789,10 @@ async function duplicatePuppy(request, env, ctx, id) {
   const t = now();
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, price_cents, deposit_cents, description,
+      `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, coat, price_cents, deposit_cents, description,
          breeder_url, includes_json, hypoallergenic, availability, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?)`,
-    ).bind(newId, breeder.id, litter.id, newPuppySlug(name, breed.name, newId), name, src.sex, src.color, src.price_cents, src.deposit_cents,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?)`,
+    ).bind(newId, breeder.id, litter.id, newPuppySlug(name, breed.name, newId), name, src.sex, src.color, src.coat, src.price_cents, src.deposit_cents,
       src.description, src.breeder_url, src.includes_json, src.hypoallergenic, t, t),
     auditStmt(env, 'breeder', breeder.email, 'puppy.duplicate', 'puppy', newId, null, { from: src.id }),
   ]);
@@ -827,10 +829,10 @@ async function updatePuppy(request, env, ctx, id) {
   const f = puppyFields(body);
   const stmts = [
     env.DB.prepare(
-      `UPDATE puppies SET name = ?, sex = ?, color = ?, price_cents = ?, deposit_cents = ?, description = ?, breeder_url = ?,
+      `UPDATE puppies SET name = ?, sex = ?, color = ?, coat = ?, price_cents = ?, deposit_cents = ?, description = ?, breeder_url = ?,
          includes_json = ?, availability = ?, updated_at = ?, version = version + 1
        WHERE id = ? AND breeder_id = ? AND version = ?`,
-    ).bind(f.name, f.sex, f.color, f.price_cents, f.deposit_cents, f.description, f.breeder_url, f.includes_json,
+    ).bind(f.name, f.sex, f.color, f.coat, f.price_cents, f.deposit_cents, f.description, f.breeder_url, f.includes_json,
       f.availability, now(), id, breeder.id, Number(body.version)),
     auditStmt(env, 'breeder', breeder.email, 'puppy.update', 'puppy', id, before, f),
   ];

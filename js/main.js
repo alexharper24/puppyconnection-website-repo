@@ -204,25 +204,36 @@
      760px the home grids run two across, so a grid shows its first `step` cards and a button
      adds `step` more. The button ships hidden and only this shows it, so with the script off
      every card is there, and above the line every card shows. */
-  function reveal(gridId, step) {
+  /* 2026-10-10: the grids used to hold only 12 cards, so on a phone one press showed four and
+     the button vanished, and on a computer there was no button at all (Alex: "they don't
+     actually work"). Now the grid holds the whole set, a phone shows `step` at a time and a
+     computer `wide` at a time, and once everything is showing the button becomes a link to
+     the full page (`allHref`), so pressing it always does something. */
+  function reveal(gridId, step, wide, allHref, allText) {
     var grid = document.getElementById(gridId);
     var btn = document.querySelector('[data-reveal-more="' + gridId + '"]');
     if (!grid || !btn || !window.matchMedia) return;
     var cards = [].slice.call(grid.children);
     var small = window.matchMedia('(max-width: 760px)');
-    var shown = step;
+    var per = function () { return small.matches ? step : wide; };
+    var shown = per();
+    var label = btn.textContent;
+    var link = document.createElement('a');
+    link.className = btn.className; link.href = allHref; link.textContent = allText; link.hidden = true;
+    btn.parentNode.appendChild(link);
     var paint = function () {
-      if (!small.matches) { cards.forEach(function (c) { c.hidden = false; }); btn.hidden = true; return; }
       cards.forEach(function (c, i) { c.hidden = i >= shown; });
-      btn.hidden = cards.length <= shown;
+      var more = cards.length > shown;
+      btn.hidden = !more; btn.textContent = label;
+      link.hidden = more;
     };
     btn.addEventListener('click', function () {
       var first = cards[shown];
-      shown += step;
+      shown += per();
       paint();
       if (first) { first.setAttribute('tabindex', '-1'); first.focus({ preventScroll: true }); }
     });
-    if (small.addEventListener) small.addEventListener('change', paint);
+    if (small.addEventListener) small.addEventListener('change', function () { shown = Math.max(shown, per()); paint(); });
     paint();
   }
 
@@ -254,21 +265,21 @@
       seenBreed[l.breed] = 1;
       return true;
     });
-    // Twelve on the home page: three rows of four on a computer, and on a phone, where the
-    // grid is two across, eight show before "Show more puppies" (Alex, 2026-10-07).
-    renderInto('#homeFeatured', featured.slice(0, 12));
-    reveal('homeFeatured', 8);
+    // One puppy per breed. Twelve show at first on a computer (three rows of four) and eight on a
+    // phone (two across), and "Show more puppies" adds the same again (Alex, 2026-10-07 and 10-10).
+    renderInto('#homeFeatured', featured);
+    reveal('homeFeatured', 8, 12, 'puppies.html', 'See all puppies');
 
     var bl = document.querySelector('#breedList');
     if (bl) {
-      bl.innerHTML = BREEDS.slice(0, 12).map(function (b) {
+      bl.innerHTML = BREEDS.map(function (b) {
         return '<a class="card" href="breed.html?slug=' + esc(b.slug) + '">' +
           '<div class="card-media">' + (b.photo ? '<img src="' + esc(PHONE.matches ? wix(b.photo_tall || b.photo, 480, 600) : wix(b.photo, 600, 400)) +
             '" alt="' + esc(b.name) + '" loading="lazy" decoding="async" ' + (PHONE.matches ? 'width="480" height="600"' : 'width="600" height="400"') + '>' : '') + '</div>' +
           '<div class="card-body"><div class="card-name">' + esc(b.name) + '</div>' +
           '<div class="card-breed">' + b.demo_count + ' listed</div></div></a>';
       }).join('');
-      reveal('breedList', 8);
+      reveal('breedList', 8, 12, 'breeds.html', 'See all breeds');
     }
 
     /* Most visitors go from home to the browse grid next, so warm exactly what

@@ -478,11 +478,11 @@
           (pups.length ? '<div class="puppy-grid">' + pups.map(function (x) {
             var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
             var live = x.availability === 'placed' ? ['available', 'Mark available'] : ['placed', 'Mark placed'];
-            return '<div class="puppy-row">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + (x.price_cents == null ? 'No price yet' : esc(money(x.price_cents))) +
+            return '<div class="puppy-card"><div class="pc-top">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + (x.price_cents == null ? 'No price yet' : esc(money(x.price_cents))) +
               (x.sex ? ', ' + esc(x.sex) : '') + (x.color ? ', ' + esc(x.color) : '') + '. ' + plural(x.photos.length, 'photo') +
               (x.is_public ? '. ' + plural(x.views || 0, 'view') + ', ' + plural(x.clicks || 0, 'click') + ' in 30 days' : '') + '</span>' +
-              '<div class="chips">' + puppyChips(x) + '</div>' + standingLine(x) + '</div>' +
-              '<button class="btn btn-sm" data-edit-puppy="' + esc(x.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button>' +
+              '<div class="chips">' + puppyChips(x) + '</div></div>' +
+              '<button class="btn btn-sm" data-edit-puppy="' + esc(x.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button></div>' + standingLine(x) +
               '<div class="row-actions">' +
               (canEdit && (x.is_public || x.availability !== 'available') ? '<button class="btn btn-sm btn-quiet" data-avail="' + esc(x.id) + '" data-to="' + live[0] + '">' + live[1] + '</button>' : '') +
               (canEdit ? '<button class="btn btn-sm btn-quiet" data-dup="' + esc(x.id) + '">Duplicate</button>' : '') +
@@ -772,7 +772,7 @@
           return '<label class="pay-row check"><input type="checkbox" name="p" value="' + esc(r.x.id) + '" aria-label="' + esc('Pay for ' + r.x.name) + '">' + img +
             '<span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' +
             (r.x.publication_state === 'published' ? 'Renew, listed until ' + esc(day(r.x.expires_at)) : r.x.publication_state === 'expired' ? 'Listing ended, renew it' : 'Draft') + '</span></span></label>';
-        }).join('') : '<p class="muted">Nothing is ready to pay for right now.</p>') +
+        }).join('') : '<p class="muted">Nothing is ready to pay for right now. A puppy shows here once it has a price and enough photos, which you add in <a href="#/litters">Litters and puppies</a>.</p>') +
         '<div class="total" style="margin-top:1rem"><span>Total</span><b id="total">$0</b></div>' +
         '<div class="btn-row"><button class="btn btn-gold" type="submit" id="paybtn" disabled>Continue to payment</button></div></form>';
       if (blocked.length) {

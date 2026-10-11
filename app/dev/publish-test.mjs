@@ -296,7 +296,14 @@ async function part1() {
     && kennel.includes('href="breed-havanese.html">Havanese') && kennel.includes('facebook.com/publishtestkennel') && kennel.includes('Visits by appointment.'));
   const guide = fs.readFileSync(path.join(out, 'breed-cocker-spaniel.html'), 'utf8');
   const guideText = JSON.parse(fs.readFileSync(path.join(dataDir, 'data/breeds.json'), 'utf8')).find((b) => b.slug === 'cocker-spaniel').guide[0];
-  check('a breed page shows the guide text from breeds.guide', guideText && guide.includes(guideText.slice(0, 60).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;')));
+  // A breed with a content/breeds highlights file opens with that intro instead of the guide's own
+  // (breed page option 2, 2026-10-11), so the guide's first paragraph shows only on a breed without one.
+  const hlFile = path.join(APP, 'content/breeds/cocker-spaniel.md');
+  const hlIntro = fs.existsSync(hlFile) && (fs.readFileSync(hlFile, 'utf8').match(/^intro:\s*(.+)$/m) || [])[1];
+  const esc60 = (t) => t.slice(0, 60).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+  check('a breed page opens with its highlights intro, or the guide text from breeds.guide without one', hlIntro
+    ? guide.includes(esc60(hlIntro.trim())) && (guide.match(/<ul class="highlights">([\s\S]*?)<\/ul>/) || [''])[0].split('<li>').length === 5 && guide.includes('See the puppies')
+    : guideText && guide.includes(esc60(guideText)));
   check('a guide line starting "## " becomes a section heading on the breed page', hav.includes('<h2>How much is a Havanese puppy?</h2>'));
   check('the guide figures fill from the listings and leave no token behind', /Havanese puppies listed on Puppy Connection right now are priced (at|from) \$/.test(hav) && /mothers weigh \d/.test(hav) && !hav.includes('{{'));
   check('the breed heading carries the price range of the puppies shown, and says breeders set their prices', /available now, priced \$[\d,]+( to \$[\d,]+)?<\/p>/.test(hav) && hav.includes('Each breeder sets their own price.'));

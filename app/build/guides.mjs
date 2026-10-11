@@ -60,3 +60,26 @@ export function loadGuides(dir) {
   }
   return out.sort((a, b) => a.breed.localeCompare(b.breed) || Object.keys(TOPICS).indexOf(a.topic) - Object.keys(TOPICS).indexOf(b.topic));
 }
+
+// Breed page highlights (Alex chose option 2, 2026-10-11): content/breeds/<breed slug>.md holds a
+// front matter block with breed and intro, then exactly four lines of "Lead. | One sentence."
+export function loadHighlights(dir) {
+  const out = {};
+  if (!dir || !fs.existsSync(dir)) return out;
+  for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.md'))) {
+    const file = path.join(dir, f);
+    const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').replace(/^﻿/, '');
+    const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    if (!m) throw new Error(`highlights: ${file} has no front matter block`);
+    const meta = {};
+    for (const line of m[1].split('\n')) { const kv = line.match(/^(\w+):\s*(.*)$/); if (kv) meta[kv[1]] = kv[2].trim(); }
+    const points = m[2].split('\n').map((l) => l.trim()).filter(Boolean).map((l) => {
+      const [lead, ...rest] = l.split('|');
+      return { lead: lead.trim(), text: rest.join('|').trim() };
+    });
+    if (!meta.breed || !meta.intro) throw new Error(`highlights: ${file} needs breed and intro`);
+    if (points.length !== 4 || points.some((x) => !x.lead || !x.text)) throw new Error(`highlights: ${file} needs exactly four "Lead. | sentence" lines`);
+    out[meta.breed] = { intro: meta.intro, points };
+  }
+  return out;
+}

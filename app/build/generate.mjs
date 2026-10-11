@@ -37,7 +37,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { INFO_PAGES } from './info-pages.mjs';
-import { loadGuides } from './guides.mjs';
+import { loadGuides, loadHighlights } from './guides.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '../..');
@@ -219,7 +219,7 @@ const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 const order = { available: 0, pending: 1, placed: 2 };
 const byStanding = (a, b) => (order[a.availability] - order[b.availability]) || String(b.published_at).localeCompare(String(a.published_at)) || a.slug.localeCompare(b.slug);
 
-export function build({ dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
+export function build({ dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), highlights = path.resolve(HERE, '../content/breeds'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
   if (!base.endsWith('/')) base += '/';
   const T = templatesDir(templates);
   const D = loadData(dataDir);
@@ -229,12 +229,17 @@ export function build({ dataDir, out, templates, guides = path.resolve(HERE, '..
   const head0 = idx.slice(0, idx.indexOf('<title>'));
   const hdr = idx.slice(idx.indexOf('<a class="skip-link"'), idx.indexOf('<main id="home">'));
   let ftr = idx.slice(idx.indexOf('<footer class="site-footer">'), idx.indexOf('</footer>') + '</footer>'.length);
-  const legal = `<li><a href="${portal}/privacy">Privacy</a></li><li><a href="${portal}/terms">Listing terms</a></li>`;
-  if (!ftr.includes(FOOTER_ANCHOR)) throw new Error('generate.mjs: the footer no longer has the Pricing link the legal links follow');
-  ftr = ftr.replace(FOOTER_ANCHOR, FOOTER_ANCHOR + legal);
+  // The footer's base line carries the copyright, this year's, and the Privacy and Listing terms
+  // links, which live on the portal (Alex, 2026-10-11: "where is the copyright info").
+  const legalLinks = `<p class="foot-legal"><a href="${portal}/privacy">Privacy</a><a href="${portal}/terms">Listing terms</a></p>`;
+  const withLegal = (h) => {
+    if (!h.includes('<p class="foot-legal"></p>')) throw new Error('generate.mjs: the footer base line is missing its legal-links slot');
+    return h.replace('<p class="foot-legal"></p>', legalLinks).replace(/&copy; \d{4}/, `&copy; ${new Date().getFullYear()}`);
+  };
+  ftr = withLegal(ftr);
   // The site's own pages get a footer column on the generated site only, because the concept at the
   // repository root does not have them and check_site.py would find the links broken there.
-  const FOOTER_END = '    </div>\n  </div>\n</footer>';
+  const FOOTER_END = '    </div>\n    <div class="foot-base">';
   const chev = (ftr.match(/<span class="foot-more">.*?<\/span>/) || [''])[0];
   const infoCol = `      <details class="foot-sec" open>
         <summary><h2 class="foot-h">Puppy Connection${chev}</h2></summary>
@@ -261,6 +266,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
   for (const dir of ['css', 'img']) fs.cpSync(path.join(T, dir), path.join(out, dir), { recursive: true });
+  // The favicon sits at the root, where browsers look for it whatever the page says (option X, 2026-10-11).
+  if (fs.existsSync(path.join(T, 'favicon.ico'))) fs.copyFileSync(path.join(T, 'favicon.ico'), path.join(out, 'favicon.ico'));
   fs.mkdirSync(path.join(out, 'js'), { recursive: true });
   fs.mkdirSync(path.join(out, 'data'), { recursive: true });
   const mainJs = patchMain(concept('js/main.js'));
@@ -449,6 +456,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // ---- breed guides (build/guides.mjs). Only published guides for a breed that is listed.
   const GUIDES = loadGuides(guides).filter((g) => g.published && listedBreeds.some((b) => b.slug === g.breed));
   const guidesFor = (slug) => GUIDES.filter((g) => g.breed === slug);
+  const HIGHLIGHTS = loadHighlights(highlights);
   const guideList = (slug, cls = 'guide-list') => `<ul class="${cls}">${guidesFor(slug).map((g) => `<li><a href="${pageFor.guide(g.slug)}">${esc(g.question)}</a></li>`).join('')}</ul>`;
   // The paragraphs of an old one-page guide before its first "## " heading, which is the breed's
   // introduction once its topics have pages of their own.
@@ -536,6 +544,15 @@ ${mates.length ? `<section class="band band-warm">
       title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
       desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 158),
       body, trail: [['Available puppies', `${base}puppies.html`], [p.name, `${base}${pageFor.puppy(p.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      // Product snippet markup (Alex, 2026-10-11). Puppy Connection is not the seller, so this
+      // is not merchant listing markup: the Offer names the breeder as seller, and a puppy with
+      // no price carries none, since Google requires an offer price.
+      ld: p.price ? [{ '@type': 'Product', name: `${p.name}, ${p.b.name} puppy`, category: `${p.b.name} puppies`,
+        image: p.photos.slice(0, 6).map(imageUrl).filter(Boolean),
+        ...(p.about.length ? { description: clip(p.about.join(' '), 300) } : {}),
+        offers: { '@type': 'Offer', url: `${base}${pageFor.puppy(p.slug)}`, price: p.price, priceCurrency: 'USD',
+          availability: p.placed ? 'https://schema.org/SoldOut' : 'https://schema.org/InStock',
+          ...(b ? { seller: { '@type': 'Organization', name: b.name, url: `${base}${pageFor.breeder(b.slug)}` } } : {}) } }] : [],
       images: p.photos.map(imageUrl),
     });
   }
@@ -563,6 +580,11 @@ ${mates.length ? `<section class="band band-warm">
       ? `<p>${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}. Each breeder's page shows the rest of their puppies and how to reach them.</p>`
       : '';
     const alsoBreeds = (SEE_ALSO[b.slug] || []).map((s) => listedBreeds.find((x) => x.slug === s)).filter(Boolean);
+    // Breed page option 2 (Alex, 2026-10-11): an intro, four highlights and a price card, with the
+    // rest of the old guide folded under More about the breed. A breed without a highlights file
+    // keeps the full guide layout.
+    const hl = HIGHLIGHTS[b.slug];
+    const more = hl ? (guidesFor(b.slug).length ? sectionsKept(b.guide, new Set(guidesFor(b.slug).map((g) => g.topic))) : b.guide.slice(introOf(b.guide).length)) : [];
     const seeAlso = alsoBreeds.length ? `<p>Comparing sizes? See ${linkList(alsoBreeds.map((x) => [pageFor.breed(x.slug), `${x.name} puppies`]))} too, since breeders draw the line between Bernedoodle sizes in different places.</p>` : '';
     const body = `<main id="breedPage">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem">
@@ -573,7 +595,25 @@ ${mates.length ? `<section class="band band-warm">
     ${priceSpan(shown) ? '<p class="meta" style="margin-top:.2rem">Each breeder sets their own price.</p>' : ''}
   </div>
 </section>
-<section class="band" style="padding-top:0">
+${hl ? `<section class="band" style="padding-top:0">
+  <div class="wrap split">
+    <div class="guide">
+      <p class="breed-intro">${esc(hl.intro)}</p>
+      <ul class="highlights">${hl.points.map((x) => `<li><b>${esc(x.lead)}</b> ${esc(x.text)}</li>`).join('')}</ul>
+      ${guidesFor(b.slug).length ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
+      ${more.length ? `<details class="breed-more"><summary>More about the ${esc(b.name)}</summary><div class="guide">${guideHtml(more, guideTokens(b, pups))}</div></details>` : ''}${byLine}${seeAlso}
+    </div>
+    <aside>
+      ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+      <div class="breeder-box price-card">
+        <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
+        <p class="pc-count">${open.length ? `${open.length} ${open.length === 1 ? 'puppy' : 'puppies'}` : 'None listed today'}</p>
+        ${priceSpan(shown) ? `<p class="pc-price">${priceSpan(shown)}</p><p class="breeder-note">Each breeder sets their own price. Puppy Connection lists puppies and does not sell them, take deposits or handle payment.</p>` : '<p class="breeder-note">Puppy Connection lists puppies and does not sell them, take deposits or handle payment.</p>'}
+        <div class="btn-row"><a class="btn btn-primary" href="#available">See the puppies</a></div>
+      </div>
+    </aside>
+  </div>
+</section>` : `<section class="band" style="padding-top:0">
   <div class="wrap split">
     <div class="guide">${guidesFor(b.slug).length
       ? `${guideHtml(introOf(b.guide), guideTokens(b, pups))}<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>${guideHtml(sectionsKept(b.guide, new Set(guidesFor(b.slug).map((g) => g.topic))), guideTokens(b, pups))}`
@@ -587,7 +627,7 @@ ${mates.length ? `<section class="band band-warm">
       </div>
     </aside>
   </div>
-</section>
+</section>`}
 <section class="band band-warm" id="available">
   <div class="wrap">
     <div class="sec-head"><div><p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p><h2>${esc(b.name)} puppies</h2></div><a class="link-more" href="puppies.html">All puppies</a></div>
@@ -669,8 +709,14 @@ ${open.length ? `<section class="band band-warm">
       body: `<main id="guideHub">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Breed guides</p><h1>Guides to the breeds listed here</h1>
 <p class="lede">Answers to what families ask most about each breed, with the puppies listed now one click away.</p></div></section>
-<section class="band" style="padding-top:0"><div class="wrap guide-hub">
-${withGuides.map((b) => `<section id="${esc(b.slug)}"><h2><a href="${pageFor.breed(b.slug)}">${esc(b.name)}</a></h2>${guideList(b.slug)}</section>`).join('\n')}
+<section class="band" style="padding-top:0"><div class="wrap guide-cards">
+${withGuides.map((b) => {
+  // Option A (Alex, 2026-10-11): a card per breed with its photo and its guides.
+  const bp = D.puppies.filter((p) => p.b.slug === b.slug);
+  const lead = leadOf(bp), n = bp.filter((p) => !p.placed).length, pr = priceSpan(bp.filter((p) => !p.placed));
+  return `<article class="gc" id="${esc(b.slug)}"><a class="gc-photo" href="${pageFor.breed(b.slug)}" tabindex="-1" aria-hidden="true">${lead ? `<img src="${esc(fill(lead, 600, 400))}" alt="" loading="lazy" decoding="async" width="600" height="400">` : ''}</a>
+<div class="gc-body"><h2><a href="${pageFor.breed(b.slug)}">${esc(b.name)}</a></h2><p class="gc-meta">${n} available${pr ? `, ${pr}` : ''}</p>${guideList(b.slug, 'gc-list')}</div></article>`;
+}).join('\n')}
 </div></section>
 </main>`,
     });
@@ -896,8 +942,7 @@ ${pg.body}
     s = s.replace(/<meta name="robots"[^>]*>\n/, robots);
     s = s.replace(/<script src="data\/data\.js\?v=\d+"><\/script>\n?/, f === 'list-with-us.html' ? '' : `<script src="data/data.js?v=${dataV}"></script>\n`);
     s = s.replace(/js\/main\.js\?v=\d+/, `js/main.js?v=${mainV}`);
-    if (!s.includes(FOOTER_ANCHOR)) throw new Error(`generate.mjs: ${f} lost the footer link the legal links follow`);
-    s = s.replace(FOOTER_ANCHOR, FOOTER_ANCHOR + legal);
+    s = withLegal(s);
     s = withSignup(withInfo(s));
     if (GUIDES.length) s = s.replace('<li><a href="breeds.html">Breeds</a></li>', '<li><a href="breeds.html">Breeds</a></li><li><a href="guides.html">Breed guides</a></li>');
     fs.writeFileSync(path.join(out, f), s);

@@ -378,13 +378,6 @@
       if (top && top.kind === 'Search') { location.href = top.href; return; }
       location.href = searchHref(q);
     });
-    /* Quick picks under the box, for people who would rather tap than type. */
-    var picks = document.querySelector('#heroPicks');
-    if (picks) {
-      var popular = BREEDS.slice().sort(function (a, b) { return (b.live_count || b.demo_count || 0) - (a.live_count || a.demo_count || 0); }).slice(0, 4);
-      picks.innerHTML = '<span>Try</span>' + popular.map(function (b) { return '<a href="' + esc(pageHref('breed', b.slug)) + '">' + esc(b.name) + '</a>'; }).join('') +
-        '<a href="puppies.html?max=2000">Under $2,000</a><a href="puppies.html?q=low%20shedding">Low shedding</a>';
-    }
   }
 
   /* "Show more", on a phone, the way Teapup's home page does it (Alex, 2026-10-07). Below

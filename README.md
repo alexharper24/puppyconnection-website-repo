@@ -341,7 +341,7 @@ every page, with a puppy page for each of the four breeders.
 - [ ] Ask the three breeders without per-puppy pages whether they plan to add
       them; deep links are currently breed or available-puppies pages for 152
       of the 175 matched listings
-- [ ] Favicon set. There is no favicon at all, and the natural source is the walking
+- [x] Favicon set, done 2026-10-11 with option X. There is no favicon at all, and the natural source is the walking
       figure and dog under the arc in the logo. A brand-mark choice, so Alex picks it
 - [ ] Change `BASE` in `_harvest/genpages.py` at cutover and regenerate
 - [ ] Generate breed, breeder and puppy pages as real static files with the Teapup

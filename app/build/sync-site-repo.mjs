@@ -44,11 +44,13 @@ export function fileList() {
     ['templates/puppies.html', 'puppies.html'],
     ['templates/list-with-us.html', 'list-with-us.html'],
     ['templates/js/main.js', 'js/main.js'],
+    ['templates/favicon.ico', 'favicon.ico'],
   ];
   const walk = (dir) => fs.readdirSync(path.join(REPO, dir), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
   for (const dir of ['css', 'img']) for (const f of walk(dir)) list.push([`templates/${f}`, f]);
   // Breed guide files (build/guides.mjs), at content/guides beside build/ in the site repository.
   if (fs.existsSync(path.join(REPO, 'app/content/guides'))) for (const f of walk('app/content/guides')) list.push([f.replace(/^app\//, ''), f]);
+  if (fs.existsSync(path.join(REPO, 'app/content/breeds'))) for (const f of walk('app/content/breeds')) list.push([f.replace(/^app\//, ''), f]);
   return list.map(([to, from]) => [to, path.join(REPO, from)]).concat([['build/check_site.py', SITE_CHECKS]]);
 }
 

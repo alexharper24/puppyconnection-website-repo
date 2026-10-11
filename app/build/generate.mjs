@@ -37,6 +37,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { INFO_PAGES } from './info-pages.mjs';
+import { loadGuides } from './guides.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '../..');
@@ -94,7 +95,7 @@ function photoScore(ph, i) {
 }
 function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wixFit(photo.src, w, h) : (w <= 640 && photo.card ? photo.card : photo.src); }
 
-export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html` };
+export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html`, guide: (s) => `guide-${s}.html` };
 
 // Whether a breed page names the breeders behind its puppies in its body copy (SEO plan P13).
 // Off until the Wix pairing is confirmed, see the breed page below.
@@ -215,7 +216,7 @@ const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 const order = { available: 0, pending: 1, placed: 2 };
 const byStanding = (a, b) => (order[a.availability] - order[b.availability]) || String(b.published_at).localeCompare(String(a.published_at)) || a.slug.localeCompare(b.slug);
 
-export function build({ dataDir, out, templates, base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
+export function build({ dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
   if (!base.endsWith('/')) base += '/';
   const T = templatesDir(templates);
   const D = loadData(dataDir);
@@ -393,6 +394,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       price_range: price ? `${b.name} puppies ${now} are priced ${price.includes(' to ') ? 'from' : 'at'} ${price}.` : '',
       deposit_range: deposit ? `Breeders who take a deposit ask ${deposit} to hold a puppy.` : '',
       includes: inc.length && pool.length ? includesLine(pool.length, inc) : '',
+      colors_listed: (() => { const c = [...new Set(open.map((p) => p.color).filter(Boolean).map((x) => x.trim()))]; return c.length ? `${b.name} colors listed on Puppy Connection right now include ${andList(c.slice(0, 8).map((x) => x.toLowerCase()))}.` : ''; })(),
       parent_weights: moms || dads ? `Where breeders have given the parents' adult weights, ${[moms && `the mothers weigh ${moms}`, dads && `the fathers weigh ${dads}`].filter(Boolean).join(' and ')}.` : '',
     };
   };
@@ -441,6 +443,19 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   const paras = (list) => list.map((t) => `<p>${esc(t)}</p>`).join('');
   const tel = (s) => String(s).replace(/[^\d+]/g, '');
 
+  // ---- breed guides (build/guides.mjs). Only published guides for a breed that is listed.
+  const GUIDES = loadGuides(guides).filter((g) => g.published && listedBreeds.some((b) => b.slug === g.breed));
+  const guidesFor = (slug) => GUIDES.filter((g) => g.breed === slug);
+  const guideList = (slug, cls = 'guide-list') => `<ul class="${cls}">${guidesFor(slug).map((g) => `<li><a href="${pageFor.guide(g.slug)}">${esc(g.question)}</a></li>`).join('')}</ul>`;
+  // The paragraphs of an old one-page guide before its first "## " heading, which is the breed's
+  // introduction once its topics have pages of their own.
+  const introOf = (paragraphs) => { const i = paragraphs.findIndex((t) => /^##\s/.test(String(t))); return i < 0 ? paragraphs.slice(0, 2) : paragraphs.slice(0, i); };
+  if (GUIDES.length) {
+    const hubItem = '<li><a href="guides.html">Breed guides</a></li>';
+    const breedsItem = '<li><a href="breeds.html">Breeds</a></li>';
+    if (ftr.includes(breedsItem)) ftr = ftr.replace(breedsItem, breedsItem + hubItem);
+  }
+
   // ---- puppies
   const breedersShown = D.breeders.filter(realBreeder);
   for (const p of D.puppies) {
@@ -486,6 +501,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         ${b ? `<p style="margin:.9rem 0 0"><a href="${pageFor.breeder(b.slug)}">See all puppies from ${esc(b.name)}</a></p>` : ''}
       </div>
       <p class="disclaimer">Puppy Connection does not sell puppies, take deposits, or handle payment. Health records, guarantees and delivery are agreed directly between you and the breeder.</p>
+      ${guidesFor(p.b.slug).length ? `<section class="guide-panel" aria-label="${esc(p.b.name)} guides"><p class="eyebrow">About the ${esc(p.b.name)}</p>${guideList(p.b.slug)}</section>` : ''}
     </div>
   </div>
 </section>
@@ -542,7 +558,9 @@ ${mates.length ? `<section class="band band-warm">
 </section>
 <section class="band" style="padding-top:0">
   <div class="wrap split">
-    <div class="guide">${b.guide.length ? guideHtml(b.guide, guideTokens(b, pups)) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}${byLine}${seeAlso}</div>
+    <div class="guide">${guidesFor(b.slug).length
+      ? `${guideHtml(introOf(b.guide), guideTokens(b, pups))}<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>`
+      : b.guide.length ? guideHtml(b.guide, guideTokens(b, pups)) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}${byLine}${seeAlso}</div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
@@ -579,6 +597,65 @@ ${others.length ? `<section class="band">
       ld: [{ '@type': 'ItemList', name: `${b.name} puppies`, numberOfItems: shown.length,
         itemListElement: shown.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.puppy(p.slug)}`, name: `${p.name}, ${p.b.name}` })) }],
       images: [imageUrl(lead)],
+    });
+  }
+
+  // ---- guide pages: one topic for one breed, handing families to the breed page and its puppies
+  for (const g of GUIDES) {
+    const b = listedBreeds.find((x) => x.slug === g.breed);
+    const pups = D.puppies.filter((p) => p.b.slug === b.slug).sort(byStanding);
+    const open = pups.filter((p) => !p.placed);
+    const lead = leadOf(pups);
+    const siblings = guidesFor(b.slug).filter((x) => x.slug !== g.slug);
+    const body = `<main id="guidePage">\n<span id="content" tabindex="-1"></span>
+<section class="band" style="padding-bottom:1.4rem">
+  <div class="wrap">
+    <p class="eyebrow"><a href="${pageFor.breed(b.slug)}" style="color:inherit">${esc(b.name)}</a></p>
+    <h1>${esc(g.h1)}</h1>
+  </div>
+</section>
+<section class="band" style="padding-top:0">
+  <div class="wrap split">
+    <div class="guide">${guideHtml(g.paragraphs, guideTokens(b, pups))}</div>
+    <aside>
+      ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} listed on Puppy Connection</span></figure>` : ''}
+      <div class="breeder-box">
+        <p class="eyebrow">${open.length ? `${open.length} available now` : 'Listings'}</p>
+        <p class="breeder-note">${open.length ? `See every ${esc(b.name)} puppy listed now, then contact its breeder directly.` : `No ${esc(b.name)} puppies are listed right now. New litters appear on the breed page as breeders add them.`}</p>
+        <div class="btn-row"><a class="btn btn-primary" href="${pageFor.breed(b.slug)}">${esc(b.name)} puppies for sale</a></div>
+      </div>
+      ${siblings.length ? `<section class="guide-panel" aria-label="More ${esc(b.name)} guides"><p class="eyebrow">More ${esc(b.name)} guides</p><ul class="guide-list">${siblings.map((x) => `<li><a href="${pageFor.guide(x.slug)}">${esc(x.question)}</a></li>`).join('')}</ul></section>` : ''}
+    </aside>
+  </div>
+</section>
+${open.length ? `<section class="band band-warm">
+  <div class="wrap">
+    <div class="sec-head"><div><p class="eyebrow">Available now</p><h2>${esc(b.name)} puppies</h2></div><a class="link-more" href="${pageFor.breed(b.slug)}">See all ${open.length}</a></div>
+    ${grid(open.slice(0, 4), '')}
+  </div>
+</section>` : ''}
+</main>`;
+    write(pageFor.guide(g.slug), {
+      title: g.title || `${g.h1} | Puppy Connection`, desc: g.description, body,
+      trail: [['Breeds', `${base}breeds.html`], [b.name, `${base}${pageFor.breed(b.slug)}`], [g.h1, `${base}${pageFor.guide(g.slug)}`]],
+      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      ld: [{ '@type': 'Article', headline: g.h1, description: g.description, about: { '@type': 'Thing', name: b.name }, mainEntityOfPage: `${base}${pageFor.guide(g.slug)}`, publisher: { '@type': 'Organization', name: 'Puppy Connection', url: base } }],
+      images: [imageUrl(lead)],
+    });
+  }
+  if (GUIDES.length) {
+    const withGuides = listedBreeds.filter((b) => guidesFor(b.slug).length);
+    write('guides.html', {
+      title: 'Breed Guides | Puppy Connection',
+      desc: 'Guides to the breeds listed on Puppy Connection: how big each gets, how long it lives, whether it sheds and more, with the puppies listed now.',
+      trail: [['Breed guides', `${base}guides.html`]],
+      body: `<main id="guideHub">\n<span id="content" tabindex="-1"></span>
+<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Breed guides</p><h1>Guides to the breeds listed here</h1>
+<p class="lede">Answers to what families ask most about each breed, with the puppies listed now one click away.</p></div></section>
+<section class="band" style="padding-top:0"><div class="wrap guide-hub">
+${withGuides.map((b) => `<section id="${esc(b.slug)}"><h2><a href="${pageFor.breed(b.slug)}">${esc(b.name)}</a></h2>${guideList(b.slug)}</section>`).join('\n')}
+</div></section>
+</main>`,
     });
   }
 
@@ -734,8 +811,16 @@ ${others.length ? `<section class="band">
         itemListElement: brs.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
     });
   }
-  const byState = statesListed.length
-    ? `<p class="lede" style="margin-top:.8rem">By state: ${statesListed.map((S) => `<a href="${pageFor.stateBreeders(S)}">breeders in ${esc(S)}</a> and <a href="${pageFor.statePuppies(S)}">puppies in ${esc(S)}</a>`).join('; ')}.</p>`
+  // The state pages need a link from the hub. With one state, a "By state" line read oddly (Alex,
+  // 2026-10-10), so the state is named in the opening sentence, with "all" or "most" only when the
+  // breeders' own records say so. A list of states returns once a second state lists.
+  const inState = statesListed.length === 1 ? breedersShown.filter((b) => stateName(b.state) === statesListed[0]).length : 0;
+  const stateLink = (S) => `<a href="${pageFor.stateBreeders(S)}">${esc(S)}</a>`;
+  const hubLede = statesListed.length === 1 && inState
+    ? `Every puppy on this site is raised and sold by one of these breeders, ${inState === breedersShown.length ? 'all of them' : inState * 2 > breedersShown.length ? 'most of them' : 'including breeders'} in ${stateLink(statesListed[0])}. We list their puppies, and they handle the sale, the paperwork and the conversation with your family.`
+    : 'Every puppy on this site is raised and sold by one of these breeders. We list their puppies, and they handle the sale, the paperwork and the conversation with your family.';
+  const byState = statesListed.length > 1
+    ? `<p class="lede" style="margin-top:.8rem">Find breeders by state: ${linkList(statesListed.map((S) => [pageFor.stateBreeders(S), S]))}.</p>`
     : '';
 
   // ---- the two directory pages, static
@@ -759,7 +844,7 @@ ${others.length ? `<section class="band">
     trail: [['Breeders', `${base}breeders.html`]],
     body: `<main id="breederIndex-page">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Directory</p><h1>Dog breeders in Indiana and the Midwest</h1>
-<p class="lede">Every puppy on this site is raised and sold by one of these breeders. We list their puppies. They handle the sale, the paperwork and the conversation with your family.</p>${byState}</div></section>
+<p class="lede">${hubLede}</p>${byState}</div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2>${breedersShown.length} breeders</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
 <div class="grid grid-4">${breedersShown.map(breederCard).join('')}</div></div></section>
@@ -784,6 +869,7 @@ ${pg.body}
     if (!s.includes(FOOTER_ANCHOR)) throw new Error(`generate.mjs: ${f} lost the footer link the legal links follow`);
     s = s.replace(FOOTER_ANCHOR, FOOTER_ANCHOR + legal);
     s = withSignup(withInfo(s));
+    if (GUIDES.length) s = s.replace('<li><a href="breeds.html">Breeds</a></li>', '<li><a href="breeds.html">Breeds</a></li><li><a href="guides.html">Breed guides</a></li>');
     fs.writeFileSync(path.join(out, f), s);
     pages.push(f);
   }
@@ -823,7 +909,7 @@ ${pg.body}
   // breeders' dashes taken out and strictCopy set, and runs every check.
   if (!strictCopy) fs.writeFileSync(path.join(out, '.sitecheck.json'), `${JSON.stringify({ ignore_checks: ['dashes'] }, null, 2)}\n`);
 
-  return { pages: pages.length, puppies: D.puppies.length, breeds: listedBreeds.length, breeders: breedersShown.length, states: statesListed.length, redirects: redirects.length };
+  return { pages: pages.length, puppies: D.puppies.length, breeds: listedBreeds.length, breeders: breedersShown.length, states: statesListed.length, guides: GUIDES.length, redirects: redirects.length };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

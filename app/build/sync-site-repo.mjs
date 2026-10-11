@@ -37,6 +37,7 @@ export function fileList() {
     ['lib/media.js', 'app/lib/media.js'],
     ['build/generate.mjs', 'app/build/generate.mjs'],
     ['build/info-pages.mjs', 'app/build/info-pages.mjs'],
+    ['build/guides.mjs', 'app/build/guides.mjs'],
     ['build/ci-build.sh', 'app/build/ci-build.sh'],
     ['build/fetch-data.mjs', 'app/build/fetch-data.mjs'],
     ['templates/index.html', 'index.html'],
@@ -46,6 +47,8 @@ export function fileList() {
   ];
   const walk = (dir) => fs.readdirSync(path.join(REPO, dir), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
   for (const dir of ['css', 'img']) for (const f of walk(dir)) list.push([`templates/${f}`, f]);
+  // Breed guide files (build/guides.mjs), at content/guides beside build/ in the site repository.
+  if (fs.existsSync(path.join(REPO, 'app/content/guides'))) for (const f of walk('app/content/guides')) list.push([f.replace(/^app\//, ''), f]);
   return list.map(([to, from]) => [to, path.join(REPO, from)]).concat([['build/check_site.py', SITE_CHECKS]]);
 }
 

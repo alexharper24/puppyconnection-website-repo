@@ -4,7 +4,7 @@ topic: size
 question: How much does a Miniature Schnauzer weigh?
 h1: How much does a Miniature Schnauzer weigh?
 description: Miniature Schnauzer weight and height under the AKC standard, why the parents matter more than the breed average, and when a Schnauzer puppy stops growing.
-status: published
+status: draft
 ---
 A grown Miniature Schnauzer weighs 11 to 20 pounds, according to AKC, and stands 12 to 14 inches at the shoulder under the breed standard. {{parent_weights}}
 

@@ -4,7 +4,7 @@ topic: size
 question: How big does a Cocker Spaniel get?
 h1: How big does a Cocker Spaniel get?
 description: Cocker Spaniel height and weight under the AKC standard, how it compares in size with the English Cocker, how to judge a puppy, and when it stops growing.
-status: published
+status: draft
 ---
 A grown male Cocker Spaniel stands about 14.5 to 15.5 inches at the shoulder and weighs 25 to 30 pounds, and a female stands about 13.5 to 14.5 inches and weighs 20 to 25 pounds, according to AKC. {{parent_weights}}
 

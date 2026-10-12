@@ -285,6 +285,10 @@ settings, terms and operators are not touched. The audit log and email log are k
   profile before first submitting it gets no notice, because nothing is public yet.
 - Schema changes to an existing table go in `migrations/`, run once on each database after a
   backup. `schema.sql` already carries them for a new database.
+  A migration that moves a puppy or litter between breeders needs `PRAGMA defer_foreign_keys = true`,
+  and on the hosted database that only holds when the statements go in one `d1 execute --command`.
+  `--file` uploads the SQL as an import, which ignores the pragma and rolls back on the first
+  intermediate key failure (2026-10-12, migration 0015). It ran fine locally either way.
 - `dev/preview.mjs` patches its own copy of the concept's `js/main.js` in several places, which
   are listed in the script. The live concept is never changed. The patches exist because
   the concept groups breeders by website domain and assumes every photo is on Wix.

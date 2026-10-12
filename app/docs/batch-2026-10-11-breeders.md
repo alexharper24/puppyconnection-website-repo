@@ -34,3 +34,12 @@ Quartz and Quinn (Heartland), Lars, Leo, Dahlia and Sunny (Cornerstone), Guy and
 Streams), Tirzah (Bless Your Paws), Elowen and Malcolm (Kingdom Family, by name only). Heartland's
 Damon and Stephan (Yorkshire Terriers) are not on Heartland's site. Source notes are in
 hs-seo-data/puppyconnection/2026-10-11/breeders.
+
+## Pairing, first round (2026-10-12, migration 0015)
+
+Alex approved: "move them, hide maple brook. show rdb puppies under them instead of breeders for now."
+Ten puppies moved to the breeder whose site lists them. Elowen and Malcolm stayed unassigned, since
+their match rests on the name alone. Responsible Dog Breeder now shows as Responsible Dog Breeder
+Network with its own contact details, and 11 of its puppies link to their own page on its site. Maple
+Brook Doodles is suspended, so it is off the public site. Peaceful Paws Puppies is unchanged and still
+waits on Amber.

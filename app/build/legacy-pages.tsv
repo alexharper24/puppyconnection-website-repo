@@ -1,0 +1,63 @@
+# Old Wix page addresses and the page each one now answers with, as a 301 (Alex approved 2026-10-12).
+# Built from hs-seo-data/puppyconnection/2026-10-10/technical/proposed-page-map.tsv. The rows that map left as
+# decisions take its recommended defaults. build/generate.mjs appends these after the per-puppy lines and
+# stops the build if a target page is missing. {portal} is the portal origin. A trailing * matches the rest.
+# legacy path<TAB>target
+/puppies-for-sale	/puppies.html
+/breed-info	/breeds.html
+/shih-tzu-breed-information	/breed-shih-tzu.html
+/yorkie-breed-information	/breed-yorkshire-terrier.html
+/great-dane-breed-inform	/breed-great-dane.html
+/miniature-schnauzer-breed-information	/breed-miniature-schnauzer.html
+/miniature-poodle-breed-information	/breed-miniature-poodle.html
+/golden-retriever-breed-information	/breed-golden-retriever.html
+/golden-retrievers	/breed-golden-retriever.html
+/cavalier-king-charles-spaniel-breed-info	/breed-cavalier-king-charles-spaniel.html
+/cocker-spaniel-breed-information	/breed-cocker-spaniel.html
+/french-bulldog-breed-information	/breed-french-bulldog.html
+/miniature-dachshund-breed-inform	/breed-miniature-dachshund.html
+/corgi-breed-information	/breed-pembroke-welsh-corgi.html
+/cava-poo-breed-info	/breed-cavapoo.html
+/pomsky-breed-information	/breeds.html
+/miniature-pinscher-breed-information	/breeds.html
+/basset-hound-breed-info	/breeds.html
+/pug-breed-information	/breeds.html
+/portuguese-water-dog-breed-information	/breeds.html
+/hypoallergenic-puppies-for-sale	/breeds.html
+/manly-puppies-for-sale	/puppies.html
+/upcoming-litters	/puppies.html
+/waiting-list	/puppies.html
+/transportation	/how-it-works.html
+/request-a-quote	/contact.html
+/contact	/contact.html
+/reviews	/reviews.html
+/the-puppy-connection-process	/how-it-works.html
+/our-process	/how-it-works.html
+/about-puppy-connection	/about.html
+/about-us	/about.html
+/tips-on-buying-a-puppy	/tips-on-buying-a-puppy.html
+/privacy-policy	{portal}/privacy
+/breeder-countylinekennel	/breeders.html
+/breeder-marvin-r	/breeders.html
+/breeder-mervin-y	/breeders.html
+/breeder-tmcountrysidek9	/breeders.html
+/breeder-perfectmatchpoodles	/breeders.html
+/breeder-philip	/breeders.html
+/copy-of-breeder-marcus-and-elaine	/breeders.html
+/copy-of-breeder-mervin-yutzy	/breeders.html
+/copy-of-breeder-perry	/breeders.html
+/copy-of-breeder-edward-and-malinda	/breeders.html
+/copy-of-breeder-tyler-and-eileen	/breeders.html
+/copy-of-breeder-cozy-pine-canine	/breeders.html
+/blog	/tips-on-buying-a-puppy.html
+/post/the-charm-of-small-breeds-shih-tzu-vs-pomeranian	/breed-shih-tzu.html
+/post/a-guide-on-choosing-the-right-breed-of-dog-for-you	/breeds.html
+/post/old-english-sheepdogs-the-gentle-giants-of-the-canine-world	/breeds.html
+/post/why-august-is-the-best-time-to-housetrain-your-puppy	/tips-on-buying-a-puppy.html
+/post/keeping-your-furry-friend-safe-a-guide-to-protecting-your-dog-in-hot-weather	/tips-on-buying-a-puppy.html
+/post/things-to-include-in-a-care-package-for-your-dog-staying-in-a-kennel	/tips-on-buying-a-puppy.html
+/post/the-value-of-a-head-start-why-purchasing-a-pre-trained-puppy-makes-sense	/tips-on-buying-a-puppy.html
+/post/10-reasons-to-purchase-a-puppy-before-the-holidays-begin	/puppies.html
+/post/celebrating-national-k9-veterans-day-with-puppy-connection-honoring-our-furry-heroes	/
+/post/template-the-ultimate-guide-to-writing-the-ultimate-guide	/
+/product-page/*	/puppies.html

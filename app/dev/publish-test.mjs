@@ -339,6 +339,12 @@ async function part1() {
     && (dataJs.match(/"lead_tall":"[^"]*\/v1\/crop\//g) || []).length >= 270);
   const redirects = fs.readFileSync(path.join(out, '_redirects'), 'utf8');
   check('each imported Wix product page gets a 301 to its puppy', g.redirects === 273 && /^\/product-page\/alexa-cocker-spaniel \/puppy-alexa-cocker-spaniel\.html 301$/m.test(redirects));
+  // The old Wix pages (build/legacy-pages.tsv), after the puppies, with the product-page fallback last.
+  check('the old Wix pages get their 301s after the puppy lines, with /product-page/* last',
+    /^\/puppies-for-sale \/puppies\.html 301$/m.test(redirects) && /^\/breed-info \/breeds\.html 301$/m.test(redirects)
+    && /^\/privacy-policy https?:\/\/\S+\/privacy 301$/m.test(redirects)
+    && redirects.trim().split(/\r?\n/).pop() === '/product-page/* /puppies.html 301'
+    && redirects.indexOf('/puppies-for-sale ') > redirects.lastIndexOf('/product-page/alexa-cocker-spaniel'));
   const named = [pup, salt, kennel].flatMap((h) => [...h.matchAll(/(?:src|data-full)="([^"]+)"/g)].map((m) => m[1])).filter((u) => !/^https?:/.test(u));
   check('every image a page names is a file in the output, or a photo the site Worker serves',
     named.length > 4 && named.every((u) => (u.startsWith('img/') || u.startsWith('css/') || u.startsWith('js/') || u.startsWith('data/') ? fs.existsSync(path.join(out, u.split('?')[0])) : /^(media\/[\w-]+(\/card)?|brand\/[\w-]+\/(logo|kennel)\?.*)$/.test(u.replace(/&amp;/g, '&')))), named.join(' '));
@@ -582,6 +588,10 @@ async function part3() {
     const legacy = sqlLocal('SELECT slug, legacy_slug FROM public_puppies WHERE legacy_slug IS NOT NULL ORDER BY slug LIMIT 1')[0];
     const r301 = await tryFetch(`${STATIC}/product-page/${legacy.legacy_slug}`, { redirect: 'manual' });
     check('an old Wix product page answers 301 to its puppy page', r301.status === 301 && (r301.headers.get('location') || '').endsWith(`/puppy-${legacy.slug}.html`), `${r301.status} ${r301.headers.get('location')}`);
+    const rOld = await tryFetch(`${STATIC}/the-puppy-connection-process`, { redirect: 'manual' });
+    check('an old Wix page answers 301 to its new page', rOld.status === 301 && (rOld.headers.get('location') || '').endsWith('/how-it-works.html'), `${rOld.status} ${rOld.headers.get('location')}`);
+    const rAny = await tryFetch(`${STATIC}/product-page/listed-after-the-import`, { redirect: 'manual' });
+    check('a Wix product page with no puppy of its own answers 301 to the puppies list', rAny.status === 301 && (rAny.headers.get('location') || '').endsWith('/puppies.html'), `${rAny.status} ${rAny.headers.get('location')}`);
     const nf = await tryFetch(`${STATIC}/no-such-page.html`);
     check('an unknown address gets the 404 page', nf.status === 404 && (await nf.text()).includes('That page is not here'));
     const css = await tryFetch(`${STATIC}/css/style.css?v=1`);

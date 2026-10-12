@@ -38,6 +38,7 @@ export function fileList() {
     ['build/generate.mjs', 'app/build/generate.mjs'],
     ['build/info-pages.mjs', 'app/build/info-pages.mjs'],
     ['build/guides.mjs', 'app/build/guides.mjs'],
+    ['build/legacy-pages.tsv', 'app/build/legacy-pages.tsv'],
     ['build/ci-build.sh', 'app/build/ci-build.sh'],
     ['build/fetch-data.mjs', 'app/build/fetch-data.mjs'],
     ['templates/index.html', 'index.html'],

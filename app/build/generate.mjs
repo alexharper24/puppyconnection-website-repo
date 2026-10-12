@@ -980,7 +980,17 @@ ${pg.body}
   fs.writeFileSync(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${urls.map(urlEntry).join('\n')}\n</urlset>\n`);
   fs.writeFileSync(path.join(out, 'robots.txt'), indexable ? `User-agent: *\nAllow: /\n\nSitemap: ${base}sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
   const redirects = D.puppies.filter((p) => p.legacy_slug).map((p) => `/product-page/${p.legacy_slug} /${pageFor.puppy(p.slug)} 301`).sort();
-  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page.\n${redirects.join('\n')}\n`);
+  // The old Wix pages other than puppies (build/legacy-pages.tsv), after the per-puppy lines so a
+  // specific puppy wins over the /product-page/* fallback. A breed page is only built while the
+  // breed has listings, so a target this build did not write falls back to the breeds index rather
+  // than stopping a publish.
+  const legacy = fs.readFileSync(path.join(HERE, 'legacy-pages.tsv'), 'utf8').split(/\r?\n/).filter((l) => l && !l.startsWith('#')).map((l) => {
+    const [from, to] = l.split('\t');
+    let target = to.replace('{portal}', portal.replace(/\/$/, ''));
+    if (target.startsWith('/') && !fs.existsSync(path.join(out, target.slice(1)))) target = '/breeds.html';
+    return `${from} ${target} 301`;
+  });
+  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page, then the old Wix pages (build/legacy-pages.tsv).\n${redirects.join('\n')}\n${legacy.join('\n')}\n`);
   // Stylesheets, scripts and the listing data are linked with ?v= and the number changes with the
   // file, so they keep for a year. The concept's images keep their names when replaced, so a week.
   // Photos from R2 get their headers from the site Worker.

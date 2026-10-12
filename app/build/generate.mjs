@@ -601,7 +601,7 @@ ${mates.length ? `<section class="band band-warm">
     <p class="eyebrow"><a href="breeds.html" style="color:inherit">Breeds</a></p>
     <h1>${esc(b.name)} puppies for sale</h1>
     <p class="meta">${open.length} available now${priceSpan(shown) ? `, ${open.length ? '' : 'recently '}priced ${priceSpan(shown)}` : ''}</p>
-    ${priceSpan(shown) ? '<p class="meta" style="margin-top:.2rem">Each breeder sets their own price.</p>' : ''}
+    ${priceSpan(shown) && !hl ? '<p class="meta" style="margin-top:.2rem">Each breeder sets their own price.</p>' : ''}
   </div>
 </section>
 ${hl ? `<section class="band" style="padding-top:0">
@@ -614,11 +614,11 @@ ${hl ? `<section class="band" style="padding-top:0">
     </div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
-      <div class="breeder-box price-card">
+      <div class="breed-buy">
         <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
-        <p class="pc-count">${open.length ? `${open.length} ${open.length === 1 ? 'puppy' : 'puppies'}` : 'None listed today'}</p>
-        ${priceSpan(shown) ? `<p class="pc-price">${priceSpan(shown)}</p><p class="breeder-note">Each breeder sets their own price. Puppy Connection lists puppies and does not sell them, take deposits or handle payment.</p>` : '<p class="breeder-note">Puppy Connection lists puppies and does not sell them, take deposits or handle payment.</p>'}
-        <div class="btn-row"><a class="btn btn-primary" href="#available">See the puppies</a></div>
+        <div class="bb-row"><span class="bb-count">${open.length ? `${open.length} ${open.length === 1 ? 'puppy' : 'puppies'}` : 'None listed today'}</span>${priceSpan(shown) ? `<span class="bb-price">${priceSpan(shown)}</span>` : ''}</div>
+        <p class="bb-note">${priceSpan(shown) ? 'Each breeder sets their own price. ' : ''}You contact the breeder directly, and Puppy Connection does not take payment.</p>
+        <a class="btn btn-primary bb-btn" href="#available">See the puppies</a>
       </div>
     </aside>
   </div>

@@ -497,7 +497,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null]].filter((f) => f[1]);
     // The buttons under the price (Alex, 2026-10-11): the puppy's own page on the breeder's site
     // when there is one, otherwise their listings page, and a jump to the contact details.
-    const outLabel = ownPage(p) ? `See ${p.name} on ${b ? `${b.name}'s` : "the breeder's"} website` : `See ${b ? `${b.name}'s` : "the breeder's"} available puppies`;
+    const outLabel = ownPage(p) ? `See ${p.name} on the breeder's website` : "See the breeder's available puppies";
     const outBtn = p.breeder_url && !p.placed ? `<a class="btn btn-primary puppy-out" href="${esc(p.breeder_url)}" target="_blank" rel="noopener">${esc(outLabel)}</a>` : '';
     const contact = [
       b && b.website ? `<li><a href="${esc(b.website)}" target="_blank" rel="noopener"><b>Website</b> ${esc(host(b.website))}</a></li>` : '',

@@ -200,6 +200,9 @@ node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo da
 portal, and needs the `GITHUB_*` lines from `portal/.dev.vars.example` in `portal/.dev.vars`.
 Its part 3 builds the pages from the local database into `app/.preview/static-site` and starts the
 generated site's Worker on 8795 with `app/site/wrangler.static.jsonc`.
+It also needs the `pc-portal` (8787) and `pc-admin` (8788) previews running on current code. A
+portal started before a code change answers the admin's publish through the binding with a 503,
+so restart both before the run if the four portal-publish checks fail (2026-10-12).
 The made-up token there works only against the stand-in, because `GITHUB_API` is honored only
 while `DEV_MODE` is local.
 

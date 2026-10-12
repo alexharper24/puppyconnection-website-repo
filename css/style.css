@@ -622,3 +622,8 @@ aside .guide-panel{margin-top:1rem}
 .breed-more[open] summary{margin-bottom:.6rem}
 .price-card .pc-count{font-family:var(--serif);font-size:1.5rem;margin:.1rem 0 0}
 .price-card .pc-price{font-family:var(--cond);font-size:1.15rem;letter-spacing:.06em;margin:.2rem 0 .6rem}
+
+/* Buttons near the top of puppy and breeder pages, so a phone visitor reaches the breeder first (Alex, 2026-10-11) */
+.d-actions{margin-top:.9rem}
+.d-actions .btn,.profile-actions .btn{min-height:44px}
+@media (max-width:560px){.d-actions .btn,.profile-actions .btn{flex:1 1 100%;justify-content:center;text-align:center}}

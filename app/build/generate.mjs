@@ -157,8 +157,8 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
   if (page) {
     var slug = page.getAttribute('data-puppy');
     beacon('view', slug);
-    var box = document.querySelector('#dBreeder');
-    if (box) box.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.contact-list a')) beacon('click', slug); });
+    var box = document.querySelector('#detail');
+    if (box) box.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.contact-list a, .puppy-out')) beacon('click', slug); });
   }
   var gal = document.querySelector('#dGallery');
   var main = document.querySelector('#dMain img');
@@ -223,6 +223,11 @@ export function build({ dataDir, out, templates, guides = path.resolve(HERE, '..
   if (!base.endsWith('/')) base += '/';
   const T = templatesDir(templates);
   const D = loadData(dataDir);
+  // A breeder link that several puppies share is the breeder's listings page, not one puppy's own
+  // page, so it is labeled that way (Alex, 2026-10-11: each puppy's own page as a button).
+  const urlUses = {};
+  for (const p of D.puppies) if (p.breeder_url) urlUses[p.breeder_url] = (urlUses[p.breeder_url] || 0) + 1;
+  const ownPage = (p) => !!p.breeder_url && urlUses[p.breeder_url] === 1;
   const concept = (f) => fs.readFileSync(path.join(T, f), 'utf8').replace(/\r\n/g, '\n');
   const idx = concept('index.html');
   const cssV = (idx.match(/css\/style\.css\?v=(\d+)/) || [])[1];
@@ -295,7 +300,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     breeder_domain: realBreeder(p.br) ? (host(p.br.website) || `${p.br.slug}.puppyconnection`) : null,
     breeder_slug: realBreeder(p.br) ? p.br.slug : null, breeder_place: p.br ? place(p.br) : '',
     puppy_name: p.name, breed: p.b.name, litter: p.mates > 1 ? p.litter : null, status: p.placed ? 'adopted' : p.availability,
-    breeder_name: realBreeder(p.br) ? p.br.name : null, breeder_url: p.breeder_url, breeder_url_tier: p.breeder_url ? 'puppy' : null,
+    breeder_name: realBreeder(p.br) ? p.br.name : null, breeder_url: p.breeder_url, breeder_url_tier: p.breeder_url ? (ownPage(p) ? 'puppy' : 'available') : null,
     lead_aspect: (p.photos[0] && p.photos[0].aspect) || 1.5,
     // The phone card's 4:5 photo, cut around the puppy rather than from the top edge. A top
     // anchor kept only the middle of a landscape photo and cut off heads (Alex, 2026-10-07).
@@ -490,9 +495,12 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       ['Born', longDate(p.l.born_on)], ['Ready to go home', longDate(p.l.ready_on)], ['Deposit', p.deposit ? money(p.deposit) : null],
       ['Mother', p.l.mom_weight_lb != null ? `${p.l.mom_weight_lb} lbs adult weight` : null], ['Father', p.l.dad_weight_lb != null ? `${p.l.dad_weight_lb} lbs adult weight` : null],
       ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null]].filter((f) => f[1]);
-    const site = p.breeder_url || (b && b.website) || null;
+    // The buttons under the price (Alex, 2026-10-11): the puppy's own page on the breeder's site
+    // when there is one, otherwise their listings page, and a jump to the contact details.
+    const outLabel = ownPage(p) ? `See ${p.name} on ${b ? `${b.name}'s` : "the breeder's"} website` : `See ${b ? `${b.name}'s` : "the breeder's"} available puppies`;
+    const outBtn = p.breeder_url && !p.placed ? `<a class="btn btn-primary puppy-out" href="${esc(p.breeder_url)}" target="_blank" rel="noopener">${esc(outLabel)}</a>` : '';
     const contact = [
-      site ? `<li><a href="${esc(site)}" target="_blank" rel="noopener"><b>Website</b> ${p.breeder_url ? `${esc(p.name)}'s own page` : esc(host(site))}</a></li>` : '',
+      b && b.website ? `<li><a href="${esc(b.website)}" target="_blank" rel="noopener"><b>Website</b> ${esc(host(b.website))}</a></li>` : '',
       b && b.phone ? `<li><a href="tel:${esc(tel(b.phone))}"><b>Call</b> ${esc(b.phone)}</a></li>` : '',
       b && b.email ? `<li><a href="mailto:${esc(b.email)}"><b>Email</b> ${esc(b.email)}</a></li>` : '',
       b && b.facebook ? `<li><a href="${esc(b.facebook)}" target="_blank" rel="noopener"><b>Facebook</b> ${esc(b.name)}</a></li>` : '',
@@ -504,6 +512,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     <div class="d-title">
       <p class="eyebrow" id="dBreed"><a href="${pageFor.breed(p.b.slug)}" style="color:inherit">${esc(p.b.name)}</a></p>
       <div class="name-row"><h1 id="dName">${esc(p.name)}</h1><span class="price" id="dPrice">${money(p.price)}</span></div>
+      ${outBtn || (b && !p.placed) ? `<div class="btn-row d-actions">${outBtn}${b && !p.placed ? `<a class="btn btn-ghost" href="#dBreeder">Contact the breeder</a>` : ''}</div>` : ''}
       ${p.placed ? '<p class="meta">Adopted. This puppy has gone home and stays here so its litter can be seen.</p>' : p.availability === 'pending' ? '<p class="meta">Pending. Ask the breeder whether this puppy is still open.</p>' : ''}
     </div>
     <div class="d-media">
@@ -759,6 +768,7 @@ ${withGuides.map((b) => {
   <div class="wrap">
     <p class="eyebrow"><a href="breeders.html" style="color:inherit">Breeders</a></p>
     <div class="profile-head"><h1>${esc(b.name)}</h1>${place(b) ? `<p class="meta">${esc(place(b))}</p>` : ''}</div>
+    ${b.phone || b.email || b.website ? `<div class="btn-row profile-actions">${b.phone ? `<a class="btn btn-primary" href="tel:${esc(tel(b.phone))}">Call ${esc(b.phone)}</a>` : ''}${b.email ? `<a class="btn btn-ghost" href="mailto:${esc(b.email)}">Email</a>` : ''}${b.website ? `<a class="btn btn-ghost" href="${esc(b.website)}" target="_blank" rel="noopener">Visit their website</a>` : ''}<a class="btn btn-ghost" href="#their">See their puppies</a></div>` : ''}
   </div>
 </section>
 <section class="band" style="padding-top:0">
@@ -775,7 +785,6 @@ ${withGuides.map((b) => {
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         <p class="disclaimer">Puppy Connection is not part of the sale.</p>
       </div>
-      <div class="btn-row"><a class="btn btn-primary" href="#their">See their puppies</a></div>
     </aside>
   </div>
 </section>

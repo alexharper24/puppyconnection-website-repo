@@ -326,7 +326,7 @@ every page, with a puppy page for each of the four breeders.
 
 ## Pending
 
-- [ ] Confirm hero image licensing
+- [x] Confirm hero image licensing. Alex confirmed on 2026-10-16 that the home page photo stays
 - [ ] Amber to fill the REPLACE THIS markers on the site's own pages, written in
       `app/build/info-pages.mjs` (2026-10-10). About needs a few sentences in her words,
       Reviews needs her to confirm the three reviews carried from Wix, and Contact needs

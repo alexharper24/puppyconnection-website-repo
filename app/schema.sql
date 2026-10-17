@@ -227,6 +227,15 @@ CREATE TABLE IF NOT EXISTS puppies (
   version           INTEGER NOT NULL DEFAULT 1,
   -- The coat type, from the breed's coats list where it has one (migrations/0009).
   coat              TEXT,
+  -- More puppy details, all optional (migrations/0016). registry is one name from the
+  -- registries setting; deposit_url is the breeder's own deposit page.
+  registry          TEXT,
+  markings          TEXT,
+  health_notes      TEXT,
+  vaccinations      TEXT,
+  deworming         TEXT,
+  disclosures       TEXT,
+  deposit_url       TEXT,
   UNIQUE (id, breeder_id),
   FOREIGN KEY (litter_id, breeder_id) REFERENCES litters (id, breeder_id)
 );
@@ -255,6 +264,22 @@ CREATE TABLE IF NOT EXISTS photos (
   FOREIGN KEY (puppy_id, breeder_id) REFERENCES puppies (id, breeder_id)
 );
 CREATE INDEX IF NOT EXISTS photos_puppy ON photos(puppy_id, position);
+
+-- Videos stored and played by Cloudflare Stream (migrations/0016, lib/stream.js). Only ready
+-- videos of public puppies reach the site.
+CREATE TABLE IF NOT EXISTS puppy_videos (
+  id           TEXT PRIMARY KEY,
+  breeder_id   TEXT NOT NULL,
+  puppy_id     TEXT NOT NULL,
+  stream_uid   TEXT NOT NULL UNIQUE,
+  status       TEXT NOT NULL DEFAULT 'uploading' CHECK (status IN ('uploading','processing','ready','error')),
+  duration_s   REAL,
+  position     INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL,
+  ready_at     TEXT,
+  FOREIGN KEY (puppy_id, breeder_id) REFERENCES puppies (id, breeder_id)
+);
+CREATE INDEX IF NOT EXISTS puppy_videos_puppy ON puppy_videos(puppy_id, position);
 
 CREATE TABLE IF NOT EXISTS checkouts (
   id                       TEXT PRIMARY KEY,
@@ -420,7 +445,11 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('min_photos', '1'),
   ('terms_version', 'draft-2026-09-30'),
   ('fee_cents', '1499'),
-  ('max_photos', '12');
+  ('max_photos', '12'),
+  -- migrations/0016. The registry list from Amber's Wix Add Puppy form, and the video limits.
+  ('registries', 'AKC, AKC Canine Partners, APRI, ACA, CKC, UKC'),
+  ('max_videos', '2'),
+  ('video_max_seconds', '120');
 
 -- Plan P3.4. The terms start as Amber's placeholder, marked, both as the version on file and
 -- as the first draft. The admin's Terms screen replaces the draft and publishes new versions.
@@ -451,7 +480,9 @@ SELECT pu.id, pu.breeder_id, pu.litter_id, pu.slug, pu.name, pu.sex, pu.color,
        -- Plan P4.3 (migrations/0004). The old Wix product slug, for the site's 301 map.
        pu.legacy_slug,
        -- migrations/0009. The coat type.
-       pu.coat
+       pu.coat,
+       -- migrations/0016. More puppy details.
+       pu.registry, pu.markings, pu.health_notes, pu.vaccinations, pu.deworming, pu.disclosures, pu.deposit_url
 FROM puppies pu JOIN public_breeders pb ON pb.breeder_id = pu.breeder_id
 WHERE pu.publication_state = 'published'
   AND pu.payment_state IN ('paid','comped')

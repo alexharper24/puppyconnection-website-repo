@@ -624,8 +624,9 @@
       '<div class="field"><label for="p-desc">Description</label><textarea id="p-desc" name="description"' + dis + '>' + esc(x ? x.description : '') + '</textarea></div>' +
       '<div class="field"><label for="p-inc">Comes with</label><textarea id="p-inc" name="includes" style="min-height:80px"' + dis + '>' + esc(inc) + '</textarea><div class="hint">One item per line, like "Vet exam" or "Microchipped".</div></div>' +
       '<div class="field"><label for="p-url">Link to this puppy on your site</label><input id="p-url" name="breeder_url" type="url" value="' + esc(x ? x.breeder_url : '') + '"' + dis + '><div class="hint">Optional. Buyers are sent here to contact you.</div></div>' +
+      detailFields(x, dis) +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + (x ? '<button class="btn btn-danger" type="button" id="archive-puppy">Remove puppy</button>' : '') + '</div>' : '') +
-      '</form>' + (x ? photoSection(x, canEdit) : '<p class="hint" style="margin-top:1rem">Add photos after the puppy is saved.</p>'),
+      '</form>' + (x ? photoSection(x, canEdit) + videoSection(x, canEdit) : '<p class="hint" style="margin-top:1rem">Add photos and videos after the puppy is saved.</p>'),
       function (d) {
         var form = $('#puppy', d);
         $$('[data-av]', d).forEach(function (b) {
@@ -652,8 +653,103 @@
           if (!confirm('Remove ' + x.name + ' from your listings?')) return;
           api('POST', '/api/puppies/' + x.id + '/archive', {}).then(function () { closeDrawer(); toast('Puppy removed'); litters(); }).catch(function (err) { showError(form, err); });
         });
-        if (x) wirePhotos(d, x, canEdit);
+        if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); }
       });
+  }
+
+  /* Workplan A3. Registration, markings, health and the breeder's deposit link, all optional,
+     folded away so the form stays short on a phone. It opens by itself when anything is filled. */
+  function detailFields(x, dis) {
+    var regs = (state.listings && state.listings.registries) || [];
+    var cur = x ? x.registry : '';
+    if (cur && regs.indexOf(cur) < 0) regs = regs.concat([cur]);
+    function area(id, name, label, hint) {
+      return '<div class="field"><label for="' + id + '">' + label + '</label><textarea id="' + id + '" name="' + name + '" style="min-height:70px"' + dis + '>' + esc(x ? x[name] : '') + '</textarea>' + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>';
+    }
+    var filled = x && ['registry', 'markings', 'health_notes', 'vaccinations', 'deworming', 'disclosures', 'deposit_url'].some(function (k) { return x[k]; });
+    return '<details class="more-details"' + (filled ? ' open' : '') + ' style="margin:0 0 1rem"><summary style="cursor:pointer;font-weight:600;padding:.4rem 0">Registration, health and deposit link (optional)</summary>' +
+      '<div class="grid-2"><div class="field"><label for="p-reg">Registration</label><select id="p-reg" name="registry"' + dis + '><option value="">Not registered or not set</option>' +
+        regs.map(function (r) { return '<option' + (r === cur ? ' selected' : '') + '>' + esc(r) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="p-mark">Markings</label><input id="p-mark" name="markings" type="text" value="' + esc(x ? x.markings : '') + '"' + dis + '></div></div>' +
+      area('p-health', 'health_notes', 'Health notes', 'Vet checks, health testing of the parents, or a guarantee.') +
+      area('p-vacc', 'vaccinations', 'Vaccinations', 'Which shots and when.') +
+      area('p-worm', 'deworming', 'Deworming', '') +
+      area('p-disc', 'disclosures', 'Disclosures', 'Anything a family should know before they decide.') +
+      '<div class="field"><label for="p-depurl">Deposit link</label><input id="p-depurl" name="deposit_url" type="url" value="' + esc(x ? x.deposit_url : '') + '"' + dis + '><div class="hint">Your own deposit page. Families pay you there, never Puppy Connection.</div></div>' +
+      '</details>';
+  }
+
+  function videoSection(x, canEdit) {
+    var V = (state.listings && state.listings.videos) || {};
+    if (!V.on && !x.videos.length) return '';
+    var live = x.videos.filter(function (v) { return v.status !== 'error'; });
+    var mins = Math.round((V.max_seconds || 120) / 6) / 10;
+    return '<section style="margin-top:1.4rem"><h3>Videos</h3><p class="hint">Up to ' + plural(V.max || 0, 'video') + ', each up to ' + plural(mins, 'minute') + ' and 200 MB.</p>' +
+      '<div class="videos" id="videos">' + x.videos.map(function (v) {
+        var body = v.status === 'ready' && v.iframe
+          ? '<div style="position:relative;padding-top:56.25%"><iframe src="' + esc(v.iframe) + '" title="Video of ' + esc(x.name) + '" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="encrypted-media; picture-in-picture" allowfullscreen></iframe></div>'
+          : '<p class="small" style="margin:.4rem 0">' + (v.status === 'error' ? 'This video could not be processed. Remove it and try again.' : 'Processing. It shows here, and on the site, when it is ready.') + '</p>';
+        return '<div class="video" data-id="' + esc(v.id) + '" data-status="' + esc(v.status) + '" style="margin:.6rem 0">' + body +
+          (canEdit ? '<button type="button" class="btn btn-sm" data-remove-video style="margin-top:.4rem">Remove video</button>' : '') + '</div>';
+      }).join('') + '</div>' +
+      (canEdit && V.on && live.length < V.max ? '<div class="upload"><label for="vid-input" class="btn btn-sm">Add a video</label><input id="vid-input" type="file" accept="video/*" hidden>' +
+        '<p class="small" id="vid-progress" hidden></p><p class="error" id="vid-error" hidden></p></div>' : '') + '</section>';
+  }
+
+  function wireVideos(d, x, canEdit) {
+    var V = (state.listings && state.listings.videos) || {};
+    function reopen() { return loadListings().then(function () { if ($('#puppy')) puppyDrawer(findPuppy(x.id)); }); }
+    // Stream takes a little while after the upload. Each video still processing is checked
+    // every few seconds while the drawer is open, and the drawer redraws when one is ready.
+    var waiting = $$('.video[data-status=processing], .video[data-status=uploading]', d).map(function (el) { return el.dataset.id; });
+    if (waiting.length) {
+      var tries = 0;
+      var poll = setInterval(function () {
+        if (!document.body.contains(d) || !$('#videos', d) || ++tries > 60) return clearInterval(poll);
+        Promise.all(waiting.map(function (id) { return api('POST', '/api/videos/' + id + '/check', {}); })).then(function (rs) {
+          if (rs.some(function (r) { return r.status === 'ready' || r.status === 'error'; })) { clearInterval(poll); reopen(); }
+        }).catch(function () { clearInterval(poll); });
+      }, 5000);
+    }
+    if (!canEdit) return;
+    $$('[data-remove-video]', d).forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Remove this video?')) return;
+        b.disabled = true;
+        api('DELETE', '/api/videos/' + b.closest('.video').dataset.id).then(function () { toast('Video removed'); reopen(); })
+          .catch(function (err) { b.disabled = false; toast(err.message); });
+      });
+    });
+    var input = $('#vid-input', d);
+    if (!input) return;
+    var prog = $('#vid-progress', d), errBox = $('#vid-error', d);
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      errBox.hidden = true;
+      if (file.size > V.max_bytes) { errBox.hidden = false; errBox.textContent = 'That video is larger than 200 MB. A shorter clip, or one saved at a lower quality, will fit.'; return; }
+      var started = null;
+      api('POST', '/api/puppies/' + x.id + '/videos', {}).then(function (r) {
+        started = r.id;
+        return new Promise(function (ok, fail) {
+          var fd = new FormData(); fd.append('file', file);
+          var xhr = new XMLHttpRequest();
+          xhr.open('POST', r.upload_url);
+          xhr.upload.onprogress = function (e) { if (e.lengthComputable) { prog.hidden = false; prog.textContent = 'Uploading ' + Math.round(e.loaded / e.total * 100) + '%'; } };
+          xhr.onload = function () { if (xhr.status < 300) ok(r); else fail(new Error(xhr.status === 413 ? 'That video is too large.' : 'The upload did not finish. Try again.')); };
+          xhr.onerror = function () { fail(new Error('The upload did not finish. Check the connection and try again.')); };
+          xhr.send(fd);
+        });
+      }).then(function (r) {
+        prog.textContent = 'Uploaded. Processing the video.';
+        return api('POST', '/api/videos/' + r.id + '/check', {});
+      }).then(function () { toast('Video added'); reopen(); })
+        .catch(function (err) {
+          prog.hidden = true; errBox.hidden = false; errBox.textContent = err.message;
+          // An upload that never finished is taken back off the puppy, so it does not hold a place.
+          if (started) api('DELETE', '/api/videos/' + started).catch(function () {});
+        });
+    });
   }
 
   function photoSection(x, canEdit) {

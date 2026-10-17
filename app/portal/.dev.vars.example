@@ -28,3 +28,6 @@ PUBLISH_MODE=commit
 GITHUB_TOKEN=local-test-token
 GITHUB_REPO=local/puppyconnection-site
 GITHUB_API=http://localhost:8798
+
+# Workplan A3. Puppy videos through the stand-in Stream at /dev/stream (lib/stream.js).
+STREAM_MODE=sim

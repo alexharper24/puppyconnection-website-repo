@@ -142,7 +142,7 @@ async function body() {
   }
 
   const jobs = (await req(ADMIN, 'GET', '/api/jobs')).data;
-  check('the admin shows a last run for all six jobs, sending to the mailing list included', jobs.length === 6 && jobs.some((j) => j.job === 'campaigns') && jobs.every((j) => j.last_run_at && !j.last_error), JSON.stringify(jobs));
+  check('the admin shows a last run for all seven jobs, sending to the mailing list and the video check included', jobs.length === 7 && jobs.some((j) => j.job === 'campaigns') && jobs.some((j) => j.job === 'videos') && jobs.every((j) => j.last_run_at && !j.last_error), JSON.stringify(jobs));
   check('an unknown job is refused', (await req(ADMIN, 'POST', '/api/jobs/nothing/run', {})).status === 404);
   check('Run now refuses a request from another site', (await fetch(`${ADMIN}/api/jobs/expiry/run`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' })).status === 403);
 

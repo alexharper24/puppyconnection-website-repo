@@ -55,6 +55,11 @@
     "PAYMENTS_MODE": "stripe",
     "STRIPE_MODE": "test",
     "STRIPE_API_VERSION": "2026-08-26.dahlia",
-    "STRIPE_PRICE_ID": "price_1UNj2R2wFuCkAYt5hqjlsugi"
+    "STRIPE_PRICE_ID": "price_1UNj2R2wFuCkAYt5hqjlsugi",
+    // Puppy videos (workplan A3, lib/stream.js). Videos stay off until Stream is subscribed on
+    // this account and Alex sets the STREAM_API_TOKEN secret (a token with Stream Edit). Then set
+    // STREAM_MODE to "stream" and STREAM_CUSTOMER_CODE to the <code> in the account's
+    // customer-<code>.cloudflarestream.com, and redeploy the portal and the admin.
+    "STREAM_ACCOUNT_ID": "4f6e9dc25ab751960763628b06e6c108"
   }
 }

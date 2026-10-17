@@ -162,6 +162,7 @@ export function wipeStatements(env) {
     `DELETE FROM checkout_items WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM checkouts WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM photos WHERE breeder_id ${NOT_SEED}`,
+    `DELETE FROM puppy_videos WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM puppies WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM litters WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM breeder_breeds WHERE breeder_id ${NOT_SEED}`,

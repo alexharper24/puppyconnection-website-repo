@@ -194,6 +194,7 @@ node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stan
 node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
+node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: puppy details and video (A3), then each launch item as it lands
 ```
 
 `publish-test.mjs` starts its own stand-in GitHub and a second admin on 8794 with `PUBLISH_MODE`
@@ -229,6 +230,7 @@ the routes it guards, so the suite is known to catch the failure it exists for.
 | Bot check on sign-up | Skipped on localhost when no key is set | Set `TURNSTILE_SITE_KEY` and the `TURNSTILE_SECRET` secret |
 | Operator sign-in and roles | `DEV_IDENTITY`, on localhost only. Each operator in `people` is an owner or staff. Staff manage listings, photos, holds, notes and publishing, and only owners handle approvals, money, settings, breeds, terms, the mailing list and people (`STAFF_ALLOWED` in `admin/worker.js`) | Create the Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Until then a deployed admin answers 403 everywhere, which is the safe state |
 | Publishing | Real on staging since 2026-10-06. The staging portal and admin run `PUBLISH_MODE` hook with `PUBLISH_HOOK_URL` set, so a publish starts a Workers Builds build of the site repository and the staging site serves the generated pages | The same hook on the production site Worker (launch checklist L16) |
+| Puppy videos (workplan A3) | `STREAM_MODE=sim` keeps each file in R2 under `videos/` and plays it from the portal at `/dev/stream` | Subscribe to Stream on the Puppy Connection account, set the `STREAM_API_TOKEN` secret (Stream Edit) on the portal and the admin, then `STREAM_MODE=stream` and `STREAM_CUSTOMER_CODE` in `wrangler.hosted.jsonc`. Until then staging shows no video upload |
 | Scheduled jobs | Built (plan P4.2), with the publish on the */15 trigger since P4.4 | Nothing, beyond real email for their alerts |
 
 The local settings live in `app/portal/.dev.vars` and `app/admin/.dev.vars`, which are

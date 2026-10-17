@@ -21,7 +21,9 @@ export async function exportData(folder) {
   src.close();
   const db = d1(snap);
   try {
-    const exp = await exportSite({ DB: db });
+    // PORTAL_ORIGIN as the local portal has it (portal/wrangler.jsonc), because a stand-in video's
+    // player address is on the portal (lib/stream.js).
+    const exp = await exportSite({ DB: db, PORTAL_ORIGIN: process.env.PORTAL_ORIGIN || 'http://localhost:8787', STREAM_MODE: 'sim' });
     for (const [p, t] of Object.entries(exp.files)) {
       const f = path.join(folder, p);
       fs.mkdirSync(path.dirname(f), { recursive: true });

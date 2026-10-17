@@ -18,6 +18,7 @@
 // they work from every page, which all sit at the root.
 
 import { brandUrl } from './store.js';
+import { videoUrls } from './stream.js';
 
 export const DATA_FILES = ['data/breeds.json', 'data/breeders.json', 'data/litters.json', 'data/puppies.json'];
 
@@ -59,6 +60,12 @@ export async function exportSite(env) {
     `SELECT id, puppy_id, r2_key, external_url, aspect, width, height, focus_x, focus_y FROM photos
       WHERE puppy_id IN (SELECT id FROM public_puppies) ORDER BY puppy_id, position, id`,
   ).all()).results) (photos[r.puppy_id] ||= []).push(r);
+  // Workplan A3. Only videos Stream has finished with, on public puppies.
+  const videos = {};
+  for (const r of (await db.prepare(
+    `SELECT puppy_id, stream_uid, duration_s FROM puppy_videos
+      WHERE status = 'ready' AND puppy_id IN (SELECT id FROM public_puppies) ORDER BY puppy_id, position, id`,
+  ).all()).results) (videos[r.puppy_id] ||= []).push({ ...videoUrls(env, r.stream_uid, env.PORTAL_ORIGIN || ''), duration: r.duration_s });
 
 
   const files = {
@@ -77,6 +84,8 @@ export async function exportSite(env) {
       price: p.price_cents == null ? null : p.price_cents / 100, deposit: p.deposit_cents == null ? null : p.deposit_cents / 100,
       availability: p.availability, hypoallergenic: !!p.hypoallergenic, includes: JSON.parse(p.includes_json || '[]'),
       about: paras(p.description), breeder_url: p.breeder_url, legacy_slug: p.legacy_slug || null, published_at: p.published_at,
+      registry: p.registry || null, markings: p.markings || null, health: paras(p.health_notes), vaccinations: paras(p.vaccinations),
+      deworming: paras(p.deworming), disclosures: paras(p.disclosures), deposit_url: p.deposit_url || null, videos: videos[p.id] || [],
       photos: (photos[p.id] || []).map((ph) => ({ ...(ph.r2_key
         ? { ...photoPath(ph), aspect: ph.aspect }
         : { src: ph.external_url, card: null, aspect: ph.aspect }), ...framing(ph) })),

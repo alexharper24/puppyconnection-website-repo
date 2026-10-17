@@ -15,6 +15,7 @@ import { Client, signUp } from './e2e.mjs';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
 const ADMIN = process.env.ADMIN || 'http://localhost:8788';
+const PORTAL = process.env.PORTAL || 'http://localhost:8787';
 const WRANGLER = process.env.WRANGLER_JS || path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
 const JPG = new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures/gps-test.jpg')));
 
@@ -55,11 +56,13 @@ async function makeBreeder(tag, state) {
   const paid = (await c.post('/api/puppies', { litter_id: litter, name: `${tag} paid`, price: '1600' })).data.id;
   const draftPhoto = (await c.req('POST', `/api/puppies/${draft}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } })).data.id;
   await c.req('POST', `/api/puppies/${paid}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } });
+  // Workplan A3. A video on the draft, through the stand-in Stream.
+  const video = (await c.post(`/api/puppies/${draft}/videos`, {})).data.id;
   const co = (await c.post('/api/checkouts', { puppy_ids: [paid] })).data;
   const sp = new URL(co.url).pathname;
   const pay = await c.req('POST', `${sp}/pay`, form({ webhook: '1' }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   await c.get(new URL(pay.location).pathname + new URL(pay.location).search);
-  Object.assign(b, { litter, draft, paid, draftPhoto, checkout: co.checkout_id });
+  Object.assign(b, { litter, draft, paid, draftPhoto, video, checkout: co.checkout_id });
   if (state === 'suspended') await admin.post(`/api/breeders/${b.id}/suspend`, { reason: 'access test' });
   return b;
 }
@@ -71,6 +74,8 @@ async function main() {
   const D = await makeBreeder('d', 'suspended');
   await C.c.req('POST', '/api/profile/logo', JPG, { headers: { 'content-type': 'image/jpeg' } });
   await C.c.req('POST', '/api/profile/kennel', JPG, { headers: { 'content-type': 'image/jpeg' } });
+  // A second person on B's kennel (migrations/0010), for the removeMember attack.
+  const bMember = (await B.c.post('/api/account/members', { email: `member-${Date.now().toString(36)}@breeders.test` })).data.members[0].id;
 
   // The routes a breeder can reach with an id, taken from the portal router itself.
   const router = fs.readFileSync(path.join(APP, 'portal/worker.js'), 'utf8');
@@ -92,6 +97,11 @@ async function main() {
     setAvailability: ['PUT', `/api/puppies/${B.draft}/availability`, { availability: 'placed', version: 1 }],
     brandLogo: ['GET', `/brand/${C.id}/logo`, null],
     brandKennel: ['GET', `/brand/${C.id}/kennel`, null],
+    // Workplan A3. A video upload address on B's puppy, and B's video checked and removed.
+    removeMember: ['DELETE', `/api/account/members/${bMember}`, null],
+    startVideo: ['POST', `/api/puppies/${B.draft}/videos`, {}],
+    checkVideo: ['POST', `/api/videos/${B.video}/check`, {}],
+    deleteVideo: ['DELETE', `/api/videos/${B.video}`, null],
   };
   const covered = idRoutes.every((m) => attacks[m[3]]);
   check(0, `every id route in the portal router is attacked (${idRoutes.map((m) => m[3]).join(', ')})`, covered,
@@ -102,7 +112,7 @@ async function main() {
   check(1, "A's listings contain none of B's puppies", !aList.includes(B.draft) && !aList.includes(B.paid));
   const aCheckouts = (await A.c.get('/api/checkouts')).data.map((x) => x.id);
   check(1, "A's payment history contains none of B's", !aCheckouts.includes(B.checkout));
-  const peek = await fetch(`http://localhost:8787/media/${B.draftPhoto}`, { headers: { cookie: A.c.cookie } });
+  const peek = await fetch(`${PORTAL}/media/${B.draftPhoto}`, { headers: { cookie: A.c.cookie } });
   check(1, "A cannot open B's unpublished photo", peek.status === 404);
   const cancel = await A.c.get(`/checkout/cancel?c=${B.checkout}`);
   const bCo = (await admin.get(`/api/breeders/${B.id}`)).data.checkouts.find((x) => x.id === B.checkout);
@@ -167,9 +177,9 @@ async function main() {
   check(6, 'suspended D can still sign in and read their records', (await D.c.get('/api/listings')).status === 200);
 
   // 7. Anonymous visitors see only published listings and no private field
-  const anon = new Client('http://localhost:8787');
+  const anon = new Client(PORTAL);
   check(7, 'no session, no listings API', (await anon.get('/api/listings')).status === 401);
-  check(7, "a draft's photo is not served anonymously", (await fetch(`http://localhost:8787/media/${A.draftPhoto}`)).status === 404);
+  check(7, "a draft's photo is not served anonymously", (await fetch(`${PORTAL}/media/${A.draftPhoto}`)).status === 404);
   const exp = await admin.get('/api/export');
   const text = JSON.stringify(exp.data);
   check(7, 'the export holds no draft', !exp.data.listings.some((l) => l.puppy_name?.endsWith(' draft')));
@@ -188,7 +198,7 @@ async function main() {
   check(8, 'the change is in the audit log under Amber', after.audit.some((a) => a.actor_type === 'operator' && a.action === 'puppy.update' && a.entity_id === B.paid));
 
   // 9. Sign-in links: once, 15 minutes, no enumeration
-  const fresh = new Client('http://localhost:8787');
+  const fresh = new Client(PORTAL);
   const known = await fresh.post('/auth/start', { email: A.email });
   const unknown = await fresh.post('/auth/start', { email: `nobody-${Date.now()}@breeders.test` });
   check(9, 'a registered and an unregistered address get byte-identical answers',

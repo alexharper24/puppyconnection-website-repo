@@ -14,6 +14,7 @@ import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
   BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
+  PUPPY_EDIT_COLS, puppySet, puppyValues,
 } from '../lib/store.js';
 import { sendMail, alertOps } from '../lib/mail.js';
 import { siteBreederSlug } from '../lib/export.js';
@@ -25,6 +26,9 @@ import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
 } from '../lib/payments.js';
 import { cleanImage } from '../lib/images.js';
+import {
+  streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
+} from '../lib/stream.js';
 import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle, randomString } from '../lib/google.js';
 
 // Plan P6.3. A session lasts 60 days from its last renewal. Using it more than a day into
@@ -769,18 +773,16 @@ async function createPuppy(request, env) {
   const body = await readJson(request);
   const litter = await owned(env, 'litter', String(body.litter_id || ''), breeder.id);
   if (litter.archived_at) throw bad('That litter has been removed.');
-  const f = puppyFields(body);
+  const f = puppyFields(body, (await settings(env)).registries);
   const breed = await env.DB.prepare('SELECT name FROM breeds WHERE id = ?').bind(litter.breed_id).first();
   const id = ulid();
   const slug = `${slugify(`${f.name} ${breed.name}`)}-${id.slice(-6).toLowerCase()}`;
   const t = now();
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, coat, price_cents, deposit_cents, description,
-         breeder_url, includes_json, availability, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, breeder.id, litter.id, slug, f.name, f.sex, f.color, f.coat, f.price_cents, f.deposit_cents, f.description,
-      f.breeder_url, f.includes_json, f.availability, t, t),
+      `INSERT INTO puppies (id, breeder_id, litter_id, slug, ${PUPPY_EDIT_COLS.join(', ')}, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ${PUPPY_EDIT_COLS.map(() => '?').join(', ')}, ?, ?)`,
+    ).bind(id, breeder.id, litter.id, slug, ...puppyValues(f), t, t),
     auditStmt(env, 'breeder', breeder.email, 'puppy.create', 'puppy', id, null, f),
   ]);
   return json({ id }, 201);
@@ -852,11 +854,14 @@ async function duplicatePuppy(request, env, ctx, id) {
   const t = now();
   await env.DB.batch([
     env.DB.prepare(
+      // Markings belong to one puppy, so they are not copied. The litter-wide details are.
       `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, coat, price_cents, deposit_cents, description,
-         breeder_url, includes_json, hypoallergenic, availability, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?)`,
+         breeder_url, includes_json, hypoallergenic, availability, registry, health_notes, vaccinations, deworming, disclosures,
+         deposit_url, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(newId, breeder.id, litter.id, newPuppySlug(name, breed.name, newId), name, src.sex, src.color, src.coat, src.price_cents, src.deposit_cents,
-      src.description, src.breeder_url, src.includes_json, src.hypoallergenic, t, t),
+      src.description, src.breeder_url, src.includes_json, src.hypoallergenic, src.registry, src.health_notes, src.vaccinations,
+      src.deworming, src.disclosures, src.deposit_url, t, t),
     auditStmt(env, 'breeder', breeder.email, 'puppy.duplicate', 'puppy', newId, null, { from: src.id }),
   ]);
   return json({ id: newId }, 201);
@@ -889,14 +894,13 @@ async function updatePuppy(request, env, ctx, id) {
   const before = await owned(env, 'puppy', id, breeder.id);
   if (before.publication_state === 'archived') throw bad('That puppy has been removed.');
   const body = await readJson(request);
-  const f = puppyFields(body);
+  // A registry since taken off the list stays valid on the puppy that already has it.
+  const f = puppyFields(body, [...(await settings(env)).registries, before.registry]);
   const stmts = [
     env.DB.prepare(
-      `UPDATE puppies SET name = ?, sex = ?, color = ?, coat = ?, price_cents = ?, deposit_cents = ?, description = ?, breeder_url = ?,
-         includes_json = ?, availability = ?, updated_at = ?, version = version + 1
+      `UPDATE puppies SET ${puppySet()}, updated_at = ?, version = version + 1
        WHERE id = ? AND breeder_id = ? AND version = ?`,
-    ).bind(f.name, f.sex, f.color, f.coat, f.price_cents, f.deposit_cents, f.description, f.breeder_url, f.includes_json,
-      f.availability, now(), id, breeder.id, Number(body.version)),
+    ).bind(...puppyValues(f), now(), id, breeder.id, Number(body.version)),
     auditStmt(env, 'breeder', breeder.email, 'puppy.update', 'puppy', id, before, f),
   ];
   if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
@@ -998,6 +1002,54 @@ async function orderPhotos(request, env, ctx, puppyId) {
   return json({ ok: true });
 }
 
+// ------------------------------------------------------------------ puppy videos (workplan A3)
+
+const videoOrigin = (request, env) => env.PORTAL_ORIGIN || new URL(request.url).origin;
+
+/** A one-time Stream upload address for one video. The browser sends the file there itself. */
+async function startVideo(request, env, ctx, puppyId) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  if (!streamMode(env)) throw bad('Video uploads are not switched on yet.');
+  const puppy = await owned(env, 'puppy', puppyId, breeder.id);
+  if (puppy.publication_state === 'archived') throw bad('That puppy has been removed.');
+  const s = await settings(env);
+  const have = await env.DB.prepare("SELECT COUNT(*) AS n, COALESCE(MAX(position), -1) AS last FROM puppy_videos WHERE puppy_id = ? AND status != 'error'").bind(puppyId).first();
+  if (have.n >= s.maxVideos) throw bad(s.maxVideos ? `A puppy can have up to ${s.maxVideos} ${s.maxVideos === 1 ? 'video' : 'videos'}.` : 'Videos are not open for listings.');
+  const up = await createUpload(env, { maxSeconds: s.videoMaxSeconds, breederId: breeder.id, puppyId, portalOrigin: videoOrigin(request, env) });
+  const id = ulid();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO puppy_videos (id, breeder_id, puppy_id, stream_uid, status, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+      .bind(id, breeder.id, puppyId, up.uid, 'uploading', have.last + 1, now()),
+    auditStmt(env, 'breeder', breeder.email, 'video.add', 'puppy', puppyId, null, { video: id }),
+  ]);
+  return json({ id, upload_url: up.uploadURL, max_bytes: MAX_UPLOAD_BYTES, max_seconds: s.videoMaxSeconds }, 201);
+}
+
+/** Called by the portal once the file is sent, and again while Stream is still working on it. */
+async function checkVideo(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  const row = await owned(env, 'video', id, breeder.id);
+  return json({ status: await refreshVideo(env, row) });
+}
+
+async function deleteVideo(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const row = await owned(env, 'video', id, breeder.id);
+  await removeVideo(env, row.stream_uid);
+  const stmts = [
+    env.DB.prepare('DELETE FROM puppy_videos WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'video.remove', 'puppy', row.puppy_id, { video: id }, null),
+  ];
+  if (row.status === 'ready' && await hasPublic(env, 'id = ?', row.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true });
+}
+
 /** A photo is served to its owner, or to anyone once its puppy is public. */
 async function media(request, env, ctx, id, card) {
   const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
@@ -1028,8 +1080,13 @@ async function listings(request, env) {
   // Plan P2.5, this breeder's views and clicks per puppy over the last 30 days.
   const counts = Object.fromEntries((await breederStats(env, breeder.id, 30)).puppies.map((r) => [r.id, r]));
   const site = siteOrigin(env);
+  const vids = {};
+  for (const v of (await env.DB.prepare('SELECT id, puppy_id, stream_uid, status, duration_s FROM puppy_videos WHERE breeder_id = ? ORDER BY position, created_at').bind(breeder.id).all()).results) {
+    (vids[v.puppy_id] ||= []).push({ id: v.id, status: v.status, duration: v.duration_s, ...(v.status === 'ready' ? videoUrls(env, v.stream_uid, videoOrigin(request, env)) : {}) });
+  }
   for (const l of litters) {
     for (const p of l.puppies) {
+      p.videos = vids[p.id] || [];
       p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position }));
       p.is_public = pubIds.has(p.id);
       p.pay_block = breeder.status === 'approved' ? await payability(env, p, s, p.photos.length, p.held_by) : 'Account not approved.';
@@ -1044,7 +1101,8 @@ async function listings(request, env) {
       p.clicks = counts[p.id]?.clicks || 0;
     }
   }
-  return json({ litters, fee_cents: s.feeCents, listing_days: s.listingDays, warn_days: s.warnDays, min_photos: s.minPhotos });
+  return json({ litters, fee_cents: s.feeCents, listing_days: s.listingDays, warn_days: s.warnDays, min_photos: s.minPhotos,
+    registries: s.registries, videos: { on: !!streamMode(env), max: s.maxVideos, max_seconds: s.videoMaxSeconds, max_bytes: MAX_UPLOAD_BYTES } });
 }
 
 async function startCheckout(request, env) {
@@ -1316,6 +1374,11 @@ const ROUTES = [
   ['POST', /^\/api\/puppies\/([\w-]+)\/photos$/, uploadPhoto],
   ['PUT', /^\/api\/puppies\/([\w-]+)\/photo-order$/, orderPhotos],
   ['DELETE', /^\/api\/photos\/([\w-]+)$/, deletePhoto],
+  ['POST', /^\/api\/puppies\/([\w-]+)\/videos$/, startVideo],
+  ['POST', /^\/api\/videos\/([\w-]+)\/check$/, checkVideo],
+  ['DELETE', /^\/api\/videos\/([\w-]+)$/, deleteVideo],
+  ['POST', /^\/dev\/stream\/upload\/(\w+)$/, (r, e, c, uid) => simUpload(r, e, uid)],
+  ['GET', /^\/dev\/stream\/(\w+)\/(iframe|video)$/, (r, e, c, uid, what) => simServe(e, uid, what)],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, uploadCard],
   ['GET', /^\/media\/([\w-]+)$/, media],
   ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id) => media(r, e, c, id, true)],
@@ -1352,7 +1415,7 @@ export default {
         if (!m) continue;
         if (request.method !== method) continue;
         // Every handler takes (request, env, ctx, id), with id from the route when it has one.
-        const res = withHeaders(await fn(request, env, ctx, m[1]), SECURITY_HEADERS);
+        const res = withHeaders(await fn(request, env, ctx, m[1], m[2]), SECURITY_HEADERS);
         // A renewed session refreshes its cookie (plan P6.3), unless the handler set or
         // cleared the session cookie itself, or the response may be cached publicly.
         const renewed = RENEWED.get(request);

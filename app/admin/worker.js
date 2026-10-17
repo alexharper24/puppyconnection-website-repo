@@ -9,9 +9,10 @@ import {
 import {
   loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithPuppies, photoUrl,
   profileFields, profileStmt, profileBefore, noticeContactChange, breederBreeds, brandUrl, serveBrand,
-  litterFields, puppyFields, litterInput, puppyInput, currentTerms, contactChanges,
+  litterFields, puppyFields, litterInput, puppyInput, currentTerms, contactChanges, puppySet, puppyValues,
 } from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
+import { videoUrls, removeVideo } from '../lib/stream.js';
 import { identify } from './identity.js';
 import { buildExport } from '../lib/export.js';
 import { runJob, JOBS } from '../lib/jobs.js';
@@ -93,8 +94,14 @@ async function breederDetail(req, env, ctx, id) {
   if (!b) throw notFound();
   const litters = await littersWithPuppies(env, id);
   const pub = new Set((await env.DB.prepare('SELECT id FROM public_puppies WHERE breeder_id = ?').bind(id).all()).results.map((r) => r.id));
+  // Workplan A3. Each puppy's videos, with the player address once Stream has finished.
+  const vids = {};
+  for (const v of (await env.DB.prepare('SELECT id, puppy_id, stream_uid, status FROM puppy_videos WHERE breeder_id = ? ORDER BY position, created_at').bind(id).all()).results) {
+    (vids[v.puppy_id] ||= []).push({ id: v.id, status: v.status, ...(v.status === 'ready' ? videoUrls(env, v.stream_uid, env.PORTAL_ORIGIN || '') : {}) });
+  }
   for (const l of litters) for (const p of l.puppies) {
     p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph) }));
+    p.videos = vids[p.id] || [];
     p.is_public = pub.has(p.id);
   }
   const checkouts = (await env.DB.prepare('SELECT * FROM checkouts WHERE breeder_id = ? ORDER BY created_at DESC LIMIT 50').bind(id).all()).results;
@@ -119,7 +126,7 @@ async function breederDetail(req, env, ctx, id) {
   const breeds = (await env.DB.prepare('SELECT id, name FROM breeds ORDER BY name').all()).results;
   const members = (await env.DB.prepare('SELECT email, name, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(id).all()).results;
   return json({ breeder: b, litters, checkouts, audit, extras, members, close_request: closeRequest || null, notes: await notesFor(env, id),
-    terms: { current: terms.version, accepted: b.terms_version || null }, breeds });
+    terms: { current: terms.version, accepted: b.terms_version || null }, breeds, registries: (await settings(env)).registries });
 }
 
 // ------------------------------------------------------------------ operator notes (plan P3.2)
@@ -321,13 +328,12 @@ async function editPuppy(req, env, ctx, id, who) {
   const p = await env.DB.prepare('SELECT * FROM puppies WHERE id = ?').bind(id).first();
   if (!p) throw notFound();
   if (p.publication_state === 'archived') throw bad('The breeder removed that puppy.');
-  const f = puppyFields({ ...puppyInput(p), ...body });
+  const f = puppyFields({ ...puppyInput(p), ...body }, [...(await settings(env)).registries, p.registry]);
   const res = await env.DB.batch([
     env.DB.prepare(
-      `UPDATE puppies SET name = ?, sex = ?, color = ?, coat = ?, price_cents = ?, deposit_cents = ?, description = ?, breeder_url = ?,
-         includes_json = ?, availability = ?, updated_at = ?, version = version + 1
+      `UPDATE puppies SET ${puppySet()}, updated_at = ?, version = version + 1
        WHERE id = ? AND version = ?`,
-    ).bind(f.name, f.sex, f.color, f.coat, f.price_cents, f.deposit_cents, f.description, f.breeder_url, f.includes_json, f.availability, now(), id, Number(body.version)),
+    ).bind(...puppyValues(f), now(), id, Number(body.version)),
     auditStmt(env, 'operator', who.email, 'puppy.update', 'puppy', id, { ...puppyInput(p), breeder_id: p.breeder_id }, { ...f, breeder_id: p.breeder_id }),
     dirtyStmt(env),
   ]);
@@ -389,6 +395,10 @@ const EDITABLE = {
   suspended_listings_visible: (v) => v === '0' || v === '1',
   min_photos: (v) => /^\d$/.test(v),
   max_photos: (v) => /^\d{1,2}$/.test(v) && Number(v) >= 1,
+  // Workplan A3. The registry list breeders pick from, comma-separated, and the video limits.
+  registries: (v) => v.length <= 400 && v.split(',').every((x) => x.trim() && x.trim().length <= 40),
+  max_videos: (v) => /^\d$/.test(v),
+  video_max_seconds: (v) => /^\d{2,3}$/.test(v) && Number(v) >= 10 && Number(v) <= 600,
   // terms_version is no longer typed in here. Publishing on the Terms screen sets it (plan P3.4).
 };
 
@@ -1077,6 +1087,20 @@ async function adminDeletePhoto(req, env, ctx, id, who) {
   return json({ ok: true });
 }
 
+async function adminDeleteVideo(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const v = await env.DB.prepare('SELECT * FROM puppy_videos WHERE id = ?').bind(id).first();
+  if (!v) throw notFound();
+  await removeVideo(env, v.stream_uid);
+  const stmts = [
+    env.DB.prepare('DELETE FROM puppy_videos WHERE id = ?').bind(id),
+    auditStmt(env, 'operator', who.email, 'video.remove', 'puppy', v.puppy_id, { video: id, breeder_id: v.breeder_id }, null),
+  ];
+  if (v.status === 'ready' && await isPublicPuppy(env, v.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true });
+}
+
 async function adminOrderPhotos(req, env, ctx, puppyId, who) {
   requireSameOrigin(req);
   const { ids } = await readJson(req);
@@ -1108,10 +1132,12 @@ const STAFF_ALLOWED = [
   ['POST', /^\/api\/site\/publish$/],
   ['POST', /^\/api\/photos\/[\w-]+\/card$/],
   ['DELETE', /^\/api\/photos\/[\w-]+$/],
+  ['DELETE', /^\/api\/videos\/[\w-]+$/],
 ];
 const staffMay = (method, pathname) => STAFF_ALLOWED.some(([m, rx]) => m === method && rx.test(pathname));
 
 const ROUTES = [
+  ['DELETE', /^\/api\/videos\/([\w-]+)$/, adminDeleteVideo],
   ['GET', /^\/api\/campaigns$/, listCampaigns],
   ['POST', /^\/api\/campaigns$/, createCampaign],
   ['PUT', /^\/api\/campaigns\/([\w-]+)$/, updateCampaign],

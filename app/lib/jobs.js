@@ -3,6 +3,7 @@
 //
 // The free Workers plan allows five cron triggers per account, so the portal uses two:
 //   */15 * * * *   reconcile   checkouts left open or paid without a listing
+//                  videos      puppy videos Stream has finished with (lib/stream.js)
 //                  publish     the site, when changes have waited a minute (lib/publish.js, plan P4.4)
 //   0 13 * * *     daily       expiry warnings and expiry, housekeeping, the backup, then the breeder link check
 // 13:00 UTC is 8 or 9 in the morning in Indiana, so warnings arrive at the start of the day.
@@ -14,6 +15,7 @@ import { settings, auditStmt, dirtyStmt } from './store.js';
 import { sendMail, alertOps } from './mail.js';
 import { provider, releaseCheckout, fulfillCheckout } from './payments.js';
 import { publishIfDue } from './publish.js';
+import { videoJob } from './stream.js';
 
 const DAY = 86400000;
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
@@ -111,7 +113,7 @@ async function reconcile(env) {
 
 // Every table as JSON, gzipped, one file per day in the photo bucket under backups/. The
 // media route serves only rows in photos, so nothing under backups/ is reachable from outside.
-const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'people', 'breeds', 'litters', 'puppies', 'photos', 'checkouts', 'checkout_items',
+const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'people', 'breeds', 'litters', 'puppies', 'photos', 'puppy_videos', 'checkouts', 'checkout_items',
   'puppy_holds', 'payments', 'stripe_events', 'settings', 'site_state', 'audit_log', 'email_log', 'job_runs',
   'breeder_breeds', 'puppy_stats', 'account_requests', 'operator_notes', 'terms_versions', 'disputes'];
 async function backup(env) {
@@ -183,7 +185,9 @@ async function links(env) {
 
 // Sending to the mailing list (lib/campaigns.js): the next batches of any email that is sending.
 const campaigns = (env) => runCampaigns(env);
-export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns };
+// Puppy videos still uploading or processing at Stream (lib/stream.js).
+const videos = (env) => videoJob(env);
+export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos };
 
 export function runJob(env, name) {
   if (!JOBS[name]) throw new Error(`Unknown job ${name}`);
@@ -195,7 +199,7 @@ export async function scheduled(event, env) {
   // Reconcile first, because a checkout it fulfills marks the site dirty. Publish is not in JOBS,
   // so the admin has no Run now for it: the admin's Publish now goes through the portal instead,
   // because only the portal holds the GitHub token.
-  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await record(env, 'publish', () => publishIfDue(env)), await runJob(env, 'campaigns')];
+  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await record(env, 'publish', () => publishIfDue(env)), await runJob(env, 'campaigns')];
   const out = [];
   for (const j of ['expiry', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
   return out;

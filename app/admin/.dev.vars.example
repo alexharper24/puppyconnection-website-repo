@@ -6,3 +6,6 @@ PAYMENTS_MODE=sim
 # Stands in for Cloudflare Access, and only on localhost. The address must be in the people
 # table, which the seed does for this one.
 DEV_IDENTITY=amber@puppyconnection.test
+
+# Workplan A3. Puppy videos through the stand-in Stream at /dev/stream (lib/stream.js).
+STREAM_MODE=sim

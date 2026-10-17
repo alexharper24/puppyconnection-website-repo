@@ -68,6 +68,14 @@
     if (lastFocus && lastFocus.focus && document.body.contains(lastFocus)) lastFocus.focus();
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+  // Workplan A3. Remove video, in the puppy editor.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-remove-video]');
+    if (!b || !confirm('Remove this video from the puppy?')) return;
+    b.disabled = true;
+    api('DELETE', '/api/videos/' + b.dataset.removeVideo).then(function () { b.parentNode.textContent = 'Video removed.'; toast('Video removed'); })
+      .catch(function (err) { b.disabled = false; toast(err.message); });
+  });
 
   var STATUS = {
     pending: '<span class="pill pill-warn">Pending</span>', approved: '<span class="pill pill-ok">Approved</span>',
@@ -211,7 +219,7 @@
   /* Plan P3.9. Everything that needs an operator, from /api/attention: approvals, payments to
      review, disputes, a failed publish or job, close requests, and public contact details
      that changed in the last week. */
-  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check' };
+  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check', campaigns: 'Mailing list sending', videos: 'Video check' };
   function attentionItems(a) {
     var li = function (text, href, btn, sub) {
       return '<li><span>' + text + (sub ? '<span class="att-sub">' + sub + '</span>' : '') + '</span><a class="btn btn-sm" href="' + href + '">' + btn + '</a></li>';
@@ -543,7 +551,19 @@
       field('availability', 'Status', p.availability, { select: [['available', 'Available'], ['pending', 'Pending'], ['placed', 'Placed']] }) +
       field('description', 'Description', p.description, { textarea: true }) +
       field('includes', 'Comes with', (p.includes || []).join('\n'), { textarea: true, rows: 80, hint: 'One item per line.' }) +
-      field('breeder_url', 'Link to this puppy on their site', p.breeder_url, { type: 'url' }),
+      field('breeder_url', 'Link to this puppy on their site', p.breeder_url, { type: 'url' }) +
+      // Workplan A3. The optional details, and the videos with a Remove button each.
+      '<div class="grid-2">' + field('registry', 'Registration', p.registry || '', { select: [['', 'Not set']].concat((data.registries || []).concat(p.registry && (data.registries || []).indexOf(p.registry) < 0 ? [p.registry] : []).map(function (r) { return [r, r]; })) }) +
+        field('markings', 'Markings', p.markings) + '</div>' +
+      field('health_notes', 'Health notes', p.health_notes, { textarea: true, rows: 70 }) +
+      field('vaccinations', 'Vaccinations', p.vaccinations, { textarea: true, rows: 70 }) +
+      field('deworming', 'Deworming', p.deworming, { textarea: true, rows: 70 }) +
+      field('disclosures', 'Disclosures', p.disclosures, { textarea: true, rows: 70 }) +
+      field('deposit_url', 'The breeder\'s deposit link', p.deposit_url, { type: 'url' }) +
+      ((p.videos || []).length ? '<div class="field"><label>Videos</label>' + p.videos.map(function (v) {
+        return '<div class="small" style="margin:.3rem 0">' + (v.iframe ? '<a href="' + esc(v.iframe) + '" target="_blank" rel="noopener">Watch</a>' : esc(v.status === 'error' ? 'Could not be processed' : 'Processing')) +
+          ' <button type="button" class="btn btn-sm" data-remove-video="' + esc(v.id) + '">Remove video</button></div>';
+      }).join('') + '</div>' : ''),
       function (body) {
         body.includes = String(body.includes || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
         return api('PUT', '/api/puppies/' + p.id, body);
@@ -844,6 +864,9 @@
     suspended_listings_visible: ['Keep a suspended breeder\'s listings on the site (1 yes, 0 no)', 'number'],
     min_photos: ['Photos a puppy needs before it can be paid for', 'number'],
     max_photos: ['Most photos a puppy can have', 'number'],
+    registries: ['Registries a breeder can choose for a puppy, separated by commas', 'text'],
+    max_videos: ['Most videos a puppy can have (0 turns video uploads off)', 'number'],
+    video_max_seconds: ['Longest video, in seconds', 'number'],
   };
   function settings() {
     Promise.all([refreshStats(), api('GET', '/api/settings')]).then(function (r) {

@@ -15,6 +15,7 @@ const TABLES = {
   puppy: 'puppies',
   photo: 'photos',
   checkout: 'checkouts',
+  video: 'puppy_videos',
 };
 
 export async function owned(env, kind, id, breederId) {
@@ -47,6 +48,8 @@ export function requireApproved(breeder) {
   throw forbidden(why);
 }
 
+export const DEFAULT_REGISTRIES = 'AKC, AKC Canine Partners, APRI, ACA, CKC, UKC';
+
 export async function settings(env) {
   const { results } = await env.DB.prepare('SELECT key, value FROM settings').all();
   const s = {};
@@ -62,6 +65,10 @@ export async function settings(env) {
     // Breeder links checked per daily run. The free Workers plan allows 50 outside requests a
     // run, shared with the day's emails, so 30 covers about 280 links in a little over a week.
     linkBatch: Math.max(1, Math.min(40, Number(s.link_batch || 30))),
+    // migrations/0016. The registries a breeder may pick, and the video limits per puppy.
+    registries: String(s.registries ?? DEFAULT_REGISTRIES).split(',').map((x) => x.trim()).filter(Boolean),
+    maxVideos: Math.max(0, Number(s.max_videos ?? 2)),
+    videoMaxSeconds: Math.max(10, Number(s.video_max_seconds || 120)),
   };
 }
 
@@ -262,19 +269,38 @@ export function litterFields(body) {
   };
 }
 
-export function puppyFields(body) {
+/**
+ * The columns a breeder or an operator edits on a puppy, in the order puppyFields() returns
+ * them. Both Workers build their INSERT and UPDATE from this list, so a new field is added once.
+ */
+export const PUPPY_EDIT_COLS = ['name', 'sex', 'color', 'coat', 'price_cents', 'deposit_cents', 'description', 'breeder_url',
+  'includes_json', 'availability', 'registry', 'markings', 'health_notes', 'vaccinations', 'deworming', 'disclosures', 'deposit_url'];
+export const puppySet = () => PUPPY_EDIT_COLS.map((c) => `${c} = ?`).join(', ');
+export const puppyValues = (f) => PUPPY_EDIT_COLS.map((c) => f[c] ?? null);
+
+const httpsLink = (v, what) => {
+  const url = clean(v, 400);
+  if (url && !/^https?:\/\//i.test(url)) throw bad(`${what} needs to start with https://`);
+  return url;
+};
+
+/** registries is the list from settings(); a registry outside it is refused when it is given. */
+export function puppyFields(body, registries) {
   const name = clean(body.name, 80);
   if (!name) throw bad('Give the puppy a name.');
   const sex = body.sex ? String(body.sex) : null;
   if (sex && !['male', 'female'].includes(sex)) throw bad('Sex is male or female.');
   const availability = body.availability ? String(body.availability) : 'available';
   if (!['available', 'pending', 'placed'].includes(availability)) throw bad('Status is available, pending or placed.');
-  const url = clean(body.breeder_url, 400);
-  if (url && !/^https?:\/\//i.test(url)) throw bad('The link to your site needs to start with https://');
+  const url = httpsLink(body.breeder_url, 'The link to your site');
+  const registry = clean(body.registry, 40);
+  if (registry && registries && !registries.includes(registry)) throw bad(`Registration is one of ${registries.join(', ')}.`);
   const includes = Array.isArray(body.includes) ? body.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 15) : [];
   return {
     name, sex, color: clean(body.color, 60), coat: clean(body.coat, 40), price_cents: cents(body.price), deposit_cents: cents(body.deposit),
     description: clean(body.description, 4000), breeder_url: url, includes_json: JSON.stringify(includes), availability,
+    registry, markings: clean(body.markings, 200), health_notes: clean(body.health_notes, 2000), vaccinations: clean(body.vaccinations, 1000),
+    deworming: clean(body.deworming, 1000), disclosures: clean(body.disclosures, 2000), deposit_url: httpsLink(body.deposit_url, 'The deposit link'),
   };
 }
 
@@ -287,6 +313,8 @@ export function puppyInput(p) {
     name: p.name, sex: p.sex, color: p.color, coat: p.coat, price: p.price_cents == null ? null : p.price_cents / 100,
     deposit: p.deposit_cents == null ? null : p.deposit_cents / 100, description: p.description, breeder_url: p.breeder_url,
     includes: JSON.parse(p.includes_json || '[]'), availability: p.availability,
+    registry: p.registry, markings: p.markings, health_notes: p.health_notes, vaccinations: p.vaccinations,
+    deworming: p.deworming, disclosures: p.disclosures, deposit_url: p.deposit_url,
   };
 }
 

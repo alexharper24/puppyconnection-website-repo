@@ -218,8 +218,8 @@ export const SECURITY_HEADERS = {
   'x-robots-tag': 'noindex, nofollow',
   'referrer-policy': 'same-origin',
   'content-security-policy':
-    "default-src 'self'; img-src 'self' data: https://static.wixstatic.com; " +
-    "script-src 'self' https://challenges.cloudflare.com; frame-src https://challenges.cloudflare.com; " +
+    "default-src 'self'; img-src 'self' data: https://static.wixstatic.com https://*.cloudflarestream.com; " +
+    "script-src 'self' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com https://*.cloudflarestream.com; " +
     "style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 
@@ -233,10 +233,12 @@ export const PORTAL_SECURITY_HEADERS = {
   ...SECURITY_HEADERS,
   'referrer-policy': 'strict-origin-when-cross-origin',
   'content-security-policy':
-    "default-src 'self'; img-src 'self' data: https://static.wixstatic.com https://lh3.googleusercontent.com; " +
+    "default-src 'self'; img-src 'self' data: https://static.wixstatic.com https://lh3.googleusercontent.com https://*.cloudflarestream.com; " +
     "script-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/client; " +
-    "frame-src https://challenges.cloudflare.com https://accounts.google.com/gsi/; " +
-    "connect-src 'self' https://accounts.google.com/gsi/; " +
+    // Puppy videos (lib/stream.js): the file goes straight to Stream's upload host, and the
+    // player is Stream's own page. 'self' frames the local stand-in player.
+    "frame-src 'self' https://challenges.cloudflare.com https://accounts.google.com/gsi/ https://*.cloudflarestream.com; " +
+    "connect-src 'self' https://accounts.google.com/gsi/ https://upload.videodelivery.net; " +
     "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style; frame-ancestors 'none'; base-uri 'none'; form-action 'self'",
 };
 

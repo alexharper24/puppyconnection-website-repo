@@ -494,11 +494,16 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const facts = [['Breed', p.b.name], ['Sex', p.sex ? p.sex[0].toUpperCase() + p.sex.slice(1) : null], ['Color', p.color], ['Coat type', p.coat],
       ['Born', longDate(p.l.born_on)], ['Ready to go home', longDate(p.l.ready_on)], ['Deposit', p.deposit ? money(p.deposit) : null],
       ['Mother', p.l.mom_weight_lb != null ? `${p.l.mom_weight_lb} lbs adult weight` : null], ['Father', p.l.dad_weight_lb != null ? `${p.l.dad_weight_lb} lbs adult weight` : null],
-      ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null]].filter((f) => f[1]);
+      ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null], ['Registration', p.registry], ['Markings', p.markings]].filter((f) => f[1]);
+    // Workplan A3. The health details the breeder wrote, each optional, in one block.
+    const health = [['Health', p.health], ['Vaccinations', p.vaccinations], ['Deworming', p.deworming], ['Breeder disclosures', p.disclosures]]
+      .filter((h) => h[1] && h[1].length);
+    const videos = (p.videos || []).filter((v) => v.iframe);
     // The buttons under the price (Alex, 2026-10-11): the puppy's own page on the breeder's site
     // when there is one, otherwise their listings page, and a jump to the contact details.
     const outLabel = ownPage(p) ? `See ${p.name} on the breeder's website` : "See the breeder's available puppies";
-    const outBtn = p.breeder_url && !p.placed ? `<a class="btn btn-primary puppy-out" href="${esc(p.breeder_url)}" target="_blank" rel="noopener">${esc(outLabel)}</a>` : '';
+    const outBtn = (p.breeder_url && !p.placed ? `<a class="btn btn-primary puppy-out" href="${esc(p.breeder_url)}" target="_blank" rel="noopener">${esc(outLabel)}</a>` : '')
+      + (p.deposit_url && !p.placed ? `<a class="btn btn-ghost puppy-out" href="${esc(p.deposit_url)}" target="_blank" rel="noopener">Place a deposit with the breeder</a>` : '');
     const contact = [
       b && b.website ? `<li><a href="${esc(b.website)}" target="_blank" rel="noopener"><b>Website</b> ${esc(host(b.website))}</a></li>` : '',
       b && b.phone ? `<li><a href="tel:${esc(tel(b.phone))}"><b>Call</b> ${esc(b.phone)}</a></li>` : '',
@@ -523,6 +528,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
       </div>` : ''}
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}
+      ${videos.length ? `<section class="about-block puppy-videos"><p class="eyebrow">${videos.length === 1 ? 'Video' : 'Videos'}</p>${videos.map((v, i) => `<div class="video-frame" style="position:relative;padding-top:56.25%;margin:0 0 .8rem"><iframe src="${esc(v.iframe)}${v.poster ? `?poster=${encodeURIComponent(v.poster)}` : ''}" title="Video ${i + 1} of ${esc(p.name)}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`).join('')}</section>` : ''}
+      ${health.length ? `<section class="about-block puppy-health"><p class="eyebrow">Health and care</p>${health.map((h) => `<h3>${esc(h[0])}</h3>${paras(h[1])}`).join('')}</section>` : ''}
     </div>
     <div class="d-detail">
       <dl class="facts">${facts.map((f) => `<div><dt>${esc(f[0])}</dt><dd>${esc(f[1])}</dd></div>`).join('')}</dl>

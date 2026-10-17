@@ -10,6 +10,6 @@ tasks:
   - {id: t7, task: "Add luke.blakeslee@gmail.com, the address Amber and Luke share, as an admin owner and on the Cloudflare Access policy", status: done, evidence: "Already in place: the Access policy Puppy Connection admin operators includes it, and the staging people table has it as owner named Luke Blakeslee. The real admin hostname gets the same policy in B5"}
   - {id: t8, task: "Real addresses confirmed: portal.puppy-connection.com and admin.puppy-connection.com (Alex, 2026-10-17)", status: done}
   - {id: t9, task: "Breed guide pages confirmed (Alex, 2026-10-17), to publish in the site session", status: done}
-  - {id: t10, task: "Listing review settled: breeder approval at sign-up and profile setup (built), the photo quality check guards photos, approved breeders add litters and puppies without approval, flagged photos go to the breeder to re-upload or to Amber. Update the workplan, plan data and Amber's documents", status: pending}
+  - {id: t10, task: "Listing review settled: breeder approval at sign-up and profile setup (built), the photo quality check guards photos, approved breeders add litters and puppies without approval, flagged photos go to the breeder to re-upload or to Amber. Update the workplan, plan data and Amber's documents", status: done, evidence: "plan.py, scope.py, the launch plan and the email updated in hs-proposals; workplan A1 rewritten"}
   - {id: t11, task: "Inactivity schedule built on the defaults", status: pending, note: "goes to the data build session"}
 ---

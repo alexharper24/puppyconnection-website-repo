@@ -37,6 +37,7 @@ import { publishSite, publishIfDue, publishNow } from '../lib/publish.js';
 import { exportSite } from '../lib/shape.js';
 import { dirtyStmt } from '../lib/store.js';
 import { build } from '../build/generate.mjs';
+import { INFO_PAGES } from '../build/info-pages.mjs';
 import { exportData } from './export-data.mjs';
 import { fetchData } from '../build/fetch-data.mjs';
 
@@ -265,7 +266,7 @@ async function part1() {
   }
   const g = build({ dataDir, out, guides: path.join(APP, 'dev/fixtures/guides') });
   const pupCount = JSON.parse(fs.readFileSync(path.join(dataDir, 'data/puppies.json'), 'utf8')).length;
-  check('the generator builds one page per puppy, breed and breeder, and two per state', g.puppies === pupCount && g.states >= 1 && g.pages === pupCount + g.breeds + g.breeders + 10 + 2 * g.states + g.guides + (g.guides ? 1 : 0), JSON.stringify(g));
+  check('the generator builds one page per puppy, breed and breeder, and two per state', g.puppies === pupCount && g.states >= 1 && g.pages === pupCount + g.breeds + g.breeders + 5 + INFO_PAGES.length + 2 * g.states + g.guides + (g.guides ? 1 : 0), JSON.stringify(g));
   const chk = siteChecks(out);
   check('the generated site passes check_site.py (breeder dash check off)', chk.ok, chk.out.split('\n').filter((l) => /ERROR|error\(s\)/.test(l)).slice(0, 6).join('\n'));
   const pup = fs.readFileSync(path.join(out, 'puppy-pepper-havanese-test.html'), 'utf8');

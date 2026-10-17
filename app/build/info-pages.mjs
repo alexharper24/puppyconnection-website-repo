@@ -7,7 +7,7 @@
 // experience Amber publishes), tips-on-buying-a-puppy.txt (carried over almost as written),
 // reviews.txt (the three reviews as published). the-puppy-connection-process.txt described
 // visits, deposits and delivery arranged by Puppy Connection, so How it works is written new
-// from how the directory works. transportation.txt is left for Amber to decide on.
+// from how the directory works. Transportation is written new around Furry Freight (launch item A7).
 
 const replace = (what) => `<span class="replace-this">REPLACE THIS: ${what}</span>`;
 
@@ -20,7 +20,7 @@ export const INFO_PAGES = [
 <p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
 <div class="prose">
-<p>Puppy Connection started in northern Indiana with more than 20 years of experience in showing, breeding, grooming, photographing and studying dogs, including teaching courses in grooming, breeding, conformation and genetics.</p>
+<p>Puppy Connection started in northern Indiana, built on many years of experience in showing, breeding, grooming, photographing and studying dogs, including teaching courses in grooming, breeding, conformation and genetics.</p>
 <p>Today it is a directory. Small family breeders list their own puppies here, each with photos, a price, birth and go-home dates and what comes home with the puppy, and families contact the breeder directly. Every breeder is approved by Puppy Connection before their first puppy goes up.</p>
 <p>${replace('a few sentences from Amber on why she started Puppy Connection and what she looks for in a breeder.')}</p>
 <h2>What we ask of the breeders who list here</h2>
@@ -90,6 +90,37 @@ export const INFO_PAGES = [
 <p>Puppies thrive on predictability, so set a schedule for feeding, potty breaks, play and training. Decide as a family what the rules are, such as whether the puppy is allowed on the furniture, because consistency avoids confusion. A crate or a set space keeps your puppy safe when you can't watch closely, and it should be a happy place to rest.</p>
 </div>
 <aside><div class="breeder-box"><p class="eyebrow">Ready to look?</p><p class="breeder-note">Every puppy here is listed by the breeder who raised it.</p><div class="btn-row"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div></div></aside>
+</div></section>`,
+  },
+  {
+    // Launch item A7 (Alex, 2026-10-17): Furry Freight, the pet transportation company in
+    // Pierceton, Indiana. Families book and pay Furry Freight directly. Old /transportation 301s here.
+    file: 'transportation.html', name: 'Transportation',
+    title: 'Puppy Transportation and Delivery | Puppy Connection',
+    desc: 'Too far to pick up your puppy? Furry Freight, a pet transportation company in Pierceton, Indiana, delivers by road and air. Book with them directly.',
+    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
+<p class="lede">Most families pick their puppy up from the breeder. When the breeder is too far away, a pet transportation company can bring the puppy to you.</p></div></section>
+<section class="band" style="padding-top:0" id="delivery"><div class="wrap">
+<div class="partner">
+<img class="partner-logo" src="img/brand/furry-freight-logo.png" alt="Furry Freight Pet Transportation" width="420" height="331" loading="lazy" decoding="async">
+<div class="partner-copy">
+<h2>Delivery with Furry Freight</h2>
+<p>Furry Freight is a pet transportation company in Pierceton, Indiana. They run regular ground routes to the East Coast, the West Coast and the South, and when the timing calls for it they can fly a puppy with a chaperone or meet you at an airport.</p>
+<p>You book and pay for delivery with Furry Freight directly, not through Puppy Connection. Ask them for a quote before you put down a deposit, so the whole cost is in front of you when you decide.</p>
+<div class="btn-row"><a class="btn btn-primary" href="https://www.furryfreightdelivery.com/schedule-a-delivery" target="_blank" rel="noopener">Get a delivery quote</a><a class="btn btn-ghost" href="tel:+12605855209">(260) 585-5209</a></div>
+<p class="fine">Or email <a href="mailto:furryfreightpetdelivery@gmail.com">furryfreightpetdelivery@gmail.com</a>.</p>
+</div>
+</div>
+</div></section>
+<section class="band band-warm"><div class="wrap split">
+<div><p class="eyebrow">Before you ask for a quote</p><h2>What to have ready</h2>
+<ul class="includes" style="columns:1">
+<li>The go-home date you have agreed with the breeder</li>
+<li>The breeder's town, which you will find on the puppy's page</li>
+<li>Your own town, or the airport you would rather meet at</li>
+</ul>
+<p>Pickup and delivery are agreed between you, the breeder and Furry Freight, so check the date with the breeder before you book.</p></div>
+<div style="align-self:center"><div class="btn-row"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div></div>
 </div></section>`,
   },
   {

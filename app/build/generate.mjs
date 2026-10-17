@@ -528,6 +528,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         ${b ? `<p style="margin:.9rem 0 0"><a href="${pageFor.breeder(b.slug)}">See all puppies from ${esc(b.name)}</a></p>` : ''}
       </div>
       <p class="disclaimer">Puppy Connection does not sell puppies, take deposits, or handle payment. Health records, guarantees and delivery are agreed directly between you and the breeder.</p>
+      ${p.placed ? '' : '<p class="not-local">Not local? <a href="transportation.html">Furry Freight can deliver your puppy</a>, booked and paid with them directly.</p>'}
       ${guidesFor(p.b.slug).length ? `<section class="guide-panel" aria-label="${esc(p.b.name)} guides"><p class="eyebrow">About the ${esc(p.b.name)}</p>${guideList(p.b.slug)}</section>` : ''}
     </div>
   </div>

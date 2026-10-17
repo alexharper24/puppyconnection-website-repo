@@ -195,6 +195,7 @@ node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy,
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
 node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: puppy details and video (A3), then each launch item as it lands
+node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
 
 `publish-test.mjs` starts its own stand-in GitHub and a second admin on 8794 with `PUBLISH_MODE`

@@ -314,6 +314,11 @@ p{margin:0 0 1rem;max-width:70ch}
    exactly, so only a portrait letterboxes, and on the page where you are
    deciding on a puppy a whole dog beats a full-bleed crop. */
 .gallery-main img{width:100%;height:100%;object-fit:contain}
+/* G8: the photos are stacked and crossfade, as on Bless Your Paws. Only .is-on shows. */
+.gallery-main{position:relative}
+.gallery-main img{position:absolute;inset:0;opacity:0;transition:opacity .7s ease-in-out}
+.gallery-main img.is-on{opacity:1;z-index:1}
+@media (prefers-reduced-motion:reduce){.gallery-main img{transition:none}}
 /* One row that scrolls, rather than a second row that competes with the main
    photo for height. The arrows only appear when there is somewhere to go. */
 .thumb-strip{position:relative;margin-top:.5rem}
@@ -343,7 +348,8 @@ p{margin:0 0 1rem;max-width:70ch}
 /* the right column stacks several blocks; give them room to read as separate */
 #detail .d-media > section{margin-top:2.2rem}
 #detail .breeder-box{margin-top:2.2rem}
-#detail .d-detail > .disclaimer{margin-top:1rem}
+#detail .d-notes > .disclaimer{margin-top:0}
+#detail .d-notes > .guide-panel{margin-top:1.4rem}
 #detail > section:first-of-type{padding-bottom:clamp(2.6rem,6vw,4.6rem)}
 .facts div{padding:.75rem .9rem;border-right:var(--rule);border-bottom:var(--rule)}
 .facts dt{font-family:var(--cond);font-size:.8rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted)}
@@ -510,10 +516,11 @@ p{margin:0 0 1rem;max-width:70ch}
 .detail-grid{
   display:grid;
   grid-template-columns:1.15fr 1fr;
-  grid-template-areas:"media title" "media detail";
-  /* the media column spans both rows. Row 2 has to be flexible, or the
-     gallery's surplus height is shared out and opens a gap under the price. */
-  grid-template-rows:min-content 1fr;
+  /* G6: the notes (disclaimer, delivery line, breed guides) sit under the photo column, so the
+     two columns end near the same line. The last row is the flexible one, so the photo column's
+     height is never shared out and no gap opens under the price. */
+  grid-template-areas:"media title" "media detail" "notes detail";
+  grid-template-rows:min-content auto 1fr;
   gap:0 clamp(1.5rem,4vw,3.4rem);
   align-items:start;
 }
@@ -521,10 +528,13 @@ p{margin:0 0 1rem;max-width:70ch}
 .d-title{grid-area:title}
 .d-media{grid-area:media}
 .d-detail{grid-area:detail;margin-top:1.4rem}
+.d-notes{grid-area:notes;margin-top:2.2rem}
+/* set by js/pages.js when the photo column is the longer one */
+.detail-grid.notes-right{grid-template-areas:"media title" "media detail" "media notes"}
 @media(max-width:940px){
   /* On a phone the name and price should be the first thing read, not the
      photo, so the title moves above the gallery. */
-  .detail-grid{grid-template-columns:1fr;grid-template-areas:"title" "media" "detail"}
+  .detail-grid{grid-template-columns:1fr;grid-template-areas:"title" "media" "detail" "notes";grid-template-rows:auto}
   .d-media{margin-top:1.2rem}
   .d-detail{margin-top:1.8rem}
 }
@@ -630,10 +640,25 @@ aside .guide-panel{margin-top:1rem}
    Tidied 2026-10-12, the buying card on its own class; highlights plain on the page ground since G4
    (.price-card belongs to the list-with-us pricing and centers its text at 420px). */
 .breed-intro{font-size:1.15rem;line-height:1.6;max-width:62ch;margin:0 0 1.5rem}
-.highlights{list-style:none;margin:0 0 2rem;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1.5rem 2.25rem}
-.highlights li{line-height:1.55;font-size:.97rem}
+.highlights{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
+/* A thin even border in the line color, like the puppy facts grid (G7) */
+.highlights li{border:var(--rule);padding:.9rem 1rem 1rem;line-height:1.55;font-size:.97rem}
 .highlights b{display:block;font-family:var(--serif);font-size:1.12rem;font-weight:600;margin-bottom:.3rem}
 @media (max-width:640px){.highlights{grid-template-columns:1fr}}
+.breed-top{display:grid;grid-template-columns:1.15fr 1fr;gap:1.6rem clamp(1.5rem,4vw,3.4rem);
+  grid-template-areas:"text photo" "buy photo" "guides guides";align-items:start}
+/* G6: the buy card sits under the highlights and the photo fills the height of both, so the two
+   columns end on one line; the guides run full width underneath. */
+.breed-top > *{min-width:0}
+.bt-text{grid-area:text}
+.bt-photo{grid-area:photo;margin:0;align-self:stretch;display:flex;flex-direction:column}
+.bt-photo img{flex:1 1 auto;height:0;min-height:clamp(240px,24vw,400px);aspect-ratio:auto}
+.bt-guides{grid-area:guides;margin-top:.6rem}
+.bt-buy{grid-area:buy}
+@media(max-width:940px){
+  .breed-top{grid-template-columns:1fr;grid-template-areas:"text" "photo" "buy" "guides"}
+  .bt-photo{display:none}
+}
 .breed-buy{border:2px solid var(--ink);background:var(--paper);padding:1.3rem 1.4rem 1.4rem}
 .breed-buy .eyebrow{margin-bottom:.4rem}
 .bb-row{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap;padding-bottom:.7rem;border-bottom:1px solid var(--line)}

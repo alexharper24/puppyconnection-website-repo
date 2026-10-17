@@ -161,30 +161,91 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     if (box) box.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('.contact-list a, .puppy-out')) beacon('click', slug); });
   }
   var gal = document.querySelector('#dGallery');
-  var main = document.querySelector('#dMain img');
-  if (gal && main) {
-    gal.addEventListener('click', function (e) {
-      var btn = e.target.closest('button');
-      if (!btn) return;
-      gal.querySelectorAll('button').forEach(function (x) { x.removeAttribute('aria-current'); });
-      btn.setAttribute('aria-current', 'true');
-      main.src = btn.getAttribute('data-full');
-    });
+  var frame = document.querySelector('#dMain');
+  if (gal && frame) {
+    // Workplan G8, as on Bless Your Paws: the photos are stacked in the frame and crossfade every
+    // 4 seconds. It pauses on hover and focus, while the tab is hidden and while the gallery is
+    // off screen, and never runs for anyone who asked for reduced motion. A thumbnail or an arrow
+    // restarts the wait.
+    var slides = [].slice.call(frame.querySelectorAll('img'));
+    var thumbs = [].slice.call(gal.querySelectorAll('button'));
     var prev = document.querySelector('.thumb-nav.prev');
     var next = document.querySelector('.thumb-nav.next');
+    var strip = document.querySelector('.thumb-strip');
+    var i = 0;
+    var load = function (k) { var im = slides[k]; if (im && !im.getAttribute('src') && im.getAttribute('data-src')) im.setAttribute('src', im.getAttribute('data-src')); };
+    var arrows = function () {
+      if (!prev || !next) return;
+      var over = gal.scrollWidth - gal.clientWidth;
+      prev.hidden = over < 8 || gal.scrollLeft < 8;
+      next.hidden = over < 8 || gal.scrollLeft > over - 8;
+    };
+    var show = function (n) {
+      i = (n + slides.length) % slides.length;
+      load(i); load((i + 1) % slides.length);
+      slides.forEach(function (im, k) { im.classList.toggle('is-on', k === i); im.setAttribute('aria-hidden', k === i ? 'false' : 'true'); });
+      thumbs.forEach(function (t, k) { if (k === i) t.setAttribute('aria-current', 'true'); else t.removeAttribute('aria-current'); });
+      // Keep the active thumbnail in view with scrollLeft, since scrollIntoView also moves the page.
+      var act = thumbs[i];
+      if (act) {
+        var ar = act.getBoundingClientRect(), sr = gal.getBoundingClientRect();
+        if (ar.left < sr.left) gal.scrollLeft -= (sr.left - ar.left) + 8;
+        else if (ar.right > sr.right) gal.scrollLeft += (ar.right - sr.right) + 8;
+      }
+      arrows();
+    };
+    var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var timer = null, paused = false, inView = true;
+    var stop = function () { if (timer) { clearInterval(timer); timer = null; } };
+    var canPlay = function () { return slides.length > 1 && !reduce.matches && !paused && inView && !document.hidden; };
+    var start = function () { if (!timer && canPlay()) timer = setInterval(function () { show(i + 1); }, 4000); };
+    var sync = function () { if (canPlay()) start(); else stop(); };
+    var restart = function () { stop(); start(); };
+    thumbs.forEach(function (t, k) { t.addEventListener('click', function () { show(k); restart(); }); });
+    var go = function (dir) { gal.scrollLeft += dir * Math.max(gal.clientWidth - 84, 84); arrows(); restart(); };
     if (prev && next) {
-      var sync = function () {
-        var over = gal.scrollWidth - gal.clientWidth;
-        prev.hidden = over < 8 || gal.scrollLeft < 8;
-        next.hidden = over < 8 || gal.scrollLeft > over - 8;
-      };
-      var go = function (dir) { gal.scrollLeft += dir * Math.max(gal.clientWidth - 84, 84); sync(); };
       prev.addEventListener('click', function () { go(-1); });
       next.addEventListener('click', function () { go(1); });
-      gal.addEventListener('scroll', sync);
-      addEventListener('resize', sync);
-      sync();
     }
+    gal.addEventListener('scroll', arrows);
+    addEventListener('resize', arrows);
+    [frame, strip].forEach(function (el) {
+      if (!el) return;
+      el.addEventListener('mouseenter', function () { paused = true; sync(); });
+      el.addEventListener('mouseleave', function () { paused = false; sync(); });
+      el.addEventListener('focusin', function () { paused = true; sync(); });
+      el.addEventListener('focusout', function () { paused = false; sync(); });
+    });
+    document.addEventListener('visibilitychange', sync);
+    if (reduce.addEventListener) reduce.addEventListener('change', sync);
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) { inView = entries[0].isIntersecting; sync(); }, { threshold: 0.25 }).observe(frame);
+    }
+    load(1);
+    arrows();
+    start();
+  }
+  // Workplan G6: on a wide screen the notes (disclaimer, delivery line, breed guides) go under
+  // whichever column leaves the two ends closest, since a long description makes the photo
+  // column the long one. They sit under the photo without script, and on a phone they come last.
+  var grid = document.querySelector('.detail-grid');
+  var notes = document.querySelector('.d-notes');
+  var mediaCol = document.querySelector('.d-media');
+  var detailCol = document.querySelector('.d-detail');
+  if (grid && notes && mediaCol && detailCol) {
+    var wide = window.matchMedia('(min-width: 941px)');
+    var balance = function () {
+      grid.classList.remove('notes-right');
+      if (!wide.matches) return;
+      var gap = parseFloat(getComputedStyle(notes).marginTop) || 0;
+      var nh = notes.getBoundingClientRect().height + gap;
+      var m = mediaCol.getBoundingClientRect().bottom, d = detailCol.getBoundingClientRect().bottom;
+      if (Math.abs(m - (d + nh)) < Math.abs(m + nh - d)) grid.classList.add('notes-right');
+    };
+    var t = null;
+    addEventListener('resize', function () { clearTimeout(t); t = setTimeout(balance, 150); });
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(balance);
+    balance();
   }
 })();
 `;
@@ -507,7 +568,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       ${p.placed ? '<p class="meta">Adopted. This puppy has gone home and stays here so its litter can be seen.</p>' : p.availability === 'pending' ? '<p class="meta">Pending. Ask the breeder whether this puppy is still open.</p>' : ''}
     </div>
     <div class="d-media">
-      <div class="gallery-main" id="dMain">${lead ? `<img src="${esc(fit(lead, 1200, 800))}" alt="${esc(p.name)}, ${esc(p.b.name)} puppy" decoding="async">` : ''}</div>
+      <div class="gallery-main" id="dMain">${p.photos.map((ph, i) => i === 0
+        ? `<img class="is-on" src="${esc(fit(ph, 1200, 800))}" alt="${esc(p.name)}, ${esc(p.b.name)} puppy${p.photos.length > 1 ? `, photo 1 of ${p.photos.length}` : ''}" decoding="async">`
+        : `<img data-src="${esc(fit(ph, 1200, 800))}" alt="${esc(p.name)}, ${esc(p.b.name)} puppy, photo ${i + 1} of ${p.photos.length}" decoding="async" aria-hidden="true">`).join('')}</div>
       ${p.photos.length > 1 ? `<div class="thumb-strip">
         <button class="thumb-nav prev" type="button" aria-label="Earlier photos" hidden>&#8249;</button>
         <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img src="${esc(fill(ph, 160, 160))}" alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
@@ -528,6 +591,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         ${b ? `<p style="margin:.9rem 0 0"><a href="${pageFor.breeder(b.slug)}">See all puppies from ${esc(b.name)}</a></p>` : ''}
         ${b ? `<p class="small" style="margin:.6rem 0 0"><a href="${esc(`${portal}/report?puppy=${encodeURIComponent(p.slug)}`)}" rel="nofollow">Report this listing</a></p>` : ''}
       </div>
+    </div>
+    <div class="d-notes">
       <p class="disclaimer">Puppy Connection does not sell puppies, take deposits, or handle payment. Health records, guarantees and delivery are agreed directly between you and the breeder.</p>
       ${p.placed ? '' : '<p class="not-local">Not local? <a href="transportation.html">Furry Freight can deliver your puppy</a>, booked and paid with them directly.</p>'}
       ${guidesFor(p.b.slug).length ? `<section class="guide-panel" aria-label="${esc(p.b.name)} guides"><p class="eyebrow">About the ${esc(p.b.name)}</p>${guideList(p.b.slug)}</section>` : ''}
@@ -599,22 +664,20 @@ ${mates.length ? `<section class="band band-warm">
   </div>
 </section>
 ${hl ? `<section class="band" style="padding-top:0">
-  <div class="wrap split">
-    <div class="guide">
+  <div class="wrap breed-top${guidesFor(b.slug).length ? ' has-guides' : ''}">
+    <div class="guide bt-text">
       <p class="breed-intro">${esc(hl.intro)}</p>
       <ul class="highlights">${hl.points.map((x) => `<li><b>${esc(x.lead)}</b> ${esc(x.text)}</li>`).join('')}</ul>
-      ${guidesFor(b.slug).length ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
       ${byLine}${seeAlso}
     </div>
-    <aside>
-      ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
-      <div class="breed-buy">
-        <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
-        <div class="bb-row"><span class="bb-count">${open.length ? `${open.length} ${open.length === 1 ? 'puppy' : 'puppies'}` : 'None listed today'}</span>${priceSpan(shown) ? `<span class="bb-price">${priceSpan(shown)}</span>` : ''}</div>
-        <p class="bb-note">${priceSpan(shown) ? 'Each breeder sets their own price. ' : ''}You contact the breeder directly, and Puppy Connection does not take payment.</p>
-        <a class="btn btn-primary bb-btn" href="#available">See the puppies</a>
-      </div>
-    </aside>
+    ${lead ? `<figure class="breed-photo bt-photo"><img src="${esc(fill(lead, 720, 900))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+    ${guidesFor(b.slug).length ? `<section class="guide-panel bt-guides" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
+    <div class="breed-buy bt-buy">
+      <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
+      <div class="bb-row"><span class="bb-count">${open.length ? `${open.length} ${open.length === 1 ? 'puppy' : 'puppies'}` : 'None listed today'}</span>${priceSpan(shown) ? `<span class="bb-price">${priceSpan(shown)}</span>` : ''}</div>
+      <p class="bb-note">${priceSpan(shown) ? 'Each breeder sets their own price. ' : ''}You contact the breeder directly, and Puppy Connection does not take payment.</p>
+      <a class="btn btn-primary bb-btn" href="#available">See the puppies</a>
+    </div>
   </div>
 </section>` : `<section class="band" style="padding-top:0">
   <div class="wrap split">

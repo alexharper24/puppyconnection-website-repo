@@ -57,7 +57,7 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
 | https://portal.puppyconnection.workers.dev/privacy | The privacy policy, a draft for Amber's review |
 | https://portal.puppyconnection.workers.dev/terms | The listing terms, a placeholder until Amber writes them |
 | https://admin.puppyconnection.workers.dev | Amber's operator screens |
-| https://site.puppyconnection.workers.dev | The public site, built live from the database on every page load until Workers Builds is connected to the site repository (below) |
+| https://site.puppyconnection.workers.dev | The public site, the generated pages built by Workers Builds from the site repository on each publish (below) |
 
 - **Staging looks like production** (plan P7.3). The portal and the admin run as
   `DEV_MODE=staging`, which shows no "test version" or "test copy" notices, keeps every page
@@ -225,10 +225,10 @@ the routes it guards, so the suite is known to catch the failure it exists for.
 |---|---|---|
 | Sign-in links, sessions, approval, ownership, photos, holds, fulfillment, the views | Real, and the production code path | Nothing to change |
 | Email | `EMAIL_MODE=log` writes to the local mailbox | Set `EMAIL_MODE=resend`, the `RESEND_API_KEY` secret and `EMAIL_FROM`, after the domain's SPF and DKIM records are in |
-| Payments | `PAYMENTS_MODE=sim` uses a practice checkout page served by the portal | Set `PAYMENTS_MODE=stripe`, `STRIPE_MODE`, `STRIPE_API_VERSION`, `STRIPE_PRICE_ID`, and the `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` secrets. The Stripe provider in `lib/payments.js` is written to the spec but has not run against Stripe, so its first test-mode run is milestone M5 |
+| Payments | `PAYMENTS_MODE=sim` uses a practice checkout page served by the portal | Set `PAYMENTS_MODE=stripe`, `STRIPE_MODE`, `STRIPE_API_VERSION`, `STRIPE_PRICE_ID`, and the `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` secrets. Staging runs `PAYMENTS_MODE=stripe` in test mode with sandbox keys, tested end to end by Alex on 2026-10-17. Live mode waits on Amber's Stripe account |
 | Bot check on sign-up | Skipped on localhost when no key is set | Set `TURNSTILE_SITE_KEY` and the `TURNSTILE_SECRET` secret |
-| Operator sign-in | `DEV_IDENTITY`, on localhost only | Create the Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Until then a deployed admin answers 403 everywhere, which is the safe state |
-| Publishing | Built and tested against a stand-in deploy hook and a stand-in GitHub (plan P4.3, P4.4). The staging portal and admin run `PUBLISH_MODE` hook with no `PUBLISH_HOOK_URL`, so a publish only says it is not set up, and the staging site keeps reading the database live | Workers Builds connected to the site repository, the deploy hook made and set as `PUBLISH_HOOK_URL` (launch checklist L16) |
+| Operator sign-in and roles | `DEV_IDENTITY`, on localhost only. Each operator in `people` is an owner or staff. Staff manage listings, photos, holds, notes and publishing, and only owners handle approvals, money, settings, breeds, terms, the mailing list and people (`STAFF_ALLOWED` in `admin/worker.js`) | Create the Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Until then a deployed admin answers 403 everywhere, which is the safe state |
+| Publishing | Real on staging since 2026-10-06. The staging portal and admin run `PUBLISH_MODE` hook with `PUBLISH_HOOK_URL` set, so a publish starts a Workers Builds build of the site repository and the staging site serves the generated pages | The same hook on the production site Worker (launch checklist L16) |
 | Scheduled jobs | Built (plan P4.2), with the publish on the */15 trigger since P4.4 | Nothing, beyond real email for their alerts |
 
 The local settings live in `app/portal/.dev.vars` and `app/admin/.dev.vars`, which are
@@ -307,6 +307,9 @@ settings, terms and operators are not touched. The audit log and email log are k
   `/kennel` by the portal and the site, to anyone only while the breeder is public, and before
   that only to the breeder and to operators. Each address carries `?v=` from the file name, so
   a replaced logo is fetched fresh.
+- A kennel can have up to five people (`breeder_members`, migration 0010). Each signs in with
+  their own address by code, link or Google and has the same access as the first person.
+  Removing someone ends only their sessions, and an address belongs to one kennel only.
 - Asking to close an account (plan P2.7) records a request in `account_requests` and tells the
   operators. Nothing is deleted, and the admin marks the request handled after following up.
 - `listing_days` 0 hides every end date and renewal in the portal (plan P2.1, D8). Setting it
@@ -373,16 +376,12 @@ settings, terms and operators are not touched. The audit log and email log are k
       Puppy Connection contact email address, which replaces the REPLACE THIS in it twice.
       She also decides how long the activity record and payment records are kept after an
       account closes
-- [ ] Publishing for real (launch checklist L16): Workers Builds connected to the `site` Worker
-      from the site repository, its deploy hook made, and the hook address set as the portal's
-      `PUBLISH_HOOK_URL` secret. Then the staging site becomes the generated pages
+- [ ] Publishing on the production site Worker (launch checklist L16). Staging has published
+      through the deploy hook since 2026-10-06
 - [ ] The imported Wix photos copied into R2 with `wix-import.mjs --upload-to` before the
       imported rows reach D1 (launch checklist L17), once Amber's pairing arrives
 - [ ] Stripe, Resend, Turnstile and Access, each per the table above
 - [ ] Amber's own breed list, and the real listing-to-breeder pairing for the migration
-- [ ] The kennel photo, breeds and Facebook page show on the generated breeder pages (plan
-      P4.3). The staging site still renders the concept pages live, where only the logo shows,
-      until publishing is switched on
 - [ ] Questions for Amber from the operator screens (plan P3): whether a dispute should take a
       listing down while it is open (today it is recorded and shown, and the listing stays up),
       whether a breeder who has not accepted new listing terms may still pay to list (today they

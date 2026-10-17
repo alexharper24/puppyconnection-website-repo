@@ -13,6 +13,7 @@ import {
 } from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
 import { videoUrls, removeVideo } from '../lib/stream.js';
+import { listReports, closeReport } from '../lib/reports.js';
 import { identify } from './identity.js';
 import { buildExport } from '../lib/export.js';
 import { runJob, JOBS } from '../lib/jobs.js';
@@ -54,6 +55,7 @@ async function stats(req, env) {
   const site = await env.DB.prepare('SELECT * FROM site_state WHERE id = 1').first();
   return json({
     queue: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'pending' AND profile_submitted_at IS NOT NULL"),
+    open_reports: await one("SELECT COUNT(*) AS n FROM listing_reports WHERE status = 'open'"),
     signing_up: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'pending' AND profile_submitted_at IS NULL"),
     approved: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'approved'"),
     suspended: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'suspended'"),
@@ -737,6 +739,7 @@ async function attention(req, env) {
   return json({
     queue: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'pending' AND profile_submitted_at IS NOT NULL"),
     needs_review: await one("SELECT COUNT(*) AS n FROM checkouts WHERE status = 'needs_review'"),
+    open_reports: await one("SELECT COUNT(*) AS n FROM listing_reports WHERE status = 'open'"),
     open_disputes: await one('SELECT COUNT(*) AS n FROM disputes WHERE closed_at IS NULL'),
     publish_error: site.last_error ? { error: site.last_error, at: site.last_error_at } : null,
     failed_jobs: failedJobs,
@@ -1087,6 +1090,19 @@ async function adminDeletePhoto(req, env, ctx, id, who) {
   return json({ ok: true });
 }
 
+// ------------------------------------------------------------------ reported listings (workplan A5)
+
+async function listingReports(req, env) {
+  return json(await listReports(env, new URL(req.url).searchParams.get('status')));
+}
+
+async function closeListingReport(req, env, ctx, id, who, outcome) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  if (!(await closeReport(env, id, outcome, body.note, who))) throw bad('That report is already closed.');
+  return json({ ok: true });
+}
+
 async function adminDeleteVideo(req, env, ctx, id, who) {
   requireSameOrigin(req);
   const v = await env.DB.prepare('SELECT * FROM puppy_videos WHERE id = ?').bind(id).first();
@@ -1133,10 +1149,15 @@ const STAFF_ALLOWED = [
   ['POST', /^\/api\/photos\/[\w-]+\/card$/],
   ['DELETE', /^\/api\/photos\/[\w-]+$/],
   ['DELETE', /^\/api\/videos\/[\w-]+$/],
+  // Workplan A5. Staff read and close reports. Suspending the breeder stays with the owners.
+  ['GET', /^\/api\/listing-reports$/],
+  ['POST', /^\/api\/listing-reports\/[\w-]+\/(handled|dismissed)$/],
 ];
 const staffMay = (method, pathname) => STAFF_ALLOWED.some(([m, rx]) => m === method && rx.test(pathname));
 
 const ROUTES = [
+  ['GET', /^\/api\/listing-reports$/, listingReports],
+  ['POST', /^\/api\/listing-reports\/([\w-]+)\/(handled|dismissed)$/, closeListingReport],
   ['DELETE', /^\/api\/videos\/([\w-]+)$/, adminDeleteVideo],
   ['GET', /^\/api\/campaigns$/, listCampaigns],
   ['POST', /^\/api\/campaigns$/, createCampaign],
@@ -1224,7 +1245,7 @@ export default {
       for (const [method, rx, fn] of ROUTES) {
         const m = url.pathname.match(rx);
         if (!m || request.method !== method) continue;
-        const res = fn ? await fn(request, env, ctx, m[1], who) : await decide(request, env, ctx, m[1], who, m[2]);
+        const res = fn ? await fn(request, env, ctx, m[1], who, m[2]) : await decide(request, env, ctx, m[1], who, m[2]);
         return withHeaders(res, SECURITY_HEADERS);
       }
       if (url.pathname.startsWith('/api/')) throw notFound();

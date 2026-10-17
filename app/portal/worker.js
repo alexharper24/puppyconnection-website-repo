@@ -26,6 +26,7 @@ import {
   provider, sim, createCheckout, releaseCheckout, fulfillCheckout, handleEvent, verifyStripe, payability,
 } from '../lib/payments.js';
 import { cleanImage } from '../lib/images.js';
+import { reportTarget, reportForm, saveReport } from '../lib/reports.js';
 import {
   streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
 } from '../lib/stream.js';
@@ -83,7 +84,7 @@ async function startSession(request, env, breederId, email = null) {
 
 // ------------------------------------------------------------------ sign-in links (spec 6.1, 6.2)
 
-async function verifyTurnstile(request, env, token) {
+async function verifyTurnstile(request, env, token, action = 'auth') {
   if (!env.TURNSTILE_SECRET) {
     if (isLocal(request, env)) return;   // local simulation without a widget
     throw new HttpError(503, 'Sign-up is not set up yet.');
@@ -96,7 +97,7 @@ async function verifyTurnstile(request, env, token) {
   const res = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', { method: 'POST', body });
   const out = await res.json().catch(() => ({}));
   const hostOk = !env.TURNSTILE_HOSTNAME || out.hostname === env.TURNSTILE_HOSTNAME;
-  if (!out.success || !hostOk || (out.action && out.action !== 'auth')) {
+  if (!out.success || !hostOk || (out.action && out.action !== action)) {
     throw bad('The security check did not pass. Please try again.');
   }
 }
@@ -1306,6 +1307,39 @@ async function subscribe(request, env) {
   return done("You're on the list", 'Thanks for signing up. We will email you about new puppies and news from Puppy Connection, and every email has a link to unsubscribe.');
 }
 
+// ------------------------------------------------------------------ report a listing (workplan A5)
+
+async function reportPage(request, env) {
+  const q = new URL(request.url).searchParams;
+  const target = await reportTarget(env, { puppy: q.get('puppy'), breeder: q.get('breeder') });
+  if (!target) return html(page('Report a listing', '<h1>That listing is not on the site</h1><p>It may have been taken down already. Thank you for looking out for families.</p>'), 404);
+  return html(page('Report a listing', reportForm(target, { siteKey: env.TURNSTILE_SITE_KEY })));
+}
+
+async function reportSubmit(request, env, ctx) {
+  requireSameOrigin(request);
+  const form = await request.formData();
+  const target = await reportTarget(env, { puppy: form.get('puppy'), breeder: form.get('breeder') });
+  if (!target) return html(page('Report a listing', '<h1>That listing is not on the site</h1><p>It may have been taken down already.</p>'), 404);
+  const back = siteOrigin(env) ? `${siteOrigin(env)}/` : '/';
+  const thanks = () => html(page('Thank you', `<h1>Thank you, your report is in</h1><p>Puppy Connection reads every report and follows up with the breeder where it is needed.</p><p><a class="btn btn-primary" href="${esc(back)}">Back to Puppy Connection</a></p>`));
+  // A filled honeypot gets the same thanks and stores nothing.
+  if (String(form.get('website') || '')) return thanks();
+  if (env.AUTH_LIMITER) {
+    const { success } = await env.AUTH_LIMITER.limit({ key: `report:${request.headers.get('cf-connecting-ip') || 'local'}` });
+    if (!success) return html(page('Please try again in a minute', '<h1>Please try again in a minute</h1><p>Too many reports came from here just now.</p>'), 429);
+  }
+  const values = { reason: String(form.get('reason') || ''), details: String(form.get('details') || ''), email: String(form.get('email') || '') };
+  try {
+    await verifyTurnstile(request, env, form.get('cf-turnstile-response'), 'report');
+  } catch (e) {
+    return html(page('Report a listing', reportForm(target, { siteKey: env.TURNSTILE_SITE_KEY, error: e.message, values })), 400);
+  }
+  const r = await saveReport(env, ctx, target, form);
+  if (r.error) return html(page('Report a listing', reportForm(target, { siteKey: env.TURNSTILE_SITE_KEY, error: r.error, values })), 400);
+  return thanks();
+}
+
 /** GET changes nothing, because mail scanners open links first. The button posts. */
 function unsubscribePage(request) {
   const t = new URL(request.url).searchParams.get('t') || '';
@@ -1340,6 +1374,8 @@ const ROUTES = [
   ['POST', /^\/auth\/google\/onetap$/, oneTapSignIn],
   ['GET', /^\/api\/config$/, config],
   ['POST', /^\/subscribe$/, subscribe],
+  ['GET', /^\/report$/, reportPage],
+  ['POST', /^\/report$/, reportSubmit],
   ['GET', /^\/unsubscribe$/, (r) => unsubscribePage(r)],
   ['POST', /^\/unsubscribe$/, unsubscribe],
   ['GET', /^\/privacy$/, (r, e) => html(page('Privacy policy', privacyPage(e), { wide: true }))],

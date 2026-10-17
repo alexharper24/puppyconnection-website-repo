@@ -281,6 +281,23 @@ CREATE TABLE IF NOT EXISTS puppy_videos (
 );
 CREATE INDEX IF NOT EXISTS puppy_videos_puppy ON puppy_videos(puppy_id, position);
 
+-- Report a listing (migrations/0017, lib/reports.js). The reporter's email is optional and only for a reply.
+CREATE TABLE IF NOT EXISTS listing_reports (
+  id              TEXT PRIMARY KEY,
+  breeder_id      TEXT NOT NULL REFERENCES breeders(id),
+  puppy_id        TEXT,
+  reason          TEXT NOT NULL CHECK (reason IN ('misleading','not_available','scam','welfare','photos','other')),
+  details         TEXT NOT NULL,
+  reporter_email  TEXT,
+  status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open','handled','dismissed')),
+  created_at      TEXT NOT NULL,
+  closed_by       TEXT,
+  closed_at       TEXT,
+  note            TEXT
+);
+CREATE INDEX IF NOT EXISTS listing_reports_status ON listing_reports(status, created_at);
+CREATE INDEX IF NOT EXISTS listing_reports_breeder ON listing_reports(breeder_id);
+
 CREATE TABLE IF NOT EXISTS checkouts (
   id                       TEXT PRIMARY KEY,
   breeder_id               TEXT NOT NULL REFERENCES breeders(id),

@@ -168,6 +168,7 @@ export function wipeStatements(env) {
     `DELETE FROM breeder_breeds WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM operator_notes WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM account_requests WHERE breeder_id ${NOT_SEED}`,
+    `DELETE FROM listing_reports WHERE breeder_id ${NOT_SEED}`,
     'DELETE FROM sessions',
     'DELETE FROM login_tokens',
     'DELETE FROM dev_mailbox',

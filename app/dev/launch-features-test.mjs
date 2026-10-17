@@ -166,7 +166,57 @@ async function details() {
   check('A3 an operator removes the video', (await admin.req('DELETE', `/api/videos/${ap.videos[0].id}`)).status === 200 && (await pup(A.c, id)).videos.length === 0);
 }
 
-const PARTS = { details };
+
+// ---------------------------------------------------------------- A5 report a listing
+async function reports() {
+  const R = await breeder('reported');
+  const litter = (await R.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
+  const id = await readyPuppy(R.c, litter, 'Biscuit');
+  const draft = await readyPuppy(R.c, litter, 'Draft Pup');
+  await pay(R.c, [id]);
+  const slug = (await pup(R.c, id)).slug, draftSlug = (await pup(R.c, draft)).slug;
+  const bslug = (await admin.get(`/api/breeders/${R.id}`)).data.breeder.slug;
+  const anon = new Client(PORTAL);
+  let r = await anon.get(`/report?puppy=${encodeURIComponent(slug)}`);
+  check('A5 the report form opens for a public puppy', r.status === 200 && /Report a listing/.test(r.text || r.data) && /name="reason"/.test(r.text || r.data), String(r.text || r.data).slice(0, 120));
+  check("A5 a draft's report form answers as not on the site, so it confirms nothing", (await anon.get(`/report?puppy=${encodeURIComponent(draftSlug)}`)).status === 404);
+  check('A5 the form opens for a public breeder', (await anon.get(`/report?breeder=${encodeURIComponent(bslug)}`)).status === 200);
+  const post = (fields, origin = PORTAL) => fetch(`${PORTAL}/report`, { method: 'POST', headers: { origin, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(fields), redirect: 'manual' });
+  const count = () => sql(`SELECT COUNT(*) AS n FROM listing_reports WHERE breeder_id = '${R.id}'`)[0].n;
+  check('A5 a post from another site is refused', (await post({ puppy: slug, reason: 'scam', details: 'x' }, 'https://evil.example')).status === 403);
+  r = await post({ puppy: slug, details: 'No reason picked' });
+  check('A5 a report with no reason is sent back with the details kept', r.status === 400 && /Choose what the problem is/.test(await r.text()));
+  check('A5 a bad reply address is refused', (await post({ puppy: slug, reason: 'scam', details: 'x', email: 'not-an-email' })).status === 400);
+  r = await post({ puppy: slug, reason: 'scam', details: 'bot', website: 'http://spam.example' });
+  check('A5 a filled honeypot gets the thanks and stores nothing', r.status === 200 && count() === 0);
+  r = await post({ puppy: slug, reason: 'not_available', details: 'The breeder told me this puppy went home last week.', email: 'family@example.com' });
+  check('A5 a report from the site is stored and thanked', r.status === 200 && /your report is in/.test(await r.text()) && count() === 1);
+  const mail = (await anon.get(`/dev/mail.json?to=${encodeURIComponent('amber@puppyconnection.test')}`)).data;
+  check('A5 the owner is emailed the report with the reason, details and reply address', mail.some((m) => /^Listing reported: Biscuit from Launch Kennel/.test(m.subject) && /went home last week/.test(m.body || '') && /family@example\.com/.test(m.body || '')), JSON.stringify(mail.slice(0, 2)).slice(0, 300));
+  const log = sql("SELECT COUNT(*) AS n FROM email_log WHERE template = 'listing_report'")[0].n;
+  check('A5 the email is in the email log', log >= 1);
+
+  let list = (await admin.get('/api/listing-reports')).data;
+  const rep = list.find((x) => x.breeder_id === R.id);
+  check('A5 the report is in the admin list with the puppy, reason and reply address', rep && rep.puppy_name === 'Biscuit' && rep.reason_label === 'The puppy is no longer available' && rep.reporter_email === 'family@example.com');
+  check('A5 the admin overview counts open reports', (await admin.get('/api/attention')).data.open_reports >= 1);
+  // Suspend from the report, which takes the breeder's listings off the site, then reinstate.
+  r = await admin.post(`/api/breeders/${R.id}/suspend`, { reason: 'Listing report, checking with the breeder' });
+  check('A5 the admin suspends the breeder after a report', r.status === 200 && (await admin.get(`/api/breeders/${R.id}`)).data.breeder.status === 'suspended');
+  check('A5 ... and their puppy leaves the site and the report form', sql(`SELECT COUNT(*) AS n FROM public_puppies WHERE id = '${id}'`)[0].n === 0 && (await anon.get(`/report?puppy=${encodeURIComponent(slug)}`)).status === 404);
+  r = await admin.post(`/api/breeders/${R.id}/reinstate`, {});
+  check('A5 the admin reinstates the breeder and the puppy is back', r.status === 200 && sql(`SELECT COUNT(*) AS n FROM public_puppies WHERE id = '${id}'`)[0].n === 1);
+  r = await admin.post(`/api/listing-reports/${rep.id}/handled`, { note: 'Breeder marked the puppy placed' });
+  check('A5 the report is marked handled with a private note', r.status === 200 && !(await admin.get('/api/listing-reports')).data.some((x) => x.id === rep.id));
+  check('A5 a closed report cannot be closed again', (await admin.post(`/api/listing-reports/${rep.id}/dismissed`, {})).status === 400);
+  list = (await admin.get('/api/listing-reports?status=closed')).data;
+  check('A5 the closed list shows who handled it and the note', list.some((x) => x.id === rep.id && x.status === 'handled' && x.note === 'Breeder marked the puppy placed' && x.closed_by));
+  const site = await buildSite();
+  const page = site.page(`puppy-${slug}.html`) || '';
+  check('A5 puppy and breeder pages link to the report form', page.includes(`/report?puppy=${encodeURIComponent(slug)}`) && (site.page(`breeder-${bslug}.html`) || '').includes(`/report?breeder=${encodeURIComponent(bslug)}`));
+}
+
+const PARTS = { details, reports };
 
 async function main() {
   const only = process.argv[2];

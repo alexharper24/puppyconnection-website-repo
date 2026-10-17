@@ -91,7 +91,7 @@
     var s = state.stats || {};
     var route = state.route.split('?')[0].split('/')[0];
     var groups = [
-      ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue]]],
+      ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue], ['reported', 'Reported listings', s.open_reports || null]]],
       ['Directory', [['breeders', 'Breeders', s.approved], ['listings', 'Listings', s.public_puppies], ['breeds', 'Breeds']]],
       ['Money', [['payments', 'Payments', s.needs_review || null], ['reports', 'Reports']]],
       ['People', [['list', 'Mailing list'], ['people', 'Sign-ins']]],
@@ -99,7 +99,7 @@
     ];
     // Staff see only what they can use (admin/worker.js STAFF_ALLOWED). The server enforces it.
     if (state.who.role !== 'owner') {
-      var STAFF = { '': 1, breeders: 1, listings: 1, publish: 1, email: 1, activity: 1 };
+      var STAFF = { '': 1, reported: 1, breeders: 1, listings: 1, publish: 1, email: 1, activity: 1 };
       groups = groups.map(function (g) { return [g[0], g[1].filter(function (n) { return STAFF[n[0]]; })]; }).filter(function (g) { return g[1].length; });
     }
     var waiting = s.unpublished_changes || 0;
@@ -226,6 +226,7 @@
     };
     var out = [];
     if (a.queue) out.push(li('<b>' + plural(a.queue, 'breeder') + '</b> waiting for your approval', '#/approvals', 'Review'));
+    if (a.open_reports) out.push(li('<b>' + plural(a.open_reports, 'listing report') + '</b> from families to read', '#/reported', 'Open'));
     if (a.needs_review) out.push(li('<b>' + plural(a.needs_review, 'payment') + '</b> to review, where money arrived and no listing went live', '#/payments?status=needs_review', 'Open'));
     if (a.open_disputes) out.push(li('<b>' + plural(a.open_disputes, 'payment') + '</b> disputed and still open', '#/payments?status=disputed', 'Open'));
     if (a.publish_error) out.push(li('<b>The last publish failed</b>' + (a.publish_error.at ? ' on ' + esc(when(a.publish_error.at)) : ''), '#/publish', 'Details', esc(a.publish_error.error)));
@@ -293,6 +294,43 @@
       list($('#queue'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST,
         emptyTitle: 'Nobody is waiting', emptyText: 'New breeders appear here once they submit their profile.', wire: function (box) { wireRows(box, breederDrawer); } });
       var id = state.route.split('?')[0].split('/')[1]; if (id) breederDrawer(id);
+    });
+  }
+
+  // Workplan A5. Reports families sent from the site's Report a listing form.
+  function reportedScreen() {
+    var f = params().status || '';
+    Promise.all([refreshStats(), api('GET', '/api/listing-reports' + (f ? '?status=' + f : ''))]).then(function (r) {
+      var rows = r[1];
+      shell(head('Reported listings', 'Reports families sent from a puppy or breeder page. Hold the listing or open the breeder to suspend them, then mark the report handled or dismissed.') +
+        seg('reported', f ? 'status=' + f : '', [['', 'Open'], ['status=closed', 'Closed']], 'Report status') +
+        (rows.length ? rows.map(function (x) {
+          return '<section class="card report" data-id="' + esc(x.id) + '"><h2 style="margin:0 0 .3rem">' + esc(x.puppy_name ? x.puppy_name + ' from ' + (x.business_name || '') : (x.business_name || 'A breeder')) + '</h2>' +
+            '<p class="small muted">' + esc(when(x.created_at)) + ' · ' + esc(x.reason_label) + (x.breeder_status !== 'approved' ? ' · breeder ' + esc(x.breeder_status) : '') + (x.operator_hold ? ' · listing on hold' : '') + '</p>' +
+            '<p style="white-space:pre-wrap">' + esc(x.details) + '</p>' +
+            '<p class="small">' + (x.reporter_email ? 'Reply to <a href="mailto:' + esc(x.reporter_email) + '">' + esc(x.reporter_email) + '</a>' : 'No reply address given.') + '</p>' +
+            (x.status === 'open'
+              ? '<div class="field"><label for="n-' + esc(x.id) + '">Private note</label><input id="n-' + esc(x.id) + '" type="text"></div><div class="btn-row">' +
+                (x.puppy_id && !x.operator_hold ? '<button class="btn btn-sm" data-hold="' + esc(x.puppy_id) + '">Hold the listing</button>' : '') +
+                '<a class="btn btn-sm" href="#/breeders/' + encodeURIComponent(x.breeder_id) + '">Open the breeder</a>' +
+                '<button class="btn btn-sm btn-primary" data-close="handled">Mark handled</button><button class="btn btn-sm btn-quiet" data-close="dismissed">Dismiss</button></div>'
+              : '<p class="small muted">' + esc(x.status === 'handled' ? 'Handled' : 'Dismissed') + ' by ' + esc(x.closed_by) + ' on ' + esc(when(x.closed_at)) + (x.note ? ': ' + esc(x.note) : '') + '</p>') +
+            '</section>';
+        }).join('') : '<section class="card"><p class="muted">' + (f ? 'No closed reports yet.' : 'No open reports. Families can report a listing from any puppy or breeder page.') + '</p></section>'), true);
+      $$('[data-close]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var card = b.closest('.report');
+          api('POST', '/api/listing-reports/' + card.dataset.id + '/' + b.dataset.close, { note: $('input', card).value })
+            .then(function () { toast(b.dataset.close === 'handled' ? 'Marked handled' : 'Dismissed'); reportedScreen(); }).catch(function (err) { toast(err.message); });
+        });
+      });
+      $$('[data-hold]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          b.disabled = true;
+          api('POST', '/api/puppies/' + b.dataset.hold + '/hold', { on: true }).then(function () { toast('Listing on hold'); reportedScreen(); })
+            .catch(function (err) { b.disabled = false; toast(err.message); });
+        });
+      });
     });
   }
 
@@ -1168,7 +1206,7 @@
     state.route = (location.hash || '#/').replace(/^#\/?/, '');
     var r = state.route.split('?')[0].split('/')[0];
     ({ '': overview, approvals: approvals, breeders: breeders, listings: listings, payments: payments, settings: settings, activity: activity, search: search,
-      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, list: listScreen, people: peopleScreen }[r] || overview)();
+      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, reported: reportedScreen, list: listScreen, people: peopleScreen }[r] || overview)();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', render);

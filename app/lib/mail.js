@@ -98,6 +98,15 @@ export const TEMPLATES = {
       'If you have a question about this, reply to this email.' + (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
     link: portalUrl || undefined,
   }),
+  // Workplan A5. To each owner, for a report from the site's Report a listing form.
+  listing_report: ({ business, puppy, reason, details, reporter, adminUrl }) => ({
+    subject: `Listing reported: ${puppy ? `${puppy} from ` : ''}${business}`,
+    text: `Someone reported ${puppy ? `the listing for ${puppy} from ${business}` : `the breeder ${business}`} on Puppy Connection.\n\n` +
+      `Reason: ${reason}\n\n${details}\n\n` +
+      (reporter ? `They would like a reply at ${reporter}.\n\n` : 'They did not leave an email address.\n\n') +
+      `Open the report in the admin:\n${adminUrl}` + signOff(),
+    link: adminUrl,
+  }),
   ops_alert: ({ title, detail }) => ({
     subject: `Puppy Connection alert: ${title}`,
     text: `${detail}` + signOff(),

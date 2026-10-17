@@ -526,6 +526,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         <p class="breeder-note">Puppy Connection lists this puppy. The sale is arranged directly with the breeder.</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         ${b ? `<p style="margin:.9rem 0 0"><a href="${pageFor.breeder(b.slug)}">See all puppies from ${esc(b.name)}</a></p>` : ''}
+        ${b ? `<p class="small" style="margin:.6rem 0 0"><a href="${esc(`${portal}/report?puppy=${encodeURIComponent(p.slug)}`)}" rel="nofollow">Report this listing</a></p>` : ''}
       </div>
       <p class="disclaimer">Puppy Connection does not sell puppies, take deposits, or handle payment. Health records, guarantees and delivery are agreed directly between you and the breeder.</p>
       ${p.placed ? '' : '<p class="not-local">Not local? <a href="transportation.html">Furry Freight can deliver your puppy</a>, booked and paid with them directly.</p>'}
@@ -776,6 +777,7 @@ ${withGuides.map((b) => {
         <p class="eyebrow">Talk to this breeder</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         <p class="disclaimer">Puppy Connection is not part of the sale.</p>
+        <p class="small" style="margin:.6rem 0 0"><a href="${esc(`${portal}/report?breeder=${encodeURIComponent(b.slug)}`)}" rel="nofollow">Report this breeder</a></p>
       </div>
     </aside>
   </div>

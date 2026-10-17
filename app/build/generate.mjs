@@ -308,7 +308,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   }));
   const pcBreeds = listedBreeds.map((b) => {
     const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
-    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: b.guide, photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : null,
+    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : null,
       // The phone home page shows breed cards at portrait 4:5 (Alex, 2026-10-07), cropped around the same focus point.
       photo_tall: lead && isWix(lead.src) ? fill(lead, 480, 600) : null };
   });
@@ -463,23 +463,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   const guidesFor = (slug) => GUIDES.filter((g) => g.breed === slug);
   const HIGHLIGHTS = loadHighlights(highlights);
   const guideList = (slug, cls = 'guide-list') => `<ul class="${cls}">${guidesFor(slug).map((g) => `<li><a href="${pageFor.guide(g.slug)}">${esc(g.question)}</a></li>`).join('')}</ul>`;
-  // The paragraphs of an old one-page guide before its first "## " heading, which is the breed's
-  // introduction once its topics have pages of their own.
-  const introOf = (paragraphs) => { const i = paragraphs.findIndex((t) => /^##\s/.test(String(t))); return i < 0 ? paragraphs.slice(0, 2) : paragraphs.slice(0, i); };
-  // The sections of the old one-page guide that stay on the breed page. Topics that searchers
-  // research on authority sites (lifespan, shedding, temperament, grooming) fold into the money
-  // page (October 11 page-one read), so a section drops only when a guide page now covers its topic.
-  const SECTION_TOPIC = [['price', /how much|cost|price/i], ['size', /how big|full grown|weigh|how tall|\bsize/i], ['lifespan', /how long .*live|lifespan|life span|watch for/i]];
-  const sectionsKept = (paragraphs, covered) => {
-    const out = [];
-    let keep = true;
-    for (const t of paragraphs.slice(introOf(paragraphs).length)) {
-      const h = String(t).match(/^##\s+(.+)$/);
-      if (h) { const topic = (SECTION_TOPIC.find(([, rx]) => rx.test(h[1])) || [])[0]; keep = !(topic && covered.has(topic)); }
-      if (keep) out.push(t);
-    }
-    return out;
-  };
+  // The 2026-09-28 one-page guide drafts in breeds.guide (migration 0008) are off the breed pages
+  // since the guide pages landed (D3, Alex 2026-10-17): the four highlights carry the folded
+  // topics, and each topic with real search demand has its own guide page.
   if (GUIDES.length) {
     const hubItem = '<li><a href="guides.html">Breed guides</a></li>';
     const breedsItem = '<li><a href="breeds.html">Breeds</a></li>';
@@ -578,7 +564,7 @@ ${mates.length ? `<section class="band band-warm">
     const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
     const open = D.puppies.filter((p) => p.b.slug === b.slug && !p.placed).length;
     return `<a class="card" href="${pageFor.breed(b.slug)}"><div class="card-media">${lead ? `<img src="${esc(fill(lead, w, hh))}" alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">` : ''}</div>`
-      + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${b.guide.length ? 'Guide' : ''}</span></div></div></a>`;
+      + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${guidesFor(b.slug).length ? 'Guides' : ''}</span></div></div></a>`;
   };
   for (const b of listedBreeds) {
     const pups = D.puppies.filter((p) => p.b.slug === b.slug).sort(byStanding);
@@ -600,7 +586,6 @@ ${mates.length ? `<section class="band band-warm">
     // rest of the old guide folded under More about the breed. A breed without a highlights file
     // keeps the full guide layout.
     const hl = HIGHLIGHTS[b.slug];
-    const more = hl ? (guidesFor(b.slug).length ? sectionsKept(b.guide, new Set(guidesFor(b.slug).map((g) => g.topic))) : b.guide.slice(introOf(b.guide).length)) : [];
     const seeAlso = alsoBreeds.length ? `<p>Comparing sizes? See ${linkList(alsoBreeds.map((x) => [pageFor.breed(x.slug), `${x.name} puppies`]))} too, since breeders draw the line between Bernedoodle sizes in different places.</p>` : '';
     const body = `<main id="breedPage">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem">
@@ -617,7 +602,7 @@ ${hl ? `<section class="band" style="padding-top:0">
       <p class="breed-intro">${esc(hl.intro)}</p>
       <ul class="highlights">${hl.points.map((x) => `<li><b>${esc(x.lead)}</b> ${esc(x.text)}</li>`).join('')}</ul>
       ${guidesFor(b.slug).length ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
-      ${more.length ? `<details class="breed-more"><summary>More about the ${esc(b.name)}</summary><div class="guide">${guideHtml(more, guideTokens(b, pups))}</div></details>` : ''}${byLine}${seeAlso}
+      ${byLine}${seeAlso}
     </div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
@@ -631,9 +616,8 @@ ${hl ? `<section class="band" style="padding-top:0">
   </div>
 </section>` : `<section class="band" style="padding-top:0">
   <div class="wrap split">
-    <div class="guide">${guidesFor(b.slug).length
-      ? `${guideHtml(introOf(b.guide), guideTokens(b, pups))}<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>${guideHtml(sectionsKept(b.guide, new Set(guidesFor(b.slug).map((g) => g.topic))), guideTokens(b, pups))}`
-      : b.guide.length ? guideHtml(b.guide, guideTokens(b, pups)) : `<p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>`}${byLine}${seeAlso}</div>
+    <div class="guide"><p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>${guidesFor(b.slug).length
+      ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${byLine}${seeAlso}</div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">

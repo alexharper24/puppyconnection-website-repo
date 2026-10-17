@@ -301,11 +301,13 @@ async function part1() {
   const hlFile = path.join(APP, 'content/breeds/cocker-spaniel.md');
   const hlIntro = fs.existsSync(hlFile) && (fs.readFileSync(hlFile, 'utf8').match(/^intro:\s*(.+)$/m) || [])[1];
   const esc60 = (t) => t.slice(0, 60).replace(/&/g, '&amp;').replace(/'/g, '&#39;').replace(/"/g, '&quot;');
-  check('a breed page opens with its highlights intro, or the guide text from breeds.guide without one', hlIntro
-    ? guide.includes(esc60(hlIntro.trim())) && (guide.match(/<ul class="highlights">([\s\S]*?)<\/ul>/) || [''])[0].split('<li>').length === 5 && guide.includes('See the puppies')
-    : guideText && guide.includes(esc60(guideText)));
-  check('a guide line starting "## " becomes a section heading on the breed page', hav.includes('<h2>How much is a Havanese puppy?</h2>'));
-  check('the guide figures fill from the listings and leave no token behind', /Havanese puppies listed on Puppy Connection right now are priced (at|from) \$/.test(hav) && /mothers weigh \d/.test(hav) && !hav.includes('{{'));
+  // The 2026-09-28 one-page drafts in breeds.guide are off the breed pages (D3, 2026-10-17).
+  check('a breed page opens with its highlights intro and carries none of the old guide text from breeds.guide', !!hlIntro
+    && guide.includes(esc60(hlIntro.trim())) && (guide.match(/<ul class="highlights">([\s\S]*?)<\/ul>/) || [''])[0].split('<li>').length === 5 && guide.includes('See the puppies')
+    && !(guideText && guide.includes(esc60(guideText))));
+  const havGuide = fs.existsSync(path.join(out, 'guide-havanese-price.html')) ? fs.readFileSync(path.join(out, 'guide-havanese-price.html'), 'utf8') : '';
+  check('a guide line starting "## " becomes a section heading on the guide page', havGuide.includes('<h2>How much is a Havanese puppy?</h2>'));
+  check('the guide figures fill from the listings and leave no token behind', /Havanese puppies listed on Puppy Connection right now are priced (at|from) \$/.test(havGuide) && /mothers weigh \d/.test(havGuide) && !havGuide.includes('{{'));
   check('the breed heading carries the price range of the puppies shown, and says breeders set their prices', /available now, priced \$[\d,]+( to \$[\d,]+)?<\/p>/.test(hav) && hav.includes('Each breeder sets their own price.'));
   const inPups = fs.readFileSync(path.join(out, 'puppies-for-sale-in-indiana.html'), 'utf8');
   const inBreeders = fs.readFileSync(path.join(out, 'dog-breeders-in-indiana.html'), 'utf8');
@@ -325,7 +327,7 @@ async function part1() {
   check('a published guide becomes its own page, with its heading, the breed page link and no token left', gpage.includes('<h1>How big does a Cocker Spaniel get?</h1>') && gpage.includes('href="breed-cocker-spaniel.html"') && !gpage.includes('{{') && gpage.includes('"@type":"Article"'));
   check('a draft guide builds nothing', !fs.existsSync(path.join(out, 'guide-cocker-spaniel-shedding.html')));
   check('the breed page shows a guides panel linking the guide, and no section on the topic the guide now covers', cocker.includes('class="guide-panel"') && cocker.includes('href="guide-cocker-spaniel-size.html">How big does a Cocker Spaniel get?</a>') && !cocker.includes('<h2>How big does a Cocker Spaniel get full grown?</h2>'));
-  check('a breed with no guide pages keeps its whole guide', hav.includes('<h2>How much is a Havanese puppy?</h2>') && !hav.includes('class="guide-panel"'));
+  check('the old one-page guide in breeds.guide is off the breed page, and its panel links the guide page', !hav.includes('<h2>How much is a Havanese puppy?</h2>') && !hav.includes('{{') && hav.includes('href="guide-havanese-price.html"'));
   check('the guides hub lists the guide, and the footer and sitemap reach it', fs.existsSync(path.join(out, 'guides.html')) && fs.readFileSync(path.join(out, 'guides.html'), 'utf8').includes('guide-cocker-spaniel-size.html') && hav.includes('href="guides.html"') && sm.includes('guide-cocker-spaniel-size.html'));
   if (fs.existsSync(path.join(out, 'breed-munchkin-bernedoodle.html')) &&fs.existsSync(path.join(out, 'breed-mini-bernedoodle.html'))) {
     const mb = fs.readFileSync(path.join(out, 'breed-munchkin-bernedoodle.html'), 'utf8');

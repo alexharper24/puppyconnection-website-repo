@@ -160,6 +160,10 @@ p{margin:0 0 1rem;max-width:70ch}
    the charcoal footer (G2). Its eyebrow takes a deeper olive, since olive on cream is 4.0:1. */
 .band-cream{background:var(--cream)}
 .band-cream .eyebrow{color:#5c4f2f}
+.band-cream a:not(.btn){color:#5c4f2f}
+/* The one bright block in the cream band (Alex, 2026-10-17): gold with charcoal text, no outline */
+.price-card.price-card-gold{background:var(--gold);border-color:var(--gold);color:var(--ink)}
+.price-card.price-card-gold .meta{color:var(--ink)}
 .sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.6rem}
 .sec-head .link-more{font-family:var(--cond);letter-spacing:.12em;text-transform:uppercase;font-size:.92rem;
   color:var(--olive);text-decoration:none;border-bottom:1px solid var(--bronze);padding-bottom:2px}
@@ -596,6 +600,8 @@ aside .guide-panel{margin-top:1rem}
 /* Footer base line: the copyright and the Privacy and Listing terms links (2026-10-11). */
 .foot-base{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:.6rem 1.5rem;margin-top:2rem;padding-top:1.1rem;border-top:1px solid #3d3d3d;font-size:.86rem;color:var(--cream-text)}
 .foot-base p{margin:0}
+.foot-base a{color:var(--cream-text);text-decoration:none}
+.foot-base a:hover{color:var(--gold)}
 .foot-legal{display:flex;gap:1.2rem}
 .foot-legal a{color:var(--cream-text)}
 .foot-legal a:hover{color:var(--gold)}

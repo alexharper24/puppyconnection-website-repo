@@ -161,9 +161,10 @@ p{margin:0 0 1rem;max-width:70ch}
 .band-cream{background:var(--cream)}
 .band-cream .eyebrow{color:#5c4f2f}
 .band-cream a:not(.btn){color:#5c4f2f}
-/* The one bright block in the cream band (Alex, 2026-10-17): gold with charcoal text and a 2px black border (Alex, 2026-10-17) */
-.price-card.price-card-gold{background:var(--gold);border-color:#000;color:var(--ink)}
-.price-card.price-card-gold .meta{color:var(--ink)}
+/* The price card in the cream band matches the See how listing works button (Alex, 2026-10-17,
+   option A): charcoal with cream text, 11.3:1, no other border */
+.price-card.price-card-dark{background:var(--ink);border-color:var(--ink);color:var(--cream-text)}
+.price-card.price-card-dark .meta{color:var(--cream-text)}
 .sec-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.6rem}
 .sec-head .link-more{font-family:var(--cond);letter-spacing:.12em;text-transform:uppercase;font-size:.92rem;
   color:var(--olive);text-decoration:none;border-bottom:1px solid var(--bronze);padding-bottom:2px}

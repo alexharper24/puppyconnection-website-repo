@@ -459,7 +459,26 @@ async function visit() {
     (portalJs.match(/>Visit site<\/a>/g) || []).length === 2 && (adminJs.match(/>Visit site<\/a>/g) || []).length === 1 && !/puppy-connection\.com|workers\.dev/.test(portalJs + adminJs));
 }
 
-const PARTS = { details, reports, photos, placed, inactivity, approval, counts, visit };
+// ---------------------------------------------------------------- A10 Wix form labels out of descriptions
+async function wixtext() {
+  const { wixResidue, hasWixResidue, cleanListing } = await import('../lib/wixtext.js');
+  const dixon = wixResidue("Mom's information weight: 8 pounds color: Dad's information weight: 6 pounds color: Puppy's color - black with white markings Introducing a beautiful litter of Poodle puppies.");
+  check('A10 empty labels are dropped and the prose is kept exactly', dixon.prose === 'Introducing a beautiful litter of Poodle puppies.' && dixon.mom.weight === 8 && dixon.dad.weight === 6 && !dixon.mom.color && !dixon.dad.color && dixon.puppyColor === 'black with white markings', JSON.stringify(dixon));
+  const mia = wixResidue("Dad's information:Weight: 25 pounds Color: Blue tri Mom's information:Weight: 20 poundsColor: Fawn Puppy's color - Merle Bella is an unforgettable little doll!");
+  check('A10 labels in the other order and run together still parse', mia.dad.weight === 25 && mia.dad.color === 'Blue tri' && mia.mom.weight === 20 && mia.mom.color === 'Fawn' && mia.puppyColor === 'Merle' && mia.prose === 'Bella is an unforgettable little doll!', JSON.stringify(mia));
+  check('A10 ordinary prose that mentions information is left alone', !hasWixResidue('Feel free to call or text for more information about this puppy.') && wixResidue('Call us for more information.') === null);
+  const l = cleanListing({ description: "Mom's information weight: 24 pounds color: red and white Dad's information weight: 14 pounds color: red Puppy's color - red and white This is a stunning litter.", mom_weight: null });
+  check('A10 the seed and the import clean a listing before writing it', l.description === 'This is a stunning litter.' && l.mom_weight === '24 lbs' && l.form_color === 'red and white' && l.parent_colors === "Mom's color: red and white. Dad's color: red.", JSON.stringify(l));
+  // The migration, against the local database, which holds the same seed listings as staging.
+  const file = fs.readdirSync(path.join(APP, 'migrations')).find((f) => /_wix_descriptions\.sql$/.test(f));
+  execFileSync(process.execPath, [WRANGLER, 'd1', 'execute', 'puppyconnection', '--local', '--persist-to', path.join(APP, '.state'), '--config', path.join(APP, 'portal/wrangler.jsonc'), '--file', path.join(APP, 'migrations', file)], { cwd: APP, stdio: 'ignore' });
+  const left = sql('SELECT id, description FROM puppies WHERE description IS NOT NULL').filter((r) => hasWixResidue(r.description));
+  check('A10 no description starts with the Wix label run', left.length === 0, left.map((r) => r.id).join(', '));
+  const d = sql("SELECT p.description, p.color, l.mom_weight_lb, l.dad_weight_lb FROM puppies p JOIN litters l ON l.id = p.litter_id WHERE p.id = 'seed-p-0086'")[0];
+  check("A10 Dixon keeps the breeder's prose, with the color and the parents' weights in their fields", d && /^Introducing a beautiful litter of Poodle puppies/.test(d.description) && d.color === 'black with white markings' && d.mom_weight_lb === 8 && d.dad_weight_lb === 6, JSON.stringify(d));
+}
+
+const PARTS = { details, reports, photos, placed, inactivity, approval, counts, visit, wixtext };
 
 async function main() {
   const only = process.argv[2];

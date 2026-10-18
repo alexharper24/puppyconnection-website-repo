@@ -13,6 +13,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { cleanListing } from '../lib/wixtext.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '../..');
@@ -20,7 +21,8 @@ const OUT = path.join(REPO, 'app/.state/seed.sql');
 
 const src = fs.readFileSync(path.join(REPO, 'data/data.js'), 'utf8');
 const grab = (name) => JSON.parse(src.match(new RegExp(`window\\.${name}\\s*=\\s*(\\[.*?\\]);`, 's'))[1]);
-const LISTINGS = grab('PC_LISTINGS');
+// Workplan A10. Wix form labels run into a description are split off first (lib/wixtext.js).
+const LISTINGS = grab('PC_LISTINGS').map(cleanListing);
 // Photo size and focus point from app/ops/measure_photos.py, when it has been run.
 const FRAMING_FILE = path.join(REPO, '_harvest/data/framing.json');
 const FRAMING = fs.existsSync(FRAMING_FILE) ? JSON.parse(fs.readFileSync(FRAMING_FILE, 'utf8')) : {};
@@ -118,15 +120,15 @@ for (const l of LISTINGS) {
   const litterId = `seed-l-${slugify(litterKey)}`;
   if (!litters[litterId]) {
     litters[litterId] = true;
-    sql.push(`INSERT OR IGNORE INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, legacy_id, created_at, updated_at)
-VALUES (${q(litterId)}, ${q(b.id)}, ${q(bid)}, ${q(isoDate(l.birthdate))}, ${q(isoDate(l.ready_date))}, ${q(weight(l.mom_weight))}, ${q(weight(l.dad_weight))}, ${q(l.litter)}, ${q(NOW)}, ${q(NOW)});`);
+    sql.push(`INSERT OR IGNORE INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, description, legacy_id, created_at, updated_at)
+VALUES (${q(litterId)}, ${q(b.id)}, ${q(bid)}, ${q(isoDate(l.birthdate))}, ${q(isoDate(l.ready_date))}, ${q(weight(l.mom_weight))}, ${q(weight(l.dad_weight))}, ${q(l.parent_colors || null)}, ${q(l.litter)}, ${q(NOW)}, ${q(NOW)});`);
   }
   n += 1;
   const pid = `seed-p-${String(n).padStart(4, '0')}`;
   const availability = l.status === 'adopted' ? 'placed' : l.status === 'pending' ? 'pending' : 'available';
-  sql.push(`INSERT OR IGNORE INTO puppies (id, breeder_id, litter_id, slug, name, price_cents, deposit_cents, description, breeder_url, includes_json, hypoallergenic,
+  sql.push(`INSERT OR IGNORE INTO puppies (id, breeder_id, litter_id, slug, name, color, price_cents, deposit_cents, description, breeder_url, includes_json, hypoallergenic,
   payment_state, publication_state, availability, published_at, expires_at, legacy_slug, created_at, updated_at)
-VALUES (${q(pid)}, ${q(b.id)}, ${q(litterId)}, ${q(l.slug)}, ${q(l.puppy_name || l.name)}, ${q(l.price != null ? Math.round(l.price * 100) : null)},
+VALUES (${q(pid)}, ${q(b.id)}, ${q(litterId)}, ${q(l.slug)}, ${q(l.puppy_name || l.name)}, ${q(l.form_color || null)}, ${q(l.price != null ? Math.round(l.price * 100) : null)},
   ${q(l.deposit != null ? Math.round(l.deposit * 100) : null)}, ${q(l.description)}, ${q(l.breeder_url)}, ${q(JSON.stringify(l.includes || []))}, ${l.hypoallergenic ? 1 : 0},
   'comped', 'published', ${q(availability)}, ${q(NOW)}, ${q(EXPIRES)}, ${q(l.slug)}, ${q(NOW)}, ${q(NOW)});`);
   (l.images || []).forEach((url, i) => {

@@ -48,6 +48,7 @@ import { fileURLToPath } from 'node:url';
 import { d1, r2, freshSchema, localD1File } from '../dev/node-env.mjs';
 import { cleanImage } from '../lib/images.js';
 import { dirtyStmt, auditStmt } from '../lib/store.js';
+import { cleanListing } from '../lib/wixtext.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
@@ -72,7 +73,8 @@ function fail(msg) { console.error(`wix-import: ${msg}`); process.exit(1); }
 export async function main() {
   const pairingFile = opt('pairing');
   if (!pairingFile) fail('--pairing <file> is required. The real pairing waits on Amber (decision d8).');
-  const listings = JSON.parse(fs.readFileSync(path.resolve(opt('listings', path.join(REPO, '_harvest/data/listings.json'))), 'utf8'));
+  // Workplan A10. Wix form labels run into a description are split off first (lib/wixtext.js).
+  const listings = JSON.parse(fs.readFileSync(path.resolve(opt('listings', path.join(REPO, '_harvest/data/listings.json'))), 'utf8')).map(cleanListing);
   const pairing = JSON.parse(fs.readFileSync(path.resolve(pairingFile), 'utf8'));
   const dbFile = path.resolve(opt('db', path.join(APP, '.state/import-copy/puppyconnection.sqlite')));
   const filesDir = path.resolve(opt('files', path.join(APP, '.state/import-copy/r2')));
@@ -149,7 +151,7 @@ export async function main() {
     const litterId = born ? `wix-l-${slugify(key)}-${slugify(name)}-${born}` : `wix-l-${l.slug}`;
     if (!litterIds.has(litterId)) {
       litterIds.add(litterId);
-      plan.litters.push({ id: litterId, breeder_id: breederId[key], breed_id: breedId, born_on: born, ready_on: isoDate(l.ready_date), mom: weight(l.mom_weight), dad: weight(l.dad_weight) });
+      plan.litters.push({ id: litterId, breeder_id: breederId[key], breed_id: breedId, born_on: born, ready_on: isoDate(l.ready_date), mom: weight(l.mom_weight), dad: weight(l.dad_weight), about: l.parent_colors || null });
     }
     const pid = `wix-p-${l.slug}`;
     if (slugOwner[l.slug] && slugOwner[l.slug] !== pid) { plan.conflicts.push(`${l.slug} is already used by puppy ${slugOwner[l.slug]}`); continue; }
@@ -178,15 +180,15 @@ export async function main() {
   }
   for (const b of plan.breeds) stmts.push(S('INSERT OR IGNORE INTO breeds (id, slug, name) VALUES (?, ?, ?)', b.id, b.slug, b.name));
   for (const l of plan.litters) {
-    stmts.push(S(`INSERT OR IGNORE INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, legacy_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, l.id, l.breeder_id, l.breed_id, l.born_on, l.ready_on, l.mom, l.dad, l.id, NOW, NOW));
+    stmts.push(S(`INSERT OR IGNORE INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, description, legacy_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, l.id, l.breeder_id, l.breed_id, l.born_on, l.ready_on, l.mom, l.dad, l.about, l.id, NOW, NOW));
   }
   for (const p of plan.puppies) {
     const l = p.l;
-    stmts.push(S(`INSERT OR IGNORE INTO puppies (id, breeder_id, litter_id, slug, name, price_cents, deposit_cents, description, includes_json, hypoallergenic,
+    stmts.push(S(`INSERT OR IGNORE INTO puppies (id, breeder_id, litter_id, slug, name, color, price_cents, deposit_cents, description, includes_json, hypoallergenic,
         payment_state, publication_state, availability, published_at, expires_at, legacy_slug, legacy_url, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'comped', 'published', ?, ?, NULL, ?, ?, ?, ?)`,
-    p.id, p.breeder_id, p.litter_id, l.slug, l.puppy_name || l.name, cents(l.price), cents(l.deposit), l.description || null,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'comped', 'published', ?, ?, NULL, ?, ?, ?, ?)`,
+    p.id, p.breeder_id, p.litter_id, l.slug, l.puppy_name || l.name, l.form_color || null, cents(l.price), cents(l.deposit), l.description || null,
     JSON.stringify(l.includes || []), l.hypoallergenic ? 1 : 0, l.placed ? 'placed' : 'available', NOW, l.slug,
     `https://www.puppy-connection.com/product-page/${l.slug}`, NOW, NOW));
   }

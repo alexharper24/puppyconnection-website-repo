@@ -393,9 +393,9 @@ settings, terms and operators are not touched. The audit log and email log are k
       token with Stream Edit, set it as `STREAM_API_TOKEN` on the portal and the admin, then set
       `STREAM_MODE` stream and `STREAM_CUSTOMER_CODE` in both `wrangler.hosted.jsonc` and redeploy.
       Until then staging offers no video upload
-- [ ] The photo check disagrees with Alex's calls on 10 of the 100 test photos
-      (`hs-seo-data/puppyconnection/2026-10-17-photo-sample/results-*.json`). Alex to look at them
-      and say whether to loosen the check, keep it, or default to Amber's review queue
+- [x] The photo check's accuracy: Alex accepted 8 of the 100 test photos disagreeing with his calls
+      as the launch accuracy on 2026-10-17, and kept flagged photos going back to the breeder
+      (`hs-seo-data/puppyconnection/2026-10-17-photo-sample/results-*.json`)
 - [ ] Workers AI's free allocation covers about 350 photo checks a day. Past it a check fails and the
       photo passes unjudged until the next day or Workers Paid
 

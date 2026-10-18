@@ -387,7 +387,9 @@ settings, terms and operators are not touched. The audit log and email log are k
 
 ## Pending
 
-- [ ] Cloudflare Stream for puppy videos: subscribe on the Puppy Connection account, create an API
+- [ ] Cloudflare Stream for puppy videos, on hold until Amber wants video and commits to its cost
+      (Alex, 2026-10-17). It is $5 a month for 1,000 minutes stored on either plan, and the Starter
+      Bundle also includes 5,000 minutes watched. Then subscribe on the Puppy Connection account, create an API
       token with Stream Edit, set it as `STREAM_API_TOKEN` on the portal and the admin, then set
       `STREAM_MODE` stream and `STREAM_CUSTOMER_CODE` in both `wrangler.hosted.jsonc` and redeploy.
       Until then staging offers no video upload

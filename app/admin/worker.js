@@ -407,6 +407,9 @@ const EDITABLE = {
   photo_check_route: (v) => v === 'breeder' || v === 'review',
   // Workplan A8. Days after adoption that a puppy page leaves the sitemap and becomes noindex.
   adopted_index_days: (v) => /^\d{1,3}$/.test(v) && Number(v) >= 1,
+  // Workplan A2. Days to the two reminders, offline and removed, rising, and the free window.
+  inactivity_days: (v) => /^\d{1,3},\d{1,3},\d{1,3},\d{1,3}$/.test(v) && v.split(',').map(Number).every((n, i, a) => n >= 1 && (i === 0 || n > a[i - 1])),
+  reactivate_days: (v) => /^\d{1,3}$/.test(v),
   // terms_version is no longer typed in here. Publishing on the Terms screen sets it (plan P3.4).
 };
 
@@ -729,7 +732,13 @@ async function attention(req, env) {
     `SELECT a.at, a.actor_type, a.action, a.entity_id, a.before_json, a.after_json, bp.business_name, b.email
        FROM audit_log a JOIN breeders b ON b.id = a.entity_id LEFT JOIN breeder_profiles bp ON bp.breeder_id = b.id
       WHERE a.entity = 'breeder' AND a.action IN ('profile.update', 'profile.extras') AND a.at > ?
-        AND b.profile_submitted_at IS NOT NULL AND a.at > b.profile_submitted_at ORDER BY a.id DESC`,
+        AND b.profile_submitted_at IS NOT NULL
+        -- After the submit by audit order, not by the clock, because an edit in the same second as
+        -- the submit has an equal timestamp (2026-10-17).
+        -- An imported breeder has no submit row, so for them the time alone decides.
+        AND a.at >= b.profile_submitted_at
+        AND a.id > COALESCE((SELECT MAX(s.id) FROM audit_log s WHERE s.entity = 'breeder' AND s.entity_id = b.id AND s.action = 'profile.submit'), 0)
+      ORDER BY a.id DESC`,
   ).bind(addDays(now(), -7)).all();
   const contact = {};
   for (const r of rows) {

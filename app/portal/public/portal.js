@@ -84,6 +84,17 @@
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+  // Workplan A2. Still available and Bring back, wherever a standing line shows them.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('[data-still], [data-back]');
+    if (!b) return;
+    b.disabled = true;
+    var still = !!b.dataset.still;
+    api('POST', '/api/puppies/' + (b.dataset.still || b.dataset.back) + (still ? '/still-available' : '/reactivate'), {}).then(function (r) {
+      toast(still ? 'Kept on the site' : r.relisted ? 'Back on the site' : 'Back as a draft. Pay to list it again.');
+      return loadListings().then(function () { closeDrawer(); render(); });
+    }).catch(function (err) { b.disabled = false; toast(err.message); });
+  });
 
   // ------------------------------------------------------------ sign in
   function renderSignIn(sent) {
@@ -441,10 +452,18 @@
     if (x.operator_hold) return { tone: 'alert', text: 'Paused by Puppy Connection, so it is off the site for now. Contact Puppy Connection to restore it.' };
     if (x.held_by) return { tone: 'gold', text: 'In checkout. A payment has started and not finished. If it is not finished, the puppy is free to pay for again within the hour.' };
     var place = x.availability === 'placed' ? ' Buyers see it marked placed.' : x.availability === 'pending' ? ' Buyers see it marked pending.' : '';
+    if (x.is_public && (x.inactive_stage === 'reminded_1' || x.inactive_stage === 'reminded_2')) {
+      return { tone: 'gold', text: 'Listed, and not updated in a while. Press Still available to keep it on the site, or update it.' + place, still: true };
+    }
     if (x.is_public) {
       var until = expiring() && x.expires_at ? ' until ' + day(x.expires_at) : '';
       var renew = expiring() && !x.pay_block ? ' Renewal is open now.' : '';
       return { tone: 'ok', text: 'Listed on the site' + until + '.' + place + renew, renew: expiring() && !x.pay_block, plain: !until && !place && !renew };
+    }
+    if (x.inactive_stage === 'offline' || x.inactive_stage === 'removed') {
+      var r = x.reactivation || {};
+      return { tone: 'warn', text: (x.inactive_stage === 'removed' ? 'Removed from the directory' : 'Off the site') + ' because it had no update for four weeks. ' +
+        (r.free ? 'Bring it back free until ' + day(r.until) + '.' : 'Bring it back to list it again for ' + fee + '.'), back: true };
     }
     if (x.publication_state === 'expired') return { tone: 'warn', text: 'The listing ended' + (x.expires_at ? ' on ' + day(x.expires_at) : '') + '. Renew it for ' + fee + ' to put it back on the site.', renew: !x.pay_block };
     if (x.publication_state === 'published') return { tone: 'warn', text: 'Paid for, but not showing on the site right now, because your account is paused.' };
@@ -457,7 +476,9 @@
     // The Listed pill already says it all for a plain listing, so the line is left out.
     if (s.plain) return '';
     return '<div class="standing' + (s.tone ? ' standing-' + s.tone : '') + '">' + esc(s.text) +
-      (s.pay ? ' <a href="#/pay">Pay to list</a>' : s.renew ? ' <a href="#/pay">Renew</a>' : '') + '</div>';
+      (s.pay ? ' <a href="#/pay">Pay to list</a>' : s.renew ? ' <a href="#/pay">Renew</a>' : '') +
+      (s.still ? ' <button type="button" class="btn btn-sm" data-still="' + esc(x.id) + '">Still available</button>' : '') +
+      (s.back ? ' <button type="button" class="btn btn-sm btn-primary" data-back="' + esc(x.id) + '">Bring back</button>' : '') + '</div>';
   }
 
   function litters() {
@@ -1053,8 +1074,11 @@
       q('How do I get approved?', '<p>Fill in your profile with your business name, a phone or email buyers can use, and your town and state. Then accept the listing terms and submit it. Puppy Connection looks over every new breeder before they can list, and emails you when your account is approved.</p><p>Until then you can still edit your profile, and the menu shows only what you can use.</p>') +
       q('How does listing work?', '<p>Add a litter first, with the breed and the dates. Then add each puppy to it with a price and ' + photos + '. If a litter has several puppies, use Add several to put them all in at once, then rename each one and add its photos.</p><p>A puppy stays a draft, which only you can see, until you pay to list it. The Litters and puppies screen says what each draft still needs.</p>') +
       q('What does it cost?', '<p>Listing costs ' + esc(fee) + ' per puppy. ' + esc(lasts) + '</p><p>You can pay for a whole litter in one go on the Pay to list screen. Payment is by card through Stripe, and Stripe emails your receipt. Puppy Connection never sees your card number.</p>') +
+      q('How do I keep a listing on the site?', '<p>Keep it current. Any change to the price, description, status or photos counts, and so does the Still available button. If a listing has no update for two weeks, we email you a Still available link for each puppy, and one click keeps it listed.</p>' +
+        '<p>A listing with no update for four weeks comes off the site, and after six weeks it leaves the directory. Its details are kept, and you can bring it back free from Litters and puppies for six weeks after it came off.</p>') +
       q('What happens when a puppy goes home?', '<p>Mark it placed, either from the list or in the puppy\'s own page in the portal. It stays on the site marked as placed, so buyers can still see the litter and know that puppy is spoken for. You can mark it available again if plans change.</p><p>If you would rather take a puppy off the site entirely, open it and choose Remove puppy.</p>') +
-      q('What makes a good photo?', '<p>Clear daylight photos of one puppy at a time work best, and the first photo is the one buyers see first. A puppy can have up to ' + me.max_photos + ' photos.</p><p>The portal makes each photo smaller before it uploads, so large phone photos are fine, and it removes the hidden location and camera details phones add.</p>') +
+      q('What makes a good photo?', '<p>Clear daylight photos of one puppy at a time work best, and the first photo is the one buyers see first. A puppy can have up to ' + me.max_photos + ' photos.</p><p>The portal makes each photo smaller before it uploads, so large phone photos are fine, and it removes the hidden location and camera details phones add.</p>' +
+        '<p>Photos need to be at least 1,000 pixels across. Each one is checked that the puppy can be seen clearly, and if it cannot, for example because the puppy is far away, turned around or blurred, the portal says what is wrong so you can upload a better one.</p>') +
       q('How do I sign in?', '<p>There is no password. Enter your email and we send you a six-digit code and a link. Type the code on the sign-in screen, or open the link, and you are in.' + (c.google ? ' You can also choose Continue with Google.' : '') + '</p>' +
         '<p>You stay signed in on that device for 60 days, and each time you use the portal the 60 days start again. If you lose a phone or used a shared computer, use Sign out of every device on the Account screen.</p>') +
       q('Who can see what?', '<p>Buyers see your business name, the phone and email you give for them, your website, your town and state, and the words about your kennel. Your sign-in email and contact name stay private. The <a href="/privacy" target="_blank" rel="noopener">privacy policy</a> has the details.</p>'), true);

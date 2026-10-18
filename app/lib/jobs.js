@@ -6,7 +6,7 @@
 //                  videos      puppy videos Stream has finished with (lib/stream.js)
 //                  photos      photos still waiting for the quality check (lib/photocheck.js)
 //                  publish     the site, when changes have waited a minute (lib/publish.js, plan P4.4)
-//   0 13 * * *     daily       expiry warnings and expiry, housekeeping, the backup, then the breeder link check
+//   0 13 * * *     daily       expiry warnings and expiry, the inactivity schedule, housekeeping, the backup, then the breeder link check
 // 13:00 UTC is 8 or 9 in the morning in Indiana, so warnings arrive at the start of the day.
 // Each job records its last run in job_runs, which the admin shows.
 
@@ -18,6 +18,7 @@ import { provider, releaseCheckout, fulfillCheckout } from './payments.js';
 import { publishIfDue } from './publish.js';
 import { videoJob } from './stream.js';
 import { photoJob } from './photocheck.js';
+import { inactivityJob } from './inactivity.js';
 
 const DAY = 86400000;
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
@@ -198,7 +199,9 @@ const campaigns = (env) => runCampaigns(env);
 const videos = (env) => videoJob(env);
 // Photos still waiting for the quality check ten minutes after upload (lib/photocheck.js).
 const photos = (env) => photoJob(env, async (e) => (await settings(e)).photoCheckRoute);
-export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos, photos };
+// The week-by-week inactivity schedule (lib/inactivity.js, workplan A2).
+const inactivity = (env) => inactivityJob(env);
+export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos, photos, inactivity };
 
 export function runJob(env, name) {
   if (!JOBS[name]) throw new Error(`Unknown job ${name}`);
@@ -212,6 +215,6 @@ export async function scheduled(event, env) {
   // because only the portal holds the GitHub token.
   if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await runJob(env, 'photos'), await record(env, 'publish', () => publishIfDue(env)), await runJob(env, 'campaigns')];
   const out = [];
-  for (const j of ['expiry', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
+  for (const j of ['expiry', 'inactivity', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
   return out;
 }

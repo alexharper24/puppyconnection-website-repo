@@ -311,7 +311,106 @@ async function placed() {
   check('A8 the window is a setting', (await admin.put('/api/settings', { adopted_index_days: '0' })).status === 400 && (await admin.put('/api/settings', { adopted_index_days: '30' })).status === 200);
 }
 
-const PARTS = { details, reports, photos, placed };
+// ---------------------------------------------------------------- A2 the inactivity schedule, on a moved clock
+async function inactivity() {
+  const A = await breeder('inactive');
+  const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
+  const x = await readyPuppy(A.c, litter, 'Rusty'), y = await readyPuppy(A.c, litter, 'Daisy'), z = await readyPuppy(A.c, litter, 'Hazel');
+  await pay(A.c, [x, y, z]);
+  const ago = (days) => `${new Date(Date.now() - days * 86400000).toISOString().slice(0, 19)}Z`;
+  const row = (id) => sql(`SELECT inactive_stage, publication_state, payment_state, last_update_at, inactive_at FROM puppies WHERE id = '${id}'`)[0];
+  const isPublic = (id) => sql(`SELECT COUNT(*) AS n FROM public_puppies WHERE id = '${id}'`)[0].n === 1;
+  const run = async () => (await admin.post('/api/jobs/inactivity/run', {})).data;
+  const clock = (id, lastDays, stageDays) => sql(`UPDATE puppies SET last_update_at = '${ago(lastDays)}'${stageDays == null ? '' : `, stage_at = '${ago(stageDays)}'`} WHERE id = '${id}'`);
+  const mails = async () => (await A.c.get(`/dev/mail.json?to=${encodeURIComponent(A.email)}`)).data;
+
+  for (const id of [x, y, z]) clock(id, 13);
+  await run();
+  check('A2 nothing happens before day 14', [x, y, z].every((id) => row(id).inactive_stage === null));
+  for (const id of [x, y, z]) clock(id, 15);
+  await run();
+  check('A2 at week 2 each listing gets its first reminder', [x, y, z].every((id) => row(id).inactive_stage === 'reminded_1'));
+  let m = (await mails()).find((e) => /^Are these puppies still available/.test(e.subject));
+  check('A2 the reminder is one email with a Still available link per puppy', !!m && (m.body.match(/still-available\?t=/g) || []).length === 3, m && m.body.slice(0, 300));
+  const lines = m.body.split('\n');
+  const link = lines[lines.indexOf('Daisy') + 1].replace('Still available: ', '');
+  const t = new URL(link).searchParams.get('t');
+  const get = await fetch(`${PORTAL}/still-available?t=${t}`);
+  check('A2 opening the link changes nothing, because mail scanners open links', get.status === 200 && row(y).inactive_stage === 'reminded_1');
+  const post = (tok) => fetch(`${PORTAL}/still-available`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ t: tok }) });
+  let r = await post(t);
+  check('A2 one click on Still available keeps that puppy listed and restarts its clock', r.status === 200 && row(y).inactive_stage === null && Date.parse(row(y).last_update_at) > Date.now() - 600000, JSON.stringify(row(y)));
+  check('A2 the link works once', (await post(t)).status === 410);
+  // A price change counts as an update too.
+  const pz = await pup(A.c, z);
+  await A.c.put(`/api/puppies/${z}`, { ...pz, price: 1600, version: pz.version });
+  check('A2 a price change clears the reminder', row(z).inactive_stage === null);
+  clock(z, 15); await run();
+  // x has had a week since its first reminder, z only a day.
+  clock(x, 22, 8); clock(z, 22, 1);
+  await run();
+  check('A2 at week 3 the second reminder goes, and a listing never skips a step', row(x).inactive_stage === 'reminded_2' && row(z).inactive_stage === 'reminded_1', JSON.stringify([row(x), row(z)]));
+  m = (await mails()).find((e) => /^Last reminder/.test(e.subject));
+  check('A2 the second reminder says it is the last', !!m && /comes off the site/.test(m.body));
+  await run();
+  check('A2 a second run the same week moves nothing', row(x).inactive_stage === 'reminded_2');
+  clock(x, 29, 8);
+  await run();
+  check('A2 at week 4 the listing goes offline', row(x).inactive_stage === 'offline' && row(x).publication_state === 'expired' && !isPublic(x));
+  check('A2 the breeder is told it can come back free', (await mails()).some((e) => /off Puppy Connection for now/.test(e.subject) && /free until/.test(e.body)));
+  let site = await buildSite();
+  const slugX = (await pup(A.c, x)).slug;
+  const redir = fs.readFileSync(path.join(site.out, '_redirects'), 'utf8');
+  check("A2 an offline puppy's page forwards to its breed page", redir.includes(`/puppy-${slugX}.html /breed-havanese.html 301`) && !site.page(`puppy-${slugX}.html`), redir.split('\n').filter((l) => l.includes(slugX)).join(' | '));
+  clock(x, 43, 15);
+  await run();
+  check('A2 at week 6 it is removed from the directory and its record is kept', row(x).inactive_stage === 'removed' && !!(await pup(A.c, x)));
+  check('A2 the breeder is told it was removed', (await mails()).some((e) => /removed from the directory/.test(e.subject)));
+  site = await buildSite();
+  check("A2 a removed puppy's page still forwards to its breed page", fs.readFileSync(path.join(site.out, '_redirects'), 'utf8').includes(`/puppy-${slugX}.html /breed-havanese.html 301`));
+  const px = await pup(A.c, x);
+  check('A2 the portal offers to bring it back free', px.reactivation && px.reactivation.free === true);
+  r = await A.c.post(`/api/puppies/${x}/reactivate`, {});
+  check('A2 bringing it back within six weeks is free and puts it straight back', r.status === 200 && r.data.relisted === true && isPublic(x) && row(x).inactive_stage === null, JSON.stringify(r.data));
+  // A listing offline longer than the window comes back as a draft to pay for again.
+  sql(`UPDATE puppies SET inactive_stage = 'reminded_2' WHERE id = '${z}'`); clock(z, 29, 8);
+  await run();
+  sql(`UPDATE puppies SET inactive_at = '${ago(43)}' WHERE id = '${z}'`);
+  r = await A.c.post(`/api/puppies/${z}/reactivate`, {});
+  check('A2 after the free window it comes back as a draft to pay for again', r.status === 200 && r.data.relisted === false && row(z).publication_state === 'draft' && row(z).payment_state === 'unpaid', JSON.stringify([r.data, row(z)]));
+  check('A2 bringing back a listing that is not offline is refused', (await A.c.post(`/api/puppies/${y}/reactivate`, {})).status === 400);
+
+  // Imported Wix listings wait until their breeder signs in.
+  sql(`UPDATE breeders SET legacy = 1, first_signin_at = NULL WHERE id = '${A.id}'`);
+  clock(y, 20);
+  await run();
+  check('A2 an imported breeder who has never signed in is left out', row(y).inactive_stage === null);
+  const again = new Client(PORTAL);
+  await call(again, 'POST', '/auth/start', { email: A.email });
+  const tok = new URL((await again.get(`/dev/mail.json?to=${encodeURIComponent(A.email)}`)).data[0].link).searchParams.get('t');
+  await again.req('POST', '/auth/verify', new URLSearchParams({ t: tok }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  const first = sql(`SELECT first_signin_at FROM breeders WHERE id = '${A.id}'`)[0].first_signin_at;
+  await run();
+  check('A2 signing in starts their clock, so an old listing is not reminded at once', !!first && row(y).inactive_stage === null, String(first));
+  sql(`UPDATE breeders SET legacy = 0 WHERE id = '${A.id}'`);
+  check('A2 the schedule days are a setting and must rise', (await admin.put('/api/settings', { inactivity_days: '14,21,20,42' })).status === 400 && (await admin.put('/api/settings', { inactivity_days: '14,21,28,42' })).status === 200);
+}
+
+// ---------------------------------------------------------------- A1 listing review: breeders once, listings never
+async function approval() {
+  const A = await breeder('approval');
+  const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
+  const id = await readyPuppy(A.c, litter, 'Juniper');
+  const queue0 = (await admin.get('/api/stats')).data.queue;
+  await pay(A.c, [id]);
+  check("A1 an approved breeder's paid puppy is public straight away, with no approval step", sql(`SELECT COUNT(*) AS n FROM public_puppies WHERE id = '${id}'`)[0].n === 1);
+  check('A1 ... and nothing joins the approvals queue', (await admin.get('/api/stats')).data.queue === queue0);
+  const portal = fs.readFileSync(path.join(APP, 'portal/public/portal.js'), 'utf8') + fs.readFileSync(path.join(APP, 'portal/legal.js'), 'utf8');
+  const adminJs = fs.readFileSync(path.join(APP, 'admin/public/admin.js'), 'utf8');
+  check('A1 no breeder-facing or admin wording says a listing waits for approval', !/approv\w* (each |every |the |a )?(listing|puppy|puppies|litter)/i.test(portal + adminJs) && !/(listing|puppy|litter)s? (is |are )?(waiting for|awaiting|pending) (approval|review)/i.test(portal + adminJs));
+}
+
+const PARTS = { details, reports, photos, placed, inactivity, approval };
 
 async function main() {
   const only = process.argv[2];

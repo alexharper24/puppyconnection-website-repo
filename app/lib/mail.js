@@ -98,6 +98,29 @@ export const TEMPLATES = {
       'If you have a question about this, reply to this email.' + (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
     link: portalUrl || undefined,
   }),
+  // Workplan A2, the inactivity schedule (lib/inactivity.js). The wording lives here, in code.
+  inactive_reminder: ({ items, second, offlineInDays, portalUrl }) => ({
+    subject: second ? 'Last reminder: are these puppies still available?' : 'Are these puppies still available?',
+    text: `${second ? 'A last reminder: ' : ''}${items.length === 1 ? 'this listing has' : 'these listings have'} not been updated in a while, so Puppy Connection is checking ${items.length === 1 ? 'it is' : 'they are'} still current.\n\n` +
+      items.map((i) => `${i.name}\nStill available: ${i.link}`).join('\n\n') +
+      `\n\nPress Still available for each puppy that is, and nothing else changes. If a puppy has gone home, mark it placed in the breeder portal. ` +
+      `A listing with no update in ${offlineInDays} more days comes off the site, and you can bring it back free from the portal.` +
+      (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
+    link: items[0] && items[0].link,
+  }),
+  listing_offline: ({ names, freeUntil, portalUrl }) => ({
+    subject: names.length === 1 ? `${names[0]} is off Puppy Connection for now` : `${names.length} listings are off Puppy Connection for now`,
+    text: `These listings had no update for four weeks, so they have come off the site:\n\n${names.map((n) => `  ${n}`).join('\n')}\n\n` +
+      `Nothing is lost. To put a puppy back, open it in the breeder portal and press Bring back. It is free until ${freeUntil}.` +
+      (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
+    link: portalUrl || undefined,
+  }),
+  listing_removed: ({ names, portalUrl }) => ({
+    subject: names.length === 1 ? `${names[0]} has been removed from the directory` : `${names.length} listings have been removed from the directory`,
+    text: `These listings were off the site for two weeks with no update, so they have been removed from the Puppy Connection directory:\n\n${names.map((n) => `  ${n}`).join('\n')}\n\n` +
+      'Their details are kept. You can still bring one back from the breeder portal.' + (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
+    link: portalUrl || undefined,
+  }),
   // Workplan A9. To the breeder, when Puppy Connection sends a held photo back.
   photo_sent_back: ({ puppy, messages, portalUrl }) => ({
     subject: `Please replace a photo of ${puppy}`,

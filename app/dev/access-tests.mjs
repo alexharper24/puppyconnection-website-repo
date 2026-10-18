@@ -91,6 +91,8 @@ async function main() {
     deletePhoto: ['DELETE', `/api/photos/${B.draftPhoto}`, null],
     uploadCard: ['POST', `/api/photos/${B.draftPhoto}/card`, JPG],
     checkMyPhoto: ['POST', `/api/photos/${B.draftPhoto}/check`, {}],
+    keepListed: ['POST', `/api/puppies/${B.paid}/still-available`, {}],
+    bringBack: ['POST', `/api/puppies/${B.paid}/reactivate`, {}],
     // Plan P2.4 and P2.3. A batch into B's litter, a copy of B's puppy, marking it placed, and
     // C's logo and kennel photo, which stay private while C is pending.
     addPuppies: ['POST', `/api/litters/${B.litter}/puppies`, { girls: 2 }],

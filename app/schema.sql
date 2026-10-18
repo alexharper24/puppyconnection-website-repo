@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS breeders (
   status_reason        TEXT,
   stripe_customer_id   TEXT UNIQUE,
   legacy               INTEGER NOT NULL DEFAULT 0,
+  -- The first sign-in, which starts the inactivity clock for an imported breeder (migrations/0020).
+  first_signin_at      TEXT,
   created_at           TEXT NOT NULL,
   updated_at           TEXT NOT NULL,
   version              INTEGER NOT NULL DEFAULT 1
@@ -239,11 +241,19 @@ CREATE TABLE IF NOT EXISTS puppies (
   -- When the puppy was marked adopted, kept by the triggers below (migrations/0019). The
   -- generator unlists an adopted puppy adopted_index_days after it.
   placed_at         TEXT,
+  -- The inactivity schedule (migrations/0020, lib/inactivity.js).
+  last_update_at    TEXT,
+  inactive_stage    TEXT CHECK (inactive_stage IN ('reminded_1','reminded_2','offline','removed')),
+  stage_at          TEXT,
+  inactive_at       TEXT,
+  still_token_hash  TEXT,
   UNIQUE (id, breeder_id),
   FOREIGN KEY (litter_id, breeder_id) REFERENCES litters (id, breeder_id)
 );
 CREATE INDEX IF NOT EXISTS puppies_breeder ON puppies(breeder_id);
 CREATE INDEX IF NOT EXISTS puppies_litter ON puppies(litter_id);
+CREATE INDEX IF NOT EXISTS puppies_inactive ON puppies(inactive_stage, last_update_at);
+CREATE UNIQUE INDEX IF NOT EXISTS puppies_still_token ON puppies(still_token_hash) WHERE still_token_hash IS NOT NULL;
 CREATE TRIGGER IF NOT EXISTS puppies_placed_at_update AFTER UPDATE OF availability ON puppies
 WHEN NEW.availability IS NOT OLD.availability
 BEGIN
@@ -492,7 +502,10 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   -- migrations/0018. Where a photo that fails the quality check goes: breeder or review.
   ('photo_check_route', 'breeder'),
   -- migrations/0019. Days after adoption that a puppy page leaves the sitemap and becomes noindex.
-  ('adopted_index_days', '30');
+  ('adopted_index_days', '30'),
+  -- migrations/0020. Days with no update to each inactivity step, and the free reactivation window.
+  ('inactivity_days', '14,21,28,42'),
+  ('reactivate_days', '42');
 
 -- Plan P3.4. The terms start as Amber's placeholder, marked, both as the version on file and
 -- as the first draft. The admin's Terms screen replaces the draft and publishes new versions.

@@ -219,7 +219,7 @@
   /* Plan P3.9. Everything that needs an operator, from /api/attention: approvals, payments to
      review, disputes, a failed publish or job, close requests, and public contact details
      that changed in the last week. */
-  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check', campaigns: 'Mailing list sending', videos: 'Video check', photos: 'Photo check' };
+  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check', campaigns: 'Mailing list sending', videos: 'Video check', photos: 'Photo check', inactivity: 'Inactivity schedule' };
   function attentionItems(a) {
     var li = function (text, href, btn, sub) {
       return '<li><span>' + text + (sub ? '<span class="att-sub">' + sub + '</span>' : '') + '</span><a class="btn btn-sm" href="' + href + '">' + btn + '</a></li>';
@@ -927,6 +927,8 @@
     registries: ['Registries a breeder can choose for a puppy, separated by commas', 'text'],
     max_videos: ['Most videos a puppy can have (0 turns video uploads off)', 'number'],
     video_max_seconds: ['Longest video, in seconds', 'number'],
+    inactivity_days: ['Days with no update before the first reminder, the second reminder, taking a listing offline, and removing it, separated by commas', 'text'],
+    reactivate_days: ['Days after going offline that a breeder can bring a listing back free', 'number'],
     adopted_index_days: ['Days after a puppy is marked adopted that its page leaves Google (the page stays on the site)', 'number'],
     photo_check_route: ['Where a photo that fails the photo check goes: breeder (they are told what is wrong and upload another) or review (it waits for you in Photo review)', 'text'],
   };

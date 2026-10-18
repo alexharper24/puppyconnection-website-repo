@@ -72,7 +72,7 @@ export function privacyPage() {
 <p>Listing payments are taken by Stripe on its own secure checkout page. Your card details go straight to Stripe. Puppy Connection never sees or stores your card number.</p>
 
 <h2>Who can see your information</h2>
-<p>Puppy Connection's owner can see breeder accounts, listings, payments and the email list to run the service. Staff who help run it can see breeder accounts, listings and each breeder's payments to approve listings, answer questions and keep the site accurate, and they cannot see the email list.</p>
+<p>Puppy Connection's owner can see breeder accounts, listings, payments and the email list to run the service. Staff who help run it can see breeder accounts, listings and each breeder's payments to look after breeder accounts, answer questions and keep the site accurate, and they cannot see the email list.</p>
 
 <h2>Who helps us run Puppy Connection</h2>
 <ul>

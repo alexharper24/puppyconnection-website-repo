@@ -1054,7 +1054,11 @@ ${pg.body}
     if (target.startsWith('/') && !fs.existsSync(path.join(out, target.slice(1)))) target = '/breeds.html';
     return `${from} ${target} 301`;
   });
-  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page, then the old Wix pages (build/legacy-pages.tsv).\n${redirects.join('\n')}\n${legacy.join('\n')}\n`);
+  // Workplan A2. A puppy the inactivity schedule took off the site forwards to its breed page, or to
+  // the breeds index while that breed has no page, and so does its old Wix address.
+  const gone = D.breeds.flatMap((b) => (b.gone || []).map((g) => ({ ...g, to: fs.existsSync(path.join(out, pageFor.breed(b.slug))) ? `/${pageFor.breed(b.slug)}` : '/breeds.html' })))
+    .flatMap((g) => [`/${pageFor.puppy(g.slug)} ${g.to} 301`, ...(g.legacy_slug ? [`/product-page/${g.legacy_slug} ${g.to} 301`] : [])]).sort();
+  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page, puppies taken off the site go to their breed page, then the old Wix pages (build/legacy-pages.tsv).\n${[...redirects, ...gone].join('\n')}\n${legacy.join('\n')}\n`);
   // Stylesheets, scripts and the listing data are linked with ?v= and the number changes with the
   // file, so they keep for a year. The concept's images keep their names when replaced, so a week.
   // Photos from R2 get their headers from the site Worker.

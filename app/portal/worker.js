@@ -28,6 +28,7 @@ import {
 import { cleanImage } from '../lib/images.js';
 import { reportTarget, reportForm, saveReport } from '../lib/reports.js';
 import { photoCheckMode, checkPhoto, reasonText } from '../lib/photocheck.js';
+import { freshStmt, reactivate, reactivation, stillAvailable, inactivitySettings } from '../lib/inactivity.js';
 import {
   streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
 } from '../lib/stream.js';
@@ -78,8 +79,12 @@ async function needSession(request, env) {
 async function startSession(request, env, breederId, email = null) {
   const token = randomToken();
   const t = now();
-  await env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at, email) VALUES (?, ?, ?, ?, ?, ?)')
-    .bind(await sha256hex(token), breederId, t, addDays(t, SESSION_DAYS), t, email).run();
+  await env.DB.batch([
+    env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at, email) VALUES (?, ?, ?, ?, ?, ?)')
+      .bind(await sha256hex(token), breederId, t, addDays(t, SESSION_DAYS), t, email),
+    // Workplan A2. The first sign-in starts the inactivity clock for an imported Wix breeder.
+    env.DB.prepare('UPDATE breeders SET first_signin_at = ? WHERE id = ? AND first_signin_at IS NULL').bind(t, breederId),
+  ]);
   return setCookie(request, sessionCookieName(request), token, SESSION_DAYS * 86400);
 }
 
@@ -883,6 +888,7 @@ async function setAvailability(request, env, ctx, id) {
     env.DB.prepare('UPDATE puppies SET availability = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ? AND version = ?')
       .bind(availability, now(), id, breeder.id, Number(body.version)),
     auditStmt(env, 'breeder', breeder.email, 'puppy.availability', 'puppy', id, { availability: before.availability }, { availability }),
+    freshStmt(env, id),
   ];
   if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'puppy');
@@ -905,6 +911,8 @@ async function updatePuppy(request, env, ctx, id) {
     ).bind(...puppyValues(f), now(), id, breeder.id, Number(body.version)),
     auditStmt(env, 'breeder', breeder.email, 'puppy.update', 'puppy', id, before, f),
   ];
+  // Workplan A2. A change to price, description or status counts as an update for the schedule.
+  if (f.price_cents !== before.price_cents || f.description !== before.description || f.availability !== before.availability) stmts.push(freshStmt(env, id));
   if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'puppy');
   return json({ ok: true });
@@ -953,6 +961,7 @@ async function uploadPhoto(request, env, ctx, puppyId) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, now(), quality),
     auditStmt(env, 'breeder', breeder.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, stripped: raw.length - img.bytes.length }),
+    freshStmt(env, puppyId),
   ];
   if (await hasPublic(env, 'id = ?', puppyId)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -967,6 +976,7 @@ async function deletePhoto(request, env, ctx, id) {
   const stmts = [
     env.DB.prepare('DELETE FROM photos WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
     auditStmt(env, 'breeder', breeder.email, 'photo.remove', 'puppy', photo.puppy_id, { photo: id }, null),
+    freshStmt(env, photo.puppy_id),
   ];
   if (await hasPublic(env, 'id = ?', photo.puppy_id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -990,6 +1000,45 @@ async function uploadCard(request, env, ctx, id) {
   if (!img.size || Math.max(img.size.w, img.size.h) > CARD_MAX_EDGE) throw bad(`A card copy can be up to ${CARD_MAX_EDGE} pixels on its longest side.`);
   await env.FILES.put(cardKey(photo.r2_key), img.bytes, { httpMetadata: { contentType: img.type } });
   return json({ ok: true, bytes: img.bytes.length }, 201);
+}
+
+// ------------------------------------------------------------------ the inactivity schedule (workplan A2)
+
+/** The portal's Still available button on a puppy that has had a reminder. */
+async function keepListed(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  const p = await owned(env, 'puppy', id, breeder.id);
+  if (p.publication_state !== 'published') throw bad('That puppy is not on the site. Bring it back instead.');
+  await env.DB.batch([freshStmt(env, id), auditStmt(env, 'breeder', breeder.email, 'listing.still_available', 'puppy', id, null, null)]);
+  return json({ ok: true });
+}
+
+async function bringBack(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const p = await owned(env, 'puppy', id, breeder.id);
+  const r = await reactivate(env, p, { type: 'breeder', email: breeder.email });
+  if (r.error) throw bad(r.error);
+  return json(r);
+}
+
+/** The emailed one-click link. GET changes nothing, because mail scanners open links first. */
+function stillAvailablePage(request) {
+  const t = new URL(request.url).searchParams.get('t') || '';
+  return html(page('Still available', `<h1>Is this puppy still available?</h1>
+<p>Press the button to keep the listing on Puppy Connection. Nothing else changes.</p>
+<form method="post" action="/still-available"><input type="hidden" name="t" value="${esc(t)}">
+<button class="btn btn-primary" type="submit">Still available</button></form>`));
+}
+
+async function stillAvailableSubmit(request, env) {
+  requireSameOrigin(request);
+  const form = await request.formData();
+  const p = await stillAvailable(env, String(form.get('t') || ''));
+  if (!p) return html(page('Link already used', '<h1>That link has already been used or has expired</h1><p>Sign in to the breeder portal to see where each listing stands.</p><p><a class="btn btn-primary" href="/">Breeder portal</a></p>'), 410);
+  return html(page('Still available', `<h1>Thank you</h1><p>${esc(p.name)} stays on Puppy Connection.</p><p><a class="btn btn-primary" href="/">Breeder portal</a></p>`));
 }
 
 /** Workplan A9. Run the quality check on one of the breeder's photos and say what it found. */
@@ -1101,6 +1150,7 @@ async function listings(request, env) {
   // Plan P2.5, this breeder's views and clicks per puppy over the last 30 days.
   const counts = Object.fromEntries((await breederStats(env, breeder.id, 30)).puppies.map((r) => [r.id, r]));
   const site = siteOrigin(env);
+  const inact = await inactivitySettings(env);
   const vids = {};
   for (const v of (await env.DB.prepare('SELECT id, puppy_id, stream_uid, status, duration_s FROM puppy_videos WHERE breeder_id = ? ORDER BY position, created_at').bind(breeder.id).all()).results) {
     (vids[v.puppy_id] ||= []).push({ id: v.id, status: v.status, duration: v.duration_s, ...(v.status === 'ready' ? videoUrls(env, v.stream_uid, videoOrigin(request, env)) : {}) });
@@ -1108,6 +1158,8 @@ async function listings(request, env) {
   for (const l of litters) {
     for (const p of l.puppies) {
       p.videos = vids[p.id] || [];
+      // Workplan A2. Where the puppy is in the inactivity schedule, and whether it can come back free.
+      p.reactivation = reactivation(p, inact);
       p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons) }));
       // Workplan A9. A photo the check sent back or is holding does not count toward the listing.
       const usable = p.photos.filter((ph) => !ph.quality || ph.quality === 'pass' || ph.quality === 'pending').length;
@@ -1439,6 +1491,10 @@ const ROUTES = [
   ['GET', /^\/dev\/stream\/(\w+)\/(iframe|video)$/, (r, e, c, uid, what) => simServe(e, uid, what)],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, uploadCard],
   ['POST', /^\/api\/photos\/([\w-]+)\/check$/, checkMyPhoto],
+  ['POST', /^\/api\/puppies\/([\w-]+)\/still-available$/, keepListed],
+  ['POST', /^\/api\/puppies\/([\w-]+)\/reactivate$/, bringBack],
+  ['GET', /^\/still-available$/, (r) => stillAvailablePage(r)],
+  ['POST', /^\/still-available$/, stillAvailableSubmit],
   ['GET', /^\/media\/([\w-]+)$/, media],
   ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id) => media(r, e, c, id, true)],
   ['POST', /^\/api\/checkouts$/, startCheckout],

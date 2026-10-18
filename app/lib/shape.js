@@ -19,6 +19,7 @@
 
 import { brandUrl } from './store.js';
 import { videoUrls } from './stream.js';
+import { gonePuppies } from './inactivity.js';
 
 export const DATA_FILES = ['data/breeds.json', 'data/breeders.json', 'data/litters.json', 'data/puppies.json'];
 
@@ -44,6 +45,10 @@ export async function exportSite(env) {
   const site = await db.prepare('SELECT generation FROM site_state WHERE id = 1').first();
   const breeds = (await db.prepare('SELECT id, slug, name, guide FROM breeds ORDER BY name').all()).results;
   const breedSlug = Object.fromEntries(breeds.map((b) => [b.id, b.slug]));
+  // Workplan A2. Puppies the inactivity schedule took off the site. Their old addresses forward to
+  // the breed page, so each breed carries the slugs (all of which were public before).
+  const gone = {};
+  for (const g of await gonePuppies(env)) (gone[g.breed] ||= []).push(g.legacy_slug ? { slug: g.slug, legacy_slug: g.legacy_slug } : { slug: g.slug });
   const breeders = (await db.prepare('SELECT * FROM public_breeders ORDER BY slug').all()).results;
   const breederSlug = Object.fromEntries(breeders.map((b) => [b.breeder_id, b.slug]));
   const raised = {};
@@ -73,7 +78,7 @@ export async function exportSite(env) {
 
 
   const files = {
-    'data/breeds.json': text(breeds.map((b) => ({ slug: b.slug, name: b.name, guide: paras(b.guide) }))),
+    'data/breeds.json': text(breeds.map((b) => ({ slug: b.slug, name: b.name, guide: paras(b.guide), ...(gone[b.slug] ? { gone: gone[b.slug] } : {}) }))),
     'data/breeders.json': text(breeders.map((b) => ({
       slug: b.slug, name: b.business_name, city: b.city, state: b.state, phone: b.public_phone, email: b.public_email,
       website: b.website_url, facebook: b.facebook_url, about: paras(b.description),

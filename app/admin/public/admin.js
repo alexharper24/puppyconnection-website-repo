@@ -927,6 +927,7 @@
     registries: ['Registries a breeder can choose for a puppy, separated by commas', 'text'],
     max_videos: ['Most videos a puppy can have (0 turns video uploads off)', 'number'],
     video_max_seconds: ['Longest video, in seconds', 'number'],
+    adopted_index_days: ['Days after a puppy is marked adopted that its page leaves Google (the page stays on the site)', 'number'],
     photo_check_route: ['Where a photo that fails the photo check goes: breeder (they are told what is wrong and upload another) or review (it waits for you in Photo review)', 'text'],
   };
   function settings() {

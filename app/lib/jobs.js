@@ -90,7 +90,14 @@ async function housekeeping(env) {
     env.DB.prepare('DELETE FROM dev_mailbox WHERE sent_at < ?').bind(iso(Date.now() - 14 * DAY)),
   ]);
   const [tokens, sessions, holds, mail] = r.map((x) => x.meta.changes);
-  return { tokens, sessions, holds, test_mail: mail };
+  // Workplan A8. A puppy adopted adopted_index_days ago today leaves the sitemap at the next
+  // build, so the site is marked to publish even though nothing else changed.
+  const days = Number((await env.DB.prepare("SELECT value FROM settings WHERE key = 'adopted_index_days'").first())?.value ?? 30);
+  const { n: crossed } = await env.DB.prepare(
+    "SELECT COUNT(*) AS n FROM public_puppies WHERE availability = 'placed' AND placed_at <= ? AND placed_at > ?",
+  ).bind(iso(Date.now() - days * DAY), iso(Date.now() - (days + 1) * DAY)).first();
+  if (crossed) await dirtyStmt(env).run();
+  return { tokens, sessions, holds, test_mail: mail, adopted_unlisted: crossed };
 }
 
 // Spec 8.6. A checkout still open past its expiry is closed and its puppies released. A

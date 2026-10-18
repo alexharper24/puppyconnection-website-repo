@@ -236,11 +236,26 @@ CREATE TABLE IF NOT EXISTS puppies (
   deworming         TEXT,
   disclosures       TEXT,
   deposit_url       TEXT,
+  -- When the puppy was marked adopted, kept by the triggers below (migrations/0019). The
+  -- generator unlists an adopted puppy adopted_index_days after it.
+  placed_at         TEXT,
   UNIQUE (id, breeder_id),
   FOREIGN KEY (litter_id, breeder_id) REFERENCES litters (id, breeder_id)
 );
 CREATE INDEX IF NOT EXISTS puppies_breeder ON puppies(breeder_id);
 CREATE INDEX IF NOT EXISTS puppies_litter ON puppies(litter_id);
+CREATE TRIGGER IF NOT EXISTS puppies_placed_at_update AFTER UPDATE OF availability ON puppies
+WHEN NEW.availability IS NOT OLD.availability
+BEGIN
+  UPDATE puppies SET placed_at = CASE WHEN NEW.availability = 'placed' THEN strftime('%Y-%m-%dT%H:%M:%SZ','now') ELSE NULL END
+   WHERE id = NEW.id;
+END;
+CREATE TRIGGER IF NOT EXISTS puppies_placed_at_insert AFTER INSERT ON puppies
+WHEN NEW.availability = 'placed' AND NEW.placed_at IS NULL
+BEGIN
+  UPDATE puppies SET placed_at = strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id = NEW.id;
+END;
+
 
 -- A photo is either uploaded (r2_key) or an imported Wix link kept until the photos are
 -- localized (external_url). Never both missing.
@@ -475,7 +490,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('max_videos', '2'),
   ('video_max_seconds', '120'),
   -- migrations/0018. Where a photo that fails the quality check goes: breeder or review.
-  ('photo_check_route', 'breeder');
+  ('photo_check_route', 'breeder'),
+  -- migrations/0019. Days after adoption that a puppy page leaves the sitemap and becomes noindex.
+  ('adopted_index_days', '30');
 
 -- Plan P3.4. The terms start as Amber's placeholder, marked, both as the version on file and
 -- as the first draft. The admin's Terms screen replaces the draft and publishes new versions.
@@ -508,7 +525,9 @@ SELECT pu.id, pu.breeder_id, pu.litter_id, pu.slug, pu.name, pu.sex, pu.color,
        -- migrations/0009. The coat type.
        pu.coat,
        -- migrations/0016. More puppy details.
-       pu.registry, pu.markings, pu.health_notes, pu.vaccinations, pu.deworming, pu.disclosures, pu.deposit_url
+       pu.registry, pu.markings, pu.health_notes, pu.vaccinations, pu.deworming, pu.disclosures, pu.deposit_url,
+       -- migrations/0019. When it was marked adopted.
+       pu.placed_at
 FROM puppies pu JOIN public_breeders pb ON pb.breeder_id = pu.breeder_id
 WHERE pu.publication_state = 'published'
   AND pu.payment_state IN ('paid','comped')

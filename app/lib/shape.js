@@ -53,6 +53,9 @@ export async function exportSite(env) {
   ).all()).results) (raised[r.breeder_id] ||= []).push(r.slug);
   const litters = (await db.prepare('SELECT * FROM public_litters ORDER BY id').all()).results;
   const puppies = (await db.prepare('SELECT * FROM public_puppies ORDER BY published_at DESC, slug').all()).results;
+  // Workplan A8. When an adopted puppy leaves the sitemap and becomes noindex.
+  const indexDays = Number((await db.prepare("SELECT value FROM settings WHERE key = 'adopted_index_days'").first())?.value ?? 30);
+  const unlistAfter = (p) => (p.availability === 'placed' && p.placed_at ? new Date(Date.parse(p.placed_at) + indexDays * 86400000).toISOString().slice(0, 19) + 'Z' : null);
   const photos = {};
   // Size and focus point from ops/measure_photos.py, carried only once a photo has been measured.
   const framing = (ph) => (ph.width && ph.height ? { w: ph.width, h: ph.height, fx: ph.focus_x ?? 0.5, fy: ph.focus_y ?? 0.38 } : {});
@@ -87,6 +90,7 @@ export async function exportSite(env) {
       about: paras(p.description), breeder_url: p.breeder_url, legacy_slug: p.legacy_slug || null, published_at: p.published_at,
       registry: p.registry || null, markings: p.markings || null, health: paras(p.health_notes), vaccinations: paras(p.vaccinations),
       deworming: paras(p.deworming), disclosures: paras(p.disclosures), deposit_url: p.deposit_url || null, videos: videos[p.id] || [],
+      placed_at: p.placed_at || null, unlist_after: unlistAfter(p),
       photos: (photos[p.id] || []).map((ph) => ({ ...(ph.r2_key
         ? { ...photoPath(ph), aspect: ph.aspect }
         : { src: ph.external_url, card: null, aspect: ph.aspect }), ...framing(ph) })),

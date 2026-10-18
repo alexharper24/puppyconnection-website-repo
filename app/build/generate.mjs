@@ -280,7 +280,7 @@ const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 const order = { available: 0, pending: 1, placed: 2 };
 const byStanding = (a, b) => (order[a.availability] - order[b.availability]) || String(b.published_at).localeCompare(String(a.published_at)) || a.slug.localeCompare(b.slug);
 
-export function build({ dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), highlights = path.resolve(HERE, '../content/breeds'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
+export function build({ now = Date.now(), dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), highlights = path.resolve(HERE, '../content/breeds'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
   if (!base.endsWith('/')) base += '/';
   const T = templatesDir(templates);
   const D = loadData(dataDir);
@@ -408,15 +408,21 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   const pageImages = {};
   const imageUrl = (ph) => (!ph ? null : isWix(ph.src) ? wixFit(ph.src, 1200, 1200) : absolute(ph.src));
 
-  function write(file, { title, desc, body, trail, current, image, scripts = 'pages', ld = [], images = [] }) {
+  // Workplan A8. Pages kept out of the sitemap and marked noindex, such as a puppy adopted more
+  // than adopted_index_days ago. The page stays up so its litter can still be seen.
+  const unlisted = new Set();
+  function write(file, { title, desc, body, trail, current, image, scripts = 'pages', ld = [], images = [], noindex = false }) {
     const url = file === 'index.html' ? base : base + file;
+    if (noindex) unlisted.add(file);
     let h = hdr;
     if (current) h = h.replace(`href="${current}"`, `href="${current}" aria-current="page"`);
     const tail = scripts === 'data'
       ? `<script src="data/data.js?v=${dataV}"></script>\n<script src="js/main.js?v=${mainV}"></script>\n`
       : `<script src="js/main.js?v=${mainV}"></script>\n<script src="js/pages.js?v=${pagesV}"></script>\n`;
     const extra = ld.map((o) => `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', ...o })}</script>\n`).join('');
-    const htmlOut = `${headBase}<title>${esc(title)}</title>\n<meta name="description" content="${esc(desc)}">\n${social(title, desc, url, image)}\n`
+    const head = noindex && indexable ? `${headBase}<meta name="robots" content="noindex, follow">
+` : headBase;
+    const htmlOut = `${head}<title>${esc(title)}</title>\n<meta name="description" content="${esc(desc)}">\n${social(title, desc, url, image)}\n`
       + `${trail ? `${crumbs(trail)}\n` : ''}${extra}${fonts}\n</head>\n<body>\n\n${h}${body}\n\n${ftr}\n${tail}</body>\n</html>\n`;
     fs.writeFileSync(path.join(out, file), htmlOut);
     pages.push(file);
@@ -609,6 +615,7 @@ ${mates.length ? `<section class="band band-warm">
     const who = b ? ` from ${b.name}${place(b) ? ` in ${place(b)}` : ''}` : '';
     const when = p.placed ? 'Adopted.' : p.l.ready_on ? `Ready to go home ${longDate(p.l.ready_on)}.` : 'Available now.';
     write(pageFor.puppy(p.slug), {
+      noindex: p.placed && !!p.unlist_after && Date.parse(p.unlist_after) <= now,
       // SEO plan P11. "for sale" only while the puppy is, since an adopted puppy's page stays up.
       title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
       desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 158),
@@ -1028,7 +1035,7 @@ ${pg.body}
   fs.writeFileSync(path.join(out, '404.html'), nf);
 
   // ---- sitemap, robots and the Wix 301 map
-  const urls = pages.map((f) => (f === 'index.html' ? base : base + f)).sort();
+  const urls = pages.filter((f) => !unlisted.has(f)).map((f) => (f === 'index.html' ? base : base + f)).sort();
   const xml = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const urlEntry = (u) => {
     const imgs = (pageImages[u] || []).slice(0, 20).map((i) => `\n    <image:image><image:loc>${xml(i)}</image:loc></image:image>`).join('');

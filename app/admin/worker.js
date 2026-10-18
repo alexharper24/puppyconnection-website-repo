@@ -405,6 +405,8 @@ const EDITABLE = {
   video_max_seconds: (v) => /^\d{2,3}$/.test(v) && Number(v) >= 10 && Number(v) <= 600,
   // Workplan A9. A photo that fails the quality check goes back to the breeder, or to Photo review.
   photo_check_route: (v) => v === 'breeder' || v === 'review',
+  // Workplan A8. Days after adoption that a puppy page leaves the sitemap and becomes noindex.
+  adopted_index_days: (v) => /^\d{1,3}$/.test(v) && Number(v) >= 1,
   // terms_version is no longer typed in here. Publishing on the Terms screen sets it (plan P3.4).
 };
 

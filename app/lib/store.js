@@ -96,7 +96,9 @@ export function dirtyStmt(env) {
  * nobody changed the row since. Two people editing one puppy get a 409, not a silent loss.
  */
 export function checkVersion(result, what) {
-  if (!result.meta || result.meta.changes !== 1) {
+  // The UPDATE names one row by its id, so 0 means the version moved on. D1 counts rows a trigger
+  // changes in the same total (the placed_at trigger, migrations/0019), so more than 1 is fine.
+  if (!result.meta || !(result.meta.changes >= 1)) {
     throw new HttpError(409, `This ${what} was changed somewhere else. Reload to see the latest version.`);
   }
 }

@@ -82,11 +82,11 @@ const puppies = async (c) => (await c.get('/api/listings')).data.litters.flatMap
 const pup = async (c, id) => (await puppies(c)).find((p) => p.id === id);
 
 /** The site as the next publish would build it, from the portal's export. */
-async function buildSite() {
+async function buildSite(opts = {}) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-launch-'));
   await fetchData(`${PORTAL}/data/export.json`, tmp);
   const out = path.join(tmp, 'out');
-  build({ dataDir: tmp, out, guides: path.join(APP, 'dev/fixtures/guides') });
+  build({ dataDir: tmp, out, guides: path.join(APP, 'dev/fixtures/guides'), ...opts });
   return { dir: tmp, out, page: (f) => (fs.existsSync(path.join(out, f)) ? fs.readFileSync(path.join(out, f), 'utf8') : null), data: (f) => JSON.parse(fs.readFileSync(path.join(tmp, 'data', f), 'utf8')) };
 }
 
@@ -274,7 +274,44 @@ async function photos() {
   check('A9 the photo job checks a photo left pending', r.status === 200 && (await photo(late)).quality === 'pass', JSON.stringify(r.data));
 }
 
-const PARTS = { details, reports, photos };
+// ---------------------------------------------------------------- A8 adopted puppies out of Google
+async function placed() {
+  const A = await breeder('placed');
+  const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
+  const old = await readyPuppy(A.c, litter, 'Pepper'), recent = await readyPuppy(A.c, litter, 'Ginger'), open = await readyPuppy(A.c, litter, 'Nutmeg');
+  await pay(A.c, [old, recent, open]);
+  const at = (id) => sql(`SELECT placed_at FROM puppies WHERE id = '${id}'`)[0].placed_at;
+  const mark = async (id, availability) => A.c.put(`/api/puppies/${id}/availability`, { availability, version: (await pup(A.c, id)).version });
+  const m = await mark(old, 'placed');
+  check('A8 marking a puppy adopted answers ok and records when', m.status === 200 && /^\d{4}-\d\d-\d\dT/.test(at(old) || ''), JSON.stringify([m.status, at(old)]));
+  await mark(old, 'available');
+  check('A8 marking it available again clears the date', at(old) === null);
+  await mark(old, 'placed'); await mark(recent, 'placed');
+  const ap = (await admin.get(`/api/breeders/${A.id}`)).data.litters.flatMap((l) => l.puppies).find((x) => x.id === open);
+  const e = await admin.put(`/api/puppies/${open}`, { version: ap.version, availability: 'placed' });
+  check('A8 an operator marking a puppy adopted answers ok and records when', e.status === 200 && !!at(open), JSON.stringify([e.status, e.data]));
+  await admin.put(`/api/puppies/${open}`, { version: ap.version + 1, availability: 'pending' });
+  check('A8 an operator edit that is not adoption sets no date', at(open) === null);
+  sql(`UPDATE puppies SET placed_at = '${new Date(Date.now() - 31 * 86400000).toISOString().slice(0, 19)}Z' WHERE id = '${old}'`);
+  sql(`UPDATE puppies SET placed_at = '${new Date(Date.now() - 5 * 86400000).toISOString().slice(0, 19)}Z' WHERE id = '${recent}'`);
+  const site = await buildSite({ indexable: true, base: 'https://puppy-connection.com/' });
+  const slug = async (id) => (await pup(A.c, id)).slug;
+  const map = fs.readFileSync(path.join(site.out, 'sitemap.xml'), 'utf8');
+  const oldPage = site.page(`puppy-${await slug(old)}.html`), recentPage = site.page(`puppy-${await slug(recent)}.html`);
+  check('A8 a puppy adopted 31 days ago leaves the sitemap', !map.includes(`puppy-${await slug(old)}.html`) && map.includes(`puppy-${await slug(recent)}.html`) && map.includes(`puppy-${await slug(open)}.html`));
+  check('A8 ... and its page stays up, marked noindex', !!oldPage && oldPage.includes('<meta name="robots" content="noindex, follow">') && /Adopted/.test(oldPage));
+  check('A8 a puppy adopted 5 days ago is still indexed', !!recentPage && !recentPage.includes('noindex'));
+  const data = site.data('puppies.json').find((x) => x.name === 'Pepper' && x.unlist_after);
+  check('A8 the export carries the adoption date and when the page unlists', data && data.placed_at && Date.parse(data.unlist_after) - Date.parse(data.placed_at) === 30 * 86400000, JSON.stringify(data && [data.placed_at, data.unlist_after]));
+  // The daily job marks the site to publish on the day a puppy crosses the window.
+  sql(`UPDATE puppies SET placed_at = '${new Date(Date.now() - 30.5 * 86400000).toISOString().slice(0, 19)}Z' WHERE id = '${recent}'`);
+  sql('UPDATE site_state SET dirty = 0 WHERE id = 1');
+  const r = await admin.post('/api/jobs/housekeeping/run', {});
+  check('A8 the daily job marks the site to publish when a puppy crosses 30 days', r.status === 200 && sql('SELECT dirty FROM site_state WHERE id = 1')[0].dirty === 1, JSON.stringify(r.data));
+  check('A8 the window is a setting', (await admin.put('/api/settings', { adopted_index_days: '0' })).status === 400 && (await admin.put('/api/settings', { adopted_index_days: '30' })).status === 200);
+}
+
+const PARTS = { details, reports, photos, placed };
 
 async function main() {
   const only = process.argv[2];

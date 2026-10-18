@@ -195,7 +195,7 @@ async function main() {
   const edit = await admin.put(`/api/puppies/${B.paid}`, { availability: 'placed', version: bPaid.version });
   const after = (await admin.get(`/api/breeders/${B.id}`)).data;
   const row = after.litters.flatMap((l) => l.puppies).find((p) => p.id === B.paid);
-  check(8, 'Amber marks B\'s puppy placed and it still belongs to B', edit.status === 200 && row.breeder_id === B.id && row.availability === 'placed');
+  check(8, 'Amber marks B\'s puppy placed and it still belongs to B', edit.status === 200 && row.breeder_id === B.id && row.availability === 'placed', JSON.stringify([edit.status, edit.data, row && row.availability]));
   check(8, 'the change is in the audit log under Amber', after.audit.some((a) => a.actor_type === 'operator' && a.action === 'puppy.update' && a.entity_id === B.paid));
 
   // 9. Sign-in links: once, 15 minutes, no enumeration

@@ -194,7 +194,8 @@ node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stan
 node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
-node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: puppy details and video (A3), then each launch item as it lands
+node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the inactivity schedule on a moved clock, listing review, reports, Visit site, Wix descriptions
+node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
 
@@ -357,11 +358,41 @@ settings, terms and operators are not touched. The audit log and email log are k
 - The Wix import (`app/ops/wix-import.mjs`) and the restore (`app/ops/restore-backup.mjs`) work
   on a copy or a new database, never the live one. The restore refuses a database that already
   has breeders.
+- **Launch additions (docs/launch-workplan.md).** Puppy videos go from the breeder's browser
+  straight to Cloudflare Stream (`lib/stream.js`), never through a Worker. Families report a
+  listing on a form served by the portal at `/report`, linked from each puppy and breeder page, so
+  Turnstile and the rate limiter run where sign-up already uses them (`lib/reports.js`). Each upload
+  is judged by a vision model on Workers AI (`lib/photocheck.js`), and a photo that fails is sent
+  back to the breeder with the reason, or held in Photo review when `photo_check_route` is review.
+  A photo still waiting for the check counts toward a listing's minimum so a slow check never
+  blocks a payment, and only checked photos reach the site.
+- **Adoption dates come from triggers.** `placed_at` is set and cleared by two SQLite triggers on
+  `puppies` (migrations/0019), so no route can forget it. D1 counts a trigger's own changes in
+  `meta.changes`, which is why `checkVersion()` treats any count of 1 or more as success.
+- **The inactivity schedule moves one step a run and each step waits its week** (`lib/inactivity.js`),
+  so a listing never skips a reminder, and every listing's clock started at migration 0020 rather
+  than from its old publish date. Imported Wix breeders are left out until they first sign in. The
+  Still available link changes nothing on GET, because mail scanners open links.
+- **Breed searches are counted per breed per day only**, by the same beacon as views and clicks,
+  from the browse page's breed filter (`js/search-count.js`, written by the generator).
+- **Wix form labels are split out of imported descriptions** by `lib/wixtext.js`, in the seed, in
+  the Wix import and by migrations/0022 for staging. The breeder's prose is kept exactly as written,
+  and the parents' colors, which have no field, become one line on the litter.
 - Report CSVs (plan P3.7) are built on the server, and any text cell starting with `=`, `+`, `-`,
   `@`, a tab or a carriage return gets a leading apostrophe, so a puppy named like a formula
   cannot run in Amber's spreadsheet (`lib/csv.js`).
 
 ## Pending
+
+- [ ] Cloudflare Stream for puppy videos: subscribe on the Puppy Connection account, create an API
+      token with Stream Edit, set it as `STREAM_API_TOKEN` on the portal and the admin, then set
+      `STREAM_MODE` stream and `STREAM_CUSTOMER_CODE` in both `wrangler.hosted.jsonc` and redeploy.
+      Until then staging offers no video upload
+- [ ] The photo check disagrees with Alex's calls on 10 of the 100 test photos
+      (`hs-seo-data/puppyconnection/2026-10-17-photo-sample/results-*.json`). Alex to look at them
+      and say whether to loosen the check, keep it, or default to Amber's review queue
+- [ ] Workers AI's free allocation covers about 350 photo checks a day. Past it a check fails and the
+      photo passes unjudged until the next day or Workers Paid
 
 - [ ] Press Reset demo data on staging once, signed in to the admin through Access, so staging
       holds the three demo breeders. It was built and deployed on 2026-10-06 but not run there,

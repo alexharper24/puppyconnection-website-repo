@@ -98,9 +98,9 @@ export const INFO_PAGES = [
     file: 'transportation.html', name: 'Transportation',
     title: 'Puppy Transportation and Delivery | Puppy Connection',
     desc: 'Too far to pick up your puppy? Furry Freight, a pet transportation company in Pierceton, Indiana, delivers by road and air. Book with them directly.',
-    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
+    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap wrap-mid"><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
 <p class="lede">Most families pick their puppy up from the breeder. When the breeder is too far away, a pet transportation company can bring the puppy to you.</p></div></section>
-<section class="band" style="padding-top:0" id="delivery"><div class="wrap">
+<section class="band" style="padding-top:0" id="delivery"><div class="wrap wrap-mid">
 <div class="partner">
 <img class="partner-logo" src="img/brand/furry-freight-logo.png" alt="Furry Freight Pet Transportation" width="420" height="331" loading="lazy" decoding="async">
 <div class="partner-copy">
@@ -112,7 +112,7 @@ export const INFO_PAGES = [
 </div>
 </div>
 </div></section>
-<section class="band band-warm"><div class="wrap split">
+<section class="band band-warm"><div class="wrap wrap-mid split">
 <div><p class="eyebrow">Before you ask for a quote</p><h2>What to have ready</h2>
 <ul class="includes" style="columns:1">
 <li>The go-home date you have agreed with the breeder</li>

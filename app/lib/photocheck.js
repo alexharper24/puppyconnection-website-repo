@@ -39,12 +39,12 @@ export const PHOTO_PROMPT = `You check photos for a website where breeders list 
 Look at the photo and decide if it can go on the site as it is.
 
 Send it back if ANY of these is true:
-- hidden: the puppy's face or head is hidden or covered, for example by plants, toys, a blanket or a person.
+- hidden: an object such as a plant, toy, blanket or person covers the puppy's head, so you cannot see its head at all.
 - too_small: the puppy is so small or far away in the frame that a family cannot see what it looks like.
-- turned_away: the photo shows the puppy from behind, with its back to the camera and NO part of its face visible. A puppy in profile, looking sideways or with its head turned is fine.
-- face_down: the puppy is lying with its face down or pointed away so the face cannot be seen.
+- turned_away: the puppy is small or partly hidden AND its back is to the camera, so a family cannot tell what it looks like.
+- face_down: the photo is taken from above and the puppy's face points straight down into the ground, so only the top of its head shows.
 - blurry: the puppy is blurred by motion or the photo is out of focus.
-- person: a person's body, legs or arms take up about half of the photo or more. Hands or arms holding the puppy, or a person partly in the background, are fine.
+- person: a person's body or legs take up more of the photo than the puppy does.
 - dark: the photo is so dark the puppy is hard to see.
 - low_quality: the photo is grainy, pixelated or looks like a small screenshot.
 - watermark: a large watermark or text covers part of the puppy. A small logo in a corner is fine, and the Puppy Connection logo is always fine.
@@ -53,7 +53,11 @@ Do NOT send a photo back because:
 - the puppy is a little small in the frame but still clearly visible,
 - the background is busy, a leash or collar shows, or there are toys around a visible puppy,
 - the dog looks fully grown (that is not checked),
-- the photo is a close-up of the face.
+- the photo is a close-up of the face,
+- the puppy is asleep or lying down with its body clearly in view,
+- the puppy is seen from behind or from the side while it is clearly in view (Alex, 2026-10-17),
+- an adult or a child is holding the puppy, or part of a person (a hand, an arm, a shoe) shows at the edge,
+- the puppy is older or standing, or the setting is a garden or a little dark, as long as the puppy itself is clear.
 
 Answer with JSON only: {"verdict": "pass" or "send_back", "reasons": [zero or more of the reason words above]}.`;
 

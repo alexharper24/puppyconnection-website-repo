@@ -732,3 +732,16 @@ aside .guide-panel{margin-top:1rem}
   .contact-list b{flex:none}
   .contact-list li,.contact-list a{overflow-wrap:normal}
 }
+
+/* Clear space between the brand column and the footer links (Alex, 2026-10-17). The brand content
+   keeps its width and a right margin moves the three link columns over as a group: 142px of clear
+   space at 1280 and 1440, 64px at 1024. Below 1000px the layout is unchanged, because a wider gap
+   there would wrap "Tips on buying a puppy". */
+@media (min-width:1000px){
+  .foot-grid{grid-template-columns:minmax(0,18rem) repeat(3,minmax(0,1fr))}
+  .foot-grid > div:first-child{margin-right:2rem}
+}
+@media (min-width:1240px){
+  .foot-grid{grid-template-columns:minmax(0,28.5rem) repeat(3,minmax(0,1fr))}
+  .foot-grid > div:first-child{margin-right:6rem}
+}

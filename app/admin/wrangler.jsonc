@@ -30,6 +30,8 @@
 
   "vars": {
     "PORTAL_ORIGIN": "http://localhost:8787",
+    // Workplan A11. The public site, for the Visit site link (the preview server locally).
+    "SITE_ORIGIN": "http://localhost:8789",
     "ADMIN_ORIGIN": "http://localhost:8788",
     // Filled in when Access is set up on Amber's account (breeder-site-backend worker-and-auth).
     "ACCESS_TEAM_DOMAIN": "PASTE_TEAM_DOMAIN",

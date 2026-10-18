@@ -44,6 +44,8 @@ async function runJobNow(req, env, ctx, name, who) {
 async function whoami(req, env, ctx, id, who) {
   return json({ email: who.email, name: who.person.name, role: who.person.role, dev: who.dev,
     payments_mode: env.PAYMENTS_MODE || 'off', email_mode: env.EMAIL_MODE || 'off', portal: env.PORTAL_ORIGIN,
+    // Workplan A11. The public site, for the Visit site link.
+    site: String(env.SITE_ORIGIN || '').replace(/\/+$/, '') || null,
     // Plan P7.3. Staging shows no test-copy notice, but the mailbox link stays while EMAIL_MODE is log.
     notices: showTestNotices(env),
     // Plan P5.1. Reset demo data shows its button only where the server allows it.

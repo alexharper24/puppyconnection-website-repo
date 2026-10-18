@@ -100,7 +100,7 @@
   function renderSignIn(sent) {
     document.body.className = 'plain';
     var c = state.config || {};
-    app.innerHTML = '<main class="plain-card"><div class="plain-mark"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></div>' +
+    app.innerHTML = (c.site_origin ? '<a class="plain-site" href="' + esc(c.site_origin) + '/">Visit site</a>' : '') + '<main class="plain-card"><div class="plain-mark"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></div>' +
       (sent ? '<h1>Check your email</h1><p>' + esc(sent) + '</p>' +
         // Plan P6.2. The code is typed here, in the tab that asked, so a phone never has to switch to the email's own browser.
         '<form id="codeform" novalidate><div class="field"><label for="code">Sign-in code</label>' +
@@ -219,6 +219,8 @@
       '<div class="main"><header class="topbar"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
       // Plan P2.2. The breeder's own page on the public site, once they are public.
       (me.site_url ? '<a class="btn btn-sm" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') +
+      // Workplan A11. A quiet way back to the public site, in the same tab.
+      ((state.config || {}).site_origin ? '<a class="btn btn-sm btn-quiet" href="' + esc(state.config.site_origin) + '/">Visit site</a>' : '') +
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
       (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +

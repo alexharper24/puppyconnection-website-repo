@@ -291,6 +291,8 @@ body.plain { display: grid; place-items: start center; min-height: 100dvh; paddi
 .sim-flag { background: #f4f6f8; border: 1px solid #d7dde4; border-radius: 8px; padding: .5rem .7rem; font-size: .85rem; color: #3f4a57; }
 /* privacy and terms (plan P7.1): a wider card for reading, links under every plain page */
 .plain-card.plain-wide { width: min(760px, 100%); }
+/* Workplan A11. The Visit site link at the top right of the signed-out pages. */
+.plain-site { position: absolute; top: .9rem; right: clamp(1rem, 2.5vw, 2.25rem); font-size: .9rem; color: var(--muted); min-height: 34px; display: inline-flex; align-items: center; }
 .plain-foot { display: flex; gap: 1.2rem; justify-content: center; margin: 1rem auto 0; font-size: .85rem; }
 .plain-foot a { color: var(--muted); min-height: 34px; display: inline-flex; align-items: center; }
 .work-foot { display: flex; gap: 1.2rem; margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .85rem; }
@@ -364,6 +366,11 @@ table.list .row-acts { margin-top: .4rem; }
   .hide-sm { display: none; }
   .topbar { flex-wrap: wrap; gap: .5rem; }
   .who .name { display: none; }
+  /* Workplan A11. With Visit site added, the buttons take a second row rather than run off a
+     narrow phone, so none of them is squeezed. */
+  .who { flex-wrap: wrap; justify-content: flex-end; row-gap: .4rem; }
+  /* The admin's search keeps its full width on a row of its own, and Visit site sits below it. */
+  .topbar .finder { flex: 1 1 100%; }
   table.list td, table.list th { padding-inline: .45rem; }
   table.list td { overflow-wrap: anywhere; }
   table.list td:first-child, table.list th:first-child { padding-left: .8rem; }

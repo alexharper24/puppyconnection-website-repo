@@ -221,11 +221,16 @@ async function authCode(request, env) {
 }
 
 /** A plain server-rendered page. wide is for reading pages such as the privacy policy. */
+// Workplan A11. The public site's address for the Visit site link on server pages, set from
+// SITE_ORIGIN at the start of each request. It is the same for every request a deployment serves.
+let PAGE_SITE = '';
+const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE)}/">Visit site</a>` : '');
+
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=13"></head>
-<body class="plain"><main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=14"></head>
+<body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
 
@@ -1315,6 +1320,8 @@ async function devMailJson(request, env) {
 function config(request, env) {
   return json({
     turnstile_site_key: env.TURNSTILE_SITE_KEY || null,
+    // Workplan A11. The public site, for the Visit site link. SITE_ORIGIN in config, never in code.
+    site_origin: siteOrigin(env) || null,
     google: googleEnabled(env),
     local: isLocal(request, env),
     // Plan P7.3. notices is whether to say this is a test copy. mailbox is whether the test
@@ -1524,6 +1531,7 @@ export default {
     const url = new URL(request.url);
     const locked = gate(request, env);
     if (locked) return locked;
+    PAGE_SITE = siteOrigin(env);
     try {
       for (const [method, rx, fn] of ROUTES) {
         const m = url.pathname.match(rx);

@@ -26,6 +26,8 @@
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
   "vars": {
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
+    // Workplan A11. The public site, for the Visit site link. https://puppy-connection.com at cutover (E2).
+    "SITE_ORIGIN": "https://site.puppyconnection.workers.dev",
     "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
     "PUBLISH_MODE": "hook",
     "DEV_MODE": "staging",

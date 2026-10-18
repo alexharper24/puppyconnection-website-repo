@@ -445,7 +445,21 @@ async function counts() {
   check('A4 the browse page loads the search counter', /<script src="js\/search-count\.js\?v=\w+"><\/script>/.test(browse) && fs.existsSync(path.join(site.out, 'js/search-count.js')));
 }
 
-const PARTS = { details, reports, photos, placed, inactivity, approval, counts };
+// ---------------------------------------------------------------- A11 Visit site in the portal and the admin
+async function visit() {
+  const site = fs.readFileSync(path.join(APP, 'portal/wrangler.jsonc'), 'utf8').match(/"SITE_ORIGIN":\s*"([^"]+)"/)[1].replace(/\/+$/, '');
+  const cfg = (await new Client(PORTAL).get('/api/config')).data;
+  check('A11 the portal takes the site address from SITE_ORIGIN in config', cfg.site_origin === site, JSON.stringify([cfg.site_origin, site]));
+  const who = (await admin.get('/api/whoami')).data;
+  check('A11 the admin takes it from its own SITE_ORIGIN', /^https?:\/\//.test(who.site || ''), String(who.site));
+  const page = await (await fetch(`${PORTAL}/privacy`)).text();
+  check('A11 a signed-out server page links to the site at the top right, in the same tab', page.includes(`<a class="plain-site" href="${site}/">Visit site</a>`) && !/plain-site[^>]*target=/.test(page));
+  const portalJs = fs.readFileSync(path.join(APP, 'portal/public/portal.js'), 'utf8'), adminJs = fs.readFileSync(path.join(APP, 'admin/public/admin.js'), 'utf8');
+  check('A11 the sign-in page and both top bars carry the link, with no address written into the code',
+    (portalJs.match(/>Visit site<\/a>/g) || []).length === 2 && (adminJs.match(/>Visit site<\/a>/g) || []).length === 1 && !/puppy-connection\.com|workers\.dev/.test(portalJs + adminJs));
+}
+
+const PARTS = { details, reports, photos, placed, inactivity, approval, counts, visit };
 
 async function main() {
   const only = process.argv[2];

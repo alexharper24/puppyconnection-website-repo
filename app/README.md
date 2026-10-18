@@ -291,7 +291,10 @@ settings, terms and operators are not touched. The audit log and email log are k
   emailed to the sign-in address and never to the new public one. A breeder filling in the
   profile before first submitting it gets no notice, because nothing is public yet.
 - Schema changes to an existing table go in `migrations/`, run once on each database after a
-  backup. `schema.sql` already carries them for a new database.
+  backup. `schema.sql` already carries them for a new database. Confirm the export printed
+  "Downloaded" and the file exists before running the migration: on 2026-10-17 an export failed
+  with an authentication error, the chained command went on to migrations 0021 and 0022, and the
+  backup had to be taken afterwards.
   A migration that moves a puppy or litter between breeders needs `PRAGMA defer_foreign_keys = true`,
   and on the hosted database that only holds when the statements go in one `d1 execute --command`.
   `--file` uploads the SQL as an import, which ignores the pragma and rolls back on the first

@@ -1197,6 +1197,12 @@
           '<a class="stat" href="#/listings?filter=all"><b>' + s.placed + '</b><span>Marked placed</span></a>' +
           '<a class="stat" href="#/listings?filter=drafts"><b>' + s.draft + '</b><span>Drafts</span></a>' +
           '<a class="stat" href="#/breeders?status=approved"><b>' + s.approved_breeders + '</b><span>Approved breeders</span></a></div>' +
+        // Workplan A4.
+        '<div class="stats">' +
+          '<a class="stat" href="#/listings"><b>' + s.pending + '</b><span>Marked pending</span></a>' +
+          '<span class="stat"><b>' + s.reminded + '</b><span>Reminded, not updated</span></span>' +
+          '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no update</span></span>' +
+          '<a class="stat" href="#/breeders"><b>' + s.new_breeders_30 + '</b><span>New breeders, 30 days</span></a></div>' +
         '<p class="btn-row" style="margin-top:-.4rem">' + csvLink('summary') + '</p>' +
         table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {
           return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.paid_listings + '</td><td class="num hide-sm">' + m.comped_listings + '</td>' +
@@ -1209,7 +1215,18 @@
         table('r-views', 'Most viewed puppies', '<th>Puppy</th><th class="num">Views</th><th class="num">Clicks</th><th class="num hide-sm">Last 30 days</th>', d.views, function (v) {
           return '<tr><td><b>' + esc(v.name) + '</b><span class="sub">' + esc(v.breed) + ', ' + esc(v.business_name) + (v.is_public ? '' : ', not live now') + '</span></td>' +
             '<td class="num">' + v.views + '</td><td class="num">' + v.clicks + '</td><td class="num hide-sm">' + v.views_30 + ' views, ' + v.clicks_30 + ' clicks</td></tr>';
-        }, 'No puppy pages have been viewed yet.', 'views') + '</div>');
+        }, 'No puppy pages have been viewed yet.', 'views') + '</div>' +
+        '<div class="cols">' +
+        table('r-searches', 'Breeds families searched for, last 30 days', '<th>Breed</th><th class="num">Searches</th>', d.searches, function (x) {
+          return '<tr><td>' + esc(x.breed) + '</td><td class="num">' + x.searches + '</td></tr>';
+        }, 'No breed searches on the browse page yet. Each time a family picks a breed in its filter, it counts once.', 'searches') +
+        table('r-new', 'New breeders by month', '<th>Month</th><th class="num">Signed up</th><th class="num">Approved now</th>', d.new_breeders, function (m) {
+          return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.signed_up + '</td><td class="num">' + m.approved + '</td></tr>';
+        }, 'No breeders have signed up through the portal yet.', 'new_breeders') + '</div>' +
+        table('r-sales', 'Sales breeders reported', '<th>Month</th><th class="num">Marked placed</th><th class="num hide-sm">Imported listings</th>', d.sales, function (m) {
+          return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.placed + '</td><td class="num hide-sm">' + m.imported + '</td></tr>';
+        }, 'No puppies have been marked placed yet.', 'sales') +
+        '<p class="hint">Sales are what breeders report by marking a puppy placed. Puppy Connection does not see the sale, so they are kept apart from paid listings above. Imported listings are dated at the import.</p>');
     });
   }
 

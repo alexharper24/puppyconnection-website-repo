@@ -639,7 +639,31 @@ async function reportData(env) {
     draft: await one("SELECT COUNT(*) AS n FROM puppies WHERE publication_state = 'draft'"),
     held: await one('SELECT COUNT(*) AS n FROM puppies WHERE operator_hold = 1'),
     approved_breeders: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'approved'"),
+    // Workplan A4.
+    pending: await one("SELECT COUNT(*) AS n FROM public_puppies WHERE availability = 'pending'"),
+    reminded: await one("SELECT COUNT(*) AS n FROM puppies WHERE inactive_stage IN ('reminded_1','reminded_2')"),
+    offline: await one("SELECT COUNT(*) AS n FROM puppies WHERE inactive_stage = 'offline'"),
+    removed: await one("SELECT COUNT(*) AS n FROM puppies WHERE inactive_stage = 'removed'"),
+    new_breeders_30: await one(`SELECT COUNT(*) AS n FROM breeders WHERE legacy = 0 AND created_at >= '${addDays(now(), -30)}'`),
+    waiting_approval: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'pending' AND profile_submitted_at IS NOT NULL"),
   };
+  // New breeders by the month they signed up, and how many of those are approved now.
+  const newBreeders = (await env.DB.prepare(
+    `SELECT substr(created_at, 1, 7) AS month, COUNT(*) AS signed_up, SUM(status = 'approved') AS approved
+       FROM breeders WHERE legacy = 0 GROUP BY 1 ORDER BY 1 DESC`,
+  ).all()).results;
+  // Sales the breeders reported by marking puppies placed, kept apart from paid listings because
+  // Puppy Connection does not see the sale itself.
+  const sales = (await env.DB.prepare(
+    `SELECT substr(p.placed_at, 1, 7) AS month, COUNT(*) AS placed, SUM(b.legacy = 1) AS imported
+       FROM puppies p JOIN breeders b ON b.id = p.breeder_id
+      WHERE p.availability = 'placed' AND p.placed_at IS NOT NULL GROUP BY 1 ORDER BY 1 DESC`,
+  ).all()).results;
+  // Breed searches on the browse page over the last 30 days.
+  const searches = (await env.DB.prepare(
+    `SELECT br.name AS breed, SUM(s.searches) AS searches FROM breed_searches s JOIN breeds br ON br.id = s.breed_id
+      WHERE s.day >= ? GROUP BY br.id ORDER BY searches DESC, br.name`,
+  ).bind(addDays(now(), -30).slice(0, 10)).all()).results;
   const since = addDays(now(), -30).slice(0, 10);
   const views = (await env.DB.prepare(
     `SELECT p.id, p.name, br.name AS breed, bp.business_name,
@@ -650,7 +674,7 @@ async function reportData(env) {
        JOIN breeder_profiles bp ON bp.breeder_id = p.breeder_id
       GROUP BY p.id ORDER BY views DESC, clicks DESC LIMIT 25`,
   ).bind(since, since).all()).results;
-  return { months, breeds, summary, views };
+  return { months, breeds, summary, views, new_breeders: newBreeders, sales, searches };
 }
 
 async function reports(req, env) {
@@ -663,7 +687,12 @@ const REPORT_CSV = {
     d.months.map((m) => [m.month, m.paid_listings, m.comped_listings, dollars(m.revenue_cents), dollars(m.refunded_cents), dollars(m.revenue_cents - m.refunded_cents)])],
   breeds: (d) => [['Breed', 'Live on the site', 'Marked placed', 'Drafts'], d.breeds.map((b) => [b.breed, b.live, b.placed, b.draft])],
   summary: (d) => [['Measure', 'Count'], [['Live on the site', d.summary.live], ['Marked placed', d.summary.placed], ['Drafts', d.summary.draft],
-    ['On hold', d.summary.held], ['Approved breeders', d.summary.approved_breeders]]],
+    ['On hold', d.summary.held], ['Approved breeders', d.summary.approved_breeders], ['Marked pending', d.summary.pending],
+    ['Reminded, not updated', d.summary.reminded], ['Off the site for no update', d.summary.offline], ['Removed for no update', d.summary.removed],
+    ['New breeders, last 30 days', d.summary.new_breeders_30], ['Waiting for approval', d.summary.waiting_approval]]],
+  new_breeders: (d) => [['Month', 'Signed up', 'Approved now'], d.new_breeders.map((m) => [m.month, m.signed_up, m.approved])],
+  sales: (d) => [['Month', 'Marked placed by breeders', 'Of which imported Wix listings'], d.sales.map((m) => [m.month, m.placed, m.imported])],
+  searches: (d) => [['Breed', 'Searches, last 30 days'], d.searches.map((s) => [s.breed, s.searches])],
   views: (d) => [['Puppy', 'Breed', 'Breeder', 'Views', 'Clicks', 'Views, last 30 days', 'Clicks, last 30 days', 'Live'],
     d.views.map((v) => [v.name, v.breed, v.business_name, v.views, v.clicks, v.views_30, v.clicks_30, v.is_public ? 'yes' : 'no'])],
 };
@@ -1260,7 +1289,7 @@ const ROUTES = [
   ['POST', /^\/api\/site\/publish$/, publishSite],
   ['GET', /^\/api\/email-log$/, emailLog],
   ['GET', /^\/api\/reports$/, reports],
-  ['GET', /^\/api\/reports\/(months|breeds|summary|views)\.csv$/, reportCsv],
+  ['GET', /^\/api\/reports\/(months|breeds|summary|views|searches|new_breeders|sales)\.csv$/, reportCsv],
   ['POST', /^\/api\/checkouts\/([\w-]+)\/refund$/, refundCheckout],
   ['POST', /^\/api\/checkouts\/([\w-]+)\/dispute$/, disputeCheckout],
   ['GET', /^\/api\/attention$/, attention],

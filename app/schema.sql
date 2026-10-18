@@ -313,6 +313,14 @@ CREATE TABLE IF NOT EXISTS puppy_videos (
 );
 CREATE INDEX IF NOT EXISTS puppy_videos_puppy ON puppy_videos(puppy_id, position);
 
+-- Breed searches on the browse page, per breed per day, nothing about the visitor (migrations/0021).
+CREATE TABLE IF NOT EXISTS breed_searches (
+  breed_id  TEXT NOT NULL REFERENCES breeds(id),
+  day       TEXT NOT NULL,
+  searches  INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (breed_id, day)
+);
+
 -- Report a listing (migrations/0017, lib/reports.js). The reporter's email is optional and only for a reply.
 CREATE TABLE IF NOT EXISTS listing_reports (
   id              TEXT PRIMARY KEY,

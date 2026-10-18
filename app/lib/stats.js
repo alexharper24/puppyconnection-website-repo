@@ -38,7 +38,8 @@ export async function recordBeacon(request, env) {
     if (text.length > 400) return done('size');
     body = JSON.parse(text);
   } catch { return done('shape'); }
-  const col = KINDS[body && body.k];
+  const search = body && body.k === 'search';
+  const col = search ? 'searches' : KINDS[body && body.k];
   const slug = String((body && body.s) || '');
   if (!col || !SLUG_RX.test(slug)) return done('shape');
 
@@ -53,9 +54,19 @@ export async function recordBeacon(request, env) {
     const { success } = await env.BEACON_ONCE.limit({ key: `${ip}|${body.k}|${slug}` });
     if (!success) return done('repeat');
   }
+  const day = now().slice(0, 10);
+  // Workplan A4. A breed chosen in the browse page's filter, counted per breed per day.
+  if (search) {
+    const breed = await env.DB.prepare('SELECT id FROM breeds WHERE slug = ?').bind(slug).first();
+    if (!breed) return done('unknown');
+    await env.DB.prepare(
+      `INSERT INTO breed_searches (breed_id, day, searches) VALUES (?, ?, 1)
+       ON CONFLICT (breed_id, day) DO UPDATE SET searches = searches + 1`,
+    ).bind(breed.id, day).run();
+    return done('counted');
+  }
   const pup = await env.DB.prepare('SELECT id FROM public_puppies WHERE slug = ?').bind(slug).first();
   if (!pup) return done('unknown');
-  const day = now().slice(0, 10);
   await env.DB.prepare(
     `INSERT INTO puppy_stats (puppy_id, day, ${col}) VALUES (?, ?, 1)
      ON CONFLICT (puppy_id, day) DO UPDATE SET ${col} = ${col} + 1`,

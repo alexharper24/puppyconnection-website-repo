@@ -31,7 +31,7 @@ const flag = (n) => argv.includes(`--${n}`);
 // Parents before children, so the order reads naturally. Foreign keys are deferred anyway.
 export const ORDER = ['people', 'breeds', 'settings', 'site_state', 'terms_versions', 'breeders', 'breeder_profiles', 'breeder_breeds',
   'litters', 'puppies', 'photos', 'puppy_videos', 'checkouts', 'checkout_items', 'puppy_holds', 'payments', 'stripe_events', 'disputes',
-  'puppy_stats', 'account_requests', 'operator_notes', 'listing_reports', 'audit_log', 'email_log', 'job_runs'];
+  'puppy_stats', 'breed_searches', 'account_requests', 'operator_notes', 'listing_reports', 'audit_log', 'email_log', 'job_runs'];
 
 const lit = (v) => (v == null ? 'NULL' : typeof v === 'number' ? String(v) : typeof v === 'boolean' ? (v ? '1' : '0') : `'${String(v).replace(/'/g, "''")}'`);
 

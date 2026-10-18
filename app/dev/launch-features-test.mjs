@@ -410,7 +410,42 @@ async function approval() {
   check('A1 no breeder-facing or admin wording says a listing waits for approval', !/approv\w* (each |every |the |a )?(listing|puppy|puppies|litter)/i.test(portal + adminJs) && !/(listing|puppy|litter)s? (is |are )?(waiting for|awaiting|pending) (approval|review)/i.test(portal + adminJs));
 }
 
-const PARTS = { details, reports, photos, placed, inactivity, approval };
+// ---------------------------------------------------------------- A4 more reports
+async function counts() {
+  const A = await breeder('reports');
+  const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
+  const id = await readyPuppy(A.c, litter, 'Pending Pup');
+  await pay(A.c, [id]);
+  await A.c.put(`/api/puppies/${id}/availability`, { availability: 'pending', version: (await pup(A.c, id)).version });
+  // The beacon runs on the site Worker. It is driven here on Node against the same local database.
+  const { recordBeacon } = await import('../lib/stats.js');
+  const { d1, localD1File } = await import('./node-env.mjs');
+  const env = { DB: d1(localD1File()) };
+  const beacon = (body, origin = 'https://site.test') => recordBeacon(new Request('https://site.test/api/beacon', { method: 'POST', headers: { origin, 'user-agent': 'Mozilla/5.0 (Windows NT 10.0) Chrome/140.0', 'content-type': 'text/plain' }, body: JSON.stringify(body) }), env);
+  const before = sql("SELECT COALESCE(SUM(searches), 0) AS n FROM breed_searches WHERE breed_id = 'breed-havanese'")[0].n;
+  let r = await beacon({ k: 'search', s: 'havanese' });
+  check('A4 a breed search from the browse page is counted per breed per day', r.why === 'counted' && sql("SELECT COALESCE(SUM(searches), 0) AS n FROM breed_searches WHERE breed_id = 'breed-havanese'")[0].n === before + 1);
+  check('A4 an unknown breed is not counted', (await beacon({ k: 'search', s: 'not-a-breed' })).why === 'unknown');
+  check('A4 a search from another site is not counted', (await beacon({ k: 'search', s: 'havanese' }, 'https://evil.example')).why === 'origin');
+  const cols = sql("SELECT name FROM pragma_table_info('breed_searches')").map((c) => c.name).sort().join();
+  check('A4 the count keeps nothing about the visitor', cols === 'breed_id,day,searches', cols);
+  env.DB.close && env.DB.close();
+
+  const d = (await admin.get('/api/reports')).data;
+  check('A4 the reports screen counts pending, inactive and new breeders', d.summary.pending >= 1 && typeof d.summary.reminded === 'number' && typeof d.summary.offline === 'number' && d.summary.new_breeders_30 >= 1, JSON.stringify(d.summary));
+  check('A4 breed searches show by breed for the last 30 days', d.searches.some((x) => x.breed === 'Havanese' && x.searches >= 1), JSON.stringify(d.searches.slice(0, 3)));
+  check('A4 new breeders show by month', d.new_breeders.length >= 1 && d.new_breeders[0].signed_up >= 1);
+  check('A4 sales breeders reported are their own table, apart from paid listings', Array.isArray(d.sales) && Array.isArray(d.months), JSON.stringify(d.sales.slice(0, 2)));
+  for (const name of ['searches', 'new_breeders', 'sales', 'summary']) {
+    const csv = await admin.get(`/api/reports/${name}.csv`);
+    check(`A4 the ${name} table downloads as a CSV`, csv.status === 200 && typeof csv.data === 'string' && csv.data.trim().split(/\r?\n/).length >= 2, String(csv.status));
+  }
+  const site = await buildSite();
+  const browse = site.page('puppies.html') || '';
+  check('A4 the browse page loads the search counter', /<script src="js\/search-count\.js\?v=\w+"><\/script>/.test(browse) && fs.existsSync(path.join(site.out, 'js/search-count.js')));
+}
+
+const PARTS = { details, reports, photos, placed, inactivity, approval, counts };
 
 async function main() {
   const only = process.argv[2];

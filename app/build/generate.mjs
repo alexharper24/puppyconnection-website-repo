@@ -143,6 +143,36 @@ function patchMain(js) {
 // The small script every generated page loads: the gallery and the view and click counts (plan
 // P2.5). The counts go to /api/beacon on the site Worker, carry only the kind and the puppy's
 // slug, set no cookie, and a failure is silent.
+// Workplan A4. The browse page counts a breed when a family picks it in the breed filter or
+// arrives with ?breed= from the home page search. Only the breed is sent, and each breed once
+// per page load. Nothing about the visitor is kept (lib/stats.js).
+const SEARCH_JS = `/* Puppy Connection breed search counts. Written by app/build/generate.mjs. */
+(function () {
+  'use strict';
+  var sent = {};
+  function slugOf(name) {
+    var b = (window.PC_BREEDS || []).filter(function (x) { return x.name === name; })[0];
+    return b && b.slug;
+  }
+  function count(name) {
+    var s = slugOf(name);
+    if (!s || sent[s]) return;
+    sent[s] = 1;
+    try {
+      var body = JSON.stringify({ k: 'search', s: s });
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'text/plain' }));
+      else fetch('/api/beacon', { method: 'POST', body: body, keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(function () {});
+    } catch (e) { /* counting never gets in the way of the page */ }
+  }
+  var asked = new URLSearchParams(location.search).get('breed');
+  if (asked) count(asked);
+  document.addEventListener('click', function (e) {
+    var chip = e.target.closest && e.target.closest('[data-k="breed"][data-v]');
+    if (chip && chip.getAttribute('data-v')) count(chip.getAttribute('data-v'));
+  }, true);
+})();
+`;
+
 const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/generate.mjs. */
 (function () {
   'use strict';
@@ -339,6 +369,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   const mainJs = patchMain(concept('js/main.js'));
   fs.writeFileSync(path.join(out, 'js/main.js'), mainJs);
   fs.writeFileSync(path.join(out, 'js/pages.js'), PAGES_JS);
+  fs.writeFileSync(path.join(out, 'js/search-count.js'), SEARCH_JS);
   const mainV = hash(mainJs), pagesV = hash(PAGES_JS);
 
   // ---- the listing data the home page and the puppy browser render with js/main.js
@@ -1015,6 +1046,7 @@ ${pg.body}
     s = s.replace(/<meta name="robots"[^>]*>\n/, robots);
     s = s.replace(/<script src="data\/data\.js\?v=\d+"><\/script>\n?/, f === 'list-with-us.html' ? '' : `<script src="data/data.js?v=${dataV}"></script>\n`);
     s = s.replace(/js\/main\.js\?v=\d+/, `js/main.js?v=${mainV}`);
+    if (f === 'puppies.html') s = s.replace(/(<script src="js\/main\.js\?v=\w+"><\/script>\n?)/, `$1<script src="js/search-count.js?v=${hash(SEARCH_JS)}"></script>\n`);
     s = withLegal(s);
     s = withSignup(withInfo(s));
     if (GUIDES.length) s = s.replace('<li><a href="breeds.html">Breeds</a></li>', '<li><a href="breeds.html">Breeds</a></li><li><a href="guides.html">Breed guides</a></li>');

@@ -155,6 +155,7 @@ export function wipeStatements(env) {
   const co = `(SELECT id FROM checkouts WHERE breeder_id ${NOT_SEED})`;
   return [
     'DELETE FROM puppy_stats',
+    'DELETE FROM breed_searches',
     `DELETE FROM disputes WHERE checkout_id IN ${co} OR payment_intent IN (SELECT stripe_payment_intent_id FROM payments WHERE checkout_id IN ${co})`,
     `DELETE FROM payments WHERE checkout_id IN ${co}`,
     `DELETE FROM sim_sessions WHERE client_reference_id IN ${co}`,

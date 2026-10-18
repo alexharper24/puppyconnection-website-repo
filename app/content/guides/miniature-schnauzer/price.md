@@ -34,7 +34,7 @@ Two Schnauzer listings at similar prices can differ once you add up the vet exam
 
 ## How do deposits work?
 
-{{deposit_range}} If you put down a deposit, you pay the breeder, not Puppy Connection, which handles no payment for puppies, and get the refund terms in writing.
+{{deposit_range}} If you put down a deposit, get the breeder's refund terms in writing.
 
 If anyone selling a puppy insists on a gift card, payment app, cryptocurrency or wire transfer, the FTC's advice is that it is a scam, and that a credit card protects you better. It also suggests a reverse image search on any puppy photo.
 

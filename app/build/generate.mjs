@@ -173,6 +173,10 @@ const SEARCH_JS = `/* Puppy Connection breed search counts. Written by app/build
 })();
 `;
 
+// The delivery band under the Raised by box on every puppy still for sale (Alex, 2026-10-17). A van
+// mark, since the Furry Freight logo does not read at this size.
+const DELIVERY_BAND = '<div class="dv-band"><svg viewBox="0 0 48 28" aria-hidden="true"><path d="M2 4h28v16H2zM30 10h9l6 6v4H30z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><circle cx="10" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/><circle cx="37" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/></svg><p><span><b>Not local?</b> Furry Freight delivers puppies by ground or air.</span> <a class="dv-quote" href="transportation.html">Get a quote</a></p></div>';
+
 const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/generate.mjs. */
 (function () {
   'use strict';
@@ -255,7 +259,7 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     arrows();
     start();
   }
-  // Workplan G6: on a wide screen the notes (disclaimer, delivery line, breed guides) go under
+  // Workplan G6: on a wide screen the notes (the breed guides) go under
   // whichever column leaves the two ends closest, since a long description makes the photo
   // column the long one. They sit under the photo without script, and on a phone they come last.
   var grid = document.querySelector('.detail-grid');
@@ -555,6 +559,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   const grid = (list, empty, cls = 'grid grid-4') => { cardN = 0; return list.length ? `<div class="${cls}">${list.map(card).join('')}</div>` : `<p class="empty">${empty}</p>`; };
   const paras = (list) => list.map((t) => `<p>${esc(t)}</p>`).join('');
   const tel = (s) => String(s).replace(/[^\d+]/g, '');
+  // An email address may break only after its @, so a long one fits a phone row without splitting mid-word.
+  const mailBreak = (s) => esc(s).replace('@', '@<wbr>');
 
   // ---- breed guides (build/guides.mjs). Only published guides for a breed that is listed.
   const GUIDES = loadGuides(guides).filter((g) => g.published && listedBreeds.some((b) => b.slug === g.breed));
@@ -591,7 +597,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const contact = [
       b && b.website ? `<li><a href="${esc(b.website)}" target="_blank" rel="noopener"><b>Website</b> ${esc(host(b.website))}</a></li>` : '',
       b && b.phone ? `<li><a href="tel:${esc(tel(b.phone))}"><b>Call</b> ${esc(b.phone)}</a></li>` : '',
-      b && b.email ? `<li><a href="mailto:${esc(b.email)}"><b>Email</b> ${esc(b.email)}</a></li>` : '',
+      b && b.email ? `<li><a href="mailto:${esc(b.email)}"><b>Email</b> ${mailBreak(b.email)}</a></li>` : '',
       b && b.facebook ? `<li><a href="${esc(b.facebook)}" target="_blank" rel="noopener"><b>Facebook</b> ${esc(b.name)}</a></li>` : '',
     ].join('');
     const lead = p.photos[0];
@@ -623,17 +629,16 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       <div class="breeder-box" id="dBreeder">
         <div class="eyebrow">Raised by</div>
         <h2 class="breeder-name">${esc(b ? b.name : 'Breeder to be confirmed')}</h2>
-        <p class="breeder-note">Puppy Connection lists this puppy. The sale is arranged directly with the breeder.</p>
+        <p class="breeder-note">Puppy Connection lists this puppy but does not sell puppies. Health records and guarantees are agreed directly between you and the breeder.</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         ${b ? `<p style="margin:.9rem 0 0"><a href="${pageFor.breeder(b.slug)}">See all puppies from ${esc(b.name)}</a></p>` : ''}
         ${b ? `<p class="small" style="margin:.6rem 0 0"><a href="${esc(`${portal}/report?puppy=${encodeURIComponent(p.slug)}`)}" rel="nofollow">Report this listing</a></p>` : ''}
       </div>
+      ${p.placed ? '' : DELIVERY_BAND}
     </div>
-    <div class="d-notes">
-      <p class="disclaimer">Puppy Connection does not sell puppies, take deposits, or handle payment. Health records, guarantees and delivery are agreed directly between you and the breeder.</p>
-      ${p.placed ? '' : '<p class="not-local">Not local? <a href="transportation.html">Furry Freight can deliver your puppy</a>, booked and paid with them directly.</p>'}
-      ${guidesFor(p.b.slug).length ? `<section class="guide-panel" aria-label="${esc(p.b.name)} guides"><p class="eyebrow">About the ${esc(p.b.name)}</p>${guideList(p.b.slug)}</section>` : ''}
-    </div>
+    ${guidesFor(p.b.slug).length ? `<div class="d-notes">
+      <section class="guide-panel" aria-label="${esc(p.b.name)} guides"><p class="eyebrow">About the ${esc(p.b.name)}</p>${guideList(p.b.slug)}</section>
+    </div>` : ''}
   </div>
 </section>
 ${mates.length ? `<section class="band band-warm">
@@ -713,7 +718,7 @@ ${hl ? `<section class="band" style="padding-top:0">
     <div class="breed-buy bt-buy">
       <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
       <div class="bb-row"><span class="bb-count">${open.length ? `${open.length} ${open.length === 1 ? 'puppy' : 'puppies'}` : 'None listed today'}</span>${priceSpan(shown) ? `<span class="bb-price">${priceSpan(shown)}</span>` : ''}</div>
-      <p class="bb-note">${priceSpan(shown) ? 'Each breeder sets their own price. ' : ''}You contact the breeder directly, and Puppy Connection does not take payment.</p>
+      <p class="bb-note">${priceSpan(shown) ? 'Each breeder sets their own price. ' : ''}You contact the breeder directly.</p>
       <a class="btn btn-primary bb-btn" href="#available">See the puppies</a>
     </div>
   </div>
@@ -725,7 +730,7 @@ ${hl ? `<section class="band" style="padding-top:0">
       ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">How this works</p>
-        <p class="breeder-note">Choose a puppy, then contact its breeder directly. Puppy Connection lists puppies. It does not sell them, take deposits or handle payment.</p>
+        <p class="breeder-note">Choose a puppy, then contact its breeder directly. Puppy Connection lists puppies and does not sell them.</p>
         <div class="btn-row"><a class="btn btn-primary" href="#available">See what is available</a></div>
       </div>
     </aside>
@@ -848,7 +853,7 @@ ${withGuides.map((b) => {
     const contact = [
       b.website ? `<li><a href="${esc(b.website)}" target="_blank" rel="noopener"><b>Website</b> ${esc(host(b.website))}</a></li>` : '',
       b.phone ? `<li><a href="tel:${esc(tel(b.phone))}"><b>Call</b> ${esc(b.phone)}</a></li>` : '',
-      b.email ? `<li><a href="mailto:${esc(b.email)}"><b>Email</b> ${esc(b.email)}</a></li>` : '',
+      b.email ? `<li><a href="mailto:${esc(b.email)}"><b>Email</b> ${mailBreak(b.email)}</a></li>` : '',
       b.facebook ? `<li><a href="${esc(b.facebook)}" target="_blank" rel="noopener"><b>Facebook</b> ${esc(b.name)}</a></li>` : '',
     ].join('');
     const others = breedersShown.filter((x) => x !== b).slice(0, 6);

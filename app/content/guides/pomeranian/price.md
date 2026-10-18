@@ -32,7 +32,7 @@ Check each listing for vet exams, vaccinations, a microchip and any written guar
 
 ## How do deposits work?
 
-{{deposit_range}} Any deposit for a Pomeranian is collected by its breeder, since Puppy Connection does no selling. Have the breeder put the terms in writing, including whether you can get the money back.
+{{deposit_range}} For any Pomeranian deposit, have the breeder put the terms in writing, including whether you can get the money back.
 
 The FTC's advice for buying a pet online is to walk away from anyone who will take only gift cards, payment apps, cryptocurrency or wire transfers, and to use a credit card if you have one. It also suggests a reverse image search on the puppy's photos.
 

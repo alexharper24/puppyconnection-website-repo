@@ -309,6 +309,9 @@ p{margin:0 0 1rem;max-width:70ch}
 /* ---------- listing detail ---------- */
 .split{display:grid;grid-template-columns:1.15fr 1fr;gap:clamp(1.5rem,4vw,3.4rem);align-items:start}
 @media(max-width:940px){.split{grid-template-columns:1fr}}
+/* G10: on a wide screen a short sidebar beside long text travels with the reader and comes to
+   rest level with the end of the text, so the right column never sits empty beside the prose. */
+@media(min-width:941px){.split > aside{position:sticky;top:calc(var(--hdr-h,152px) + 1.5rem)}}
 .gallery-main{aspect-ratio:3/2;overflow:hidden;border:var(--rule);background:var(--paper-warm)}
 /* Contain here, not cover. At 3:2 the landscape majority fills the box
    exactly, so only a portrait letterboxes, and on the page where you are
@@ -345,6 +348,11 @@ p{margin:0 0 1rem;max-width:70ch}
 .name-row .price{font-size:clamp(1.5rem,2.6vw,2rem)}
 .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0;
   border:var(--rule);margin:1.4rem 0}
+/* Puppy facts as boxes that always fill the row (Alex, 2026-10-17): three to a row, and the last
+   row stretches, so no box is ever left empty. Two to a row on a phone. */
+#detail .facts{display:flex;flex-wrap:wrap;border:0;border-top:var(--rule);border-left:var(--rule)}
+#detail .facts > div{flex:1 1 30%;min-width:30%}
+@media (max-width:560px){#detail .facts > div{flex-basis:45%;min-width:45%}}
 /* the right column stacks several blocks; give them room to read as separate */
 #detail .d-media > section{margin-top:2.2rem}
 #detail .breeder-box{margin-top:2.2rem}
@@ -528,7 +536,9 @@ p{margin:0 0 1rem;max-width:70ch}
 .detail-grid > *{min-width:0}
 .d-title{grid-area:title}
 .d-media{grid-area:media}
-.d-detail{grid-area:detail;margin-top:1.4rem}
+.d-detail{grid-area:detail;margin-top:1.875rem}
+/* 30px from the buttons to the facts */
+.d-detail > .facts:first-child{margin-top:0}
 .d-notes{grid-area:notes;margin-top:2.2rem}
 /* set by js/pages.js when the photo column is the longer one */
 .detail-grid.notes-right{grid-template-areas:"media title" "media detail" "media notes"}
@@ -672,12 +682,16 @@ aside .guide-panel{margin-top:1rem}
 /* Buttons near the top of puppy and breeder pages, so a phone visitor reaches the breeder first (Alex, 2026-10-11) */
 .d-actions{margin-top:.9rem}
 .d-actions .btn,.profile-actions .btn{min-height:44px}
-@media (max-width:560px){.d-actions .btn,.profile-actions .btn{flex:1 1 100%;justify-content:center;text-align:center}}
+/* The puppy buttons fill the column (Alex, 2026-10-17): each grows from its own one-line width,
+   so the pair ends at the right edge of the facts, and a button that cannot fit takes a row. */
+.d-actions{display:flex;flex-wrap:wrap;gap:.7rem}
+.d-actions > .btn{flex:1 1 auto;white-space:nowrap;justify-content:center;text-align:center}
+@media (max-width:560px){.d-actions .btn,.profile-actions .btn{flex:1 1 100%;justify-content:center;text-align:center}.d-actions > .btn{white-space:normal}}
 
 /* Transportation page (launch item A7): Furry Freight's logo beside its copy, on the page ground */
 /* G9: the page's content is one centered column, so the intro, the Furry Freight block and the
    band below share one left edge with no empty third on the right. */
-.wrap.wrap-mid{max-width:calc(1080px + 2 * var(--gut))}
+.wrap.wrap-mid{max-width:calc(1010px + 2 * var(--gut))}
 .partner{display:grid;grid-template-columns:minmax(0,280px) minmax(0,1fr);gap:clamp(1.6rem,5vw,3.5rem);align-items:center}
 .partner-logo{display:block;width:100%;height:auto}
 .partner-copy h2{margin-top:0}
@@ -685,3 +699,36 @@ aside .guide-panel{margin-top:1rem}
 .partner .fine{margin-top:.9rem;font-size:.92rem;color:var(--muted)}
 @media (max-width:700px){.partner{grid-template-columns:minmax(0,1fr)}.partner-logo{max-width:200px;margin-inline:auto}}
 .not-local{font-size:.94rem;margin:.6rem 0 0}
+
+/* Footer brand column (Alex, 2026-10-17): the walker mark and the two-line description share one
+   row, with the sign-up full width below. The picture wrapper is display:contents, so the img is
+   the grid item. Stacked only where the text would be squeezed under 230px, which is 320px wide. */
+.foot-grid > div:first-child{display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;align-items:center;align-content:start}
+.foot-grid > div:first-child > img,.foot-grid > div:first-child > picture > img{margin-bottom:0}
+.foot-grid > div:first-child > p{margin:0}
+.foot-grid > div:first-child > .foot-signup{grid-column:1 / -1}
+@media (max-width:340px){.foot-grid > div:first-child{grid-template-columns:minmax(0,1fr)}.foot-grid > div:first-child > img{margin-bottom:.8rem}}
+
+/* The delivery band under the Raised by box (Alex, 2026-10-17): one line on a wide column with the
+   van, the text and Get a quote centered on one axis. Gold on charcoal is 10.7:1 and the cream
+   text 11.3:1. On a phone the text wraps and Get a quote follows the last line. */
+#detail .breeder-box + .dv-band{margin-top:1.4rem}
+.dv-band{display:flex;align-items:center;gap:1rem;background:var(--ink);color:var(--cream-text);padding:.9rem 1.1rem;margin-top:1.4rem}
+.dv-band svg{width:44px;flex:0 0 44px;color:var(--gold)}
+.dv-band p{margin:0;flex:1;font-size:.95rem;color:var(--cream-text);display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.dv-band b{color:var(--gold)}
+.dv-band a{color:var(--gold);font-weight:600;white-space:nowrap;text-decoration:underline;text-underline-offset:3px}
+.dv-band a:hover{color:#fff}
+@media (max-width:560px){
+  .dv-band{align-items:flex-start;gap:.75rem;padding:.85rem .9rem}
+  .dv-band svg{margin-top:.2rem;width:36px;flex-basis:36px}
+  .dv-band p{display:block}
+  .dv-quote{margin-left:.4rem}
+}
+
+/* Contact rows on a phone: the label above the value, so a long address stays on one line */
+@media (max-width:560px){
+  .contact-list a{flex-direction:column;align-items:flex-start;gap:.1rem}
+  .contact-list b{flex:none}
+  .contact-list li,.contact-list a{overflow-wrap:normal}
+}

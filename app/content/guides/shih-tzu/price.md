@@ -36,7 +36,7 @@ Two Shih Tzu listings at similar prices can include quite different things. Vet 
 
 ## How do deposits work?
 
-{{deposit_range}} Shih Tzu deposits go to the breeder, since Puppy Connection is only where the puppy is listed. Ask the breeder whether the deposit is refundable, how long it holds the puppy, and how the balance is paid.
+{{deposit_range}} Ask the breeder whether a Shih Tzu deposit is refundable, how long it holds the puppy, and how the balance is paid.
 
 The FTC flags any demand for gift cards, payment apps, crypto or wire transfers as a scam sign and points buyers toward credit cards. It also suggests meeting in person or by video, and moving on from a seller who will not.
 

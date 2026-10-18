@@ -36,7 +36,7 @@ Read what each listing includes before comparing prices, and ask the breeder wha
 
 ## How do deposits work?
 
-{{deposit_range}} A deposit is paid to the breeder. Puppy Connection is a listing site and handles no money for puppies, so the refund policy and what the deposit secures are the breeder's to explain.
+{{deposit_range}} The refund policy and what a deposit secures are the breeder's to explain, so ask before you pay one.
 
 The FTC advises walking away from a seller who will accept only gift cards, payment apps, cryptocurrency or wire transfers. It recommends a credit card where you have one, and suggests visiting or video chatting with the seller before you pay.
 

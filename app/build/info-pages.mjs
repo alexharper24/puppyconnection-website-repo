@@ -31,7 +31,7 @@ export const INFO_PAGES = [
 <li>Accurate dates and pricing</li>
 <li>Ongoing support for the families who buy from them</li>
 </ul>
-<p>Puppy Connection lists puppies. It does not sell them, take deposits or handle payment, so the sale, the paperwork and the conversation are between you and the breeder.</p>
+<p>Puppy Connection lists puppies and does not sell them, so the sale, the paperwork and the conversation are between you and the breeder.</p>
 </div>
 <aside><div class="breeder-box"><p class="eyebrow">Find your puppy</p><p class="breeder-note">Browse the puppies listed now, or look by breed or by breeder.</p>
 <div class="btn-row"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div>
@@ -50,9 +50,9 @@ export const INFO_PAGES = [
 <li><h3>Browse</h3><p>Look through <a href="puppies.html">every available puppy</a>, or start from a <a href="breeds.html">breed</a> or a <a href="breeders.html">breeder</a>. Each breed page also answers what families ask most, such as how big the breed gets and what puppies cost here.</p></li>
 <li><h3>Open a puppy</h3><p>Each puppy has its own page with its photos, price, deposit, birth and go-home dates, and what it goes home with.</p></li>
 <li><h3>Contact the breeder</h3><p>Call, email or visit the breeder's website straight from the puppy's page. Your conversation is with the breeder, never with us.</p></li>
-<li><h3>Arrange the rest with the breeder</h3><p>Visits, deposits, paperwork, health records, guarantees and pickup or delivery are all agreed between you and the breeder.</p></li>
+<li><h3>Arrange the rest with the breeder</h3><p>Visits, deposits, paperwork, health records and guarantees are agreed between you and the breeder. If you are not local, <a href="transportation.html">Furry Freight can deliver your puppy</a>.</p></li>
 </ol>
-<p class="disclaimer" style="margin-top:1.2rem">Puppy Connection does not sell puppies, take deposits or handle payment. Read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a> before you choose.</p>
+<p class="disclaimer" style="margin-top:1.2rem">Puppy Connection does not sell puppies. Read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a> before you choose.</p>
 </div></section>
 <section class="band band-warm"><div class="wrap split">
 <div><p class="eyebrow">For breeders</p><h2>Listing your puppies</h2>

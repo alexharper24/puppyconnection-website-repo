@@ -36,7 +36,7 @@ Read what each listing includes before comparing prices, and ask what any writte
 
 ## How do deposits work?
 
-{{deposit_range}} The money for a deposit goes from you to the breeder, with no part of it passing through Puppy Connection. Before paying, find out in writing whether it comes back to you if something changes.
+{{deposit_range}} Before paying a deposit, find out in writing from the breeder whether it comes back to you if something changes.
 
 The FTC says only scammers require payment by gift card, payment app, cryptocurrency or wire transfer, and suggests a credit card for the protection it gives. It also advises meeting the seller in person or by video before you pay.
 

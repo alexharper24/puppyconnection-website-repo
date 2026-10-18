@@ -317,7 +317,7 @@ async function part1() {
   check('the breeders hub names its one state in the opening sentence, linked, with no By state line', hub.includes('in <a href="dog-breeders-in-indiana.html">Indiana</a>.') && !hub.includes('By state'));
   const info = Object.fromEntries(['about', 'how-it-works', 'tips-on-buying-a-puppy', 'reviews', 'contact'].map((f) => [f, fs.existsSync(path.join(out, `${f}.html`)) ? fs.readFileSync(path.join(out, `${f}.html`), 'utf8') : '']));
   check('the five site pages are built, each with one h1 and the footer linking all five', Object.values(info).every((s) => (s.match(/<h1>/g) || []).length === 1 && s.includes('href="tips-on-buying-a-puppy.html"') && s.includes('href="contact.html"')) && sm.includes('how-it-works.html'));
-  check('How it works says the directory does not sell puppies or take deposits', info['how-it-works'].includes('does not sell puppies, take deposits or handle payment'));
+  check('How it works says the directory does not sell puppies, and no longer says it takes no deposits or payments', info['how-it-works'].includes('Puppy Connection does not sell puppies.') && !/take deposits|handle payment/.test(info['how-it-works']));
   check('what only Amber can say is a visible REPLACE THIS on About, Reviews and Contact', ['about', 'reviews', 'contact'].every((f) => info[f].includes('class="replace-this"')));
   check('every generated page carries the mailing list sign-up, posting to the portal, with its honeypot', [hav, hub, info.about].every((x) => /<form class="foot-signup" method="post" action="[^"]+\/subscribe">/.test(x) && x.includes('name="website"')));
   check('a generated page footer links the site pages too', fs.readFileSync(path.join(out, 'breed-havanese.html'), 'utf8').includes('href="about.html"'));

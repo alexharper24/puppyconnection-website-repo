@@ -36,7 +36,7 @@ Check each listing for vet exams, vaccinations, a microchip and a written guaran
 
 ## How do deposits work?
 
-{{deposit_range}} You would pay a Boston deposit to the breeder, because the site only lists the puppy and never holds money. Ask whether you can get it back if plans change, and what it reserves.
+{{deposit_range}} Before you put down a Boston deposit, ask the breeder whether you can get it back if plans change, and what it reserves.
 
 The FTC warns that only scammers insist on gift cards, payment apps, cryptocurrency or wire transfers, and recommends a credit card where you have one. It also says to move on from a seller who will not let you visit, video chat or talk by phone.
 

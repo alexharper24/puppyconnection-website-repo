@@ -38,7 +38,7 @@ Compare listings line by line, since what a breeder includes changes the real co
 
 ## How do deposits work?
 
-{{deposit_range}} The breeder receives any deposit. Puppy Connection lists puppies and never sells them or handles payment, so the deposit terms are the breeder's own, and it is worth asking for them in writing.
+{{deposit_range}} The deposit terms are the breeder's own, and it is worth asking for them in writing.
 
 Be wary of any seller who wants a gift card, a payment app transfer, cryptocurrency or a wire, which the FTC says only scammers insist on, and use a credit card where you can. Its advice also includes meeting the seller in person or by video before paying.
 

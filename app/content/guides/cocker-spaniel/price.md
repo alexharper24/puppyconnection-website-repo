@@ -36,7 +36,7 @@ Compare what each listing includes along with its price, and ask what any writte
 
 ## How do deposits work?
 
-{{deposit_range}} Any deposit is paid to the breeder. Puppy Connection lists puppies and does not sell them, take deposits or handle payment, so confirm with the breeder in writing whether the deposit is refundable and what it holds.
+{{deposit_range}} Any deposit terms are set by the breeder, so confirm with them in writing whether the deposit is refundable and what it holds.
 
 The FTC advises against paying a pet seller by gift card, payment app, cryptocurrency or wire transfer, and recommends a credit card where you have one because of the protection it offers.
 

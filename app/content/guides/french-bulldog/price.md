@@ -36,7 +36,7 @@ Compare listings on what they include as well as the price, since vet exams, vac
 
 ## How do deposits work?
 
-{{deposit_range}} The deposit is paid to the breeder. Because Puppy Connection only lists puppies, any deposit terms are agreed between you and the breeder.
+{{deposit_range}} Any deposit terms are agreed between you and the breeder, so ask what it holds and whether it is refundable.
 
 Ask whether the deposit is refundable and what it holds. Federal Trade Commission advice is to treat a demand for gift cards, payment apps, crypto or a wire transfer as the mark of a scam, and to pay by credit card when you can.
 

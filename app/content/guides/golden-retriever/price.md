@@ -32,7 +32,7 @@ Two listings at the same price can differ a great deal once you add up the vet v
 
 ## How do deposits work?
 
-{{deposit_range}} A deposit goes to the breeder, never to Puppy Connection, which lists puppies and takes no payment for them. Before you send one, ask whether it is refundable, what happens if the puppy does not pass its vet check, and how the rest of the price is paid.
+{{deposit_range}} Before you send a deposit, ask the breeder whether it is refundable, what happens if the puppy does not pass its vet check, and how the rest of the price is paid.
 
 On payment, the FTC's line is that a seller demanding gift cards, payment apps, cryptocurrency or a wire is running a scam, and a credit card gives you more protection. It also says a seller who will not let you visit, video chat or talk by phone is a reason to move on.
 

@@ -40,7 +40,7 @@ Read each listing for what it includes, and ask what a health guarantee covers i
 
 ## How do deposits work?
 
-{{deposit_range}} Any Doberman deposit is between you and the breeder, as Puppy Connection never collects one, so get the refund terms and what it secures in writing first.
+{{deposit_range}} The terms of a Doberman deposit are the breeder's, so get the refund terms and what it secures in writing first.
 
 The FTC advises walking away from any seller who will take only a gift card, payment app, cryptocurrency or wire transfer, and paying by credit card where you can for its protections.
 

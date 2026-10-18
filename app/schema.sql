@@ -260,10 +260,17 @@ CREATE TABLE IF NOT EXISTS photos (
   focus_y      REAL,
   committed_at TEXT,
   created_at   TEXT NOT NULL,
+  -- The photo quality check (migrations/0018, lib/photocheck.js). NULL is never checked
+  -- (imported, demo or operator photos); only NULL and pass publish or are served, and pending also counts toward the minimum.
+  quality            TEXT CHECK (quality IN ('pending','pass','sent_back','review')),
+  quality_reasons    TEXT,
+  quality_checked_at TEXT,
+  quality_note       TEXT,
   CHECK (r2_key IS NOT NULL OR external_url IS NOT NULL),
   FOREIGN KEY (puppy_id, breeder_id) REFERENCES puppies (id, breeder_id)
 );
 CREATE INDEX IF NOT EXISTS photos_puppy ON photos(puppy_id, position);
+CREATE INDEX IF NOT EXISTS photos_quality ON photos(quality) WHERE quality IS NOT NULL;
 
 -- Videos stored and played by Cloudflare Stream (migrations/0016, lib/stream.js). Only ready
 -- videos of public puppies reach the site.
@@ -466,7 +473,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   -- migrations/0016. The registry list from Amber's Wix Add Puppy form, and the video limits.
   ('registries', 'AKC, AKC Canine Partners, APRI, ACA, CKC, UKC'),
   ('max_videos', '2'),
-  ('video_max_seconds', '120');
+  ('video_max_seconds', '120'),
+  -- migrations/0018. Where a photo that fails the quality check goes: breeder or review.
+  ('photo_check_route', 'breeder');
 
 -- Plan P3.4. The terms start as Amber's placeholder, marked, both as the version on file and
 -- as the first draft. The admin's Terms screen replaces the draft and publishes new versions.

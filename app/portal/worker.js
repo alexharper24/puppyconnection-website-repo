@@ -27,6 +27,7 @@ import {
 } from '../lib/payments.js';
 import { cleanImage } from '../lib/images.js';
 import { reportTarget, reportForm, saveReport } from '../lib/reports.js';
+import { photoCheckMode, checkPhoto, reasonText } from '../lib/photocheck.js';
 import {
   streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
 } from '../lib/stream.js';
@@ -943,11 +944,14 @@ async function uploadPhoto(request, env, ctx, puppyId) {
   const key = `uploads/${breeder.id}/${id}.${ext}`;
   await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
   const aspect = img.size && img.size.h ? Math.round((img.size.w / img.size.h) * 1000) / 1000 : null;
+  // Workplan A9. The photo waits for the quality check (POST /api/photos/<id>/check, which the
+  // portal calls once the card copy is up, or the job every 15 minutes) unless the check is off.
+  const quality = photoCheckMode(env) === 'off' ? null : 'pending';
   const stmts = [
     env.DB.prepare(
-      `INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, now()),
+      `INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, created_at, quality)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, now(), quality),
     auditStmt(env, 'breeder', breeder.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, stripped: raw.length - img.bytes.length }),
   ];
   if (await hasPublic(env, 'id = ?', puppyId)) stmts.push(dirtyStmt(env));
@@ -986,6 +990,21 @@ async function uploadCard(request, env, ctx, id) {
   if (!img.size || Math.max(img.size.w, img.size.h) > CARD_MAX_EDGE) throw bad(`A card copy can be up to ${CARD_MAX_EDGE} pixels on its longest side.`);
   await env.FILES.put(cardKey(photo.r2_key), img.bytes, { httpMetadata: { contentType: img.type } });
   return json({ ok: true, bytes: img.bytes.length }, 201);
+}
+
+/** Workplan A9. Run the quality check on one of the breeder's photos and say what it found. */
+async function checkMyPhoto(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  const photo = await owned(env, 'photo', id, breeder.id);
+  // A test can ask the local stand-in for a verdict. Nothing else can choose one.
+  const sim = isLocal(request, env) ? request.headers.get('x-sim-photo-check') : null;
+  const s = await settings(env);
+  const r = await checkPhoto(env, photo, s.photoCheckRoute, { sim });
+  if (r.judged && r.quality !== 'pass') {
+    await auditStmt(env, 'system', 'photo check', `photo.${r.quality}`, 'puppy', photo.puppy_id, null, { photo: id, reasons: r.reasons }).run();
+  }
+  return json({ quality: r.quality, reasons: r.reasons, messages: r.messages, route: s.photoCheckRoute });
 }
 
 async function orderPhotos(request, env, ctx, puppyId) {
@@ -1055,7 +1074,8 @@ async function deleteVideo(request, env, ctx, id) {
 async function media(request, env, ctx, id, card) {
   const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
   if (!photo || !photo.r2_key) throw notFound();
-  const pub = await env.DB.prepare('SELECT 1 AS x FROM public_puppies WHERE id = ?').bind(photo.puppy_id).first();
+  // A photo the quality check sent back or is holding is served only to its breeder (workplan A9).
+  const pub = (!photo.quality || photo.quality === 'pass') && await env.DB.prepare('SELECT 1 AS x FROM public_puppies WHERE id = ?').bind(photo.puppy_id).first();
   if (!pub) {
     const s = await currentSession(request, env);
     if (!s || s.breeder.id !== photo.breeder_id) throw notFound();
@@ -1088,14 +1108,16 @@ async function listings(request, env) {
   for (const l of litters) {
     for (const p of l.puppies) {
       p.videos = vids[p.id] || [];
-      p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position }));
+      p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons) }));
+      // Workplan A9. A photo the check sent back or is holding does not count toward the listing.
+      const usable = p.photos.filter((ph) => !ph.quality || ph.quality === 'pass' || ph.quality === 'pending').length;
       p.is_public = pubIds.has(p.id);
-      p.pay_block = breeder.status === 'approved' ? await payability(env, p, s, p.photos.length, p.held_by) : 'Account not approved.';
+      p.pay_block = breeder.status === 'approved' ? await payability(env, p, s, usable, p.held_by) : 'Account not approved.';
       // Plan P2.1. Everything a draft is missing, not only the first thing payability() names.
       p.needs = [];
       if (p.price_cents == null) p.needs.push('a price');
-      const short = s.minPhotos - p.photos.length;
-      if (short > 0) p.needs.push(short === 1 ? (p.photos.length ? 'one more photo' : 'a photo') : `${short} more photos`);
+      const short = s.minPhotos - usable;
+      if (short > 0) p.needs.push(short === 1 ? (usable ? 'one more photo' : 'a photo') : `${short} more photos`);
       // Plan P2.2. Where buyers see this puppy, once it is live.
       p.site_url = site && p.is_public ? sitePage(env, 'puppy', p.slug, p.slug) : null;
       p.views = counts[p.id]?.views || 0;
@@ -1416,6 +1438,7 @@ const ROUTES = [
   ['POST', /^\/dev\/stream\/upload\/(\w+)$/, (r, e, c, uid) => simUpload(r, e, uid)],
   ['GET', /^\/dev\/stream\/(\w+)\/(iframe|video)$/, (r, e, c, uid, what) => simServe(e, uid, what)],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, uploadCard],
+  ['POST', /^\/api\/photos\/([\w-]+)\/check$/, checkMyPhoto],
   ['GET', /^\/media\/([\w-]+)$/, media],
   ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id) => media(r, e, c, id, true)],
   ['POST', /^\/api\/checkouts$/, startCheckout],

@@ -31,3 +31,8 @@ GITHUB_API=http://localhost:8798
 
 # Workplan A3. Puppy videos through the stand-in Stream at /dev/stream (lib/stream.js).
 STREAM_MODE=sim
+
+# Workplan A9. The photo quality check through the local stand-in (lib/photocheck.js). The stand-in
+# passes every photo unless a test sends x-sim-photo-check. Set ai to use real Workers AI, which
+# also needs "ai": { "binding": "AI" } in wrangler.jsonc and is charged per photo.
+PHOTO_CHECK_MODE=sim

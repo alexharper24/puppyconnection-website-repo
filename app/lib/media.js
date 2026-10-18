@@ -18,7 +18,8 @@ export const BRAND = { logo: 'logo_key', kennel: 'kennel_key' };
  */
 export async function serveMedia(env, id, { card = false } = {}) {
   const photo = await env.DB.prepare(
-    'SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND p.puppy_id IN (SELECT id FROM public_puppies)',
+    // A photo the quality check sent back or is holding is never public (migrations/0018).
+    "SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND p.puppy_id IN (SELECT id FROM public_puppies) AND (p.quality IS NULL OR p.quality = 'pass')",
   ).bind(id).first();
   if (!photo?.r2_key) return null;
   const obj = (card && await env.FILES.get(`${photo.r2_key}.card`)) || await env.FILES.get(photo.r2_key);

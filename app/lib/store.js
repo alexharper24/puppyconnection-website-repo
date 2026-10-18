@@ -69,6 +69,8 @@ export async function settings(env) {
     registries: String(s.registries ?? DEFAULT_REGISTRIES).split(',').map((x) => x.trim()).filter(Boolean),
     maxVideos: Math.max(0, Number(s.max_videos ?? 2)),
     videoMaxSeconds: Math.max(10, Number(s.video_max_seconds || 120)),
+    // migrations/0018. Where a photo that fails the quality check goes: breeder or review.
+    photoCheckRoute: s.photo_check_route === 'review' ? 'review' : 'breeder',
   };
 }
 
@@ -106,7 +108,7 @@ export async function puppyPhotos(env, puppyIds) {
   for (let i = 0; i < puppyIds.length; i += 90) {
     const ids = puppyIds.slice(i, i + 90);
     const { results } = await env.DB.prepare(
-      `SELECT id, puppy_id, r2_key, external_url, position, aspect FROM photos
+      `SELECT id, puppy_id, r2_key, external_url, position, aspect, quality, quality_reasons FROM photos
         WHERE puppy_id IN (${ids.map(() => '?').join(',')}) ORDER BY puppy_id, position`,
     ).bind(...ids).all();
     for (const p of results) (by[p.puppy_id] ||= []).push(p);

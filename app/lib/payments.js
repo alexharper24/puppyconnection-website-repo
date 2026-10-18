@@ -223,7 +223,10 @@ export async function createCheckout(env, breeder, puppyIds, origin) {
   const problems = [];
   for (const id of ids) {
     const pup = await owned(env, 'puppy', id, breeder.id);
-    const photos = (await env.DB.prepare('SELECT COUNT(*) AS n FROM photos WHERE puppy_id = ?').bind(id).first()).n;
+    // A photo the quality check sent back or is holding does not count (migrations/0018). One still
+    // waiting for the check does, so a check a few seconds behind never blocks a payment; it stays
+    // off the site until it passes either way.
+    const photos = (await env.DB.prepare("SELECT COUNT(*) AS n FROM photos WHERE puppy_id = ? AND (quality IS NULL OR quality IN ('pass','pending'))").bind(id).first()).n;
     const hold = await env.DB.prepare('SELECT checkout_id FROM puppy_holds WHERE puppy_id = ? AND expires_at > ?').bind(id, t).first();
     const why = await payability(env, pup, s, photos, hold?.checkout_id);
     if (why) problems.push({ puppy: pup.name, reason: why }); else puppies.push(pup);

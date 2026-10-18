@@ -14,6 +14,7 @@ import {
 import { sendMail } from '../lib/mail.js';
 import { videoUrls, removeVideo } from '../lib/stream.js';
 import { listReports, closeReport } from '../lib/reports.js';
+import { reasonText } from '../lib/photocheck.js';
 import { identify } from './identity.js';
 import { buildExport } from '../lib/export.js';
 import { runJob, JOBS } from '../lib/jobs.js';
@@ -56,6 +57,7 @@ async function stats(req, env) {
   return json({
     queue: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'pending' AND profile_submitted_at IS NOT NULL"),
     open_reports: await one("SELECT COUNT(*) AS n FROM listing_reports WHERE status = 'open'"),
+    photo_review: await one("SELECT COUNT(*) AS n FROM photos WHERE quality = 'review'"),
     signing_up: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'pending' AND profile_submitted_at IS NULL"),
     approved: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'approved'"),
     suspended: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'suspended'"),
@@ -401,6 +403,8 @@ const EDITABLE = {
   registries: (v) => v.length <= 400 && v.split(',').every((x) => x.trim() && x.trim().length <= 40),
   max_videos: (v) => /^\d$/.test(v),
   video_max_seconds: (v) => /^\d{2,3}$/.test(v) && Number(v) >= 10 && Number(v) <= 600,
+  // Workplan A9. A photo that fails the quality check goes back to the breeder, or to Photo review.
+  photo_check_route: (v) => v === 'breeder' || v === 'review',
   // terms_version is no longer typed in here. Publishing on the Terms screen sets it (plan P3.4).
 };
 
@@ -740,6 +744,7 @@ async function attention(req, env) {
     queue: await one("SELECT COUNT(*) AS n FROM breeders WHERE status = 'pending' AND profile_submitted_at IS NOT NULL"),
     needs_review: await one("SELECT COUNT(*) AS n FROM checkouts WHERE status = 'needs_review'"),
     open_reports: await one("SELECT COUNT(*) AS n FROM listing_reports WHERE status = 'open'"),
+    photo_review: await one("SELECT COUNT(*) AS n FROM photos WHERE quality = 'review'"),
     open_disputes: await one('SELECT COUNT(*) AS n FROM disputes WHERE closed_at IS NULL'),
     publish_error: site.last_error ? { error: site.last_error, at: site.last_error_at } : null,
     failed_jobs: failedJobs,
@@ -1090,6 +1095,39 @@ async function adminDeletePhoto(req, env, ctx, id, who) {
   return json({ ok: true });
 }
 
+// ------------------------------------------------------------------ photo review (workplan A9)
+
+// Photos the quality check held back while photo_check_route is review. Keep puts one on the
+// listing; Send back tells the breeder what is wrong, as the breeder route does on its own.
+async function photoReview(req, env) {
+  const { results } = await env.DB.prepare(
+    `SELECT ph.id, ph.puppy_id, ph.breeder_id, ph.quality_reasons, ph.created_at, p.name AS puppy, bp.business_name
+       FROM photos ph JOIN puppies p ON p.id = ph.puppy_id LEFT JOIN breeder_profiles bp ON bp.breeder_id = ph.breeder_id
+      WHERE ph.quality = 'review' ORDER BY ph.created_at LIMIT 200`,
+  ).all();
+  return json(results.map((r) => ({ ...r, url: `/media/${r.id}`, messages: reasonText(r.quality_reasons) })));
+}
+
+async function decidePhoto(req, env, ctx, id, who, outcome) {
+  requireSameOrigin(req);
+  const ph = await env.DB.prepare("SELECT * FROM photos WHERE id = ? AND quality = 'review'").bind(id).first();
+  if (!ph) throw bad('That photo is no longer waiting for review.');
+  const quality = outcome === 'keep' ? 'pass' : 'sent_back';
+  const stmts = [
+    env.DB.prepare("UPDATE photos SET quality = ?, quality_note = ? WHERE id = ? AND quality = 'review'").bind(quality, `${outcome} by ${who.email}`, id),
+    auditStmt(env, 'operator', who.email, `photo.${quality}`, 'puppy', ph.puppy_id, null, { photo: id }),
+  ];
+  if (quality === 'pass' && await isPublicPuppy(env, ph.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  if (quality === 'sent_back') {
+    const b = await loadBreeder(env, ph.breeder_id);
+    const pup = await env.DB.prepare('SELECT name FROM puppies WHERE id = ?').bind(ph.puppy_id).first();
+    ctx.waitUntil(sendMail(env, b.email, 'photo_sent_back', { puppy: pup.name, messages: reasonText(ph.quality_reasons), portalUrl: `${env.PORTAL_ORIGIN || ''}/#/litters` })
+      .catch((e) => console.error(e)));
+  }
+  return json({ ok: true, quality });
+}
+
 // ------------------------------------------------------------------ reported listings (workplan A5)
 
 async function listingReports(req, env) {
@@ -1151,11 +1189,15 @@ const STAFF_ALLOWED = [
   ['DELETE', /^\/api\/videos\/[\w-]+$/],
   // Workplan A5. Staff read and close reports. Suspending the breeder stays with the owners.
   ['GET', /^\/api\/listing-reports$/],
+  ['GET', /^\/api\/photo-review$/],
+  ['POST', /^\/api\/photo-review\/[\w-]+\/(keep|send_back)$/],
   ['POST', /^\/api\/listing-reports\/[\w-]+\/(handled|dismissed)$/],
 ];
 const staffMay = (method, pathname) => STAFF_ALLOWED.some(([m, rx]) => m === method && rx.test(pathname));
 
 const ROUTES = [
+  ['GET', /^\/api\/photo-review$/, photoReview],
+  ['POST', /^\/api\/photo-review\/([\w-]+)\/(keep|send_back)$/, decidePhoto],
   ['GET', /^\/api\/listing-reports$/, listingReports],
   ['POST', /^\/api\/listing-reports\/([\w-]+)\/(handled|dismissed)$/, closeListingReport],
   ['DELETE', /^\/api\/videos\/([\w-]+)$/, adminDeleteVideo],

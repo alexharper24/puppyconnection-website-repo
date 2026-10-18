@@ -216,7 +216,65 @@ async function reports() {
   check('A5 puppy and breeder pages link to the report form', page.includes(`/report?puppy=${encodeURIComponent(slug)}`) && (site.page(`breeder-${bslug}.html`) || '').includes(`/report?breeder=${encodeURIComponent(bslug)}`));
 }
 
-const PARTS = { details, reports };
+// ---------------------------------------------------------------- A9 photo quality check
+async function photos() {
+  const P = await breeder('photos');
+  const O = await breeder('photos-other');
+  const litter = (await P.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
+  const id = (await P.c.post('/api/puppies', { litter_id: litter, name: 'Maple', price: 1500 })).data.id;
+  const upload = async () => (await P.c.req('POST', `/api/puppies/${id}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } })).data.id;
+  const judge = (c, ph, sim) => c.req('POST', `/api/photos/${ph}/check`, {}, { headers: sim ? { 'x-sim-photo-check': sim } : {} });
+  const photo = async (ph) => (await pup(P.c, id)).photos.find((x) => x.id === ph);
+
+  const bad = await upload();
+  let p = await pup(P.c, id);
+  check('A9 a new photo waits for the check, and counts meanwhile so a slow check never blocks paying', (await photo(bad)).quality === 'pending' && !p.needs.includes('a photo'), JSON.stringify(p.needs));
+  check('A9 another breeder cannot run the check on the photo', (await judge(O.c, bad)).status === 404);
+  let r = await judge(P.c, bad, 'person,hidden');
+  check('A9 by default a failed photo is sent back with what is wrong', r.status === 200 && r.data.quality === 'sent_back' && r.data.route === 'breeder'
+    && r.data.messages.length === 2 && /person takes up much of the photo/.test(r.data.messages.join(' ')), JSON.stringify(r.data));
+  p = await pup(P.c, id);
+  check('A9 the sent-back photo is marked with the reasons and no longer counts', (await photo(bad)).quality === 'sent_back' && (await photo(bad)).messages.length === 2 && /photo/.test(p.pay_block || ''), JSON.stringify([p.pay_block]));
+  r = await judge(P.c, bad);
+  check('A9 a photo already judged is not judged again', r.data.quality === 'sent_back');
+  const good = await upload();
+  r = await judge(P.c, good);
+  p = await pup(P.c, id);
+  check('A9 a photo that passes counts toward the listing', r.data.quality === 'pass' && !p.pay_block, JSON.stringify([r.data, p.pay_block]));
+  await pay(P.c, [id]);
+  const slug = (await pup(P.c, id)).slug;
+  const site = await buildSite();
+  const data = site.data('puppies.json').find((x) => x.slug === slug);
+  check('A9 only the passed photo reaches the site', data && data.photos.length === 1 && data.photos[0].src === `media/${good}`, JSON.stringify(data && data.photos));
+  check('A9 the sent-back photo is not served to the public', (await fetch(`${PORTAL}/media/${bad}`)).status === 404 && (await fetch(`${PORTAL}/media/${good}`)).status === 200);
+
+  // The setting that sends failed photos to Amber's queue instead.
+  check('A9 the route setting takes only breeder or review', (await admin.put('/api/settings', { photo_check_route: 'amber' })).status === 400);
+  await admin.put('/api/settings', { photo_check_route: 'review' });
+  const held = await upload(), sendBack = await upload();
+  r = await judge(P.c, held, 'too_small');
+  await judge(P.c, sendBack, 'blurry');
+  check('A9 with the review setting a failed photo waits for Amber', r.data.quality === 'review' && r.data.route === 'review');
+  let q = (await admin.get('/api/photo-review')).data;
+  check('A9 the photo review queue lists it with the reason', q.some((x) => x.id === held && /too small/.test(x.messages.join(' '))) && (await admin.get('/api/attention')).data.photo_review >= 2);
+  const gen0 = sql('SELECT generation FROM site_state WHERE id = 1')[0].generation;
+  r = await admin.post(`/api/photo-review/${held}/keep`, {});
+  check('A9 Keep puts the photo on the listing and marks the site to publish', r.status === 200 && (await photo(held)).quality === 'pass' && sql('SELECT generation FROM site_state WHERE id = 1')[0].generation > gen0);
+  r = await admin.post(`/api/photo-review/${sendBack}/send_back`, {});
+  const mail = (await P.c.get(`/dev/mail.json?to=${encodeURIComponent(P.email)}`)).data;
+  check('A9 Send back marks the photo and emails the breeder what is wrong', r.status === 200 && (await photo(sendBack)).quality === 'sent_back'
+    && mail.some((m) => /^Please replace a photo of Maple/.test(m.subject) && /blurred/.test(m.body || '')), JSON.stringify(mail.slice(0, 1)).slice(0, 200));
+  check('A9 a photo already decided cannot be decided again', (await admin.post(`/api/photo-review/${held}/send_back`, {})).status === 400);
+  await admin.put('/api/settings', { photo_check_route: 'breeder' });
+
+  // A photo whose check never ran is picked up by the job every 15 minutes.
+  const late = await upload();
+  sql(`UPDATE photos SET created_at = '2026-01-01T00:00:00Z' WHERE id = '${late}'`);
+  r = await admin.post('/api/jobs/photos/run', {});
+  check('A9 the photo job checks a photo left pending', r.status === 200 && (await photo(late)).quality === 'pass', JSON.stringify(r.data));
+}
+
+const PARTS = { details, reports, photos };
 
 async function main() {
   const only = process.argv[2];

@@ -22,6 +22,10 @@
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
   "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }],
+  // Workplan A9. The photo quality check on Workers AI (lib/photocheck.js). The free allocation is
+  // 10,000 neurons a day, about 350 photos at the measured 28 neurons each; past it a call fails and
+  // the photo passes unjudged until Workers Paid or the next day.
+  "ai": { "binding": "AI" },
   // Two of the free plan's five cron triggers. lib/jobs.js says what each one runs.
   "triggers": { "crons": ["*/15 * * * *", "0 13 * * *"] },
   "vars": {
@@ -60,6 +64,7 @@
     // this account and Alex sets the STREAM_API_TOKEN secret (a token with Stream Edit). Then set
     // STREAM_MODE to "stream" and STREAM_CUSTOMER_CODE to the <code> in the account's
     // customer-<code>.cloudflarestream.com, and redeploy the portal and the admin.
-    "STREAM_ACCOUNT_ID": "4f6e9dc25ab751960763628b06e6c108"
+    "STREAM_ACCOUNT_ID": "4f6e9dc25ab751960763628b06e6c108",
+    "PHOTO_CHECK_MODE": "ai"
   }
 }

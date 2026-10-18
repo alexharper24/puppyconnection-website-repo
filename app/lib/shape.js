@@ -56,9 +56,10 @@ export async function exportSite(env) {
   const photos = {};
   // Size and focus point from ops/measure_photos.py, carried only once a photo has been measured.
   const framing = (ph) => (ph.width && ph.height ? { w: ph.width, h: ph.height, fx: ph.focus_x ?? 0.5, fy: ph.focus_y ?? 0.38 } : {});
+  // Only photos that passed the quality check or were never checked (migrations/0018).
   for (const r of (await db.prepare(
     `SELECT id, puppy_id, r2_key, external_url, aspect, width, height, focus_x, focus_y FROM photos
-      WHERE puppy_id IN (SELECT id FROM public_puppies) ORDER BY puppy_id, position, id`,
+      WHERE puppy_id IN (SELECT id FROM public_puppies) AND (quality IS NULL OR quality = 'pass') ORDER BY puppy_id, position, id`,
   ).all()).results) (photos[r.puppy_id] ||= []).push(r);
   // Workplan A3. Only videos Stream has finished with, on public puppies.
   const videos = {};

@@ -98,6 +98,14 @@ export const TEMPLATES = {
       'If you have a question about this, reply to this email.' + (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
     link: portalUrl || undefined,
   }),
+  // Workplan A9. To the breeder, when Puppy Connection sends a held photo back.
+  photo_sent_back: ({ puppy, messages, portalUrl }) => ({
+    subject: `Please replace a photo of ${puppy}`,
+    text: `Puppy Connection looked at a photo you added for ${puppy} and it is not shown on the site.\n\n` +
+      (messages.length ? `${messages.join('\n')}\n\n` : '') +
+      'Remove it in the breeder portal and upload a clearer one where the puppy can be seen.' + (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
+    link: portalUrl || undefined,
+  }),
   // Workplan A5. To each owner, for a report from the site's Report a listing form.
   listing_report: ({ business, puppy, reason, details, reporter, adminUrl }) => ({
     subject: `Listing reported: ${puppy ? `${puppy} from ` : ''}${business}`,

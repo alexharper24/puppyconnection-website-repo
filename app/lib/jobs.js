@@ -4,6 +4,7 @@
 // The free Workers plan allows five cron triggers per account, so the portal uses two:
 //   */15 * * * *   reconcile   checkouts left open or paid without a listing
 //                  videos      puppy videos Stream has finished with (lib/stream.js)
+//                  photos      photos still waiting for the quality check (lib/photocheck.js)
 //                  publish     the site, when changes have waited a minute (lib/publish.js, plan P4.4)
 //   0 13 * * *     daily       expiry warnings and expiry, housekeeping, the backup, then the breeder link check
 // 13:00 UTC is 8 or 9 in the morning in Indiana, so warnings arrive at the start of the day.
@@ -16,6 +17,7 @@ import { sendMail, alertOps } from './mail.js';
 import { provider, releaseCheckout, fulfillCheckout } from './payments.js';
 import { publishIfDue } from './publish.js';
 import { videoJob } from './stream.js';
+import { photoJob } from './photocheck.js';
 
 const DAY = 86400000;
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
@@ -187,7 +189,9 @@ async function links(env) {
 const campaigns = (env) => runCampaigns(env);
 // Puppy videos still uploading or processing at Stream (lib/stream.js).
 const videos = (env) => videoJob(env);
-export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos };
+// Photos still waiting for the quality check ten minutes after upload (lib/photocheck.js).
+const photos = (env) => photoJob(env, async (e) => (await settings(e)).photoCheckRoute);
+export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos, photos };
 
 export function runJob(env, name) {
   if (!JOBS[name]) throw new Error(`Unknown job ${name}`);
@@ -199,7 +203,7 @@ export async function scheduled(event, env) {
   // Reconcile first, because a checkout it fulfills marks the site dirty. Publish is not in JOBS,
   // so the admin has no Run now for it: the admin's Publish now goes through the portal instead,
   // because only the portal holds the GitHub token.
-  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await record(env, 'publish', () => publishIfDue(env)), await runJob(env, 'campaigns')];
+  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await runJob(env, 'photos'), await record(env, 'publish', () => publishIfDue(env)), await runJob(env, 'campaigns')];
   const out = [];
   for (const j of ['expiry', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
   return out;

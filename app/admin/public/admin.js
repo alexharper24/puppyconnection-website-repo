@@ -91,7 +91,7 @@
     var s = state.stats || {};
     var route = state.route.split('?')[0].split('/')[0];
     var groups = [
-      ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue], ['reported', 'Reported listings', s.open_reports || null]]],
+      ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue], ['reported', 'Reported listings', s.open_reports || null], ['photo-review', 'Photo review', s.photo_review || null]]],
       ['Directory', [['breeders', 'Breeders', s.approved], ['listings', 'Listings', s.public_puppies], ['breeds', 'Breeds']]],
       ['Money', [['payments', 'Payments', s.needs_review || null], ['reports', 'Reports']]],
       ['People', [['list', 'Mailing list'], ['people', 'Sign-ins']]],
@@ -99,7 +99,7 @@
     ];
     // Staff see only what they can use (admin/worker.js STAFF_ALLOWED). The server enforces it.
     if (state.who.role !== 'owner') {
-      var STAFF = { '': 1, reported: 1, breeders: 1, listings: 1, publish: 1, email: 1, activity: 1 };
+      var STAFF = { '': 1, reported: 1, 'photo-review': 1, breeders: 1, listings: 1, publish: 1, email: 1, activity: 1 };
       groups = groups.map(function (g) { return [g[0], g[1].filter(function (n) { return STAFF[n[0]]; })]; }).filter(function (g) { return g[1].length; });
     }
     var waiting = s.unpublished_changes || 0;
@@ -219,13 +219,14 @@
   /* Plan P3.9. Everything that needs an operator, from /api/attention: approvals, payments to
      review, disputes, a failed publish or job, close requests, and public contact details
      that changed in the last week. */
-  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check', campaigns: 'Mailing list sending', videos: 'Video check' };
+  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check', campaigns: 'Mailing list sending', videos: 'Video check', photos: 'Photo check' };
   function attentionItems(a) {
     var li = function (text, href, btn, sub) {
       return '<li><span>' + text + (sub ? '<span class="att-sub">' + sub + '</span>' : '') + '</span><a class="btn btn-sm" href="' + href + '">' + btn + '</a></li>';
     };
     var out = [];
     if (a.queue) out.push(li('<b>' + plural(a.queue, 'breeder') + '</b> waiting for your approval', '#/approvals', 'Review'));
+    if (a.photo_review) out.push(li('<b>' + plural(a.photo_review, 'photo') + '</b> held by the photo check for you to look at', '#/photo-review', 'Review'));
     if (a.open_reports) out.push(li('<b>' + plural(a.open_reports, 'listing report') + '</b> from families to read', '#/reported', 'Open'));
     if (a.needs_review) out.push(li('<b>' + plural(a.needs_review, 'payment') + '</b> to review, where money arrived and no listing went live', '#/payments?status=needs_review', 'Open'));
     if (a.open_disputes) out.push(li('<b>' + plural(a.open_disputes, 'payment') + '</b> disputed and still open', '#/payments?status=disputed', 'Open'));
@@ -294,6 +295,27 @@
       list($('#queue'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST,
         emptyTitle: 'Nobody is waiting', emptyText: 'New breeders appear here once they submit their profile.', wire: function (box) { wireRows(box, breederDrawer); } });
       var id = state.route.split('?')[0].split('/')[1]; if (id) breederDrawer(id);
+    });
+  }
+
+  // Workplan A9. Photos the quality check held back while photo_check_route is review.
+  function photoReviewScreen() {
+    Promise.all([refreshStats(), api('GET', '/api/photo-review')]).then(function (r) {
+      var rows = r[1];
+      shell(head('Photo review', 'Photos the quality check did not pass. Keep one to put it on the listing, or send it back and the breeder is emailed what is wrong. This queue fills only while the photo check setting is review; by default breeders are told straight away.') +
+        (rows.length ? '<div class="review-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem">' + rows.map(function (x) {
+          return '<section class="card" data-id="' + esc(x.id) + '" style="margin:0"><img src="' + esc(x.url) + '/card" alt="Photo of ' + esc(x.puppy) + '" style="width:100%;border-radius:6px" loading="lazy">' +
+            '<p class="small"><b>' + esc(x.puppy) + '</b>, ' + esc(x.business_name || '') + '</p><p class="small muted">' + esc((x.messages || []).join(' ')) + '</p>' +
+            '<div class="btn-row"><button class="btn btn-sm btn-primary" data-decide="keep">Keep</button><button class="btn btn-sm" data-decide="send_back">Send back</button></div></section>';
+        }).join('') + '</div>' : '<section class="card"><p class="muted">No photos are waiting.</p></section>'), true);
+      $$('[data-decide]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          b.disabled = true;
+          api('POST', '/api/photo-review/' + b.closest('[data-id]').dataset.id + '/' + b.dataset.decide, {})
+            .then(function () { toast(b.dataset.decide === 'keep' ? 'Kept' : 'Sent back to the breeder'); photoReviewScreen(); })
+            .catch(function (err) { b.disabled = false; toast(err.message); });
+        });
+      });
     });
   }
 
@@ -905,6 +927,7 @@
     registries: ['Registries a breeder can choose for a puppy, separated by commas', 'text'],
     max_videos: ['Most videos a puppy can have (0 turns video uploads off)', 'number'],
     video_max_seconds: ['Longest video, in seconds', 'number'],
+    photo_check_route: ['Where a photo that fails the photo check goes: breeder (they are told what is wrong and upload another) or review (it waits for you in Photo review)', 'text'],
   };
   function settings() {
     Promise.all([refreshStats(), api('GET', '/api/settings')]).then(function (r) {
@@ -1206,7 +1229,7 @@
     state.route = (location.hash || '#/').replace(/^#\/?/, '');
     var r = state.route.split('?')[0].split('/')[0];
     ({ '': overview, approvals: approvals, breeders: breeders, listings: listings, payments: payments, settings: settings, activity: activity, search: search,
-      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, reported: reportedScreen, list: listScreen, people: peopleScreen }[r] || overview)();
+      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, reported: reportedScreen, 'photo-review': photoReviewScreen, list: listScreen, people: peopleScreen }[r] || overview)();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', render);

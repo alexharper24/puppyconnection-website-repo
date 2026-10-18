@@ -1,0 +1,8 @@
+// The scoring Worker for the photo check (dev/photo-check-eval.mjs). Local only, never deployed.
+{
+  "name": "pc-photo-check-eval",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-18",
+  "account_id": "4f6e9dc25ab751960763628b06e6c108",
+  "ai": { "binding": "AI" }
+}

@@ -755,14 +755,18 @@
   function photoSection(x, canEdit) {
     return '<section style="margin-top:1.4rem"><h3>Photos</h3><p class="hint">The first photo is the cover. Location and camera details are removed when a photo is uploaded.</p>' +
       '<div class="photos" id="photos">' + x.photos.map(function (ph, i) {
-        return '<div class="photo" data-id="' + esc(ph.id) + '">' + (i === 0 ? '<span class="pill pill-gold cover">Cover</span>' : '') +
+        var flag = ph.quality === 'sent_back' ? '<span class="pill pill-alert cover" title="' + esc((ph.messages || []).join(' ')) + '">Sent back</span>'
+          : ph.quality === 'review' ? '<span class="pill pill-warn cover">Being looked at</span>' : ph.quality === 'pending' ? '<span class="pill pill-warn cover">Checking</span>' : '';
+        return '<div class="photo" data-id="' + esc(ph.id) + '"' + (ph.quality === 'sent_back' ? ' style="outline:2px solid #b42318"' : '') + '>' + (flag || (i === 0 ? '<span class="pill pill-gold cover">Cover</span>' : '')) +
           '<img src="' + esc(cardUrl(ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(x.name) + '">' +
           (canEdit ? '<div class="tools"><button type="button" data-move="-1" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>&larr;</button>' +
             '<button type="button" data-remove aria-label="Remove photo">Remove</button>' +
             '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' : '') + '</div>';
       }).join('') + '</div>' +
+      (x.photos.some(function (ph) { return ph.quality === 'sent_back'; }) ? '<p class="error" style="white-space:pre-line">' + x.photos.filter(function (ph) { return ph.quality === 'sent_back'; }).map(function (ph) {
+        return 'A photo marked Sent back needs replacing. ' + (ph.messages || []).join(' ') + ' It is not shown on the site.'; }).join('\n') + '</p>' : '') +
       (canEdit ? '<div class="upload"><label for="ph-input" class="btn btn-sm">Add photos</label><input id="ph-input" type="file" accept="image/*" multiple hidden>' +
-        '<div class="hint">JPEG, PNG or WebP, up to 15 MB each.</div><p class="error" id="ph-error" hidden></p></div>' : '') + '</section>';
+        '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across and up to 15 MB each. Each photo is checked that the puppy can be seen clearly.</div><p class="error" id="ph-error" hidden></p></div>' : '') + '</section>';
   }
 
   /* A phone photo can be 4 to 12 MB and 4000 px wide, and the site never shows one wider than
@@ -793,6 +797,28 @@
       }, 'image/webp', 0.82);
     });
   }
+  /* Workplan A9. A photo under MIN_EDGE on its longest side is refused here, and a dark one asks
+     first. The 100-photo sample's passing photos were all at least 1,080 px and none had a mean
+     brightness under 76, while the two dark ones it sent back measured 62 and 64. */
+  var MIN_EDGE = 1000, DARK = 70;
+  function brightness(src) {
+    try {
+      var c = document.createElement('canvas'); c.width = 48; c.height = 48;
+      var g = c.getContext('2d'); g.drawImage(src, 0, 0, 48, 48);
+      var d = g.getImageData(0, 0, 48, 48).data, sum = 0;
+      for (var i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+      return sum / (d.length / 4);
+    } catch (e) { return 255; }
+  }
+  function screen(file) {
+    return decode(file).then(function (src) {
+      var edge = Math.max(src.width, src.height);
+      var light = brightness(src);
+      if (src.close) src.close();
+      if (edge < MIN_EDGE) throw new Error(file.name + ' is ' + edge + ' pixels across. Photos need to be at least ' + MIN_EDGE + ' pixels, so use the original from your phone or camera rather than a screenshot or a saved copy.');
+      if (light < DARK && !confirm(file.name + ' looks dark, so families may not see the puppy well. Upload it anyway?')) throw new Error('skip');
+    }, function () { /* a file the browser cannot decode goes up as it is, and the server checks it */ });
+  }
   function shrink(file) {
     return decode(file).then(function (src) {
       return draw(src, FULL_EDGE).then(function (full) {
@@ -805,12 +831,24 @@
     }).catch(function () { return { full: file, card: null }; });
   }
   function uploadOne(puppyId, file) {
-    return shrink(file).then(function (s) {
+    return screen(file).then(function () { return shrink(file); }).then(function (s) {
       return api('POST', '/api/puppies/' + puppyId + '/photos', undefined, s.full).then(function (r) {
         // A missing card copy only means cards load the full photo, so its failure is not shown.
-        if (s.card) return api('POST', '/api/photos/' + r.id + '/card', undefined, s.card).catch(function () {});
+        return (s.card ? api('POST', '/api/photos/' + r.id + '/card', undefined, s.card).catch(function () {}) : Promise.resolve())
+          // Workplan A9. The quality check. If it cannot run now, the photo is checked within 15 minutes.
+          .then(function () { return api('POST', '/api/photos/' + r.id + '/check', {}).catch(function () { return { quality: 'pending' }; }); })
+          .then(function (c) { c.name = file.name; return c; });
       });
     });
+  }
+  /* What the check said about each photo in a batch, as one message. */
+  function checkSummary(results) {
+    var back = results.filter(function (c) { return c && c.quality === 'sent_back'; });
+    var held = results.filter(function (c) { return c && c.quality === 'review'; });
+    var out = [];
+    back.forEach(function (c) { out.push(c.name + ' needs another photo. ' + (c.messages || []).join(' ') + ' Remove it and upload a clearer one.'); });
+    if (held.length) out.push(plural(held.length, 'photo') + ' will show once Puppy Connection has looked at ' + (held.length === 1 ? 'it' : 'them') + '.');
+    return out.join('\n');
   }
 
   function wirePhotos(d, x, canEdit) {
@@ -822,12 +860,18 @@
       var files = Array.prototype.slice.call(input.files || []);
       if (!files.length) return;
       errBox.hidden = true;
-      var chain = Promise.resolve();
+      var chain = Promise.resolve(), results = [], problems = [];
       files.forEach(function (file) {
-        chain = chain.then(function () { return uploadOne(x.id, file); });
+        chain = chain.then(function () {
+          return uploadOne(x.id, file).then(function (c) { results.push(c); }, function (e) { if (e.message !== 'skip') problems.push(e.message); });
+        });
       });
-      chain.then(function () { toast(files.length === 1 ? 'Photo added' : files.length + ' photos added'); return reopen(); })
-        .catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; reopen(); });
+      chain.then(function () {
+        var ok = results.filter(function (c) { return c.quality !== 'sent_back' && c.quality !== 'review'; }).length;
+        if (ok) toast(ok === 1 ? 'Photo added' : ok + ' photos added');
+        var msg = problems.concat(checkSummary(results) ? [checkSummary(results)] : []).join('\n');
+        return reopen().then(function () { if (msg) { var box = $('#ph-error'); if (box) { box.hidden = false; box.style.whiteSpace = 'pre-line'; box.textContent = msg; } } });
+      }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; reopen(); });
     });
     $$('[data-remove]', d).forEach(function (b) {
       b.addEventListener('click', function () {

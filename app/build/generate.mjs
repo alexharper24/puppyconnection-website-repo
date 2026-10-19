@@ -901,7 +901,7 @@ ${withGuides.map((b) => {
     // Without a logo the name and buttons keep the full width above both columns.
     const top = b.logo
       ? `<section class="band">
-  <div class="wrap split">
+  <div class="wrap split profile-top">
     <div>
     ${head}
       ${story}

@@ -310,6 +310,9 @@ p{margin:0 0 1rem;max-width:70ch}
 /* ---------- listing detail ---------- */
 .split{display:grid;grid-template-columns:1.15fr 1fr;gap:clamp(1.5rem,4vw,3.4rem);align-items:start}
 @media(max-width:940px){.split{grid-template-columns:1fr}}
+/* A breeder page with a logo puts the name, buttons and story beside the logo and contact column
+   (Alex, 2026-10-19), so the left side is wider and the name and buttons keep one line each. */
+@media(min-width:941px){.split.profile-top{grid-template-columns:1.6fr 1fr}}
 /* G10: on a wide screen a short sidebar beside long text travels with the reader and comes to
    rest level with the end of the text, so the right column never sits empty beside the prose. */
 @media(min-width:941px){.split > aside{position:sticky;top:calc(var(--hdr-h,152px) + 1.5rem)}}

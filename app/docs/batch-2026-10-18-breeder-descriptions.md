@@ -15,7 +15,7 @@ tasks:
   - {id: d5, status: done, evidence: "app/.state/staging-2026-10-19-pre0026.sql, 2,018,901 bytes, Downloaded printed, 46 breeder_profiles rows", item: "D1 export backup to app/.state/, confirmed downloaded"}
   - {id: d6, status: done, evidence: "brand/<id>/logo-2026101926.webp and .card for 20 kennels (Ibar has no card copy), 39 objects each read back at the source byte size", item: "Upload the 20 logos to R2 puppyconnection-files under brand/<breeder id>/"}
   - {id: d7, status: done, evidence: "migrations/0026 rehearsed on a copy of the backup (31 descriptions, 20 logos, a repeat run left every version unchanged), applied to staging 2026-10-19, staging shows 31 of 31 descriptions, 20 logos, site dirty at generation 40", item: "Migration 0026 (0024 and 0025 were taken by other sessions) with descriptions and logo_key, rehearsed with --sqlite, applied with ops/d1-apply.mjs --remote, site marked changed"}
-  - {id: d8, status: pending, item: "Every new breeder page on site.puppyconnection.workers.dev shows its approved description, and its logo where it has one"}
+  - {id: d8, status: done, closed: 2026-10-19, evidence: "hs-seo-data verify_pages.py after the publish: 31 of 31 breeder pages answer 200 with the approved description, 20 show their logo served as image/webp, 11 show none; King's Family Companions looked at in the browser at 1280px", item: "Every new breeder page on site.puppyconnection.workers.dev shows its approved description, and its logo where it has one"}
 excluded:
   - "The 11 breeders without a website of their own get no logo, because their network page shows only the network's mark"
 ---

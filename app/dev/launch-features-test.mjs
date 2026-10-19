@@ -331,6 +331,19 @@ async function inactivity() {
   };
 
   check('A12 paying for a listing starts its photo clock', [x, y, z].every(recent), JSON.stringify(row(x)));
+  // The clock waits for the go-live date (migrations/0033). With it two weeks ahead, a listing whose
+  // photo is five weeks old is not emailed, and the portal counts from the go-live date.
+  const golive = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+  check('A12 the go-live date is a setting that takes a date or nothing', (await admin.put('/api/settings', { photo_clock_start: '1 November' })).status === 400
+    && (await admin.put('/api/settings', { photo_clock_start: golive })).status === 200);
+  clock(x, 36);
+  await run();
+  check('A12 no listing is emailed before the go-live date', row(x).inactive_stage === null);
+  sql(`UPDATE puppies SET inactive_stage = 'reminded_1', stage_at = '${ago(1)}' WHERE id = '${x}'`);
+  const held = await pup(A.c, x);
+  check('A12 the portal counts six weeks from the go-live date, not the old photo', held.schedule && held.schedule.by.slice(0, 10) === new Date(Date.parse(`${golive}T00:00:00Z`) + 42 * 86400000).toISOString().slice(0, 10), JSON.stringify(held.schedule));
+  sql(`UPDATE puppies SET inactive_stage = NULL, stage_at = NULL WHERE id = '${x}'`);
+  await admin.put('/api/settings', { photo_clock_start: '' });
   for (const id of [x, y, z]) clock(id, 27);
   await run();
   check('A12 nothing happens before four weeks', [x, y, z].every((id) => row(id).inactive_stage === null));
@@ -419,6 +432,7 @@ async function inactivity() {
   check('A12 signing in starts their clock, so an old listing is not emailed at once', !!first && row(y).inactive_stage === null, String(first));
   sql(`UPDATE breeders SET legacy = 0 WHERE id = '${A.id}'`);
   check('A12 the weeks are a setting and must rise', (await admin.put('/api/settings', { inactivity_days: '28,35,30,84' })).status === 400 && (await admin.put('/api/settings', { inactivity_days: '28,35,42,84' })).status === 200);
+  await admin.put('/api/settings', { photo_clock_start: '2026-11-01' });
   check('A12 the separate free window setting is gone', !sql("SELECT key FROM settings WHERE key = 'reactivate_days'").length && (await admin.put('/api/settings', { reactivate_days: '42' })).status === 400);
   const portalJs = fs.readFileSync(path.join(APP, 'portal/public/portal.js'), 'utf8');
   check('A12 the portal banner lists every listing that needs a photo, with an Add a photo button', /function photoBanner\(\)/.test(portalJs) && /photoBanner\(\) \+ inner/.test(portalJs) && /data-photos=/.test(portalJs) && !/Still available/.test(portalJs));

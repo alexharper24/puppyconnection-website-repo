@@ -532,7 +532,9 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   -- migrations/0019. Days after adoption that a puppy page leaves the sitemap and becomes noindex.
   ('adopted_index_days', '30'),
   -- migrations/0030. Days with no new photo to the first email, the last email, offline and removed.
-  ('inactivity_days', '28,35,42,84');
+  ('inactivity_days', '28,35,42,84'),
+  -- migrations/0033. The go-live date the photo clock waits for (Alex, 2026-10-19).
+  ('photo_clock_start', '2026-11-01');
 
 -- Plan P3.4. The terms start as Amber's placeholder, marked, both as the version on file and
 -- as the first draft. The admin's Terms screen replaces the draft and publishes new versions.

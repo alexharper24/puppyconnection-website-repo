@@ -949,6 +949,7 @@
     registries: ['Registries a breeder can choose for a puppy, separated by commas', 'text'],
     max_videos: ['Most videos a puppy can have (0 turns video uploads off)', 'number'],
     video_max_seconds: ['Longest video, in seconds', 'number'],
+    photo_clock_start: ['The go-live date the photo clock waits for, as YYYY-MM-DD. No listing counts its four weeks from before this day. Leave it empty to start the clock now', 'text'],
     inactivity_days: ['Days with no new photo before the first email, the last email, taking a listing offline, and removing it, separated by commas. A new photo brings an offline listing back free until it is removed', 'text'],
     adopted_index_days: ['Days after a puppy is marked adopted that its page leaves Google (the page stays on the site)', 'number'],
     photo_check_route: ['Where a photo that fails the photo check goes: breeder (they are told what is wrong and upload another) or review (it waits for you in Photo review)', 'text'],

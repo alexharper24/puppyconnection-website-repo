@@ -10,7 +10,8 @@
 //   week 6   offline: off the site. A new photo brings it straight back, free
 //   week 12  removed: off the site and out of the free window. It stays in the breeder's
 //            dashboard, where it relists through the normal checkout without being entered again
-// The weeks are the inactivity_days setting, in days. Stage names stay reminded_1 and reminded_2
+// The weeks are the inactivity_days setting, in days. No clock runs before photo_clock_start, the
+// go-live date (migrations/0033). Stage names stay reminded_1 and reminded_2
 // for the two warnings, because the column's CHECK constraint is from migration 0020.
 //
 // Adopted puppies, puppies on an operator hold and imported Wix listings whose breeder has never
@@ -24,15 +25,20 @@ const DAY = 86400000;
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
 
 export async function inactivitySettings(env) {
-  const row = await env.DB.prepare("SELECT value FROM settings WHERE key = 'inactivity_days'").first();
-  const [r1, r2, off, gone] = String((row && row.value) || '28,35,42,84').split(',').map(Number);
-  return { r1, r2, off, gone };
+  const { results } = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('inactivity_days', 'photo_clock_start')").all();
+  const v = Object.fromEntries(results.map((r) => [r.key, r.value]));
+  const [r1, r2, off, gone] = String(v.inactivity_days || '28,35,42,84').split(',').map(Number);
+  // migrations/0033. No clock runs before photo_clock_start, the go-live date Alex sets (2026-10-19),
+  // so every listing counts its four weeks from that day at the earliest. Empty means no hold.
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(v.photo_clock_start || '') ? `${v.photo_clock_start}T00:00:00Z` : '';
+  return { r1, r2, off, gone, start };
 }
 
-/** The date the clock runs from, for a puppy row and its breeder. */
-export function anchorOf(p, b) {
+/** The date the clock runs from, for a puppy row and its breeder, never before the go-live date. */
+export function anchorOf(p, b, s = {}) {
   const own = p.last_photo_at || p.published_at || p.created_at;
-  return b && b.legacy && b.first_signin_at && b.first_signin_at > own ? b.first_signin_at : own;
+  const a = b && b.legacy && b.first_signin_at && b.first_signin_at > own ? b.first_signin_at : own;
+  return s.start && a < s.start ? s.start : a;
 }
 
 /**
@@ -41,7 +47,7 @@ export function anchorOf(p, b) {
  *   { stage: 'warned' | 'offline' | 'removed', by }  by is when the next step happens
  */
 export function scheduleFor(p, b, s) {
-  const a = Date.parse(anchorOf(p, b));
+  const a = Date.parse(anchorOf(p, b, s));
   const since = p.stage_at ? Date.parse(p.stage_at) : null;
   const later = (...ms) => iso(Math.max(...ms));
   if (p.inactive_stage === 'reminded_1') return { stage: 'warned', by: later(a + s.off * DAY, since + 2 * 7 * DAY) };
@@ -104,6 +110,7 @@ export async function inactivityJob(env, { portalOrigin = env.PORTAL_ORIGIN || '
   ).all();
   const moves = { reminded_1: [], reminded_2: [], offline: [], removed: [] };
   for (const p of results) {
+    if (s.start && p.anchor < s.start) p.anchor = s.start;
     const stage = p.inactive_stage, since = p.stage_at || '';
     if (stage === 'offline') { if (p.anchor <= at(s.gone) && since <= offlineWait) moves.removed.push(p); continue; }
     if (p.publication_state !== 'published') continue;

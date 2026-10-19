@@ -21,7 +21,7 @@ import { runJob, JOBS } from '../lib/jobs.js';
 import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
-import { addSubscriber, parseSubscriberCsv, EMAIL_OK } from '../lib/subscribers.js';
+import { addSubscriber, parseSubscriberCsv, readSubscriberRows, EMAIL_OK } from '../lib/subscribers.js';
 import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest } from '../lib/campaigns.js';
 import { cleanImage } from '../lib/images.js';
 import { randomToken } from '../lib/util.js';
@@ -845,9 +845,11 @@ async function devMail(req, env) {
 // ------------------------------------------------------------------ the mailing list
 // migrations/0011_mailing_list.sql. Sending waits on real email (launch checklist L4).
 
+const LIST_STATES = ['subscribed', 'contact', 'unsubscribed'];
+
 async function listSubscribers(req, env) {
   const url = new URL(req.url);
-  const status = url.searchParams.get('status') === 'unsubscribed' ? 'unsubscribed' : 'subscribed';
+  const status = LIST_STATES.includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'subscribed';
   const q = String(url.searchParams.get('q') || '').trim().toLowerCase();
   const counts = (await env.DB.prepare('SELECT status, source, COUNT(*) AS n FROM subscribers GROUP BY status, source').all()).results;
   const where = q ? 'AND (email LIKE ? OR lower(name) LIKE ?)' : '';
@@ -870,52 +872,84 @@ async function addSubscriberAdmin(req, env, ctx, id, who) {
 }
 
 /**
- * Import a CSV such as the Wix contacts export. Addresses already on the list are left as they
- * are, and anyone who unsubscribed stays unsubscribed. Done in a few batched queries rather than
- * one per row, so a list of several thousand fits in one request.
+ * Import a CSV such as the Wix contacts export, keeping each contact's Wix email state
+ * (lib/subscribers.js). Subscribed contacts join the list, unsubscribed ones are stored
+ * unsubscribed, and never-subscribed ones are stored as contacts who get no list email.
+ *
+ * For a row already held, an unsubscribe always wins and nobody who unsubscribed is put back, a
+ * contact who subscribed in Wix joins, and anyone else is left as they are. The same rule settles
+ * an address that appears twice in the file. Done in a few batched queries rather than one per
+ * row. The admin screen splits a large file into parts of a few hundred rows, sent as
+ * { cells, batch, part }, so each request stays inside the free plan's CPU, and the counts from
+ * each part add up to the file's. A short file can still come whole, as { csv }.
  */
+const IMPORT_PART_ROWS = 500;
 async function importSubscribers(req, env, ctx, id, who) {
   requireSameOrigin(req);
-  const body = await readJson(req);
-  const text = String(body.csv || '');
-  if (!text.trim()) throw bad('Choose a CSV file first.');
-  if (text.length > 3_000_000) throw bad('That file is too large. Split it into files of under 20,000 addresses.');
-  const rows = parseSubscriberCsv(text);
-  if (!rows.length) throw bad('No email column was found in that file.');
+  const body = await readJson(req, 1_000_000);
+  let parsed;
+  if (Array.isArray(body.cells)) {
+    if (body.cells.length > IMPORT_PART_ROWS + 1) throw bad(`Send at most ${IMPORT_PART_ROWS} rows at a time.`);
+    const cells = body.cells.map((r) => (Array.isArray(r) ? r.map((c) => String(c ?? '').slice(0, 500)) : []));
+    parsed = readSubscriberRows(cells, { repeatedHead: Number(body.part) > 0 });
+  } else {
+    const text = String(body.csv || '');
+    if (!text.trim()) throw bad('Choose a CSV file first.');
+    parsed = parseSubscriberCsv(text);
+    if (parsed.rows.length > IMPORT_PART_ROWS) throw bad('That file is too large to send whole. Import it from the Mailing list screen, which sends it in parts.');
+  }
+  if (!parsed.rows.length && !parsed.blank) throw bad('No email column was found in that file.');
+  const batchId = /^[0-9A-Z]{26}$/.test(String(body.batch || '')) ? body.batch : ulid();
+  const rank = { contact: 1, subscribed: 2, unsubscribed: 3 };
   const seen = new Map();
-  let invalid = 0;
-  for (const r of rows) {
+  let invalid = 0, dupes = 0;
+  for (const r of parsed.rows) {
     const e = r.email.trim().toLowerCase();
     if (!EMAIL_OK.test(e) || e.length > 200) { invalid += 1; continue; }
-    if (!seen.has(e)) seen.set(e, r.name);
+    const had = seen.get(e);
+    if (had) { dupes += 1; if (rank[r.state] > rank[had.state]) had.state = r.state; } else seen.set(e, { name: r.name, state: r.state });
   }
   const emails = [...seen.keys()];
   const have = new Map();
   for (let i = 0; i < emails.length; i += 90) {
     const part = emails.slice(i, i + 90);
-    const { results } = await env.DB.prepare(`SELECT lower(email) AS email, status FROM subscribers WHERE lower(email) IN (${part.map(() => '?').join(',')})`).bind(...part).all();
-    for (const x of results) have.set(x.email, x.status);
+    const { results } = await env.DB.prepare(`SELECT id, lower(email) AS email, status, import_batch FROM subscribers WHERE lower(email) IN (${part.map(() => '?').join(',')})`).bind(...part).all();
+    for (const x of results) have.set(x.email, x);
   }
-  const fresh = emails.filter((e) => !have.has(e));
-  const batchId = ulid(), t = now();
-  for (let i = 0; i < fresh.length; i += 100) {
-    await env.DB.batch(fresh.slice(i, i + 100).map((e) => env.DB.prepare(
-      "INSERT OR IGNORE INTO subscribers (id, email, name, source, unsub_token, created_at, import_batch) VALUES (?, ?, ?, 'import', ?, ?, ?)",
-    ).bind(ulid(), e, clean(seen.get(e), 120), randomToken(), t, batchId)));
+  const t = now();
+  const added = { subscribed: 0, unsubscribed: 0, contact: 0 };
+  const out = { added, already: 0, kept_unsubscribed: 0, joined: 0, unsubscribed_now: 0 };
+  const stmts = [];
+  for (const [e, r] of seen) {
+    const x = have.get(e);
+    if (!x) {
+      added[r.state] += 1;
+      stmts.push(env.DB.prepare(
+        "INSERT OR IGNORE INTO subscribers (id, email, name, source, status, unsub_token, created_at, unsubscribed_at, import_batch) VALUES (?, ?, ?, 'import', ?, ?, ?, ?, ?)",
+      ).bind(ulid(), e, clean(r.name, 120), r.state, randomToken(), t, r.state === 'unsubscribed' ? t : null, batchId));
+      continue;
+    }
+    // A repeat of an address an earlier part of this same file added counts as a duplicate row.
+    if (x.import_batch === batchId) dupes += 1;
+    if (x.status === 'unsubscribed') { if (x.import_batch !== batchId) out.kept_unsubscribed += 1; continue; }
+    const to = r.state === 'unsubscribed' ? 'unsubscribed' : r.state === 'subscribed' && x.status === 'contact' ? 'subscribed' : null;
+    if (to) stmts.push(to === 'unsubscribed'
+      ? env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE id = ?").bind(t, x.id)
+      : env.DB.prepare("UPDATE subscribers SET status = 'subscribed' WHERE id = ?").bind(x.id));
+    // Within one file the added counts move with the row, so they always say where its rows ended up.
+    if (x.import_batch === batchId) { if (to) { added[x.status] -= 1; added[to] += 1; } } else if (to === 'unsubscribed') out.unsubscribed_now += 1;
+    else if (to) out.joined += 1;
+    else out.already += 1;
   }
-  const out = {
-    added: fresh.length,
-    already: [...have.values()].filter((v) => v === 'subscribed').length,
-    kept_unsubscribed: [...have.values()].filter((v) => v === 'unsubscribed').length,
-    invalid, duplicates_in_file: rows.length - invalid - emails.length, batch: batchId,
-  };
-  await auditStmt(env, 'operator', who.email, 'subscriber.import', 'subscriber', batchId, null, out).run();
+  for (let i = 0; i < stmts.length; i += 100) await env.DB.batch(stmts.slice(i, i + 100));
+  Object.assign(out, { invalid, no_address: parsed.blank, duplicates_in_file: dupes, status_column: parsed.statusColumn, batch: batchId });
+  await auditStmt(env, 'operator', who.email, 'subscriber.import', 'subscriber', batchId, null, { ...out, part: Number(body.part) || 0 }).run();
   return json(out);
 }
 
 async function unsubscribeAdmin(req, env, ctx, id, who) {
   requireSameOrigin(req);
-  const r = await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE id = ? AND status = 'subscribed'").bind(now(), id).run();
+  const r = await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE id = ? AND status IN ('subscribed', 'contact')").bind(now(), id).run();
   if (r.meta.changes !== 1) throw notFound();
   await auditStmt(env, 'operator', who.email, 'subscriber.unsubscribe', 'subscriber', id, null, null).run();
   return json({ ok: true });

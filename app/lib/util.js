@@ -90,11 +90,11 @@ export function redirect(location, status = 303, headers = {}) {
 }
 
 /** A JSON body, refused over 64 KB or when it is not an object. */
-export async function readJson(request) {
+export async function readJson(request, max = 65536) {
   const type = request.headers.get('content-type') || '';
   if (!type.includes('application/json')) throw bad('Send JSON.');
   const text = await request.text();
-  if (text.length > 65536) throw bad('Too large.');
+  if (text.length > max) throw bad('Too large.');
   try {
     const v = JSON.parse(text || '{}');
     if (!v || typeof v !== 'object' || Array.isArray(v)) throw new Error('shape');

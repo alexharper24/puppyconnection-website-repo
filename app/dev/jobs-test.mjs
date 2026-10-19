@@ -14,7 +14,7 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
 const WRANGLER = path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
-const PORTAL = 'http://localhost:8787', ADMIN = 'http://localhost:8788';
+const PORTAL = process.env.PORTAL || 'http://localhost:8787', ADMIN = process.env.ADMIN || 'http://localhost:8788';
 let fails = 0;
 function check(name, ok, detail) { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && detail ? `\n      ${detail}` : ''}`); if (!ok) fails += 1; }
 
@@ -62,7 +62,7 @@ async function body() {
   await req(PORTAL, 'POST', '/auth/verify', new URLSearchParams({ t: new URL(mail[0].link).searchParams.get('t') }));
   let me = (await req(PORTAL, 'GET', '/api/me')).data;
   await req(PORTAL, 'PUT', '/api/profile', { version: me.profile.version, business_name: 'Jobs Test Kennel', public_phone: '555-0100', city: 'Goshen', state: 'IN', description: 'A test kennel.' });
-  await req(PORTAL, 'POST', '/api/profile/submit', { accept_terms: true });
+  await req(PORTAL, 'POST', '/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   await req(ADMIN, 'POST', `/api/breeders/${me.id}/approve`, {});
   const litter = (await req(PORTAL, 'POST', '/api/litters', { breed_id: 'breed-havanese', born_on: '2026-09-01', ready_on: '2026-10-27' })).data;
   const jpg = { type: 'image/jpeg', bytes: new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures/gps-test.jpg'))) };
@@ -115,7 +115,7 @@ async function body() {
   // that answers, one that does not exist, and /index.html, which lands on the home page. Local
   // http:// addresses sort before every real https:// link, so a batch of three checks only these.
   const pups = sql("SELECT id, breeder_url FROM puppies WHERE id IN (SELECT id FROM public_puppies) ORDER BY id LIMIT 3");
-  const SITE = 'http://localhost:8791';
+  const SITE = process.env.SITE || 'http://localhost:8791';
   const targets = [`${SITE}/breeds.html`, `${SITE}/no-such-page-${Date.now()}.html`, `${SITE}/index.html`];
   const batchBefore = sql("SELECT value FROM settings WHERE key = 'link_batch'")[0]?.value;
   try {

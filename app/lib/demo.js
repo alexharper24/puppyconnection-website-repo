@@ -36,7 +36,7 @@ const dateOnly = (ms) => iso(ms).slice(0, 10);
 export function demoData(nowMs = Date.now()) {
   const ago = (days) => iso(nowMs - days * DAY);
   const t = iso(nowMs);
-  const rows = { breeders: [], breeder_profiles: [], breeder_breeds: [], litters: [], puppies: [], photos: [],
+  const rows = { breeders: [], breeder_profiles: [], breeder_references: [], breeder_breeds: [], litters: [], puppies: [], photos: [],
     checkouts: [], checkout_items: [], sim_sessions: [], payments: [], puppy_stats: [], operator_notes: [] };
   const files = [];
   const image = (name, key) => {
@@ -58,6 +58,8 @@ export function demoData(nowMs = Date.now()) {
     description: 'A made-up breeder for the Puppy Connection demo. We raise Cavalier King Charles Spaniels in our home, and every puppy grows up around children and a friendly old cat.',
     updated_at: ago(2) });
   rows.breeder_breeds.push({ breeder_id: 'demo-thistledown', breed_id: 'breed-cavalier-king-charles-spaniel' });
+  // Workplan A13. The reference they gave at sign-up, a made-up veterinarian with a 555 number.
+  rows.breeder_references.push({ breeder_id: 'demo-thistledown', name: 'Dr. Morgan Example', role: 'vet', contact: '(260) 555-0177', created_at: ago(2), updated_at: ago(2) });
 
   // 3. Approved, with two litters.
   const mb = 'demo-maplebrook';
@@ -171,6 +173,7 @@ export function wipeStatements(env) {
     `DELETE FROM account_requests WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM listing_reports WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM breeder_members WHERE breeder_id ${NOT_SEED}`,
+    `DELETE FROM breeder_references WHERE breeder_id ${NOT_SEED}`,
     'DELETE FROM sessions',
     'DELETE FROM login_tokens',
     'DELETE FROM dev_mailbox',

@@ -1,7 +1,7 @@
 // The launch additions in docs/launch-workplan.md, against the running local Workers.
 //
 //   node app/dev/launch-features-test.mjs            every part
-//   node app/dev/launch-features-test.mjs details    one part (details, reports, placed, inactivity, approval, counts)
+//   node app/dev/launch-features-test.mjs details    one part (details, reports, photos, placed, inactivity, reference, photohold, approval, counts, visit, wixtext)
 //
 // Needs pc-portal on 8787 and pc-admin on 8788 on current code, started from app/.state after
 // node app/dev/setup.mjs --reset, with the stand-in Stream (STREAM_MODE=sim in .dev.vars).
@@ -59,7 +59,7 @@ async function breeder(tag, approve = true) {
   await c.req('POST', '/auth/verify', new URLSearchParams({ t: token }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Launch Kennel ${stamp}`, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true });
+  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   if (approve) await admin.post(`/api/breeders/${me.id}/approve`, {});
   return { c, id: me.id, email, name: `Launch Kennel ${stamp}` };
 }
@@ -311,89 +311,214 @@ async function placed() {
   check('A8 the window is a setting', (await admin.put('/api/settings', { adopted_index_days: '0' })).status === 400 && (await admin.put('/api/settings', { adopted_index_days: '30' })).status === 200);
 }
 
-// ---------------------------------------------------------------- A2 the inactivity schedule, on a moved clock
+// ---------------------------------------------------------------- A12 the photo-based schedule, on a moved clock
 async function inactivity() {
   const A = await breeder('inactive');
   const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
   const x = await readyPuppy(A.c, litter, 'Rusty'), y = await readyPuppy(A.c, litter, 'Daisy'), z = await readyPuppy(A.c, litter, 'Hazel');
   await pay(A.c, [x, y, z]);
   const ago = (days) => `${new Date(Date.now() - days * 86400000).toISOString().slice(0, 19)}Z`;
-  const row = (id) => sql(`SELECT inactive_stage, publication_state, payment_state, last_update_at, inactive_at FROM puppies WHERE id = '${id}'`)[0];
+  const row = (id) => sql(`SELECT inactive_stage, publication_state, payment_state, last_photo_at, inactive_at FROM puppies WHERE id = '${id}'`)[0];
   const isPublic = (id) => sql(`SELECT COUNT(*) AS n FROM public_puppies WHERE id = '${id}'`)[0].n === 1;
   const run = async () => (await admin.post('/api/jobs/inactivity/run', {})).data;
-  const clock = (id, lastDays, stageDays) => sql(`UPDATE puppies SET last_update_at = '${ago(lastDays)}'${stageDays == null ? '' : `, stage_at = '${ago(stageDays)}'`} WHERE id = '${id}'`);
+  const clock = (id, photoDays, stageDays) => sql(`UPDATE puppies SET last_photo_at = '${ago(photoDays)}'${stageDays == null ? '' : `, stage_at = '${ago(stageDays)}'`} WHERE id = '${id}'`);
   const mails = async () => (await A.c.get(`/dev/mail.json?to=${encodeURIComponent(A.email)}`)).data;
+  const recent = (id) => Date.parse(row(id).last_photo_at) > Date.now() - 600000;
+  // A new photo through the portal and the stand-in check. sim names reasons for a photo that fails.
+  const photo = async (id, sim) => {
+    const ph = (await A.c.req('POST', `/api/puppies/${id}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } })).data.id;
+    return (await A.c.req('POST', `/api/photos/${ph}/check`, {}, { headers: sim ? { 'x-sim-photo-check': sim } : {} })).data;
+  };
 
-  for (const id of [x, y, z]) clock(id, 13);
+  check('A12 paying for a listing starts its photo clock', [x, y, z].every(recent), JSON.stringify(row(x)));
+  for (const id of [x, y, z]) clock(id, 27);
   await run();
-  check('A2 nothing happens before day 14', [x, y, z].every((id) => row(id).inactive_stage === null));
-  for (const id of [x, y, z]) clock(id, 15);
-  await run();
-  check('A2 at week 2 each listing gets its first reminder', [x, y, z].every((id) => row(id).inactive_stage === 'reminded_1'));
-  let m = (await mails()).find((e) => /^Are these puppies still available/.test(e.subject));
-  check('A2 the reminder is one email with a Still available link per puppy', !!m && (m.body.match(/still-available\?t=/g) || []).length === 3, m && m.body.slice(0, 300));
-  const lines = m.body.split('\n');
-  const link = lines[lines.indexOf('Daisy') + 1].replace('Still available: ', '');
-  const t = new URL(link).searchParams.get('t');
-  const get = await fetch(`${PORTAL}/still-available?t=${t}`);
-  check('A2 opening the link changes nothing, because mail scanners open links', get.status === 200 && row(y).inactive_stage === 'reminded_1');
-  const post = (tok) => fetch(`${PORTAL}/still-available`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ t: tok }) });
-  let r = await post(t);
-  check('A2 one click on Still available keeps that puppy listed and restarts its clock', r.status === 200 && row(y).inactive_stage === null && Date.parse(row(y).last_update_at) > Date.now() - 600000, JSON.stringify(row(y)));
-  check('A2 the link works once', (await post(t)).status === 410);
-  // A price change counts as an update too.
+  check('A12 nothing happens before four weeks', [x, y, z].every((id) => row(id).inactive_stage === null));
+  // Only a new photo counts. A price change or a status change no longer restarts the clock.
   const pz = await pup(A.c, z);
   await A.c.put(`/api/puppies/${z}`, { ...pz, price: 1600, version: pz.version });
-  check('A2 a price change clears the reminder', row(z).inactive_stage === null);
-  clock(z, 15); await run();
-  // x has had a week since its first reminder, z only a day.
-  clock(x, 22, 8); clock(z, 22, 1);
+  await A.c.put(`/api/puppies/${z}/availability`, { availability: 'pending', version: (await pup(A.c, z)).version });
+  await A.c.put(`/api/puppies/${z}/availability`, { availability: 'available', version: (await pup(A.c, z)).version });
+  check('A12 a price or status change does not restart the clock', !recent(z), JSON.stringify(row(z)));
+  for (const id of [x, y, z]) clock(id, 29);
   await run();
-  check('A2 at week 3 the second reminder goes, and a listing never skips a step', row(x).inactive_stage === 'reminded_2' && row(z).inactive_stage === 'reminded_1', JSON.stringify([row(x), row(z)]));
-  m = (await mails()).find((e) => /^Last reminder/.test(e.subject));
-  check('A2 the second reminder says it is the last', !!m && /comes off the site/.test(m.body));
+  check('A12 at four weeks with no new photo each listing gets its first email', [x, y, z].every((id) => row(id).inactive_stage === 'reminded_1'));
+  let m = (await mails()).find((e) => /^Add new photos to keep your listings up/.test(e.subject));
+  check('A12 the email is one per breeder, with a link to each puppy\'s photo step', !!m && (m.body.match(/#\/litters\?photos=/g) || []).length === 3 && m.body.includes(`#/litters?photos=${x}`), m && m.body.slice(0, 300));
+  check('A12 it says the listings go offline in two weeks and why a current photo helps', !!m && /offline in two weeks, on \w+ \d{1,2}, \d{4}/.test(m.body) && /families/.test(m.body) && !/still-available/.test(m.body), m && m.body);
+  let px = await pup(A.c, x);
+  check('A12 the portal says by when the listing needs a photo', px.schedule && px.schedule.stage === 'warned' && Date.parse(px.schedule.by) - Date.parse(row(x).last_photo_at) >= 42 * 86400000 - 1000, JSON.stringify(px.schedule));
+  // The old Still available link opens a page that points to the portal and changes nothing.
+  const old = await fetch(`${PORTAL}/still-available?t=${'a'.repeat(40)}`);
+  check('A12 an old Still available link explains the new rule and changes nothing', old.status === 200 && /new photo/.test(await old.text()) && row(x).inactive_stage === 'reminded_1');
+  check('A12 the one-click keep-listed routes are gone', (await A.c.post(`/api/puppies/${x}/still-available`, {})).status === 404 && (await A.c.post(`/api/puppies/${x}/reactivate`, {})).status === 404
+    && (await fetch(`${PORTAL}/still-available`, { method: 'POST', headers: { origin: PORTAL } })).status === 404);
+  // A photo the check sends back keeps nothing. A photo that passes restarts the clock.
+  let r = await photo(y, 'blurry');
+  check('A12 a photo the check sends back does not count', r.quality === 'sent_back' && row(y).inactive_stage === 'reminded_1' && !recent(y), JSON.stringify([r, row(y)]));
+  r = await photo(y);
+  check('A12 a new photo that passes clears the warning and restarts the clock', r.quality === 'pass' && row(y).inactive_stage === null && recent(y), JSON.stringify(row(y)));
+  // x has had a week since its first email, z only a day.
+  clock(x, 36, 8); clock(z, 36, 1);
   await run();
-  check('A2 a second run the same week moves nothing', row(x).inactive_stage === 'reminded_2');
-  clock(x, 29, 8);
+  check('A12 at five weeks the last email goes, and a listing never skips a step', row(x).inactive_stage === 'reminded_2' && row(z).inactive_stage === 'reminded_1', JSON.stringify([row(x), row(z)]));
+  m = (await mails()).find((e) => /goes offline next week without a new photo$/.test(e.subject));
+  check('A12 the last email says it goes offline next week', !!m && /^Rusty/.test(m.subject) && /offline next week, on/.test(m.body) && m.body.includes(`#/litters?photos=${x}`), m && m.subject);
   await run();
-  check('A2 at week 4 the listing goes offline', row(x).inactive_stage === 'offline' && row(x).publication_state === 'expired' && !isPublic(x));
-  check('A2 the breeder is told it can come back free', (await mails()).some((e) => /off Puppy Connection for now/.test(e.subject) && /free until/.test(e.body)));
+  check('A12 a second run the same week moves nothing', row(x).inactive_stage === 'reminded_2');
+  // Changing the listing does not save it. Only a photo does.
+  px = await pup(A.c, x);
+  await A.c.put(`/api/puppies/${x}`, { ...px, price: 1700, version: px.version });
+  clock(x, 43, 8);
+  await run();
+  check('A12 at six weeks it goes offline, even after an edit', row(x).inactive_stage === 'offline' && row(x).publication_state === 'expired' && !isPublic(x), JSON.stringify(row(x)));
+  m = (await mails()).find((e) => /^Rusty is off Puppy Connection until a new photo is added/.test(e.subject));
+  check('A12 the breeder is told a new photo brings it back free, and until when', !!m && /straight back on the site, free, until \w+ \d{1,2}, \d{4}/.test(m.body) && m.body.includes(`#/litters?photos=${x}`), m && m.body);
+  px = await pup(A.c, x);
+  check('A12 an offline listing cannot be paid for, because a photo brings it back free', /new photo/.test(px.pay_block || '') && px.schedule.stage === 'offline'
+    && (await A.c.post('/api/checkouts', { puppy_ids: [x] })).status === 400, JSON.stringify([px.pay_block, px.schedule]));
   let site = await buildSite();
   const slugX = (await pup(A.c, x)).slug;
-  const redir = fs.readFileSync(path.join(site.out, '_redirects'), 'utf8');
-  check("A2 an offline puppy's page forwards to its breed page", redir.includes(`/puppy-${slugX}.html /breed-havanese.html 301`) && !site.page(`puppy-${slugX}.html`), redir.split('\n').filter((l) => l.includes(slugX)).join(' | '));
-  clock(x, 43, 15);
+  check("A12 an offline puppy's page forwards to its breed page", fs.readFileSync(path.join(site.out, '_redirects'), 'utf8').includes(`/puppy-${slugX}.html /breed-havanese.html 301`) && !site.page(`puppy-${slugX}.html`));
+  r = await photo(x);
+  check('A12 a new photo before week 12 puts it straight back on the site, free', r.quality === 'pass' && isPublic(x) && row(x).inactive_stage === null && row(x).payment_state === 'paid' && recent(x), JSON.stringify(row(x)));
+
+  // Week 12. z goes offline, then six more weeks pass with nothing.
+  sql(`UPDATE puppies SET inactive_stage = 'reminded_2' WHERE id = '${z}'`); clock(z, 43, 8);
   await run();
-  check('A2 at week 6 it is removed from the directory and its record is kept', row(x).inactive_stage === 'removed' && !!(await pup(A.c, x)));
-  check('A2 the breeder is told it was removed', (await mails()).some((e) => /removed from the directory/.test(e.subject)));
+  clock(z, 85, 41);
+  await run();
+  check('A12 offline listings wait their six weeks before removal', row(z).inactive_stage === 'offline');
+  clock(z, 85, 43);
+  await run();
+  check('A12 at twelve weeks it is removed and the record stays in the dashboard', row(z).inactive_stage === 'removed' && !isPublic(z) && !!(await pup(A.c, z)), JSON.stringify(row(z)));
+  m = (await mails()).find((e) => /^Hazel has been removed from Puppy Connection/.test(e.subject));
+  check('A12 the breeder is told they can relist it for the fee without entering it again', !!m && /press Relist/.test(m.body) && /\$\d+\.\d\d/.test(m.body) && /without entering it again/.test(m.body), m && m.body);
   site = await buildSite();
-  check("A2 a removed puppy's page still forwards to its breed page", fs.readFileSync(path.join(site.out, '_redirects'), 'utf8').includes(`/puppy-${slugX}.html /breed-havanese.html 301`));
-  const px = await pup(A.c, x);
-  check('A2 the portal offers to bring it back free', px.reactivation && px.reactivation.free === true);
-  r = await A.c.post(`/api/puppies/${x}/reactivate`, {});
-  check('A2 bringing it back within six weeks is free and puts it straight back', r.status === 200 && r.data.relisted === true && isPublic(x) && row(x).inactive_stage === null, JSON.stringify(r.data));
-  // A listing offline longer than the window comes back as a draft to pay for again.
-  sql(`UPDATE puppies SET inactive_stage = 'reminded_2' WHERE id = '${z}'`); clock(z, 29, 8);
-  await run();
-  sql(`UPDATE puppies SET inactive_at = '${ago(43)}' WHERE id = '${z}'`);
-  r = await A.c.post(`/api/puppies/${z}/reactivate`, {});
-  check('A2 after the free window it comes back as a draft to pay for again', r.status === 200 && r.data.relisted === false && row(z).publication_state === 'draft' && row(z).payment_state === 'unpaid', JSON.stringify([r.data, row(z)]));
-  check('A2 bringing back a listing that is not offline is refused', (await A.c.post(`/api/puppies/${y}/reactivate`, {})).status === 400);
+  const slugZ = (await pup(A.c, z)).slug;
+  check("A12 a removed puppy's page still forwards to its breed page", fs.readFileSync(path.join(site.out, '_redirects'), 'utf8').includes(`/puppy-${slugZ}.html /breed-havanese.html 301`));
+  r = await photo(z);
+  check('A12 a new photo alone does not relist a removed listing', r.quality === 'pass' && row(z).inactive_stage === 'removed' && !isPublic(z));
+  const pzz = await pup(A.c, z);
+  check('A12 the dashboard offers to relist it through the checkout', pzz.schedule.stage === 'removed' && !pzz.pay_block, JSON.stringify([pzz.schedule, pzz.pay_block]));
+  sql(`UPDATE puppies SET last_photo_at = '${ago(90)}' WHERE id = '${z}'`);
+  await pay(A.c, [z]);
+  check('A12 paying relists it with every detail kept and a fresh clock', isPublic(z) && row(z).inactive_stage === null && recent(z) && (await pup(A.c, z)).price_cents === 160000, JSON.stringify([row(z), (await pup(A.c, z)).price_cents]));
 
   // Imported Wix listings wait until their breeder signs in.
   sql(`UPDATE breeders SET legacy = 1, first_signin_at = NULL WHERE id = '${A.id}'`);
-  clock(y, 20);
+  clock(y, 30);
   await run();
-  check('A2 an imported breeder who has never signed in is left out', row(y).inactive_stage === null);
+  check('A12 an imported breeder who has never signed in is left out', row(y).inactive_stage === null);
   const again = new Client(PORTAL);
   await call(again, 'POST', '/auth/start', { email: A.email });
   const tok = new URL((await again.get(`/dev/mail.json?to=${encodeURIComponent(A.email)}`)).data[0].link).searchParams.get('t');
   await again.req('POST', '/auth/verify', new URLSearchParams({ t: tok }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const first = sql(`SELECT first_signin_at FROM breeders WHERE id = '${A.id}'`)[0].first_signin_at;
   await run();
-  check('A2 signing in starts their clock, so an old listing is not reminded at once', !!first && row(y).inactive_stage === null, String(first));
+  check('A12 signing in starts their clock, so an old listing is not emailed at once', !!first && row(y).inactive_stage === null, String(first));
   sql(`UPDATE breeders SET legacy = 0 WHERE id = '${A.id}'`);
-  check('A2 the schedule days are a setting and must rise', (await admin.put('/api/settings', { inactivity_days: '14,21,20,42' })).status === 400 && (await admin.put('/api/settings', { inactivity_days: '14,21,28,42' })).status === 200);
+  check('A12 the weeks are a setting and must rise', (await admin.put('/api/settings', { inactivity_days: '28,35,30,84' })).status === 400 && (await admin.put('/api/settings', { inactivity_days: '28,35,42,84' })).status === 200);
+  check('A12 the separate free window setting is gone', !sql("SELECT key FROM settings WHERE key = 'reactivate_days'").length && (await admin.put('/api/settings', { reactivate_days: '42' })).status === 400);
+  const portalJs = fs.readFileSync(path.join(APP, 'portal/public/portal.js'), 'utf8');
+  check('A12 the portal banner lists every listing that needs a photo, with an Add a photo button', /function photoBanner\(\)/.test(portalJs) && /photoBanner\(\) \+ inner/.test(portalJs) && /data-photos=/.test(portalJs) && !/Still available/.test(portalJs));
+}
+
+// ---------------------------------------------------------------- A13 breeder approval by reference
+async function reference() {
+  const stamp = `ref-${Date.now().toString(36)}`;
+  const email = `launch-${stamp}@breeders.test`;
+  const c = new Client(PORTAL);
+  await call(c, 'POST', '/auth/start', { email, business_name: `Launch Kennel ${stamp}` });
+  const t = new URL((await c.get(`/dev/mail.json?to=${encodeURIComponent(email)}`)).data[0].link).searchParams.get('t');
+  await c.req('POST', '/auth/verify', new URLSearchParams({ t }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  let me = (await c.get('/api/me')).data;
+  await c.put('/api/profile', { version: me.profile.version, business_name: `Launch Kennel ${stamp}`, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
+  const submit = (reference) => c.post('/api/profile/submit', { accept_terms: true, ...(reference ? { reference } : {}) });
+  let r = await submit();
+  check('A13 sign-up cannot be submitted without a reference', r.status === 400 && /reference/i.test(r.data.error) && !(await c.get('/api/me')).data.profile_submitted_at, JSON.stringify(r.data));
+  r = await submit({ name: 'Pat Example', role: 'mayor', contact: 'pat@example.com' });
+  check('A13 the role must be one of the four on the list', r.status === 400);
+  r = await submit({ name: 'Pat Example', role: 'akc', contact: 'call me' });
+  check('A13 the contact must be a phone number or an email', r.status === 400 && /phone number or an email/.test(r.data.error));
+  check('A13 sign-up offers the four kinds of reference', Object.keys(me.reference_roles || {}).join() === 'akc,welfare,breeder,vet' && /ICAW/.test(me.reference_roles.welfare), JSON.stringify(me.reference_roles));
+  r = await submit({ name: 'Stacy Example', role: 'akc', contact: 'stacy@akc.example' });
+  me = r.data;
+  check('A13 with a reference the sign-up is submitted', r.status === 200 && !!me.profile_submitted_at && me.reference && me.reference.name === 'Stacy Example', JSON.stringify(r.data).slice(0, 200));
+  r = await c.post('/api/profile/reference', { name: 'Stacy Example', role: 'akc', contact: '(317) 555-0123' });
+  check('A13 a breeder waiting for approval can correct the reference', r.status === 200 && r.data.reference.contact === '(317) 555-0123');
+  const d = (await admin.get(`/api/breeders/${me.id}`)).data;
+  check('A13 the admin sees the reference with the approval', d.reference && d.reference.name === 'Stacy Example' && d.reference.role_label === 'AKC representative' && d.reference.contact === '(317) 555-0123', JSON.stringify(d.reference));
+  check('A13 ... beside Approve on the approval screen', /referenceCard\(data\.reference\) : ''\) \+\s*'<div id="decide">/.test(fs.readFileSync(path.join(APP, 'admin/public/admin.js'), 'utf8')));
+  const exp = await (await fetch(`${PORTAL}/data/export.json`)).text();
+  check('A13 the reference is never public', !exp.includes('Stacy Example') && !exp.includes('555-0123'));
+  await admin.post(`/api/breeders/${me.id}/approve`, {});
+  me = (await c.get('/api/me')).data;
+  check('A13 approval stays once per breeder, and an approved breeder is not asked again', me.status === 'approved' && me.reference === null && (await c.post('/api/profile/reference', { name: 'X Y', role: 'vet', contact: 'x@y.example' })).status === 403);
+  // A breeder who submitted before references were asked for is not locked out.
+  const B = await breeder('ref-before', false);
+  sql(`DELETE FROM breeder_references WHERE breeder_id = '${B.id}'`);
+  const bd = (await admin.get(`/api/breeders/${B.id}`)).data;
+  r = await admin.post(`/api/breeders/${B.id}/approve`, {});
+  check('A13 a breeder who submitted before references shows none and can still be approved', bd.reference === null && r.status === 200 && (await B.c.get('/api/me')).data.status === 'approved', JSON.stringify([bd.reference, r.status]));
+  check('A13 approved and imported breeders keep their standing with no reference', sql("SELECT COUNT(*) AS n FROM breeders WHERE status = 'approved' AND id LIKE 'seed-%'")[0].n > 0
+    && sql("SELECT COUNT(*) AS n FROM breeders b WHERE b.status = 'approved' AND b.id LIKE 'seed-%' AND EXISTS (SELECT 1 FROM breeder_references r WHERE r.breeder_id = b.id)")[0].n === 0);
+}
+
+// ---------------------------------------------------------------- A14 the photo standard and take offline until new photos
+async function photohold() {
+  const A = await breeder('photohold');
+  const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
+  const id = await readyPuppy(A.c, litter, 'Biscuit');
+  await pay(A.c, [id]);
+  const row = () => sql(`SELECT operator_hold, hold_kind, hold_reason, hold_at FROM puppies WHERE id = '${id}'`)[0];
+  const isPublic = () => sql(`SELECT COUNT(*) AS n FROM public_puppies WHERE id = '${id}'`)[0].n === 1;
+  const photo = async (sim) => {
+    const ph = (await A.c.req('POST', `/api/puppies/${id}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } })).data.id;
+    return { id: ph, ...(await A.c.req('POST', `/api/photos/${ph}/check`, {}, { headers: sim ? { 'x-sim-photo-check': sim } : {} })).data };
+  };
+  check('A14 the listing starts on the site', isPublic());
+  let r = await admin.post(`/api/puppies/${id}/hold`, { on: true, kind: 'photos', reason: '  ' });
+  check('A14 taking a listing offline for photos needs a reason', r.status === 400 && isPublic());
+  // A photo uploaded before the hold and still waiting for its check must not lift it.
+  const early = (await A.c.req('POST', `/api/puppies/${id}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } })).data.id;
+  sql(`UPDATE photos SET created_at = '2026-01-01T00:00:00Z' WHERE id = '${early}'`);
+  r = await admin.post(`/api/puppies/${id}/hold`, { on: true, kind: 'photos', reason: 'The photos are blurry. Please upload clear photos of Biscuit.' });
+  check('A14 the admin takes the listing offline until new photos', r.status === 200 && row().operator_hold === 1 && row().hold_kind === 'photos' && !isPublic(), JSON.stringify(row()));
+  const p = await pup(A.c, id);
+  check('A14 the breeder sees why in the portal', p.operator_hold === 1 && p.hold_kind === 'photos' && p.hold_reason === 'The photos are blurry. Please upload clear photos of Biscuit.' && /Paused|photo/.test(p.pay_block || ''), JSON.stringify([p.hold_reason, p.pay_block]));
+  await sleep(300);
+  const m = (await A.c.get(`/dev/mail.json?to=${encodeURIComponent(A.email)}`)).data.find((e) => /^Biscuit is off Puppy Connection until new photos are added/.test(e.subject));
+  check('A14 the breeder is emailed the reason, the standard and a link to the photos', !!m && /blurry/.test(m.body) && /no signs of illness or distress/.test(m.body) && m.body.includes(`#/litters?photos=${id}`), m && m.body);
+  const held = (await admin.get('/api/listings?filter=held')).data.find((x) => x.id === id);
+  check('A14 the admin listings show it as offline for photos with the reason', held && held.hold_kind === 'photos' && /blurry/.test(held.hold_reason));
+  await admin.post('/api/jobs/photos/run', {});
+  check('A14 a photo from before the hold does not lift it', row().operator_hold === 1 && sql(`SELECT quality FROM photos WHERE id = '${early}'`)[0].quality === 'pass');
+  r = await photo('blurry');
+  check('A14 a new photo that fails the check does not lift it', r.quality === 'sent_back' && row().operator_hold === 1);
+  r = await photo();
+  check('A14 a new photo that passes the check lifts it and the listing is back', r.quality === 'pass' && row().operator_hold === 0 && row().hold_kind === null && isPublic(), JSON.stringify(row()));
+  check('A14 the lift is in the activity record', sql(`SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = '${id}' AND action = 'puppy.photo_hold_lifted'`)[0].n === 1);
+  // The plain hold is not lifted by a photo.
+  await admin.post(`/api/puppies/${id}/hold`, { on: true });
+  await photo();
+  check('A14 a plain hold stays until an operator releases it', row().operator_hold === 1 && row().hold_kind === null && !isPublic());
+  await admin.post(`/api/puppies/${id}/hold`, { on: false });
+  check('A14 Release lifts it', row().operator_hold === 0 && isPublic());
+  // Photo review: a photo Amber keeps counts too.
+  await admin.put('/api/settings', { photo_check_route: 'review' });
+  await admin.post(`/api/puppies/${id}/hold`, { on: true, kind: 'photos', reason: 'The puppy is hard to see.' });
+  r = await photo('too_small');
+  await admin.post(`/api/photo-review/${r.id}/keep`, {});
+  await admin.put('/api/settings', { photo_check_route: 'breeder' });
+  check('A14 a photo Amber keeps in Photo review lifts the hold too', row().operator_hold === 0 && isPublic());
+  const portalJs = fs.readFileSync(path.join(APP, 'portal/public/portal.js'), 'utf8');
+  const standard = 'Photos must be high quality, not blurry, and show the puppy clearly with no signs of illness or distress. A listing that falls short can be taken offline by Puppy Connection until proper photos are uploaded.';
+  check("A14 the portal photo step shows Amber's photo standard", portalJs.includes(standard) && /'<p class="photo-standard"><b>Photo standard\.<\/b> ' \+ esc\(PHOTO_STANDARD\)/.test(portalJs));
+  const draft = sql("SELECT body FROM terms_versions WHERE version = 'draft'")[0].body;
+  check('A14 the listing terms draft carries the photo standard', draft.includes(`Photo standard. ${standard}`), draft.slice(-260));
+  const mig = fs.readFileSync(path.join(APP, 'migrations/0032_photo_hold.sql'), 'utf8');
+  check('A14 the migration adds the standard to the draft only, once', mig.includes(standard) && /WHERE version = 'draft' AND instr\(body, 'Photo standard\. Photos must be high quality'\) = 0/.test(mig));
 }
 
 // ---------------------------------------------------------------- A1 listing review: breeders once, listings never
@@ -478,7 +603,7 @@ async function wixtext() {
   check("A10 Dixon keeps the breeder's prose, with the color and the parents' weights in their fields", d && /^Introducing a beautiful litter of Poodle puppies/.test(d.description) && d.color === 'black with white markings' && d.mom_weight_lb === 8 && d.dad_weight_lb === 6, JSON.stringify(d));
 }
 
-const PARTS = { details, reports, photos, placed, inactivity, approval, counts, visit, wixtext };
+const PARTS = { details, reports, photos, placed, inactivity, reference, photohold, approval, counts, visit, wixtext };
 
 async function main() {
   const only = process.argv[2];

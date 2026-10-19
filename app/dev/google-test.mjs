@@ -11,7 +11,7 @@ import http from 'node:http';
 import { webcrypto as crypto } from 'node:crypto';
 import { verifyIdToken, b64url } from '../lib/google.js';
 
-const PORTAL = 'http://localhost:8787';
+const PORTAL = process.env.PORTAL || 'http://localhost:8787';
 const CLIENT_ID = 'local-test-client.apps.googleusercontent.com';
 const CLIENT_SECRET = 'local-test-secret';
 let fails = 0;
@@ -145,7 +145,7 @@ async function part3(k) {
     const noCookie = await fetch(`${PORTAL}/auth/google/onetap`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json' }, body: JSON.stringify({ credential: await sign(k, good({ email, nonce })) }) });
     check('a One Tap token with no sign-in started in this browser is refused', noCookie.status === 400);
     check('a One Tap post from another site is refused', (await post(await sign(k, good({ email, nonce })), { origin: 'https://evil.example' })).status === 403);
-    const ph = await fetch(`${PORTAL}/`), ah = await fetch('http://localhost:8788/');
+    const ph = await fetch(`${PORTAL}/`), ah = await fetch(`${process.env.ADMIN || 'http://localhost:8788'}/`);
     check('the portal allows Google sign-in and keeps the page origin in the Referer',
       /accounts\.google\.com\/gsi\/client/.test(ph.headers.get('content-security-policy') || '') && ph.headers.get('referrer-policy') === 'strict-origin-when-cross-origin');
     check('the admin keeps its stricter policy', !/accounts\.google\.com/.test(ah.headers.get('content-security-policy') || '') && ah.headers.get('referrer-policy') === 'same-origin');

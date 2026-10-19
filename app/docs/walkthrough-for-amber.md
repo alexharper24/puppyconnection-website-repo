@@ -28,8 +28,11 @@ Buyers never pay Puppy Connection anything, and their conversations happen with 
 
 For a breeder, it is a simple way to get their puppies in front of those buyers. They sign up
 once, you approve them, and from then on they add their own litters and puppies with photos.
-Each puppy costs $14.99 to list, paid once. The listing stays up until they take it down or mark
-the puppy as placed, so there is nothing to renew.
+Each puppy costs $14.99 to list, paid once. The listing stays up with no end date for as long
+as the breeder adds a new photo at least every four weeks, so there is nothing to renew. At four
+and five weeks without a new photo the breeder is emailed, at six weeks the listing goes offline
+until a new photo is added, and at twelve weeks it is removed from the site but kept in their
+portal, where they can relist it by paying again without entering it again.
 
 For you, the admin is where you decide who gets to list, keep an eye on what is going up, and
 handle anything that needs a person, such as a refund or a question about a listing.
@@ -74,8 +77,11 @@ email and filled in part of their profile, but they have not submitted it yet.
 
 ## 4. The breeder submits and waits for approval
 
-At the bottom of the profile is a box called **Submit for approval**. The breeder reads the
-listing terms, ticks that they accept them, and presses submit. The overview now says they are
+At the bottom of the profile is a box called **Submit for approval**. The breeder names one
+reference who can confirm they are a real breeder, meaning an AKC representative, a board member
+of their local animal welfare council such as ICAW, another respected breeder, or their
+veterinarian, with that person's name and a phone or email. Then they read the listing terms,
+tick that they accept them, and press submit. The portal does not submit without a reference. The overview now says they are
 on step 4, **Puppy Connection approves your account**.
 
 While they wait, the menu only shows **Overview**, **Profile**, **Account** and **Help**, and the
@@ -100,8 +106,10 @@ you, and the first line says a breeder is waiting for your approval.
 
 Open **Approvals** in the menu. Thistledown Pups is in the list. Click the row and a panel opens
 on the right with everything they entered, their contact details, their kennel photo and logo if
-they added them, and the version of the terms they accepted. Press **Approve**, then **Approve**
-again to confirm.
+they added them, and the version of the terms they accepted. Just above **Approve** is a box called
+**Reference** with the person they named, who that person is, and a phone or email you can use to
+check with them first. Press **Approve**, then **Approve** again to confirm. You approve each breeder
+once, and after that their listings go live without waiting for you.
 They get an email saying they are approved, and they move into **Breeders** with a green
 **Approved** label. If something is not right you can press **Decline** instead, with a private
 reason that only operators see.
@@ -185,6 +193,9 @@ Everything below is in the admin menu on the left.
   the breeder or the public. Maple Brook has one.
 - **Listings** shows every puppy. **Hold** takes a listing off the site straight away without
   deleting it, and **Release** puts it back. **List free** lists a puppy without a payment.
+  **Offline until new photos** takes a listing off the site when its photos fall short of the
+  photo standard. You type a short reason, which the breeder sees in their portal and by email,
+  and the listing comes back by itself once they upload a photo that passes the photo check.
 - **Breeds** lets you add a breed or edit the guide text for a breed page.
 - **Payments** shows every payment. On staging you can press **Refund** on a practice payment,
   which takes those listings down and emails the breeder, and you can record a practice

@@ -20,6 +20,7 @@
 // breeder up, and the check records that it was not judged.
 
 import { findFocus } from './focus.js';
+import { photoPassedStmts } from './inactivity.js';
 
 export const PHOTO_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
 
@@ -162,6 +163,9 @@ export async function checkPhoto(env, photo, route, { sim } = {}) {
     if (pub) {
       stmts.push(env.DB.prepare('UPDATE site_state SET dirty = 1, dirty_since = COALESCE(dirty_since, ?), generation = generation + 1 WHERE id = 1').bind(now()));
     }
+    // Workplan A12 and A14. A passed photo restarts the listing's clock, brings an offline listing
+    // back and lifts a take-offline-for-photos hold.
+    stmts.push(...await photoPassedStmts(env, photo.puppy_id, photo.created_at));
   }
   await env.DB.batch(stmts);
   return { quality, reasons: v.reasons, messages: reasonText(v.reasons), judged: !!v.judged, usage: v.usage };
@@ -171,8 +175,14 @@ export async function checkPhoto(env, photo, route, { sim } = {}) {
 export async function photoJob(env, routeOf) {
   if (photoCheckMode(env) === 'off') {
     // With the check off nothing should wait, so anything pending passes.
-    const r = await env.DB.prepare("UPDATE photos SET quality = 'pass', quality_note = 'check off' WHERE quality = 'pending'").run();
-    return { off: true, passed: r.meta.changes };
+    const { results } = await env.DB.prepare("SELECT id, puppy_id, created_at FROM photos WHERE quality = 'pending'").all();
+    for (const ph of results) {
+      await env.DB.batch([
+        env.DB.prepare("UPDATE photos SET quality = 'pass', quality_note = 'check off' WHERE id = ? AND quality = 'pending'").bind(ph.id),
+        ...await photoPassedStmts(env, ph.puppy_id, ph.created_at),
+      ]);
+    }
+    return { off: true, passed: results.length };
   }
   const tenAgo = new Date(Date.now() - 600000).toISOString().slice(0, 19) + 'Z';
   const { results } = await env.DB.prepare("SELECT * FROM photos WHERE quality = 'pending' AND created_at < ? ORDER BY created_at LIMIT 10").bind(tenAgo).all();

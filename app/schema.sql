@@ -45,6 +45,17 @@ CREATE TABLE IF NOT EXISTS breeder_profiles (
   facebook_url  TEXT
 );
 
+-- Workplan A13 (migrations/0031). The one reference a new breeder names before submitting for
+-- approval, shown to operators beside Approve. Never public, so it is not on breeder_profiles.
+CREATE TABLE IF NOT EXISTS breeder_references (
+  breeder_id  TEXT PRIMARY KEY REFERENCES breeders(id),
+  name        TEXT NOT NULL,
+  role        TEXT NOT NULL CHECK (role IN ('akc','welfare','breeder','vet')),
+  contact     TEXT NOT NULL,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
 -- Plan P2.3. The breeds a breeder raises, picked from the breeds table. Optional.
 CREATE TABLE IF NOT EXISTS breeder_breeds (
   breeder_id TEXT NOT NULL REFERENCES breeders(id),
@@ -247,6 +258,14 @@ CREATE TABLE IF NOT EXISTS puppies (
   stage_at          TEXT,
   inactive_at       TEXT,
   still_token_hash  TEXT,
+  -- The photo-based schedule (migrations/0030, lib/inactivity.js). The newest photo that passed the
+  -- check, or the payment that listed the puppy. last_update_at and still_token_hash are unused.
+  last_photo_at     TEXT,
+  -- Workplan A14 (migrations/0032). The kind of operator hold: NULL is the plain hold, photos is
+  -- take offline until new photos, which a passing photo after hold_at lifts.
+  hold_kind         TEXT CHECK (hold_kind IN ('photos')),
+  hold_reason       TEXT,
+  hold_at           TEXT,
   UNIQUE (id, breeder_id),
   FOREIGN KEY (litter_id, breeder_id) REFERENCES litters (id, breeder_id)
 );
@@ -254,6 +273,7 @@ CREATE INDEX IF NOT EXISTS puppies_breeder ON puppies(breeder_id);
 CREATE INDEX IF NOT EXISTS puppies_litter ON puppies(litter_id);
 CREATE INDEX IF NOT EXISTS puppies_inactive ON puppies(inactive_stage, last_update_at);
 CREATE UNIQUE INDEX IF NOT EXISTS puppies_still_token ON puppies(still_token_hash) WHERE still_token_hash IS NOT NULL;
+CREATE INDEX IF NOT EXISTS puppies_photo_clock ON puppies(inactive_stage, last_photo_at);
 CREATE TRIGGER IF NOT EXISTS puppies_placed_at_update AFTER UPDATE OF availability ON puppies
 WHEN NEW.availability IS NOT OLD.availability
 BEGIN
@@ -511,16 +531,17 @@ INSERT OR IGNORE INTO settings (key, value) VALUES
   ('photo_check_route', 'breeder'),
   -- migrations/0019. Days after adoption that a puppy page leaves the sitemap and becomes noindex.
   ('adopted_index_days', '30'),
-  -- migrations/0020. Days with no update to each inactivity step, and the free reactivation window.
-  ('inactivity_days', '14,21,28,42'),
-  ('reactivate_days', '42');
+  -- migrations/0030. Days with no new photo to the first email, the last email, offline and removed.
+  ('inactivity_days', '28,35,42,84');
 
 -- Plan P3.4. The terms start as Amber's placeholder, marked, both as the version on file and
 -- as the first draft. The admin's Terms screen replaces the draft and publishes new versions.
 INSERT OR IGNORE INTO terms_versions (version, body, updated_at, updated_by, published_at, published_by) VALUES
   ('draft-2026-09-30', 'REPLACE THIS: the listing terms, in Amber''s own words (build spec section 14). Nothing has been written here on her behalf.',
    '2026-09-30T00:00:00Z', 'setup', '2026-09-30T00:00:00Z', 'setup'),
-  ('draft', 'REPLACE THIS: the listing terms, in Amber''s own words (build spec section 14). Nothing has been written here on her behalf.',
+  -- Amber's photo standard (2026-10-19, workplan A14) is in the draft, as migrations/0032 adds it on staging.
+  ('draft', 'REPLACE THIS: the listing terms, in Amber''s own words (build spec section 14). Nothing has been written here on her behalf.' || char(10) || char(10) ||
+   'Photo standard. Photos must be high quality, not blurry, and show the puppy clearly with no signs of illness or distress. A listing that falls short can be taken offline by Puppy Connection until proper photos are uploaded.',
    '2026-09-30T00:00:00Z', 'setup', NULL, NULL);
 
 -- What the public may see. The exporter reads only these views (spec 4.1).

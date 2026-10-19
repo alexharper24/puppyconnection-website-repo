@@ -402,6 +402,8 @@
         (data.close_request ? '<div class="notice notice-alert" id="close-req"><p><b>Asked to close their account</b> on ' + esc(day(data.close_request.created_at)) + '.' +
           (data.close_request.reason ? ' Their reason: ' + esc(data.close_request.reason) : '') + '</p><p class="small">Nothing has been removed. Follow up with them, then mark it handled.</p>' +
           '<div class="btn-row"><button class="btn btn-sm" id="close-handled">Mark handled</button></div></div>' : '') +
+        // Workplan A13. The reference a new breeder names, beside Approve, so it can be checked first.
+        (b.status === 'pending' && b.profile_submitted_at ? referenceCard(data.reference) : '') +
         '<div id="decide"><div class="btn-row">' + actions + '</div></div>' +
         // Plan P3.2. Private notes, never shown to the breeder.
         '<h3>Private notes</h3><p class="hint" style="margin-top:-.3rem">Only operators see these. The breeder never does, and they are in no export or report.</p>' +
@@ -632,13 +634,19 @@
       });
   }
 
+  function referenceCard(r) {
+    if (!r) return '<div class="card ref-card"><h3>Reference</h3><p class="muted small">None given. They submitted before references were asked for, and the portal asks them for one. You can still approve them.</p></div>';
+    var contact = /@/.test(r.contact) ? '<a href="mailto:' + esc(r.contact) + '">' + esc(r.contact) + '</a>' : '<a href="tel:' + esc(r.contact.replace(/[^\d+]/g, '')) + '">' + esc(r.contact) + '</a>';
+    return '<div class="card ref-card"><h3>Reference</h3><p><b>' + esc(r.name) + '</b><br><span class="muted small">' + esc(r.role_label) + '</span><br>' + contact + '</p>' +
+      '<p class="hint" style="margin:0">Someone who can confirm this is a real breeder. Contact them before approving if you need to.</p></div>';
+  }
   function decide(d, b, action) {
     var box = $('#decide', d);
     var needsReason = action === 'decline' || action === 'suspend';
     var verb = { approve: 'Approve', decline: 'Decline', suspend: 'Suspend', reinstate: 'Reinstate', reopen: 'Reopen' }[action];
     if (!needsReason && action !== 'approve') { run({}); return; }
     box.innerHTML = '<form id="decide-form" class="card">' +
-      (action === 'approve' ? '<p><b>Approve ' + esc(b.business_name) + '?</b> They will be emailed and can start listing right away.</p>'
+      (action === 'approve' ? '<p><b>Approve ' + esc(b.business_name) + '?</b> They will be emailed and can start listing right away, and their listings go live without review.</p>'
         : '<div class="field"><label for="d-reason">Private reason, for the record</label><textarea id="d-reason" name="reason" style="min-height:70px"></textarea></div>' +
           (action === 'decline' ? '<div class="field"><label for="d-msg">Message to the breeder (optional)</label><textarea id="d-msg" name="message" style="min-height:70px"></textarea></div>' : '')) +
       '<div class="btn-row"><button class="btn ' + (action === 'approve' ? 'btn-primary' : 'btn-danger') + '" type="submit">' + verb + '</button><button class="btn btn-quiet" type="button" data-cancel>Cancel</button></div></form>';
@@ -668,19 +676,31 @@
     else if (p.publication_state === 'draft') c.push('<span class="pill">Draft</span>');
     else if (p.publication_state === 'published') c.push('<span class="pill pill-warn">Paid, hidden</span>');
     if (p.payment_state === 'comped') c.push('<span class="pill pill-gold">Comped</span>');
-    if (p.operator_hold) c.push('<span class="pill pill-alert">On hold</span>');
+    if (p.operator_hold) c.push('<span class="pill pill-alert"' + (p.hold_reason ? ' title="' + esc(p.hold_reason) + '"' : '') + '>' + (p.hold_kind === 'photos' ? 'Offline for photos' : 'On hold') + '</span>');
     if (p.availability && p.availability !== 'available') c.push('<span class="pill">' + (p.availability === 'placed' ? 'Placed' : 'Pending') + '</span>');
     return c.join('');
   }
   function holdButton(p) {
     var comp = (p.publication_state === 'draft' || p.publication_state === 'expired') ? '<button class="btn btn-sm" data-comp="' + esc(p.id) + '">List free</button>' : '';
-    return comp + (p.operator_hold ? '<button class="btn btn-sm" data-hold="' + esc(p.id) + '" data-on="0">Release</button>' : '<button class="btn btn-sm btn-danger" data-hold="' + esc(p.id) + '" data-on="1">Hold</button>');
+    return comp + (p.operator_hold ? '<button class="btn btn-sm" data-hold="' + esc(p.id) + '" data-on="0">Release</button>'
+      : '<button class="btn btn-sm btn-danger" data-hold="' + esc(p.id) + '" data-on="1">Hold</button>' +
+        // Workplan A14. Off the site until the breeder uploads photos that pass the photo check.
+        '<button class="btn btn-sm" data-photo-hold="' + esc(p.id) + '">Offline until new photos</button>');
   }
   function wireHolds(root, after) {
     $$('[data-hold]', root).forEach(function (b) {
       b.addEventListener('click', function () {
         if (b.dataset.on === '1' && !confirm('Take this listing off the site until you release it? The breeder sees it as paused.')) return;
         api('POST', '/api/puppies/' + b.dataset.hold + '/hold', { on: b.dataset.on === '1' }).then(function () { toast(b.dataset.on === '1' ? 'Listing held' : 'Listing released'); after(); });
+      });
+    });
+    $$('[data-photo-hold]', root).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var reason = prompt('Take this listing offline until new photos are uploaded. In a few words, what is wrong with the photos? The breeder sees this.', 'The photos are blurry. Please upload clear, well-lit photos of the puppy.');
+        if (reason === null) return;
+        api('POST', '/api/puppies/' + b.dataset.photoHold + '/hold', { on: true, kind: 'photos', reason: reason })
+          .then(function () { toast('Offline until new photos. The breeder has been emailed.'); after(); })
+          .catch(function (err) { toast(err.message); });
       });
     });
     $$('[data-comp]', root).forEach(function (b) {
@@ -929,8 +949,7 @@
     registries: ['Registries a breeder can choose for a puppy, separated by commas', 'text'],
     max_videos: ['Most videos a puppy can have (0 turns video uploads off)', 'number'],
     video_max_seconds: ['Longest video, in seconds', 'number'],
-    inactivity_days: ['Days with no update before the first reminder, the second reminder, taking a listing offline, and removing it, separated by commas', 'text'],
-    reactivate_days: ['Days after going offline that a breeder can bring a listing back free', 'number'],
+    inactivity_days: ['Days with no new photo before the first email, the last email, taking a listing offline, and removing it, separated by commas. A new photo brings an offline listing back free until it is removed', 'text'],
     adopted_index_days: ['Days after a puppy is marked adopted that its page leaves Google (the page stays on the site)', 'number'],
     photo_check_route: ['Where a photo that fails the photo check goes: breeder (they are told what is wrong and upload another) or review (it waits for you in Photo review)', 'text'],
   };
@@ -1252,8 +1271,8 @@
         // Workplan A4.
         '<div class="stats">' +
           '<a class="stat" href="#/listings"><b>' + s.pending + '</b><span>Marked pending</span></a>' +
-          '<span class="stat"><b>' + s.reminded + '</b><span>Reminded, not updated</span></span>' +
-          '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no update</span></span>' +
+          '<span class="stat"><b>' + s.reminded + '</b><span>Emailed for a new photo</span></span>' +
+          '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no new photo</span></span>' +
           '<a class="stat" href="#/breeders"><b>' + s.new_breeders_30 + '</b><span>New breeders, 30 days</span></a></div>' +
         '<p class="btn-row" style="margin-top:-.4rem">' + csvLink('summary') + '</p>' +
         table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {

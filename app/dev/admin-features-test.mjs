@@ -105,7 +105,7 @@ async function breeder(tag, approve, name) {
   await c.req('POST', '/auth/verify', new URLSearchParams({ t: token }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: business, public_phone: '555-0103', city: 'Nappanee', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true });
+  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   if (approve) await admin.post(`/api/breeders/${me.id}/approve`, {});
   return { c, id: me.id, email, name: business };
 }
@@ -220,6 +220,9 @@ async function features() {
   const t0 = (await admin.get('/api/terms')).data;
   check('P3.4 the terms screen starts from the version on file, marked as a placeholder', !!t0.current.version && /REPLACE THIS/.test(t0.draft.body) && (await A.c.get('/api/me')).data.terms.needs_accept === false,
     JSON.stringify(t0.current));
+  // The starting draft carries Amber's photo standard (workplan A14), so it differs from the version
+  // on file. Put the current text back in the draft to test the refusal.
+  await admin.put('/api/terms/draft', { body: t0.current.body });
   check('P3.4 publishing a draft identical to the current terms is refused', (await admin.post('/api/terms/publish', {})).status === 400);
   const newText = `Test terms ${stamp}. Listings must describe real puppies.\n\nThis is a test version written by the admin suite.`;
   await admin.put('/api/terms/draft', { body: newText });

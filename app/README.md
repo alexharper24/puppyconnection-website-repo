@@ -194,7 +194,7 @@ node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stan
 node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
-node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the inactivity schedule on a moved clock, listing review, reports, Visit site, Wix descriptions
+node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the photo-based schedule on a moved clock, approval by reference, take offline until new photos, listing review, reports, Visit site, Wix descriptions
 node app/dev/focus-test.mjs     # the photo focus rule, from the dog detector's boxes
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
@@ -386,10 +386,24 @@ settings, terms and operators are not touched. The audit log and email log are k
 - **Adoption dates come from triggers.** `placed_at` is set and cleared by two SQLite triggers on
   `puppies` (migrations/0019), so no route can forget it. D1 counts a trigger's own changes in
   `meta.changes`, which is why `checkVersion()` treats any count of 1 or more as success.
-- **The inactivity schedule moves one step a run and each step waits its week** (`lib/inactivity.js`),
-  so a listing never skips a reminder, and every listing's clock started at migration 0020 rather
-  than from its old publish date. Imported Wix breeders are left out until they first sign in. The
-  Still available link changes nothing on GET, because mail scanners open links.
+- **The listing schedule runs on photos** (`lib/inactivity.js`, migration 0030, Amber's rule of
+  2026-10-19). Only a new photo that passes the photo check, or a payment, restarts a listing's
+  clock, so a price change or a breeder saying the puppy is still available does not. Emails go at
+  weeks 4 and 5, the listing goes offline at week 6 and a new photo brings it back free, and at
+  week 12 it is removed and relists through the normal checkout with every detail kept. The job
+  moves a listing one step a run and each step waits its week, so no email is skipped. Every
+  listing already on staging started its clock at migration 0030 rather than from its Wix photo
+  dates, so nobody was told "offline in two weeks" on the day it shipped. Imported Wix breeders are
+  left out until they first sign in. The old Still available link only opens a page that points to
+  the portal, and an offline listing cannot be paid for because a photo brings it back free.
+- **One reference per new breeder** (`breeder_references`, migration 0031). Submitting for approval
+  needs a name, one of four roles and a phone or email, kept in its own table because the public
+  views read `breeder_profiles`. Approved and imported breeders were asked for nothing, and a
+  breeder who submitted before references can still be approved without one. Delete a test
+  breeder's `breeder_references` row before its `breeders` row, because of the foreign key.
+- **Take offline until new photos is a kind of operator hold** (`hold_kind` photos, migration
+  0032). It shares `operator_hold`, so the public views already leave it out, and it lifts itself
+  only for a photo uploaded after the hold that passes the check. A plain hold still needs Release.
 - **Breed searches are counted per breed per day only**, by the same beacon as views and clicks,
   from the browse page's breed filter (`js/search-count.js`, written by the generator).
 - **Wix form labels are split out of imported descriptions** by `lib/wixtext.js`, in the seed, in

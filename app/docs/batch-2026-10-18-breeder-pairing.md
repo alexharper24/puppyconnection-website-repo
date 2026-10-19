@@ -18,8 +18,8 @@ tasks:
   - {id: p5, status: done, evidence: "rehearsed on a copy of the backup (0 foreign key failures, a second run changes nothing, batched and single-transaction results identical), applied in 17 batches with ops/d1-apply.mjs, staging export afterwards identical to the rehearsal", item: "Migration 0023: new breeders, moves, statuses, prices, archives, new listings; apply to staging"}
   - {id: p6, status: done, evidence: "published at generation 37; 38 breeder pages and 254 changed or added puppy pages checked against the database with 0 failures (kennel named, Wix price shown, sold shown adopted, archived out of the sitemap)", item: "Republish and check the pages on staging"}
   - {id: p7, status: done, item: "Update launch-workplan C1 and the README, commit"}
-held:
-  - "Smurf: Alex named Kingdom Family Companions, but the listing's only contact is 574-377-8023, Bless Your Paws' number, and neither site lists a Smurf. Held for Alex."
+held_resolved:
+  - "Smurf: Alex named Kingdom Family Companions, but the listing's only contact is 574-377-8023, Bless Your Paws' number, and neither site lists a Smurf. Alex then placed it with Kingdom Family Companions and renamed it Murphy (migration 0024)."
 ---
 
 # Notes

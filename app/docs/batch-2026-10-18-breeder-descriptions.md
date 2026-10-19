@@ -36,7 +36,7 @@ Streams Companions get the logo from their own site header. blessyourpawspuppies
 puppies in the July 22, 2026 litter, and staging showed six. Jericho had been archived by 0023 when
 it left the Wix store, and returns as adopted. Shiloh was never imported, and is added from its page
 there with eleven photos measured by the dog detector, without a price because the page shows none
-for an adopted puppy. Tirzah moves from the litter it was given when it changed breeders into its
-own litter. On a breeder page with a logo, the name, buttons and story sit in a wider left column
+for an adopted puppy. Tirzah moves from the litter it was given when it changed breeders into the
+litter it shares with its littermates. On a breeder page with a logo, the name, buttons and story sit in a wider left column
 beside the logo and contact column, both starting at the top, and a breeder without a logo keeps
 the full-width heading. Backup app/.state/staging-2026-10-19-pre0027.sql, site repository 953333f.

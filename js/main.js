@@ -473,7 +473,7 @@
 
     var brd = document.querySelector('#breederStrip');
     if (brd) {
-      brd.innerHTML = realBreeders().slice(0, 4).map(function (b) {
+      brd.innerHTML = realBreeders().slice(0, 6).map(function (b) {
         return '<a class="card" href="breeder.html?slug=' + esc(b.slug) + '" style="padding:1.3rem 1.4rem">' +
           '<div class="eyebrow">' + b.listings.length + ' puppies listed</div>' +
           '<div class="card-name" style="margin-bottom:.35rem">' + esc(b.name) + '</div>' +

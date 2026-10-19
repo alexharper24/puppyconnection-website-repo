@@ -9,11 +9,10 @@
   var SECTION_NAME = { launch: 'Launch', gate1: 'Gate 1', gate2: 'Gate 2', gate3: 'Gate 3' };
   var STATUSES = [['not_started', 'Not started'], ['in_progress', 'In progress'], ['waiting', 'Waiting'], ['done', 'Done']];
   var STATUS_NAME = { not_started: 'Not started', in_progress: 'In progress', waiting: 'Waiting', done: 'Done' };
-  var STATUS_PILL = { not_started: 'pill', in_progress: 'pill pill-gold', waiting: 'pill pill-warn', done: 'pill pill-ok' };
+  var STATUS_PILL = { not_started: 'sq sq-not_started', in_progress: 'sq sq-in_progress', waiting: 'sq sq-waiting', done: 'sq sq-done' };
   var OWNERS = ['Alex', 'Amber', 'Luke', 'Claude'];
   var SEEDED = 'launch plan';
   var data = null;            // the last /api/checklist answer
-  var showDone = {};          // section -> true when its done items are open
 
   function esc(s) { return A().esc(s); }
   // The shared Amber and Luke address picks who is ticking. Kept in this browser only.
@@ -69,6 +68,23 @@
   }
 
   // ------------------------------------------------------------ the screen
+  /* A layered view (Alex, 2026-10-19). Sections, or people, are collapsible rows with their
+     counts. Each item is one dense line with its owner, status and who it waits on, and opening
+     it shows its parts, comments and history in place. What is open is kept per browser. */
+  var VIEW_KEY = 'pc-checklist-view';
+  function loadView() {
+    var v = null; try { v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); } catch (e) { v = null; }
+    v = v && typeof v === 'object' ? v : {};
+    v.group = v.group === 'person' ? 'person' : 'section';
+    v.open = v.open && typeof v.open === 'object' ? v.open : {};
+    if (!('sec:launch' in v.open)) v.open['sec:launch'] = true;   // Launch open, the gates closed, until someone changes it
+    return v;
+  }
+  var view = loadView();
+  function saveView() { try { localStorage.setItem(VIEW_KEY, JSON.stringify(view)); } catch (e) { /* private window */ } }
+  function isOpen(key) { return !!view.open[key]; }
+  function setOpen(key, on) { if (on) view.open[key] = true; else delete view.open[key]; saveView(); }
+
   function filters() {
     var p = A().params();
     return { mine: p.mine === '1', partly: p.partly === '1', section: p.section || '', status: p.status || '', owner: p.owner || '', archived: p.archived === '1' };
@@ -82,6 +98,7 @@
 
   function screen() {
     var f = filters();
+    if (f.section) setOpen('sec:' + f.section, true);   // a link from the overview opens its section
     A().api('GET', '/api/checklist' + (asQuery() ? asQuery() + '&' : '?') + (f.archived ? 'archived=1' : '')).then(function (d) {
       data = d;
       if (me().names.length > 1 && me().names.indexOf(storedAs()) < 0) setAs(me().name);
@@ -89,28 +106,97 @@
     }).catch(function (err) { A().shell(A().head('Launch checklist') + '<p class="error">' + esc(err.message) + '</p>'); });
   }
 
-  function itemRow(it) {
+  var detail = {};   // item id -> the /api/checklist/items/:id answer, for items opened in place
+
+  /** Who an item waits on, as a short name for the row: the person, or the first words of the waiting line. */
+  function waitText(it) {
+    if (it.status !== 'waiting') return '';
+    return it.waiting_owner || it.waiting_on || '';
+  }
+  function itemRow(it, opts) {
+    opts = opts || {};
     var parts = it.parts, done = parts.filter(function (p) { return p.done_at; }).length;
-    var meta = '<span class="' + STATUS_PILL[it.status] + '">' + STATUS_NAME[it.status] + '</span>' +
-      '<span class="cl-owner">' + esc(it.owner) + '</span>' +
-      (parts.length ? '<span class="cl-progress" title="' + done + ' of ' + parts.length + ' parts done"><span class="cl-bar"><i style="width:' + Math.round(100 * done / parts.length) + '%"></i></span>' + done + ' of ' + parts.length + ' parts</span>' : '') +
-      (it.comments ? '<span class="muted">' + A().plural(it.comments, 'comment') + '</span>' : '');
-    var archived = !!it.archived_at;
-    return '<li class="cl-item' + (it.status === 'done' ? ' is-done' : '') + '" data-id="' + esc(it.id) + '">' +
-      '<input type="checkbox" class="cl-tick" data-tick="' + esc(it.id) + '" aria-label="' + esc((it.status === 'done' ? 'Untick ' : 'Tick ') + it.title) + '"' + (it.status === 'done' ? ' checked' : '') + (archived ? ' disabled' : '') + '>' +
-      '<div class="cl-body"><button type="button" class="cl-title" data-open="' + esc(it.id) + '">' + esc(it.title) + '</button>' +
-        '<div class="cl-meta">' + meta + '</div>' +
-        (it.status === 'waiting' && it.waiting_on ? '<p class="cl-wait">Waiting on ' + esc(it.waiting_on) + '</p>' : '') +
-        (it.status === 'done' ? '<p class="cl-wait">' + esc(doneLine(it.done_at, it.done_by)) + '</p>' : '') +
-        (archived ? '<p class="cl-wait">Archived ' + esc(A().day(it.archived_at)) + ' by ' + esc(it.archived_by) + '</p>' : '') +
-        (parts.length && it.status !== 'done' ? '<ul class="cl-parts">' + parts.map(function (p) {
-          return '<li' + (p.done_at ? ' class="is-done"' : '') + '><label class="check"><input type="checkbox" data-part-tick="' + esc(p.id) + '"' + (p.done_at ? ' checked' : '') + (archived ? ' disabled' : '') + '>' +
-            '<span><span class="cl-ptitle">' + esc(p.title) + '</span> <span class="cl-owner">' + esc(p.owner) + '</span>' + (p.done_at ? '<span class="cl-when">' + esc(doneLine(p.done_at, p.done_by)) + '</span>' : '') + '</span></label></li>';
-        }).join('') + '</ul>' : '') +
+    var archived = !!it.archived_at, open = isOpen('item:' + it.id);
+    var wait = waitText(it);
+    return '<li class="cl-row' + (it.status === 'done' ? ' is-done' : '') + (open ? ' is-open' : '') + '" data-id="' + esc(it.id) + '">' +
+      '<div class="cl-line">' +
+        '<input type="checkbox" class="cl-tick" data-tick="' + esc(it.id) + '" aria-label="' + esc((it.status === 'done' ? 'Untick ' : 'Tick ') + it.title) + '"' + (it.status === 'done' ? ' checked' : '') + (archived ? ' disabled' : '') + '>' +
+        '<button type="button" class="cl-toggle" data-item="' + esc(it.id) + '" aria-expanded="' + open + '" title="' + esc(it.title) + '">' +
+          '<span class="cl-chev" aria-hidden="true"></span><span class="cl-name">' + esc(it.title) + '</span></button>' +
+        '<span class="cl-cells">' +
+          (opts.section ? '<span class="cl-sec">' + esc(SECTION_NAME[it.section]) + '</span>' : '') +
+          '<span class="cl-parts-n">' + (parts.length ? '<span class="cl-bar" aria-hidden="true"><i style="width:' + Math.round(100 * done / parts.length) + '%"></i></span>' + done + '/' + parts.length : '') + '</span>' +
+          '<span class="sq sq-owner" title="Owner">' + esc(it.owner) + '</span>' +
+          '<span class="sq sq-' + it.status + '">' + STATUS_NAME[it.status] + '</span>' +
+          '<span class="cl-waits"' + (it.waiting_on ? ' title="Waiting on ' + esc(it.waiting_on) + '"' : '') + '>' + (wait ? 'on ' + (it.waiting_owner ? '<b>' + esc(wait) + '</b>' : esc(wait)) : it.status === 'done' ? esc(A().day(it.done_at)) : '') + '</span>' +
+        '</span>' +
       '</div>' +
-      (archived ? '' : '<div class="cl-move"><button type="button" class="btn btn-sm btn-quiet" data-move="up" data-id="' + esc(it.id) + '" aria-label="Move ' + esc(it.title) + ' up">&uarr;</button>' +
-        '<button type="button" class="btn btn-sm btn-quiet" data-move="down" data-id="' + esc(it.id) + '" aria-label="Move ' + esc(it.title) + ' down">&darr;</button></div>') +
+      (open ? '<div class="cl-detail" id="d-' + esc(it.id) + '">' + detailHtml(it) + '</div>' : '') +
       '</li>';
+  }
+
+  function detailHtml(it) {
+    var r = detail[it.id], archived = !!it.archived_at;
+    var parts = it.parts;
+    return '<div class="cl-detail-grid"><div>' +
+      (it.description ? '<p class="cl-desc">' + esc(it.description) + '</p>' : '') +
+      (it.status === 'waiting' && it.waiting_on ? '<p class="cl-waitline">Waiting on ' + esc(it.waiting_on) + '</p>' : '') +
+      (it.status === 'done' ? '<p class="muted small">' + esc(doneLine(it.done_at, it.done_by)) + '</p>' : '') +
+      (parts.length ? '<ul class="cl-parts">' + parts.map(function (p) {
+        return '<li' + (p.done_at ? ' class="is-done"' : '') + '><label class="check"><input type="checkbox" data-part-tick="' + esc(p.id) + '"' + (p.done_at ? ' checked' : '') + (archived ? ' disabled' : '') + '>' +
+          '<span><span class="cl-ptitle">' + esc(p.title) + '</span> <span class="sq sq-owner">' + esc(p.owner) + '</span>' + (p.done_at ? '<span class="cl-when">' + esc(doneLine(p.done_at, p.done_by)) + '</span>' : '') + '</span></label></li>';
+      }).join('') + '</ul>' : '<p class="muted small">No parts.</p>') +
+      '<div class="cl-tools">' +
+        (archived ? '' : '<button type="button" class="btn btn-sm" data-open="' + esc(it.id) + '">Edit, assign or comment</button>' +
+          '<button type="button" class="btn btn-sm btn-quiet" data-move="up" data-id="' + esc(it.id) + '">Move up</button>' +
+          '<button type="button" class="btn btn-sm btn-quiet" data-move="down" data-id="' + esc(it.id) + '">Move down</button>') +
+      '</div></div><div class="cl-side">' +
+      (r ? '<h4>Comments</h4>' + (r.comments.length ? '<ul class="cl-comments">' + r.comments.slice(-3).map(function (c) {
+          return '<li><b>' + esc(c.author) + '</b> <span class="cl-when">' + esc(A().when(c.created_at)) + '</span><p>' + esc(c.body) + '</p></li>';
+        }).join('') + '</ul>' + (r.comments.length > 3 ? '<p class="muted small">' + (r.comments.length - 3) + ' earlier in the full item.</p>' : '') : '<p class="muted small">None yet.</p>') +
+        '<h4>History</h4><ul class="cl-history">' + r.history.slice(0, 4).map(historyLine).join('') +
+          (it.created_by === SEEDED ? '<li><span class="cl-when">' + esc(A().day(it.created_at)) + '</span> Added from the launch plan</li>' : '') + '</ul>'
+        : '<p class="muted small">Loading comments and history.</p>') +
+      '</div></div>';
+  }
+
+  /* People view: everything a person owns, is waited on for, or has an open part in. The
+     items waiting on them come first, then their own work, then their items waiting on others. */
+  function personRank(it, who) {
+    if (it.status === 'done') return -1;
+    var waitsOnThem = (it.status === 'waiting' && it.waiting_owner === who) || it.parts.some(function (p) { return !p.done_at && p.owner === who; }) && it.owner !== who;
+    if (waitsOnThem) return 0;
+    if (it.owner === who && it.status !== 'waiting') return 1;
+    if (it.owner === who) return 2;
+    return -1;
+  }
+
+  function counts(list) {
+    var c = { not_started: 0, in_progress: 0, waiting: 0, done: 0 };
+    list.forEach(function (it) { c[it.status] += 1; });
+    return c;
+  }
+  function countLine(list) {
+    var c = counts(list);
+    return '<span class="cl-count"><b>' + c.done + '</b>/' + list.length + ' done</span>' +
+      (c.waiting ? '<span class="cl-count c-waiting"><b>' + c.waiting + '</b> waiting</span>' : '') +
+      (c.in_progress ? '<span class="cl-count c-in_progress"><b>' + c.in_progress + '</b> in progress</span>' : '') +
+      (c.not_started ? '<span class="cl-count"><b>' + c.not_started + '</b> not started</span>' : '');
+  }
+
+  function group(key, label, list, opts) {
+    var open = isOpen(key);
+    var shown = list.filter(function (it) { return it.status !== 'done'; });
+    var done = list.filter(function (it) { return it.status === 'done'; });
+    var doneOpen = isOpen(key + ':done');
+    return '<section class="cl-group' + (open ? ' is-open' : '') + '">' +
+      '<h2 class="cl-ghead"><button type="button" data-group="' + esc(key) + '" aria-expanded="' + open + '"><span class="cl-chev" aria-hidden="true"></span>' +
+        '<span class="cl-gname">' + esc(label) + '</span>' + (opts.extra || '') + '<span class="cl-gcounts">' + (opts.counts || countLine(list)) + '</span></button></h2>' +
+      (open ? '<ul class="cl-rows">' + (shown.length ? shown.map(function (it) { return itemRow(it, opts); }).join('') : '<li class="cl-empty">Nothing open here.</li>') +
+        (done.length && !opts.noDone ? '<li class="cl-donebar"><button type="button" data-group="' + esc(key) + ':done" aria-expanded="' + doneOpen + '"><span class="cl-chev" aria-hidden="true"></span>' +
+          A().plural(done.length, 'done item') + '</button></li>' + (doneOpen ? done.map(function (it) { return itemRow(it, opts); }).join('') : '') : '') +
+        '</ul>' : '') +
+      '</section>';
   }
 
   function draw() {
@@ -118,69 +204,76 @@
     var y = window.scrollY;
     var match = function (it) {
       return (!f.mine || waitsOnMe(it, names)) && (!f.partly || (it.status !== 'done' && it.parts.some(function (p) { return p.done_at; }))) &&
-        (!f.section || it.section === f.section) && (!f.status || it.status === f.status) &&
-        (!f.owner || it.owner === f.owner || it.parts.some(function (p) { return p.owner === f.owner; }));
+        (!f.status || it.status === f.status) && (!f.owner || it.owner === f.owner || it.parts.some(function (p) { return p.owner === f.owner; }));
     };
-    var asBar = me().names.length > 1 ? '<div class="cl-as"><span>Ticking as</span><div class="seg" role="group" aria-label="Who is ticking">' + me().names.map(function (n) {
-      return '<button type="button" data-as="' + esc(n) + '"' + (n === me().name ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + esc(n) + '</button>';
-    }).join('') + '</div></div>' : '';
-    var tabs = '<div class="seg" role="group" aria-label="Show">' +
-      '<a href="' + link({ section: f.section, status: f.status, owner: f.owner }) + '"' + (!f.mine && !f.partly && !f.archived ? ' class="on" aria-current="true"' : '') + '>All</a>' +
-      '<a href="' + link({ mine: true, section: f.section }) + '"' + (f.mine ? ' class="on" aria-current="true"' : '') + '>Waiting on me</a>' +
-      '<a href="' + link({ partly: true }) + '"' + (f.partly ? ' class="on" aria-current="true"' : '') + '>Partly done</a>' +
-      '<a href="' + link({ archived: true }) + '"' + (f.archived ? ' class="on" aria-current="true"' : '') + '>Archived</a></div>';
-    var pickers = '<label class="sr" for="cl-owner">Owner</label><select id="cl-owner"><option value="">Everyone</option>' + OWNERS.map(function (o) { return '<option' + (f.owner === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
-      '<label class="sr" for="cl-status">Status</label><select id="cl-status"><option value="">Any status</option>' + STATUSES.map(function (t) { return '<option value="' + t[0] + '"' + (f.status === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select>';
-    var shown = 0;
+    var items = data.items.filter(match);
     if (!f.archived) A().state.checklistMine = data.items.filter(function (it) { return waitsOnMe(it, names); }).length;
-    var body = SECTIONS.filter(function (s) { return !f.section || s[0] === f.section; }).map(function (sec) {
-      var all = data.items.filter(function (it) { return it.section === sec[0]; });
-      var rows = all.filter(match);
-      var doneN = all.filter(function (it) { return it.status === 'done'; }).length;
-      // Done items fold away unless asked for, so the open work leads.
-      var hideDone = !f.archived && f.status !== 'done' && !showDone[sec[0]];
-      var open = rows.filter(function (it) { return !hideDone || it.status !== 'done'; });
-      var folded = rows.length - open.length;
-      shown += open.length;
-      return '<section class="card cl-section" id="sec-' + sec[0] + '"><div class="card-head"><h2>' + sec[1] + '</h2><span class="muted small">' +
-        (f.archived ? A().plural(all.length, 'archived item') : doneN + ' of ' + all.length + ' done') + '</span></div>' +
-        (open.length ? '<ul class="cl-list">' + open.map(itemRow).join('') + '</ul>' : '<p class="muted">' + (rows.length ? 'Everything here is done.' : 'Nothing here matches.') + '</p>') +
-        (folded ? '<button type="button" class="btn btn-sm btn-quiet" data-show-done="' + sec[0] + '">Show ' + A().plural(folded, 'done item') + '</button>' : '') +
-        (!hideDone && !f.archived && f.status !== 'done' && doneN ? '<button type="button" class="btn btn-sm btn-quiet" data-hide-done="' + sec[0] + '">Hide done items</button>' : '') +
-        '</section>';
-    }).join('');
-    A().shell(A().head('Launch checklist', 'Everything left before go-live, and the Gate 1, 2 and 3 additions. Tick an item or a part when it is done, and open an item to edit it, assign it, or comment.',
-      f.archived ? '' : '<button type="button" class="btn btn-primary" id="cl-add">Add an item</button>') +
-      asBar + '<div class="cl-filters">' + tabs + '<div class="cl-pickers">' + pickers + '</div></div>' + body);
+
+    // The strip: one line per section's counts, and how many wait on whoever is ticking.
+    var strip = '<div class="cl-strip" role="group" aria-label="Summary">' + SECTIONS.map(function (s) {
+      var all = data.items.filter(function (it) { return it.section === s[0]; }), c = counts(all);
+      return '<button type="button" class="cl-stat" data-jump="' + s[0] + '"><span>' + s[1] + '</span><b>' + c.done + '/' + all.length + '</b>' +
+        (c.waiting ? '<i class="c-waiting">' + c.waiting + ' waiting</i>' : '') + '</button>';
+    }).join('') + '<a class="cl-stat cl-mine" href="' + link({ mine: true }) + '"><span>Waiting on ' + esc(me().name || 'you') + '</span><b>' + A().state.checklistMine + '</b></a></div>';
+
+    var asBar = me().names.length > 1 ? '<span class="cl-as">Ticking as <span class="seg" role="group" aria-label="Who is ticking">' + me().names.map(function (n) {
+      return '<button type="button" data-as="' + esc(n) + '"' + (n === me().name ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + esc(n) + '</button>';
+    }).join('') + '</span></span>' : '';
+    var groupSeg = '<span class="seg" role="group" aria-label="Group by">' +
+      '<button type="button" data-groupby="section"' + (view.group === 'section' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By section</button>' +
+      '<button type="button" data-groupby="person"' + (view.group === 'person' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By person</button></span>';
+    var tabs = '<span class="seg" role="group" aria-label="Show">' +
+      '<a href="' + link({ owner: f.owner, status: f.status }) + '"' + (!f.mine && !f.partly && !f.archived ? ' class="on" aria-current="true"' : '') + '>All</a>' +
+      '<a href="' + link({ mine: true }) + '"' + (f.mine ? ' class="on" aria-current="true"' : '') + '>Waiting on me</a>' +
+      '<a href="' + link({ partly: true }) + '"' + (f.partly ? ' class="on" aria-current="true"' : '') + '>Partly done</a>' +
+      '<a href="' + link({ archived: true }) + '"' + (f.archived ? ' class="on" aria-current="true"' : '') + '>Archived</a></span>';
+    var pickers = '<span class="cl-pickers"><label class="sr" for="cl-owner">Owner</label><select id="cl-owner"><option value="">Everyone</option>' + OWNERS.map(function (o) { return '<option' + (f.owner === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
+      '<label class="sr" for="cl-status">Status</label><select id="cl-status"><option value="">Any status</option>' + STATUSES.map(function (t) { return '<option value="' + t[0] + '"' + (f.status === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></span>';
+
+    var body;
+    if (view.group === 'person') {
+      body = OWNERS.map(function (who) {
+        var mine = items.map(function (it) { return [personRank(it, who), it]; }).filter(function (x) { return x[0] >= 0; })
+          .sort(function (a, b) { return a[0] - b[0]; }).map(function (x) { return x[1]; });
+        var waiting = mine.filter(function (it) { return personRank(it, who) === 0; }).length;
+        var key = 'person:' + who;
+        if (!(key in view.open) && who === me().name && !view.open['person:seen']) { view.open[key] = true; view.open['person:seen'] = true; saveView(); }
+        return group(key, who, mine, { section: true, noDone: true,
+          counts: '<span class="cl-count c-waiting"><b>' + waiting + '</b> waiting on ' + esc(who) + '</span><span class="cl-count"><b>' + mine.length + '</b> open</span>' });
+      }).join('');
+    } else {
+      body = SECTIONS.map(function (s) {
+        return group('sec:' + s[0], s[1], items.filter(function (it) { return it.section === s[0]; }), {});
+      }).join('');
+    }
+
+    A().shell('<div class="cl-head"><h1>Launch checklist</h1>' + (f.archived ? '' : '<button type="button" class="btn btn-primary btn-sm" id="cl-add">Add an item</button>') + '</div>' +
+      strip + '<div class="cl-bar-row">' + groupSeg + tabs + pickers + asBar + '</div>' +
+      (f.archived ? '<p class="muted small">Archived items, kept with their history. Only Alex can restore one.</p>' : '') +
+      '<div class="cl-board" data-group-by="' + view.group + '">' + body + '</div>');
     wire();
     window.scrollTo(0, y);
+    // Fill in comments and history for items open in place.
+    data.items.forEach(function (it) { if (isOpen('item:' + it.id) && !detail[it.id]) loadDetail(it.id); });
+  }
+
+  function loadDetail(id) {
+    return A().api('GET', '/api/checklist/items/' + encodeURIComponent(id)).then(function (r) {
+      detail[id] = r;
+      var it = data.items.filter(function (x) { return x.id === id; })[0], box = document.getElementById('d-' + id);
+      if (it && box) { box.innerHTML = detailHtml(it); wireDetail(box); }
+    }).catch(function () { /* the row stands without it */ });
   }
 
   function reload(openId) {
     var f = filters();
+    detail = {};
     return A().api('GET', '/api/checklist' + (asQuery() ? asQuery() + '&' : '?') + (f.archived ? 'archived=1' : '')).then(function (d) { data = d; draw(); if (openId) drawer(openId); });
   }
 
-  function wire() {
-    var $ = A().$, $$ = A().$$;
-    $$('[data-as]').forEach(function (b) { b.addEventListener('click', function () { setAs(b.dataset.as); screen(); }); });
-    ['cl-owner', 'cl-status'].forEach(function (id) {
-      $('#' + id).addEventListener('change', function () {
-        var f = filters(); f[id === 'cl-owner' ? 'owner' : 'status'] = this.value; f.archived = false; location.hash = link(f);
-      });
-    });
-    var add = $('#cl-add'); if (add) add.addEventListener('click', function () { editor(null); });
+  function wireDetail(root) {
+    var $$ = function (s) { return A().$$(s, root); };
     $$('[data-open]').forEach(function (b) { b.addEventListener('click', function () { drawer(b.dataset.open); }); });
-    $$('[data-show-done]').forEach(function (b) { b.addEventListener('click', function () { showDone[b.dataset.showDone] = true; draw(); }); });
-    $$('[data-hide-done]').forEach(function (b) { b.addEventListener('click', function () { showDone[b.dataset.hideDone] = false; draw(); }); });
-    $$('[data-tick]').forEach(function (c) {
-      c.addEventListener('change', function () {
-        c.disabled = true;
-        send('POST', '/api/checklist/items/' + c.dataset.tick + '/tick', { done: c.checked })
-          .then(function () { A().toast(c.checked ? 'Ticked done' : 'Unticked'); return reload(); })
-          .catch(function (err) { c.checked = !c.checked; c.disabled = false; A().toast(err.message); });
-      });
-    });
     $$('[data-part-tick]').forEach(function (c) {
       c.addEventListener('change', function () {
         c.disabled = true;
@@ -197,6 +290,43 @@
         }).catch(function (err) { b.disabled = false; A().toast(err.message); });
       });
     });
+  }
+
+  function wire() {
+    var $ = A().$, $$ = A().$$;
+    $$('[data-as]').forEach(function (b) { b.addEventListener('click', function () { setAs(b.dataset.as); screen(); }); });
+    $$('[data-groupby]').forEach(function (b) { b.addEventListener('click', function () { view.group = b.dataset.groupby; saveView(); draw(); }); });
+    ['cl-owner', 'cl-status'].forEach(function (id) {
+      $('#' + id).addEventListener('change', function () {
+        var f = filters(); f[id === 'cl-owner' ? 'owner' : 'status'] = this.value; f.archived = false; location.hash = link(f);
+      });
+    });
+    var add = $('#cl-add'); if (add) add.addEventListener('click', function () { editor(null); });
+    $$('[data-group]').forEach(function (b) {
+      b.addEventListener('click', function () { setOpen(b.dataset.group, !isOpen(b.dataset.group)); draw(); var again = $('[data-group="' + b.dataset.group + '"]'); if (again) again.focus(); });
+    });
+    $$('[data-item]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var key = 'item:' + b.dataset.item; setOpen(key, !isOpen(key)); draw();
+        var again = $('[data-item="' + b.dataset.item + '"]'); if (again) again.focus();
+      });
+    });
+    $$('[data-jump]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (view.group !== 'section') view.group = 'section';
+        setOpen('sec:' + b.dataset.jump, true); draw();
+        var h = $('[data-group="sec:' + b.dataset.jump + '"]'); if (h) { h.scrollIntoView({ block: 'start' }); h.focus(); }
+      });
+    });
+    $$('[data-tick]').forEach(function (c) {
+      c.addEventListener('change', function () {
+        c.disabled = true;
+        send('POST', '/api/checklist/items/' + c.dataset.tick + '/tick', { done: c.checked })
+          .then(function () { A().toast(c.checked ? 'Ticked done' : 'Unticked'); return reload(); })
+          .catch(function (err) { c.checked = !c.checked; c.disabled = false; A().toast(err.message); });
+      });
+    });
+    $$('.cl-detail').forEach(wireDetail);
   }
 
   // ------------------------------------------------------------ add and edit
@@ -277,7 +407,7 @@
           '<div class="field"><label for="p-owner">Who does it</label>' + ownerSelect('p-owner', it.owner, 'Who does it').replace(/^<label[^>]*>.*?<\/label>/, '') + '</div>' +
           '<button class="btn" type="submit">Add the part</button></form>') +
         (oldParts.length ? '<details class="cl-old"><summary>' + A().plural(oldParts.length, 'archived part') + '</summary><ul>' + oldParts.map(function (p) {
-          return '<li>' + esc(p.title) + ' <span class="cl-owner">' + esc(p.owner) + '</span>' + (canArchive ? ' <button type="button" class="btn btn-sm btn-quiet" data-prestore="' + esc(p.id) + '">Restore</button>' : '') + '</li>';
+          return '<li>' + esc(p.title) + ' <span class="sq sq-owner">' + esc(p.owner) + '</span>' + (canArchive ? ' <button type="button" class="btn btn-sm btn-quiet" data-prestore="' + esc(p.id) + '">Restore</button>' : '') + '</li>';
         }).join('') + '</ul></details>' : '') +
         '<h3>Comments</h3>' + (r.comments.length ? '<ul class="cl-comments">' + r.comments.map(function (c) {
           return '<li><div><b>' + esc(c.author) + '</b> <span class="cl-when">' + esc(A().when(c.created_at)) + '</span></div><p>' + esc(c.body).replace(/\n/g, '<br>') + '</p></li>';

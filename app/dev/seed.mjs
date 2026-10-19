@@ -132,9 +132,10 @@ VALUES (${q(pid)}, ${q(b.id)}, ${q(litterId)}, ${q(l.slug)}, ${q(l.puppy_name ||
   ${q(l.deposit != null ? Math.round(l.deposit * 100) : null)}, ${q(l.description)}, ${q(l.breeder_url)}, ${q(JSON.stringify(l.includes || []))}, ${l.hypoallergenic ? 1 : 0},
   'comped', 'published', ${q(availability)}, ${q(NOW)}, ${q(EXPIRES)}, ${q(l.slug)}, ${q(NOW)}, ${q(NOW)});`);
   (l.images || []).forEach((url, i) => {
+    // f.src is the original behind a Wix 4:3 copy, which measure_photos.py measured instead.
     const f = FRAMING[url];
     sql.push(`INSERT OR IGNORE INTO photos (id, breeder_id, puppy_id, external_url, position, aspect, width, height, focus_x, focus_y, created_at)
-VALUES (${q(`${pid}-img${i}`)}, ${q(b.id)}, ${q(pid)}, ${q(url)}, ${i}, ${q(f ? Math.round((f.w / f.h) * 1000) / 1000 : i === 0 ? l.lead_aspect : null)},
+VALUES (${q(`${pid}-img${i}`)}, ${q(b.id)}, ${q(pid)}, ${q((f && f.src) || url)}, ${i}, ${q(f ? Math.round((f.w / f.h) * 1000) / 1000 : i === 0 ? l.lead_aspect : null)},
   ${q(f ? f.w : null)}, ${q(f ? f.h : null)}, ${q(f ? f.fx : null)}, ${q(f ? f.fy : null)}, ${q(NOW)});`);
   });
 }

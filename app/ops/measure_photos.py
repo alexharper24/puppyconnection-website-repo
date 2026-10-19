@@ -2,15 +2,28 @@
 #
 # For each photo it records the original width and height (read from the JPEG header of a large
 # "fit" rendition, which Wix never enlarges) and a focus point, the part of the frame that holds
-# the puppy. The focus comes from a small thumbnail: the border of a photo is nearly always
-# background, so the pixels least like the border colors are the subject. focus_y leans toward
-# the top of the subject, where the face usually is.
+# the puppy.
+#
+# The focus point comes from the dog detector on Workers AI (@cf/facebook/detr-resnet-50, the same
+# rule as lib/focus.js), run through the dev/photo-focus Worker. The detector reports only where a
+# dog is, never which puppy or breed it is. The point is the middle of the dog box across, and in
+# the upper part of the box down, because the face sits there. A photo with no dog found falls back
+# to the older guess, which treats the pixels least like the border colors as the subject. On a
+# 100-photo sample (2026-10-18) the detector point kept more of the dog in frame on 40 of 98 phone
+# crops and less on none, at about 0.68 neurons and 400 ms a photo.
+#
+# Some photos were imported as Wix's own 4:3 copy (".../v1/fill/w_1400,h_1050,al_c,.../file.jpg"),
+# which crops a portrait photo before the site crops it again. Those are measured on the original
+# and the output points external_url back at it.
 #
 # Results are cached in _harvest/data/framing.json by photo address, so a rerun and the seed
-# reuse them. The script writes an SQL file of UPDATE statements and never writes to a database
-# itself. Apply the file with wrangler after a backup (migrations/0005 must already be applied).
+# reuse them. An entry with "manual": true was set by hand (migrations/0007) and is never
+# remeasured. An entry measured before the detector has no "by" and is remeasured. The script
+# writes an SQL file of UPDATE statements and never writes to a database itself. Apply the file
+# with wrangler after a backup.
 #
-#   python app/ops/measure_photos.py <photos.json> <out.sql>
+#   (in app/dev/photo-focus)  node <wrangler.js> dev --port 8792
+#   python app/ops/measure_photos.py <photos.json> <out.sql> [--detector http://localhost:8792/]
 #
 # photos.json is the output of: wrangler d1 execute <db> --json --command
 #   "SELECT id, external_url FROM photos WHERE external_url IS NOT NULL"
@@ -22,15 +35,18 @@ from PIL import Image
 UA = {'User-Agent': 'Mozilla/5.0'}
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 CACHE = os.path.join(ROOT, '_harvest', 'data', 'framing.json')
+DETECTOR = sys.argv[sys.argv.index('--detector') + 1] if '--detector' in sys.argv else 'http://localhost:8792/'
 
 
-def get(url, rng=None):
+def get(url, rng=None, data=None, ctype=None):
     headers = dict(UA)
     if rng:
         headers['Range'] = rng
+    if ctype:
+        headers['Content-Type'] = ctype
     for attempt in range(6):
         try:
-            return urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=30).read()
+            return urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=60).read()
         except urllib.error.HTTPError as e:
             if e.code in (429, 500, 502, 503, 504):
                 time.sleep(2 ** attempt)
@@ -54,8 +70,32 @@ def jpeg_size(d):
     return None
 
 
-def focus(img):
-    """Return (fx, fy) in 0..1 for the subject of a small RGB image."""
+def bare(url):
+    """The original photo behind a Wix rendition address."""
+    return url.split('/v1/')[0] if 'wixstatic.com' in url and '/v1/' in url else url
+
+
+def dog_focus(boxes, iw, ih, W, H):
+    """(fx, fy) from the detector's boxes, or None when it found no dog. Same rule as lib/focus.js."""
+    dogs = [b for b in boxes if b.get('label') == 'dog' and b.get('score', 0) >= 0.7]
+    if not dogs:
+        return None
+    area = lambda b: (b['box']['xmax'] - b['box']['xmin']) * (b['box']['ymax'] - b['box']['ymin'])
+    big = max(area(b) for b in dogs)
+    # Every dog at least 30% the size of the biggest, so two puppies side by side stay in frame.
+    keep = [b for b in dogs if area(b) >= 0.3 * big]
+    x0 = max(0, min(b['box']['xmin'] for b in keep)) / iw
+    y0 = max(0, min(b['box']['ymin'] for b in keep)) / ih
+    x1 = min(iw, max(b['box']['xmax'] for b in keep)) / iw
+    y1 = min(ih, max(b['box']['ymax'] for b in keep)) / ih
+    r = ((y1 - y0) * H) / max((x1 - x0) * W, 1)
+    # A tall box (sitting or standing) leans furthest up toward the face, a wide one (lying down) less.
+    lean = 0.45 - 0.13 * min(max((r - 0.9) / 0.5, 0), 1)
+    return round((x0 + x1) / 2, 3), round(y0 + lean * (y1 - y0), 3)
+
+
+def border_focus(img):
+    """The older guess: (fx, fy) in 0..1 for the pixels least like the border colors."""
     a = np.asarray(img.convert('RGB'), dtype=np.float32)
     h, w, _ = a.shape
     b = max(2, int(min(h, w) * 0.06))
@@ -84,14 +124,25 @@ def focus(img):
 
 
 def measure(url):
-    head = get(f'{url}/v1/fit/w_6000,h_6000,q_90/i.jpg', 'bytes=0-8191')
+    src = bare(url)
+    head = get(f'{src}/v1/fit/w_6000,h_6000,q_90/i.jpg', 'bytes=0-8191')
     size = jpeg_size(head)
     if not size:
-        size = Image.open(io.BytesIO(get(f'{url}/v1/fit/w_6000,h_6000,q_90/i.jpg'))).size
-    thumb = Image.open(io.BytesIO(get(f'{url}/v1/fit/w_200,h_200,q_70/i.jpg')))
-    fx, fy = focus(thumb)
+        size = Image.open(io.BytesIO(get(f'{src}/v1/fit/w_6000,h_6000,q_90/i.jpg'))).size
     w, h = size
-    return {'w': w, 'h': h, 'fx': fx, 'fy': fy}
+    # No enc_auto, so an AVIF original still reaches the detector as a JPEG it can read.
+    card = get(f'{src}/v1/fit/w_640,h_640,q_85/i.jpg')
+    img = Image.open(io.BytesIO(card))
+    res = json.loads(get(DETECTOR, data=card, ctype='image/jpeg'))
+    if res.get('error'):
+        raise RuntimeError(f"detector: {res['error']}")
+    point = dog_focus(res.get('boxes') or [], img.width, img.height, w, h)
+    by = 'detr' if point else 'border'
+    fx, fy = point or border_focus(img.resize((200, round(200 * img.height / img.width)) if img.width >= img.height else (round(200 * img.width / img.height), 200)))
+    out = {'w': w, 'h': h, 'fx': fx, 'fy': fy, 'by': by}
+    if src != url:
+        out['src'] = src
+    return out
 
 
 def main():
@@ -99,10 +150,11 @@ def main():
     if isinstance(rows, list) and rows and 'results' in rows[0]:
         rows = rows[0]['results']
     cache = json.load(open(CACHE, encoding='utf-8')) if os.path.exists(CACHE) else {}
-    todo = sorted({r['external_url'] for r in rows if 'wixstatic.com' in (r['external_url'] or '') and r['external_url'] not in cache})
+    todo = sorted({r['external_url'] for r in rows if 'wixstatic.com' in (r['external_url'] or '')
+                   and not (cache.get(r['external_url'], {}).get('by') or cache.get(r['external_url'], {}).get('manual'))})
     print(f'{len(rows)} photos, {len(todo)} to measure', flush=True)
     failed = []
-    with cf.ThreadPoolExecutor(max_workers=6) as ex:
+    with cf.ThreadPoolExecutor(max_workers=4) as ex:
         futs = {ex.submit(measure, u): u for u in todo}
         for n, f in enumerate(cf.as_completed(futs), 1):
             u = futs[f]
@@ -119,7 +171,8 @@ def main():
         m = cache.get(r['external_url'])
         if not m:
             continue
-        out.append(f"UPDATE photos SET width = {m['w']}, height = {m['h']}, aspect = {round(m['w'] / m['h'], 3)}, "
+        moved = f"external_url = '{m['src']}', " if m.get('src') else ''
+        out.append(f"UPDATE photos SET {moved}width = {m['w']}, height = {m['h']}, aspect = {round(m['w'] / m['h'], 3)}, "
                    f"focus_x = {m['fx']}, focus_y = {m['fy']} WHERE id = '{r['id'].replace(chr(39), chr(39) * 2)}';")
     open(sys.argv[2], 'w', encoding='utf-8').write('\n'.join(out) + '\n')
     print(f'wrote {len(out)} updates to {sys.argv[2]}, {len(failed)} failed')

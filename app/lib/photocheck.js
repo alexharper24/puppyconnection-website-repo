@@ -19,6 +19,8 @@
 // A photo the model cannot judge (an error or a timeout) passes, so an outage never holds a
 // breeder up, and the check records that it was not judged.
 
+import { findFocus } from './focus.js';
+
 export const PHOTO_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
 
 // What the breeder reads for each reason, in the order they are shown.
@@ -148,9 +150,13 @@ export async function checkPhoto(env, photo, route, { sim } = {}) {
     : { verdict: 'pass', reasons: [], judged: false, error: 'no file' };
   const quality = v.verdict === 'pass' ? 'pass' : route === 'review' ? 'review' : 'sent_back';
   const note = v.judged ? null : `not judged: ${v.error || 'check off'}`;
+  // Where the puppy sits, from the same card copy, so the site crops around it (lib/focus.js).
+  // No dog found or a failed call leaves the point empty and the site falls back to the middle.
+  const focus = photoCheckMode(env) === 'ai' && bytes ? await findFocus(env, bytes) : null;
   const stmts = [env.DB.prepare(
-    "UPDATE photos SET quality = ?, quality_reasons = ?, quality_checked_at = ?, quality_note = ? WHERE id = ? AND quality = 'pending'",
-  ).bind(quality, v.reasons.join(',') || null, now(), note, photo.id)];
+    `UPDATE photos SET quality = ?, quality_reasons = ?, quality_checked_at = ?, quality_note = ?,
+       focus_x = COALESCE(?, focus_x), focus_y = COALESCE(?, focus_y) WHERE id = ? AND quality = 'pending'`,
+  ).bind(quality, v.reasons.join(',') || null, now(), note, focus ? focus.fx : null, focus ? focus.fy : null, photo.id)];
   if (quality === 'pass') {
     const pub = await env.DB.prepare('SELECT 1 FROM public_puppies WHERE id = ?').bind(photo.puppy_id).first();
     if (pub) {

@@ -195,6 +195,7 @@ node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy,
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
 node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the inactivity schedule on a moved clock, listing review, reports, Visit site, Wix descriptions
+node app/dev/focus-test.mjs     # the photo focus rule, from the dog detector's boxes
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
@@ -372,6 +373,16 @@ settings, terms and operators are not touched. The audit log and email log are k
   back to the breeder with the reason, or held in Photo review when `photo_check_route` is review.
   A photo still waiting for the check counts toward a listing's minimum so a slow check never
   blocks a payment, and only checked photos reach the site.
+- **Photo framing (Alex, 2026-10-18).** Every crop of a puppy photo (cards, thumbnails, breed
+  photos) centers on the photo's focus point, which the dog detector on Workers AI
+  (`@cf/facebook/detr-resnet-50`, `lib/focus.js`) sets from where the dog sits. The detector never
+  judges which puppy or breed a photo shows. An upload stores its size, and the photo check finds
+  its focus from the same card copy. Photos on Wix are measured by `ops/measure_photos.py`, which
+  runs the same rule through `dev/photo-focus` under `wrangler dev`, and measures any photo stored
+  as Wix's 4:3 copy on its original instead. A photo in R2 is cropped by the browser, so the
+  generator gives it an `object-position` that puts the focus where the Wix crop would. The five
+  hand-set points from migration 0007 are marked `"manual"` in `_harvest/data/framing.json` and
+  never remeasured.
 - **Adoption dates come from triggers.** `placed_at` is set and cleared by two SQLite triggers on
   `puppies` (migrations/0019), so no route can forget it. D1 counts a trigger's own changes in
   `meta.changes`, which is why `checkVersion()` treats any count of 1 or more as success.

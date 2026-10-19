@@ -93,6 +93,19 @@ function photoScore(ph, i) {
   const width = ph.w ? Math.min(ph.w, a && a < 1.5 ? ph.w : ph.h * 1.5, 900) / 900 : 0.5;
   return shape * 0.6 + width * 0.4 + (i === 0 ? 0.05 : 0);
 }
+// A photo in R2 is served whole at its card size, so the browser crops it with object-fit. The
+// position puts the focus point where wixCrop() would, rather than the stylesheet's top edge.
+function objectPosition(photo, w, h) {
+  if (!photo || isWix(photo.src) || photo.fx == null || !photo.w || !photo.h) return null;
+  const t = w / h, a = photo.w / photo.h;
+  const at = (f, v) => (v >= 1 ? 50 : Math.round(Math.min(Math.max((f - v / 2) / (1 - v), 0), 1) * 1000) / 10);
+  return a > t ? `${at(photo.fx, t / a)}% 50%` : `50% ${at(photo.fy, a / t)}%`;
+}
+// The src attribute of a cropped photo, with the R2 photo's position beside it.
+function fillAttrs(photo, w, h) {
+  const pos = objectPosition(photo, w, h);
+  return `src="${esc(fill(photo, w, h))}"${pos ? ` style="object-position:${pos}"` : ''}`;
+}
 function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wixFit(photo.src, w, h) : (w <= 640 && photo.card ? photo.card : photo.src); }
 
 export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html`, guide: (s) => `guide-${s}.html` };
@@ -114,6 +127,9 @@ const MAIN_PATCHES = [
     "if (!seen[s]) seen[s] = { slug: s, name: breederLabel(l), domain: /\\.puppyconnection$/.test(l.breeder_domain) ? (l.breeder_place || '') : l.breeder_domain, listings: [] };"],
   // The static pages carry the concept's ids for its styles, so these renderers only run where
   // the page loads the listing data (the home page and the puppy browser).
+  // The puppy cards crop around the focus point (lead_card, lead_pos), not from the top edge.
+  [" : wix(img(l), 600, 400)) + '\" alt=\"' + esc(l.puppy_name)",
+    " : (l.lead_card || wix(img(l), 600, 400))) + '\"' + (l.lead_pos && (phone || !tall) ? ' style=\"object-position:' + esc(phone ? l.lead_pos_tall : l.lead_pos) + '\"' : '') + ' alt=\"' + esc(l.puppy_name)"],
   ["if (document.querySelector('#detail')) {", "if (document.querySelector('#detail') && L.length) {"],
   ["if (document.querySelector('#breederIndex')) {", "if (document.querySelector('#breederIndex') && L.length) {"],
   ["if (document.querySelector('#profile')) {", "if (document.querySelector('#profile') && L.length) {"],
@@ -401,6 +417,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     // The phone card's 4:5 photo, cut around the puppy rather than from the top edge. A top
     // anchor kept only the middle of a landscape photo and cut off heads (Alex, 2026-10-07).
     lead_tall: p.photos[0] && isWix(p.photos[0].src) && p.photos[0].w ? fill(p.photos[0], 480, 600) : null,
+    // The desktop card's 3:2 crop around the same point. js/main.js anchored it to the top edge.
+    lead_card: p.photos[0] && isWix(p.photos[0].src) && p.photos[0].w ? fill(p.photos[0], 600, 400) : null,
+    lead_pos: objectPosition(p.photos[0], 600, 400), lead_pos_tall: objectPosition(p.photos[0], 480, 600),
   }));
   const pcBreeds = listedBreeds.map((b) => {
     const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
@@ -550,7 +569,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const label = p.placed ? 'Adopted' : p.availability === 'pending' ? 'Pending' : '';
     return `<a class="card${p.placed ? ' is-sold' : ''}" href="${pageFor.puppy(p.slug)}">`
       + `<div class="card-media${tall ? ' is-whole' : ''}"${tall && lead ? ` style="--fill:url(${esc(fill(lead, 60, 40))})"` : ''}>`
-      + (lead ? `<img src="${esc(tall ? fit(lead, 600, 400) : fill(lead, 600, 400))}" alt="${esc(p.name)}, ${esc(p.b.name)}" ${eager ? 'decoding="async"' : 'loading="lazy" decoding="async"'} width="600" height="400">` : '')
+      + (lead ? `<img ${tall ? `src="${esc(fit(lead, 600, 400))}"` : fillAttrs(lead, 600, 400)} alt="${esc(p.name)}, ${esc(p.b.name)}" ${eager ? 'decoding="async"' : 'loading="lazy" decoding="async"'} width="600" height="400">` : '')
       + (label ? `<span class="tag ${p.placed ? 'tag-sold' : 'tag-pending'}">${label}</span>` : '')
       + (p.mates > 1 ? `<span class="tag tag-litter">Litter of ${p.mates}</span>` : '')
       + `</div><div class="card-body"><div class="card-name">${esc(p.name)}</div><div class="card-breed">${esc(p.b.name)}</div>`
@@ -616,7 +635,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         : `<img data-src="${esc(fit(ph, 1200, 800))}" alt="${esc(p.name)}, ${esc(p.b.name)} puppy, photo ${i + 1} of ${p.photos.length}" decoding="async" aria-hidden="true">`).join('')}</div>
       ${p.photos.length > 1 ? `<div class="thumb-strip">
         <button class="thumb-nav prev" type="button" aria-label="Earlier photos" hidden>&#8249;</button>
-        <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img src="${esc(fill(ph, 160, 160))}" alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
+        <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img ${fillAttrs(ph, 160, 160)} alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
         <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
       </div>` : ''}
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}
@@ -673,7 +692,7 @@ ${mates.length ? `<section class="band band-warm">
   const breedCard = (b, w = 600, hh = 400) => {
     const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
     const open = D.puppies.filter((p) => p.b.slug === b.slug && !p.placed).length;
-    return `<a class="card" href="${pageFor.breed(b.slug)}"><div class="card-media">${lead ? `<img src="${esc(fill(lead, w, hh))}" alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">` : ''}</div>`
+    return `<a class="card" href="${pageFor.breed(b.slug)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, w, hh)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${guidesFor(b.slug).length ? 'Guides' : ''}</span></div></div></a>`;
   };
   for (const b of listedBreeds) {
@@ -713,7 +732,7 @@ ${hl ? `<section class="band" style="padding-top:0">
       <ul class="highlights">${hl.points.map((x) => `<li><b>${esc(x.lead)}</b> ${esc(x.text)}</li>`).join('')}</ul>
       ${byLine}${seeAlso}
     </div>
-    ${lead ? `<figure class="breed-photo bt-photo"><img src="${esc(fill(lead, 720, 900))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+    ${lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
     ${guidesFor(b.slug).length ? `<section class="guide-panel bt-guides" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
     <div class="breed-buy bt-buy">
       <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
@@ -727,7 +746,7 @@ ${hl ? `<section class="band" style="padding-top:0">
     <div class="guide"><p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>${guidesFor(b.slug).length
       ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${byLine}${seeAlso}</div>
     <aside>
-      ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+      ${lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">How this works</p>
         <p class="breeder-note">Choose a puppy, then contact its breeder directly. Puppy Connection lists puppies and does not sell them.</p>
@@ -783,7 +802,7 @@ ${others.length ? `<section class="band">
   <div class="wrap split">
     <div class="guide">${guideHtml(g.paragraphs, guideTokens(b, pups))}</div>
     <aside>
-      ${lead ? `<figure class="breed-photo"><img src="${esc(fill(lead, 900, 600))}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} listed on Puppy Connection</span></figure>` : ''}
+      ${lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} listed on Puppy Connection</span></figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">${open.length ? `${open.length} available now` : 'Listings'}</p>
         <p class="breeder-note">${open.length ? `See every ${esc(b.name)} puppy listed now, then contact its breeder directly.` : `No ${esc(b.name)} puppies are listed right now. New litters appear on the breed page as breeders add them.`}</p>
@@ -822,7 +841,7 @@ ${withGuides.map((b) => {
   // Option A (Alex, 2026-10-11): a card per breed with its photo and its guides.
   const bp = D.puppies.filter((p) => p.b.slug === b.slug);
   const lead = leadOf(bp), n = bp.filter((p) => !p.placed).length, pr = priceSpan(bp.filter((p) => !p.placed));
-  return `<article class="gc" id="${esc(b.slug)}"><a class="gc-photo" href="${pageFor.breed(b.slug)}" tabindex="-1" aria-hidden="true">${lead ? `<img src="${esc(fill(lead, 600, 400))}" alt="" loading="lazy" decoding="async" width="600" height="400">` : ''}</a>
+  return `<article class="gc" id="${esc(b.slug)}"><a class="gc-photo" href="${pageFor.breed(b.slug)}" tabindex="-1" aria-hidden="true">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="" loading="lazy" decoding="async" width="600" height="400">` : ''}</a>
 <div class="gc-body"><h2><a href="${pageFor.breed(b.slug)}">${esc(b.name)}</a></h2><p class="gc-meta">${n} available${pr ? `, ${pr}` : ''}</p>${guideList(b.slug, 'gc-list')}</div></article>`;
 }).join('\n')}
 </div></section>
@@ -835,7 +854,7 @@ ${withGuides.map((b) => {
     const theirs = D.puppies.filter((p) => p.br === b);
     const lead = leadOf(theirs);
     const open = theirs.filter((p) => !p.placed).length;
-    return `<a class="card" href="${pageFor.breeder(b.slug)}"><div class="card-media">${lead ? `<img src="${esc(fill(lead, 600, 400))}" alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
+    return `<a class="card" href="${pageFor.breeder(b.slug)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-breed">${esc(place(b) || host(b.website))}</div>`
       + `<div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${theirs.length} listed</span></div></div></a>`;
   };

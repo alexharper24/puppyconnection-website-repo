@@ -22,7 +22,7 @@
 .cl-parts li { padding: .2rem 0; }
 .cl-parts .check { margin: 0; font-size: .88rem; align-items: center; }
 .cl-parts .check input { width: 20px; height: 20px; margin: 0; accent-color: var(--ok); }
-.cl-parts li.is-done > .check > span, .cl-parts-edit li.is-done .cl-body > span:first-child { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
+.cl-parts li.is-done .cl-ptitle, .cl-parts-edit li.is-done .cl-body > span:first-child { color: var(--muted); text-decoration: line-through; text-decoration-color: var(--line-strong); }
 .cl-when { display: block; font-size: .78rem; color: var(--muted); text-decoration: none; }
 .cl-history .cl-when, .cl-comments .cl-when { display: inline; }
 .cl-move { display: flex; gap: .1rem; }

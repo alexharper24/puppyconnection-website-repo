@@ -44,8 +44,11 @@
     if (!view) return;
     A().api('GET', '/api/checklist/summary' + asQuery()).then(function (s) {
       A().state.checklistMine = s.mine;
-      var tally = document.querySelector('.nav a[href="#/checklist"] .tally');
-      if (tally) tally.textContent = s.mine;
+      var nav = document.querySelector('.nav a[href="#/checklist"]');
+      if (nav && s.mine) {
+        var tally = nav.querySelector('.tally') || nav.appendChild(document.createElement('span'));
+        tally.className = 'tally'; tally.textContent = s.mine; nav.setAttribute('aria-label', 'Launch checklist, ' + s.mine);
+      }
       var cell = function (sec, st) {
         var n = s.counts[sec][st];
         return '<td class="num">' + (n ? '<a href="#/checklist?section=' + sec + '&status=' + st + '">' + n + '</a>' : '<span class="muted">0</span>') + '</td>';
@@ -102,7 +105,7 @@
         (archived ? '<p class="cl-wait">Archived ' + esc(A().day(it.archived_at)) + ' by ' + esc(it.archived_by) + '</p>' : '') +
         (parts.length && it.status !== 'done' ? '<ul class="cl-parts">' + parts.map(function (p) {
           return '<li' + (p.done_at ? ' class="is-done"' : '') + '><label class="check"><input type="checkbox" data-part-tick="' + esc(p.id) + '"' + (p.done_at ? ' checked' : '') + (archived ? ' disabled' : '') + '>' +
-            '<span>' + esc(p.title) + ' <span class="cl-owner">' + esc(p.owner) + '</span>' + (p.done_at ? '<span class="cl-when">' + esc(doneLine(p.done_at, p.done_by)) + '</span>' : '') + '</span></label></li>';
+            '<span><span class="cl-ptitle">' + esc(p.title) + '</span> <span class="cl-owner">' + esc(p.owner) + '</span>' + (p.done_at ? '<span class="cl-when">' + esc(doneLine(p.done_at, p.done_by)) + '</span>' : '') + '</span></label></li>';
         }).join('') + '</ul>' : '') +
       '</div>' +
       (archived ? '' : '<div class="cl-move"><button type="button" class="btn btn-sm btn-quiet" data-move="up" data-id="' + esc(it.id) + '" aria-label="Move ' + esc(it.title) + ' up">&uarr;</button>' +

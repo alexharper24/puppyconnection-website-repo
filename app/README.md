@@ -201,6 +201,7 @@ node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a 
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
 node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the photo-based schedule on a moved clock, approval by reference, take offline until new photos, listing review, reports, Visit site, Wix descriptions
 node app/dev/focus-test.mjs     # the photo focus rule, from the dog detector's boxes
+node app/dev/checklist-test.mjs # docs/launch-workplan.md A17: the launch checklist seed and every checklist route, in this process with no server
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
@@ -414,6 +415,14 @@ settings, terms and operators are not touched. The audit log and email log are k
 - **Wix form labels are split out of imported descriptions** by `lib/wixtext.js`, in the seed, in
   the Wix import and by migrations/0022 for staging. The breeder's prose is kept exactly as written,
   and the parents' colors, which have no field, become one line on the litter.
+- **The launch checklist (workplan A17) is the source of truth for launch status.** It lives in
+  `checklist_items`, `checklist_parts` and `checklist_comments` (migrations/0034), on the admin's
+  Launch checklist screen and as a card on the overview. Owners are Alex, Amber, Luke and Claude, and
+  `checklist_signers` maps a sign-in address to the names it acts as, so the shared Amber and Luke
+  address picks who is ticking. Nothing is deleted, only archived, and only Alex archives. Every write
+  is in `audit_log` under entity `checklist_item`. `docs/launch-workplan.md` keeps the detail and
+  evidence, and `ops/checklist.mjs` exports the status to `docs/launch-checklist-status.md`, lists
+  drift and ticks an item as Claude. A new operator address needs a `checklist_signers` row.
 - Report CSVs (plan P3.7) are built on the server, and any text cell starting with `=`, `+`, `-`,
   `@`, a tab or a carriage return gets a leading apostrophe, so a puppy named like a formula
   cannot run in Amber's spreadsheet (`lib/csv.js`).

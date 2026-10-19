@@ -34,7 +34,8 @@ const lines = [
 ];
 const pos = {};
 SEED.forEach((it, i) => {
-  const id = `cl-${String(i + 1).padStart(3, '0')}`;
+  // Ids follow the seed order, apart from items added later, which carry their own.
+  const id = it.id || `cl-${String(SEED.filter((x, j) => j <= i && !x.id).length).padStart(3, '0')}`;
   pos[it.section] = (pos[it.section] || 0) + 1;
   const done = it.status === 'done';
   lines.push(`INSERT OR IGNORE INTO checklist_items (id, ref, section, position, title, description, owner, status, waiting_on, waiting_owner, done_at, done_by, created_at, created_by, updated_at, version) VALUES (${

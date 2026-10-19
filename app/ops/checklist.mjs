@@ -64,7 +64,7 @@ const q = (v) => (v == null ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`);
 const yq = (v) => (v == null ? 'null' : JSON.stringify(String(v)));
 
 function readRows(local) {
-  const items = d1('SELECT id, ref, section, position, title, owner, status, waiting_on, waiting_owner, done_at, done_by, archived_at FROM checklist_items ORDER BY section, position', local)[0].results;
+  const items = d1('SELECT id, ref, section, position, title, owner, status, waiting_on, waiting_owner, done_at, done_by, archived_at FROM checklist_items ORDER BY section != "launch", section, position', local)[0].results;
   const parts = d1('SELECT item_id, title, owner, done_at, done_by FROM checklist_parts WHERE archived_at IS NULL ORDER BY item_id, position', local)[0].results;
   for (const it of items) it.parts = parts.filter((p) => p.item_id === it.id);
   return items;

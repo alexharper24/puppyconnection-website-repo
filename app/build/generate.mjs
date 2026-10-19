@@ -111,8 +111,9 @@ function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wix
 export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html`, guide: (s) => `guide-${s}.html` };
 
 // Whether a breed page names the breeders behind its puppies in its body copy (SEO plan P13).
-// Off until the Wix pairing is confirmed, see the breed page below.
-export const SHOW_BREED_BREEDERS = false;
+// On since 2026-10-18 (Alex), once migrations 0023 and 0024 paired the Wix listings with the
+// kennels they name. Puppies under the unassigned breeder are never named.
+export const SHOW_BREED_BREEDERS = true;
 
 // js/main.js is copied with these changes, each of which must still match the concept's file.
 const MAIN_PATCHES = [
@@ -704,9 +705,8 @@ ${mates.length ? `<section class="band band-warm">
     const where = sharedState(open.length ? open : pups);
     // SEO plan P13: the breeders listing this breed, linked from a sentence rather than only a card.
     const by = [...new Map(shown.filter((p) => realBreeder(p.br)).map((p) => [p.br.slug, p.br])).values()];
-    // Off until the Wix pairing confirms which breeder raised each imported puppy (Alex,
-    // 2026-10-07). The import guessed breeders from web addresses on each Wix page, and some
-    // guesses are wrong, so a breed page should not name them yet. Turn on once paired.
+    // Off from 2026-10-07 while the import's guessed breeders were wrong, and on again since the
+    // 2026-10-18 pairing (SHOW_BREED_BREEDERS).
     const byLine = SHOW_BREED_BREEDERS && by.length
       ? `<p>${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}. Each breeder's page shows the rest of their puppies and how to reach them.</p>`
       : '';

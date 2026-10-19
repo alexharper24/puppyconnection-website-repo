@@ -1068,21 +1068,63 @@
 
   // ------------------------------------------------------------ mailing list (migrations/0011)
   var SOURCE_NAMES = { site: 'Site sign-up', import: 'Imported', admin: 'Added here' };
+  // The rows of a CSV file as arrays of cells, read the same way as csvRows in lib/subscribers.js.
+  function csvCells(text) {
+    var rows = [], row = [], cell = '', q = false;
+    for (var i = 0; i < text.length; i += 1) {
+      var ch = text[i];
+      if (q) { if (ch === '"' && text[i + 1] === '"') { cell += '"'; i += 1; } else if (ch === '"') q = false; else cell += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === ',') { row.push(cell); cell = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        if (ch === '\r' && text[i + 1] === '\n') i += 1;
+        row.push(cell); cell = '';
+        if (row.some(function (c) { return c.trim(); })) rows.push(row);
+        row = [];
+      } else cell += ch;
+    }
+    row.push(cell);
+    if (row.some(function (c) { return c.trim(); })) rows.push(row);
+    return rows;
+  }
+  // Send a file in parts of 400 rows, each with the file's first row ahead of it, so every request
+  // stays inside the free plan's CPU, and add up the counts each part answers.
+  function importParts(cells, progress) {
+    if (!cells.length) return Promise.reject(new Error('That file is empty.'));
+    var head = cells[0], body = cells.slice(1), size = 400, total = null, i = 0;
+    function add(a, b) {
+      Object.keys(b).forEach(function (k) {
+        if (k === 'added') add(a.added, b.added);
+        else if (typeof b[k] === 'number') a[k] = (a[k] || 0) + b[k];
+        else if (b[k] != null) a[k] = b[k];
+      });
+    }
+    function next() {
+      return api('POST', '/api/subscribers/import', { cells: [head].concat(body.slice(i, i + size)), part: Math.floor(i / size), batch: total ? total.batch : null }).then(function (o) {
+        if (!total) total = { added: { subscribed: 0, unsubscribed: 0, contact: 0 } };
+        add(total, o);
+        i += size;
+        progress(Math.min(i, body.length), body.length);
+        return i < body.length ? next() : total;
+      });
+    }
+    return next();
+  }
   function listScreen() {
-    var p = params(), st = p.status === 'unsubscribed' ? 'unsubscribed' : '';
-    Promise.all([refreshStats(), api('GET', '/api/subscribers' + (st ? '?status=unsubscribed' : '')), api('GET', '/api/campaigns')]).then(function (r) {
-      var cmp = r[2];
+    var p = params(), st = p.status === 'unsubscribed' || p.status === 'contact' ? p.status : '';
+    Promise.all([refreshStats(), api('GET', '/api/subscribers' + (st ? '?status=' + st : '')), api('GET', '/api/campaigns')]).then(function (r) {
+      var cmp = r[2], gone = st === 'unsubscribed';
       var d = r[1], n = function (status, source) { return d.counts.filter(function (c) { return c.status === status && (!source || c.source === source); }).reduce(function (a, c) { return a + c.n; }, 0); };
       shell(head('Mailing list', 'People who asked for Puppy Connection emails. Write an email below, send yourself a test, then send it to everyone on the list.',
         '<a class="btn btn-sm" href="/api/subscribers.csv" download>Download CSV</a>') +
         '<div class="stats">' +
         '<div class="stat"><b>' + n('subscribed').toLocaleString('en-US') + '</b><span>On the list</span></div>' +
-        '<div class="stat"><b>' + n('subscribed', 'site').toLocaleString('en-US') + '</b><span>Signed up on the site</span></div>' +
-        '<div class="stat"><b>' + n('subscribed', 'import').toLocaleString('en-US') + '</b><span>Imported</span></div>' +
-        '<div class="stat"><b>' + n('unsubscribed').toLocaleString('en-US') + '</b><span>Unsubscribed</span></div></div>' +
+        '<div class="stat"><b>' + n('contact').toLocaleString('en-US') + '</b><span>Never subscribed, get no list email</span></div>' +
+        '<div class="stat"><b>' + n('unsubscribed').toLocaleString('en-US') + '</b><span>Unsubscribed</span></div>' +
+        '<div class="stat"><b>' + n('subscribed', 'site').toLocaleString('en-US') + '</b><span>Signed up on the site</span></div></div>' +
         emailsPanel(cmp) +
         '<div class="cols">' +
-        '<section class="card" id="import-card"><h2>Import a list</h2><p class="small muted">A CSV with an email column, such as the contacts export from Wix. Anyone already on the list is left as they are, and anyone who unsubscribed stays off.</p>' +
+        '<section class="card" id="import-card"><h2>Import a list</h2><p class="small muted">A CSV with an email column, such as the contacts export from Wix. Each Wix contact keeps its email state: subscribers join the list, anyone who unsubscribed stays off, and contacts who never subscribed are kept but get no list email. A file with no status column is taken as a list of subscribers.</p>' +
         '<form id="import-form" novalidate><div class="field"><label for="import-file">CSV file</label><input id="import-file" type="file" accept=".csv,text/csv"></div>' +
         '<button class="btn btn-primary" type="submit">Import</button></form><div id="import-result"></div></section>' +
         '<section class="card" id="add-card"><h2>Add one person</h2><p class="small muted">Only add someone who asked to be on the list.</p>' +
@@ -1090,14 +1132,14 @@
         '<div class="field"><label for="sub-email">Email address</label><input id="sub-email" type="email" maxlength="200" required></div>' +
         '<button class="btn btn-primary" type="submit">Add</button></form></section></div>' +
         listPanel({ id: 'subs', find: 'Filter by name or email', pick: ['Joined from', ['Site sign-up', 'Imported', 'Added here']],
-          tabs: seg('list', st ? 'status=unsubscribed' : '', [['', 'On the list'], ['status=unsubscribed', 'Unsubscribed']], 'Who to show') }));
+          tabs: seg('list', st ? 'status=' + st : '', [['', 'On the list'], ['status=contact', 'Never subscribed'], ['status=unsubscribed', 'Unsubscribed']], 'Who to show') }));
       list($('#subs'), { rows: d.rows, text: function (s) { return [s.email, s.name].join(' '); }, pick: function (s) { return SOURCE_NAMES[s.source]; },
-        head: sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from') + sh('at', st ? 'Unsubscribed' : 'Joined') + (st ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
-        sorts: { email: function (s) { return s.email; }, name: function (s) { return s.name; }, source: function (s) { return SOURCE_NAMES[s.source]; }, at: function (s) { return st ? s.unsubscribed_at : s.created_at; } },
+        head: sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from') + sh('at', gone ? 'Unsubscribed' : st ? 'Added' : 'Joined') + (gone ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
+        sorts: { email: function (s) { return s.email; }, name: function (s) { return s.name; }, source: function (s) { return SOURCE_NAMES[s.source]; }, at: function (s) { return gone ? s.unsubscribed_at : s.created_at; } },
         sortFirst: { at: -1 },
         row: function (s) {
-          return '<tr><td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td>' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when">' + esc(day(st ? s.unsubscribed_at : s.created_at)) + '</td>' +
-            (st ? '' : '<td class="act"><button class="btn btn-sm btn-quiet" data-unsub="' + esc(s.id) + '" data-email="' + esc(s.email) + '">Unsubscribe</button></td>') + '</tr>';
+          return '<tr><td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td>' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when">' + esc(day(gone ? s.unsubscribed_at : s.created_at)) + '</td>' +
+            (gone ? '' : '<td class="act"><button class="btn btn-sm btn-quiet" data-unsub="' + esc(s.id) + '" data-email="' + esc(s.email) + '">Unsubscribe</button></td>') + '</tr>';
         },
         wire: function (box) {
           $$('[data-unsub]', box).forEach(function (b) {
@@ -1107,7 +1149,7 @@
             });
           });
         },
-        emptyTitle: st ? 'Nobody has unsubscribed' : 'Nobody on the list yet', emptyText: st ? '' : 'Import the Wix list, or wait for sign-ups from the site.' });
+        emptyTitle: gone ? 'Nobody has unsubscribed' : st ? 'No contacts outside the list' : 'Nobody on the list yet', emptyText: st ? '' : 'Import the Wix list, or wait for sign-ups from the site.' });
       wireEmails(cmp);
       $('#sub-form').addEventListener('submit', function (e) {
         e.preventDefault();
@@ -1118,18 +1160,26 @@
         e.preventDefault();
         var f = $('#import-file').files[0];
         if (!f) { showError($('#import-form'), new Error('Choose a CSV file first.')); return; }
-        f.text().then(function (csv) { return api('POST', '/api/subscribers/import', { csv: csv }); }).then(function (o) {
+        var btn = $('#import-form button[type=submit]');
+        btn.disabled = true;
+        f.text().then(function (text) { return importParts(csvCells(text.replace(/^﻿/, '')), function (done, all) { btn.textContent = 'Importing ' + done + ' of ' + all + '…'; }); }).then(function (o) {
           toast('Imported');
           listScreen();
           setTimeout(function () {
-            var box = $('#import-result');
-            if (box) box.innerHTML = '<p class="notice small">' + plural(o.added, 'new address', 'new addresses') + ' added. ' +
-              (o.already ? o.already + ' already on the list. ' : '') +
-              (o.kept_unsubscribed ? o.kept_unsubscribed + ' had unsubscribed and stayed off. ' : '') +
+            var box = $('#import-result'), a = o.added;
+            if (box) box.innerHTML = '<p class="notice small">' + plural(a.subscribed, 'new subscriber', 'new subscribers') + ' joined the list. ' +
+              (a.contact ? plural(a.contact, 'contact', 'contacts') + ' who never subscribed were kept, with no list email. ' : '') +
+              (a.unsubscribed ? a.unsubscribed + ' who had unsubscribed were kept off. ' : '') +
+              (o.already ? o.already + ' were already here and left as they were. ' : '') +
+              (o.joined ? o.joined + ' contacts had since subscribed and joined. ' : '') +
+              (o.unsubscribed_now ? o.unsubscribed_now + ' had since unsubscribed and were taken off. ' : '') +
+              (o.kept_unsubscribed ? o.kept_unsubscribed + ' had unsubscribed here and stayed off. ' : '') +
               (o.invalid ? o.invalid + ' did not look like email addresses and were skipped. ' : '') +
-              (o.duplicates_in_file ? o.duplicates_in_file + ' appeared more than once in the file. ' : '') + '</p>';
+              (o.no_address ? o.no_address + ' rows had no email address. ' : '') +
+              (o.duplicates_in_file ? o.duplicates_in_file + ' appeared more than once in the file. ' : '') +
+              (o.status_column ? 'States read from the "' + esc(o.status_column) + '" column.' : 'The file had no status column, so every address was taken as a subscriber.') + '</p>';
           }, 400);
-        }).catch(function (err) { showError($('#import-form'), err); });
+        }).catch(function (err) { btn.disabled = false; btn.textContent = 'Import'; showError($('#import-form'), err); });
       });
     });
   }

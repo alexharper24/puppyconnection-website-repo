@@ -363,6 +363,7 @@ async function features() {
     check('a send is refused until the mailing address is set, and a short address is refused', (await admin.put('/api/mailing-address', { address: 'nowhere' })).status === 400);
     check('the mailing address saves', (await admin.put('/api/mailing-address', { address: 'PO Box 123\nGoshen, IN 46527' })).status === 200);
     await admin.post('/api/subscribers/import', { csv: `Email\nsend-a-${stamp}@families.test\nsend-b-${stamp}@families.test\nsend-gone-${stamp}@families.test\n` });
+    await admin.post('/api/subscribers/import', { csv: `Email 1,Email subscriber status\nsend-contact-${stamp}@families.test,Never subscribed\n` });
     const gone = sql(`SELECT unsub_token FROM subscribers WHERE email = 'send-gone-${stamp}@families.test'`)[0].unsub_token;
     await fetch(`${PORTAL}/unsubscribe?t=${gone}`, { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'List-Unsubscribe=One-Click' });
     let r = await admin.post('/api/campaigns', { subject: `Launch ${stamp}`, body: 'Puppy Connection has a new home.\n\nCome and see the puppies.' });
@@ -381,6 +382,8 @@ async function features() {
     const got = await mailTo(`send-a-${stamp}@families.test`);
     check('each subscriber gets the email with their own unsubscribe link', got.some((m) => m.subject === `Launch ${stamp}` && m.body.includes(`unsubscribe?t=${sql(`SELECT unsub_token FROM subscribers WHERE email = 'send-a-${stamp}@families.test'`)[0].unsub_token}`)));
     check('someone who unsubscribed gets nothing', (await mailTo(`send-gone-${stamp}@families.test`)).every((m) => m.subject !== `Launch ${stamp}`));
+    check('a contact who never subscribed gets nothing', (await mailTo(`send-contact-${stamp}@families.test`)).every((m) => m.subject !== `Launch ${stamp}`)
+      && !sql(`SELECT 1 FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id WHERE cs.campaign_id = '${cid}' AND s.status = 'contact'`).length);
     check('a sent email can no longer be changed or sent again', (await admin.put(`/api/campaigns/${cid}`, { subject: 'x', body: 'y' })).status === 400 && (await admin.post(`/api/campaigns/${cid}/send`, { confirm_count: list.subscribed })).status === 400);
   }
 

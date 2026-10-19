@@ -26,3 +26,17 @@ Where a kennel's own site and its network page disagree (Willow Lane Bulldogs' b
 the genetic guarantee), the description follows the kennel's own site or leaves the fact out. Family
 Affair Puppies prints its street address and Double YY Puppies describes its house from the road, and
 both are left out.
+
+## Second round (2026-10-19, migration 0027)
+
+Alex: "you're missing the logo for Bless Your Paws ... allow the right column to come up and top
+align with the breeder name ... there are eight puppies, so please review that site and add the
+missing items." Bless Your Paws, Cornerstone Cavaliers, Heartland Mini Schnauzers and Winding
+Streams Companions get the logo from their own site header. blessyourpawspuppies.com lists eight
+puppies in the July 22, 2026 litter, and staging showed six. Jericho had been archived by 0023 when
+it left the Wix store, and returns as adopted. Shiloh was never imported, and is added from its page
+there with eleven photos measured by the dog detector, without a price because the page shows none
+for an adopted puppy. Tirzah moves from the litter it was given when it changed breeders into its
+own litter. On a breeder page with a logo, the name, buttons and story sit in a wider left column
+beside the logo and contact column, both starting at the top, and a breeder without a logo keeps
+the full-width heading. Backup app/.state/staging-2026-10-19-pre0027.sql, site repository 953333f.

@@ -91,7 +91,7 @@
     var s = state.stats || {};
     var route = state.route.split('?')[0].split('/')[0];
     var groups = [
-      ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue], ['reported', 'Reported listings', s.open_reports || null], ['photo-review', 'Photo review', s.photo_review || null]]],
+      ['Today', [['', 'Overview'], ['checklist', 'Launch checklist', state.checklistMine || null], ['approvals', 'Approvals', s.queue], ['reported', 'Reported listings', s.open_reports || null], ['photo-review', 'Photo review', s.photo_review || null]]],
       ['Directory', [['breeders', 'Breeders', s.approved], ['listings', 'Listings', s.public_puppies], ['breeds', 'Breeds']]],
       ['Money', [['payments', 'Payments', s.needs_review || null], ['reports', 'Reports']]],
       ['People', [['list', 'Mailing list'], ['people', 'Sign-ins']]],
@@ -272,6 +272,8 @@
           '<li><span><b>' + plural(s.open_checkouts, 'checkout') + '</b> started and not finished</span><a class="btn btn-sm" href="#/payments">Open</a></li>' +
           '<li><span><b>' + plural(s.suspended, 'breeder') + '</b> suspended</span><a class="btn btn-sm" href="#/breeders?status=suspended">Open</a></li>' +
         '</ul></section></div>');
+      // Workplan A17. The launch checklist counts, drawn by checklist.js.
+      if (window.pcChecklist && state.who.role === 'owner') window.pcChecklist.overview($('.view'));
     });
   }
 
@@ -1316,12 +1318,17 @@
     });
   }
 
+  // Workplan A17. checklist.js draws the launch checklist with these.
+  window.pcAdmin = { api: api, esc: esc, day: day, when: when, plural: plural, $: $, $$: $$, params: params, state: state,
+    shell: shell, head: head, toast: toast, showError: showError, openDrawer: openDrawer, closeDrawer: closeDrawer };
+
   function render() {
     closeDrawer();
     state.route = (location.hash || '#/').replace(/^#\/?/, '');
     var r = state.route.split('?')[0].split('/')[0];
     ({ '': overview, approvals: approvals, breeders: breeders, listings: listings, payments: payments, settings: settings, activity: activity, search: search,
-      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, reported: reportedScreen, 'photo-review': photoReviewScreen, list: listScreen, people: peopleScreen }[r] || overview)();
+      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, reported: reportedScreen, 'photo-review': photoReviewScreen, list: listScreen, people: peopleScreen,
+      checklist: function () { window.pcChecklist.screen(); } }[r] || overview)();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', render);

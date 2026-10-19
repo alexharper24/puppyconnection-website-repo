@@ -627,3 +627,59 @@ CREATE TABLE IF NOT EXISTS campaign_sends (
   PRIMARY KEY (campaign_id, subscriber_id)
 );
 CREATE INDEX IF NOT EXISTS campaign_sends_pending ON campaign_sends(campaign_id, status);
+
+-- Launch checklist (workplan A17). The items Alex and Amber work through to go-live and the
+-- Gate 1, 2 and 3 additions. Status, owner and parts live here, and the workplan keeps the
+-- detail and evidence (ops/checklist.mjs compares the two). Nothing is ever deleted: an item or
+-- part leaves the list by archived_at, and only Alex may archive. Every write is in audit_log
+-- under entity checklist_item. ref is the workplan id and is never shown on the screen.
+CREATE TABLE IF NOT EXISTS checklist_items (
+  id            TEXT PRIMARY KEY,
+  ref           TEXT UNIQUE,
+  section       TEXT NOT NULL CHECK (section IN ('launch','gate1','gate2','gate3')),
+  position      INTEGER NOT NULL,
+  title         TEXT NOT NULL,
+  description   TEXT,
+  owner         TEXT NOT NULL CHECK (owner IN ('Alex','Amber','Luke','Claude')),
+  status        TEXT NOT NULL DEFAULT 'not_started' CHECK (status IN ('not_started','in_progress','waiting','done')),
+  waiting_on    TEXT,
+  waiting_owner TEXT CHECK (waiting_owner IS NULL OR waiting_owner IN ('Alex','Amber','Luke','Claude')),
+  done_at       TEXT,
+  done_by       TEXT,
+  archived_at   TEXT,
+  archived_by   TEXT,
+  created_at    TEXT NOT NULL,
+  created_by    TEXT NOT NULL,
+  updated_at    TEXT NOT NULL,
+  version       INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS checklist_items_section ON checklist_items(section, position);
+CREATE TABLE IF NOT EXISTS checklist_parts (
+  id          TEXT PRIMARY KEY,
+  item_id     TEXT NOT NULL REFERENCES checklist_items(id),
+  position    INTEGER NOT NULL,
+  title       TEXT NOT NULL,
+  owner       TEXT NOT NULL CHECK (owner IN ('Alex','Amber','Luke','Claude')),
+  done_at     TEXT,
+  done_by     TEXT,
+  archived_at TEXT,
+  archived_by TEXT,
+  created_at  TEXT NOT NULL,
+  created_by  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS checklist_parts_item ON checklist_parts(item_id, position);
+CREATE TABLE IF NOT EXISTS checklist_comments (
+  id           TEXT PRIMARY KEY,
+  item_id      TEXT NOT NULL REFERENCES checklist_items(id),
+  author       TEXT NOT NULL,
+  author_email TEXT NOT NULL,
+  body         TEXT NOT NULL,
+  created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS checklist_comments_item ON checklist_comments(item_id, created_at);
+-- Which checklist names an operator address acts as. The shared address is 'Amber,Luke'.
+CREATE TABLE IF NOT EXISTS checklist_signers (
+  email TEXT PRIMARY KEY COLLATE NOCASE,
+  names TEXT NOT NULL
+);
+-- end of launch checklist

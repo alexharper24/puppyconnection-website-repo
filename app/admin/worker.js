@@ -27,6 +27,10 @@ import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest } from '.
 import { cleanImage } from '../lib/images.js';
 import { randomToken } from '../lib/util.js';
 import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
+import {
+  checklist, checklistSummary, checklistItem, addChecklistItem, editChecklistItem, tickChecklistItem, moveChecklistItem,
+  archiveChecklistItem, commentChecklistItem, addChecklistPart, editChecklistPart, tickChecklistPart, moveChecklistPart, archiveChecklistPart,
+} from '../lib/checklist.js';
 
 /** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
 async function listJobs(req, env) {
@@ -1296,6 +1300,21 @@ const STAFF_ALLOWED = [
 const staffMay = (method, pathname) => STAFF_ALLOWED.some(([m, rx]) => m === method && rx.test(pathname));
 
 const ROUTES = [
+  // Workplan A17. The launch checklist (lib/checklist.js). Owners only, like every route staff are not given.
+  ['GET', /^\/api\/checklist$/, checklist],
+  ['GET', /^\/api\/checklist\/summary$/, checklistSummary],
+  ['POST', /^\/api\/checklist\/items$/, addChecklistItem],
+  ['GET', /^\/api\/checklist\/items\/([\w-]+)$/, checklistItem],
+  ['PUT', /^\/api\/checklist\/items\/([\w-]+)$/, editChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/tick$/, tickChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/move$/, moveChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/(archive|restore)$/, archiveChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/comments$/, commentChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/parts$/, addChecklistPart],
+  ['PUT', /^\/api\/checklist\/parts\/([\w-]+)$/, editChecklistPart],
+  ['POST', /^\/api\/checklist\/parts\/([\w-]+)\/tick$/, tickChecklistPart],
+  ['POST', /^\/api\/checklist\/parts\/([\w-]+)\/move$/, moveChecklistPart],
+  ['POST', /^\/api\/checklist\/parts\/([\w-]+)\/(archive|restore)$/, archiveChecklistPart],
   ['GET', /^\/api\/photo-review$/, photoReview],
   ['POST', /^\/api\/photo-review\/([\w-]+)\/(keep|send_back)$/, decidePhoto],
   ['GET', /^\/api\/listing-reports$/, listingReports],

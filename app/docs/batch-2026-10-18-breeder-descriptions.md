@@ -11,10 +11,10 @@ tasks:
   - {id: d1, status: done, item: "Read each kennel's own home and About pages, its network member page, or Amber's Wix page for County Line Kennel"}
   - {id: d2, status: done, item: "Draft 31 descriptions with a source page per fact, no street address, no invented facts"}
   - {id: d3, status: done, item: "Logos from the 20 kennels with their own website, trimmed and saved as webp with a card copy"}
-  - {id: d4, status: waiting, blocked_on: alex, item: "Alex approves the drafts and logos on review.html"}
-  - {id: d5, status: pending, item: "D1 export backup to app/.state/, confirmed downloaded"}
-  - {id: d6, status: pending, item: "Upload the 20 logos to R2 puppyconnection-files under brand/<breeder id>/"}
-  - {id: d7, status: pending, item: "Migration 0025 (0024 is taken by the Murphy move and network suspension) with descriptions and logo_key, rehearsed with --sqlite, applied with ops/d1-apply.mjs --remote, site marked changed"}
+  - {id: d4, status: done, closed: 2026-10-19, evidence: "Alex: Approved, apply the descriptions and logos to staging.", item: "Alex approves the drafts and logos on review.html"}
+  - {id: d5, status: done, evidence: "app/.state/staging-2026-10-19-pre0026.sql, 2,018,901 bytes, Downloaded printed, 46 breeder_profiles rows", item: "D1 export backup to app/.state/, confirmed downloaded"}
+  - {id: d6, status: done, evidence: "brand/<id>/logo-2026101926.webp and .card for 20 kennels (Ibar has no card copy), 39 objects each read back at the source byte size", item: "Upload the 20 logos to R2 puppyconnection-files under brand/<breeder id>/"}
+  - {id: d7, status: done, evidence: "migrations/0026 rehearsed on a copy of the backup (31 descriptions, 20 logos, a repeat run left every version unchanged), applied to staging 2026-10-19, staging shows 31 of 31 descriptions, 20 logos, site dirty at generation 40", item: "Migration 0026 (0024 and 0025 were taken by other sessions) with descriptions and logo_key, rehearsed with --sqlite, applied with ops/d1-apply.mjs --remote, site marked changed"}
   - {id: d8, status: pending, item: "Every new breeder page on site.puppyconnection.workers.dev shows its approved description, and its logo where it has one"}
 excluded:
   - "The 11 breeders without a website of their own get no logo, because their network page shows only the network's mark"

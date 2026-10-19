@@ -299,6 +299,9 @@ settings, terms and operators are not touched. The audit log and email log are k
   and on the hosted database that only holds when the statements go in one `d1 execute --command`.
   `--file` uploads the SQL as an import, which ignores the pragma and rolls back on the first
   intermediate key failure (2026-10-12, migration 0015). It ran fine locally either way.
+  A migration too long for one command line goes through `ops/d1-apply.mjs`, which sends it in
+  batches of `--command`, each opening with the pragma, and keeps statements after a `-- group`
+  line in one batch. Rehearse it with `--sqlite <copy>` first (migration 0023, 2026-10-18).
 - `dev/preview.mjs` patches its own copy of the concept's `js/main.js` in several places, which
   are listed in the script. The live concept is never changed. The patches exist because
   the concept groups breeders by website domain and assumes every photo is on Wix.

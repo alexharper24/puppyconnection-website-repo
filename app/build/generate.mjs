@@ -881,32 +881,49 @@ ${withGuides.map((b) => {
     const listedLine = listedBreedsOf.length
       ? `<p>${esc(b.name)} currently lists ${linkList(listedBreedsOf.map((x) => [pageFor.breed(x.slug), x.name]))} puppies on Puppy Connection.</p>`
       : '';
-    const body = `<main id="profile">\n<span id="content" tabindex="-1"></span>
-<section class="band" style="padding-bottom:1.6rem">
-  <div class="wrap">
-    <p class="eyebrow"><a href="breeders.html" style="color:inherit">Breeders</a></p>
+    const head = `<p class="eyebrow"><a href="breeders.html" style="color:inherit">Breeders</a></p>
     <div class="profile-head"><h1>${esc(b.name)}</h1>${place(b) ? `<p class="meta">${esc(place(b))}</p>` : ''}</div>
-    ${b.phone || b.email || b.website ? `<div class="btn-row profile-actions">${b.phone ? `<a class="btn btn-primary" href="tel:${esc(tel(b.phone))}">Call ${esc(b.phone)}</a>` : ''}${b.email ? `<a class="btn btn-ghost" href="mailto:${esc(b.email)}">Email</a>` : ''}${b.website ? `<a class="btn btn-ghost" href="${esc(b.website)}" target="_blank" rel="noopener">Visit their website</a>` : ''}<a class="btn btn-ghost" href="#their">See their puppies</a></div>` : ''}
-  </div>
-</section>
-<section class="band" style="padding-top:0">
-  <div class="wrap split">
-    <div>
-      <div class="prose">${paras(b.about)}${listedLine}</div>
+    ${b.phone || b.email || b.website ? `<div class="btn-row profile-actions">${b.phone ? `<a class="btn btn-primary" href="tel:${esc(tel(b.phone))}">Call ${esc(b.phone)}</a>` : ''}${b.email ? `<a class="btn btn-ghost" href="mailto:${esc(b.email)}">Email</a>` : ''}${b.website ? `<a class="btn btn-ghost" href="${esc(b.website)}" target="_blank" rel="noopener">Visit their website</a>` : ''}<a class="btn btn-ghost" href="#their">See their puppies</a></div>` : ''}`;
+    const story = `<div class="prose">${paras(b.about)}${listedLine}</div>
       ${b.kennel_photo ? `<figure class="breed-photo"><img src="${esc(b.kennel_photo.src)}" alt="${esc(b.name)}" loading="lazy" decoding="async"></figure>` : ''}
-      ${raised.length ? `<p class="eyebrow">Breeds they raise</p><ul class="includes">${raised.map((r) => `<li><a href="${pageFor.breed(r.slug)}">${esc(r.name)}</a></li>`).join('')}</ul>` : ''}
-    </div>
-    <aside>
-      ${b.logo ? `<figure class="breeder-logo${b.logo.dark ? ' on-dark' : ''}"><img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" loading="lazy" decoding="async"></figure>` : ''}
+      ${raised.length ? `<p class="eyebrow">Breeds they raise</p><ul class="includes">${raised.map((r) => `<li><a href="${pageFor.breed(r.slug)}">${esc(r.name)}</a></li>`).join('')}</ul>` : ''}`;
+    const aside = `<aside>
+      ${b.logo ? `<figure class="breeder-logo${b.logo.dark ? ' on-dark' : ''}"><img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" decoding="async"></figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">Talk to this breeder</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         <p class="disclaimer">Puppy Connection is not part of the sale.</p>
         <p class="small" style="margin:.6rem 0 0"><a href="${esc(`${portal}/report?breeder=${encodeURIComponent(b.slug)}`)}" rel="nofollow">Report this breeder</a></p>
       </div>
-    </aside>
+    </aside>`;
+    // A breeder with a logo has the logo and contact column start level with the name (Alex,
+    // 2026-10-19), so the two columns run side by side instead of the right one starting low.
+    // Without a logo the name and buttons keep the full width above both columns.
+    const top = b.logo
+      ? `<section class="band">
+  <div class="wrap split profile-top">
+    <div>
+    ${head}
+      ${story}
+    </div>
+    ${aside}
+  </div>
+</section>`
+      : `<section class="band" style="padding-bottom:1.6rem">
+  <div class="wrap">
+    ${head}
   </div>
 </section>
+<section class="band" style="padding-top:0">
+  <div class="wrap split">
+    <div>
+      ${story}
+    </div>
+    ${aside}
+  </div>
+</section>`;
+    const body = `<main id="profile">\n<span id="content" tabindex="-1"></span>
+${top}
 <section class="band band-warm" id="their">
   <div class="wrap">
     <div class="sec-head"><div><p class="eyebrow">Currently listed</p><h2>${theirs.length} ${theirs.length === 1 ? 'puppy' : 'puppies'} from this breeder</h2></div><a class="link-more" href="puppies.html">All puppies</a></div>

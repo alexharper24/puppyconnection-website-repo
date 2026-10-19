@@ -325,7 +325,10 @@ export function loadData(dataDir) {
 }
 
 const realBreeder = (b) => b && b.slug !== 'unassigned';
-const place = (b) => [b.city, b.state].filter(Boolean).join(', ');
+// A breeder with a state and no town shows the state's name, since a bare "IN" under the name reads
+// as a stray mark (Alex, 2026-10-19).
+const STATE_NAMES = { IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KY: 'Kentucky', MI: 'Michigan', MO: 'Missouri', NY: 'New York', OH: 'Ohio', PA: 'Pennsylvania', TN: 'Tennessee', WI: 'Wisconsin' };
+const place = (b) => (b.city ? [b.city, b.state].filter(Boolean).join(', ') : (STATE_NAMES[b.state] || b.state || ''));
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 // Available first, then pending, then placed, and newest first within each.
 const order = { available: 0, pending: 1, placed: 2 };
@@ -881,8 +884,8 @@ ${withGuides.map((b) => {
     const listedLine = listedBreedsOf.length
       ? `<p>${esc(b.name)} currently lists ${linkList(listedBreedsOf.map((x) => [pageFor.breed(x.slug), x.name]))} puppies on Puppy Connection.</p>`
       : '';
-    const head = `<p class="eyebrow"><a href="breeders.html" style="color:inherit">Breeders</a></p>
-    <div class="profile-head"><h1>${esc(b.name)}</h1>${place(b) ? `<p class="meta">${esc(place(b))}</p>` : ''}</div>
+    const crumb = `<p class="eyebrow"><a href="breeders.html" style="color:inherit">Breeders</a></p>`;
+    const head = `<div class="profile-head"><h1>${esc(b.name)}</h1>${place(b) ? `<p class="meta">${esc(place(b))}</p>` : ''}</div>
     ${b.phone || b.email || b.website ? `<div class="btn-row profile-actions">${b.phone ? `<a class="btn btn-primary" href="tel:${esc(tel(b.phone))}">Call ${esc(b.phone)}</a>` : ''}${b.email ? `<a class="btn btn-ghost" href="mailto:${esc(b.email)}">Email</a>` : ''}${b.website ? `<a class="btn btn-ghost" href="${esc(b.website)}" target="_blank" rel="noopener">Visit their website</a>` : ''}<a class="btn btn-ghost" href="#their">See their puppies</a></div>` : ''}`;
     const story = `<div class="prose">${paras(b.about)}${listedLine}</div>
       ${b.kennel_photo ? `<figure class="breed-photo"><img src="${esc(b.kennel_photo.src)}" alt="${esc(b.name)}" loading="lazy" decoding="async"></figure>` : ''}
@@ -901,6 +904,7 @@ ${withGuides.map((b) => {
     // Without a logo the name and buttons keep the full width above both columns.
     const top = b.logo
       ? `<section class="band">
+  <div class="wrap">${crumb}</div>
   <div class="wrap split profile-top">
     <div>
     ${head}
@@ -911,6 +915,7 @@ ${withGuides.map((b) => {
 </section>`
       : `<section class="band" style="padding-bottom:1.6rem">
   <div class="wrap">
+    ${crumb}
     ${head}
   </div>
 </section>

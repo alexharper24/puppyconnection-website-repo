@@ -962,9 +962,9 @@ async function uploadPhoto(request, env, ctx, puppyId) {
   const quality = photoCheckMode(env) === 'off' ? null : 'pending';
   const stmts = [
     env.DB.prepare(
-      `INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, created_at, quality)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, now(), quality),
+      `INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, width, height, created_at, quality)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, img.size ? img.size.w : null, img.size ? img.size.h : null, now(), quality),
     auditStmt(env, 'breeder', breeder.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, stripped: raw.length - img.bytes.length }),
     freshStmt(env, puppyId),
   ];

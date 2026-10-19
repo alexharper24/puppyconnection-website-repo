@@ -16,11 +16,11 @@ tasks:
   - {id: t2, status: done, task: "Approval by reference: breeder_references, submit requires it, portal form, admin card beside Approve, migration 0031"}
   - {id: t3, status: done, task: "Photo standard: portal photo step and help, terms draft, take offline until new photos with a reason that lifts on a passing photo, migration 0032"}
   - {id: t4, status: done, task: "Tests: launch-features-test parts inactivity (31), reference (12) and photohold (16) pass locally"}
-  - {id: t5, status: in_progress, task: "Every existing suite passing locally"}
-  - {id: t6, status: pending, task: "D1 backup confirmed, then migrations 0030 to 0032 on staging"}
-  - {id: t7, status: pending, task: "Deploy portal, admin and site to staging, check each change at desktop and 375px"}
-  - {id: t8, status: pending, task: "Close A12, A13 and A14 in the launch workplan with commits and evidence"}
-commits: []
+  - {id: t5, status: done, task: "Every existing suite passing locally", note: "launch-features 153, e2e, access, signin 48, admin-features 105, jobs, legal-staging 19, focus, wix-import, restore, demo and google all pass. portal-features 118 of 119, and its one failure (breed colors on a fresh database) fails the same way on main. publish-test not run, because port 8798 and the pc-portal binding belong to another session's servers"}
+  - {id: t6, status: done, task: "D1 backup confirmed, then migrations 0030 to 0032 on staging", note: "a confirmed export before each, app/.state/staging-2026-10-19-pre0030/0031/0032.sql in the main checkout"}
+  - {id: t7, status: partial, task: "Deploy portal, admin and site to staging, check each change at desktop and 375px", note: "portal 7f9e81bf and admin 5240ce71 deployed; the site needed no deploy. Staging checked without an account (served code, the old link page, the privacy line, the terms draft). The full UI walk at 1280 and 375 was done locally. The hosted admin needs Alex's Access sign-in, and a hosted portal walk needs a test breeder created on staging, which waits on Alex", blocked_on: alex}
+  - {id: t8, status: done, task: "Close A12, A13 and A14 in the launch workplan with commits and evidence"}
+commits: [f77f19d, 5c0f4c9, "v=23 bump"]
 ---
 
 Working file for this batch. The launch workplan holds the specification and closes the items.

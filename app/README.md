@@ -105,12 +105,17 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
 - **Each Worker has its own config**, `wrangler.hosted.jsonc`, beside its local
   `wrangler.jsonc`, and each pins the account id so a deploy cannot land in another account.
 
-To redeploy after a change, run this from the `app` folder,
+To redeploy the portal and the admin after a change, run this from the `app` folder,
 with `W` standing for `node ../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js`.
 
 ```bash
-(cd portal && $W deploy --config wrangler.hosted.jsonc) && (cd admin && $W deploy --config wrangler.hosted.jsonc) && node dev/build-site.mjs && (cd site && $W deploy --config wrangler.hosted.jsonc)
+(cd portal && $W deploy --config wrangler.hosted.jsonc) && (cd admin && $W deploy --config wrangler.hosted.jsonc)
 ```
+
+The site is not deployed from here. Workers Builds builds it from the site repository (below), so
+a site change goes through `build/sync-site-repo.mjs` and a push there, and a data change reaches it
+through the next publish. Do not run `wrangler deploy` with `site/wrangler.hosted.jsonc`, because
+that config is the old live-read stand-in and would replace the generated pages (2026-10-19).
 
 To take it down, delete the three Workers in the dashboard. The access tests
 (`dev/access-tests.mjs`) run against the local copy only, because they write to the database

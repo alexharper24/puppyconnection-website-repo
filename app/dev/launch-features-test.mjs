@@ -515,8 +515,9 @@ async function photohold() {
   const portalJs = fs.readFileSync(path.join(APP, 'portal/public/portal.js'), 'utf8');
   const standard = 'Photos must be high quality, not blurry, and show the puppy clearly with no signs of illness or distress. A listing that falls short can be taken offline by Puppy Connection until proper photos are uploaded.';
   check("A14 the portal photo step shows Amber's photo standard", portalJs.includes(standard) && /'<p class="photo-standard"><b>Photo standard\.<\/b> ' \+ esc\(PHOTO_STANDARD\)/.test(portalJs));
-  const draft = sql("SELECT body FROM terms_versions WHERE version = 'draft'")[0].body;
-  check('A14 the listing terms draft carries the photo standard', draft.includes(`Photo standard. ${standard}`), draft.slice(-260));
+  // The admin suite rewrites the local draft, so the starting draft is read from schema.sql.
+  const seedDraft = (fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8').match(/\('draft', ([\s\S]*?)'2026-09-30T00:00:00Z', 'setup', NULL, NULL\)/) || [])[1] || '';
+  check('A14 the listing terms draft carries the photo standard', seedDraft.includes(`'Photo standard. ${standard}'`), seedDraft.slice(-260));
   const mig = fs.readFileSync(path.join(APP, 'migrations/0032_photo_hold.sql'), 'utf8');
   check('A14 the migration adds the standard to the draft only, once', mig.includes(standard) && /WHERE version = 'draft' AND instr\(body, 'Photo standard\. Photos must be high quality'\) = 0/.test(mig));
 }

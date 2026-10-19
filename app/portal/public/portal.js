@@ -510,7 +510,7 @@
     if (x.held_by) return { tone: 'gold', text: 'In checkout. A payment has started and not finished. If it is not finished, the puppy is free to pay for again within the hour.' };
     var place = x.availability === 'placed' ? ' Buyers see it marked placed.' : x.availability === 'pending' ? ' Buyers see it marked pending.' : '';
     if (x.is_public && x.schedule && x.schedule.stage === 'warned') {
-      return { tone: 'gold', text: 'Listed, with no new photo for four weeks. Add a new photo by ' + day(x.schedule.by) + ' to keep it on the site.' + place, photos: true };
+      return { tone: 'gold', text: 'Listed, and it needs a new photo. Add one by ' + day(x.schedule.by) + ' to keep it on the site.' + place, photos: true };
     }
     if (x.is_public) {
       var until = expiring() && x.expires_at ? ' until ' + day(x.expires_at) : '';

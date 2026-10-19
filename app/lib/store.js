@@ -169,8 +169,8 @@ export function profileFields(body) {
 export const REFERENCE_ROLES = {
   akc: 'AKC representative',
   welfare: 'Board member of a local animal welfare council, such as ICAW',
-  breeder: 'Another respected breeder',
-  vet: 'Their veterinarian',
+  breeder: 'Respected breeder',
+  vet: 'Veterinarian',
 };
 
 /** The one reference a breeder names before approval: a name, a role from the list and a contact. */

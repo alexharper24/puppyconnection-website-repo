@@ -12,7 +12,8 @@ tasks:
   - {id: delete-previews, status: done}
   - {id: deploy, status: done, date: 2026-10-19, commit: 37b114a, versions: {portal: 1679174f-5d28-4b38-b55c-a4eab3ca6f64, admin: 3d7ce34e-c109-43dc-834b-de8ee40672df}}
   - {id: proof, status: done, measured_on_staging: "menu 821px, Overview panels 235 and 235, side-panel row 124px with a 458px name column, phone title at 138px", out: "before-and-after page sent to Alex"}
-  - {id: push, status: blocked, blocked_on: alex, item: "branch not pushed; a deploy from another branch without 37b114a would undo the restyle on staging"}
+  - {id: push, status: done, evidence: "pushed, PR 7 stacked on PR 6"}
+  - {id: redeploy-combined, status: done, date: 2026-10-20, evidence: "an admin deploy at 00:35Z from the mailing-list branch dropped the restyle, and 00:44Z restored it without the mailing list. 8b6093b merges main (PR 8), PR 5, the checklist at 7eab58f and the restyle, and was deployed as admin 4a6c550a and portal 7e7d7989. Staging checked for portal.css v=17, admin.js v=31, checklist v=5, the mailing list select, and Alex and Amber as the only owners"}
 measured_2026-10-19:
   admin_menu_1440: "rail head 133px, menu content 1091px, foot 69px, so 1293px in all. 18 links at 44px and 5 group headings at 41px"
   admin_menu_375: "the menu strip is 327px (6 rows) and the top bar 101px, so the page title starts at 428px of an 812px screen"

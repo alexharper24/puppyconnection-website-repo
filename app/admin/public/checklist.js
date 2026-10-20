@@ -219,7 +219,7 @@
       var all = data.items.filter(function (it) { return it.section === s[0]; }), c = counts(all);
       return '<button type="button" class="cl-stat" data-jump="' + s[0] + '"><span>' + s[1] + '</span><b>' + c.done + '/' + all.length + '</b>' +
         (c.waiting ? '<i class="c-waiting">' + c.waiting + ' waiting</i>' : '') + '</button>';
-    }).join('') + '<a class="cl-stat cl-mine" href="' + link({ mine: true }) + '"><span>Waiting on ' + esc(me().name || 'you') + '</span><b>' + A().state.checklistMine + '</b></a></div>';
+    }).join('') + '<a class="cl-stat cl-mine" href="' + link({ mine: true }) + '"><span>On ' + esc(me().name ? me().name + '\'s' : 'your') + ' list</span><b>' + A().state.checklistMine + '</b></a></div>';
 
     var asBar = me().names.length > 1 ? '<span class="cl-as">Ticking as <span class="seg" role="group" aria-label="Who is ticking">' + me().names.map(function (n) {
       return '<button type="button" data-as="' + esc(n) + '"' + (n === me().name ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + esc(n) + '</button>';
@@ -244,7 +244,7 @@
         var key = 'person:' + who;
         if (!(key in view.open) && who === me().name && !view.open['person:seen']) { view.open[key] = true; view.open['person:seen'] = true; saveView(); }
         return group(key, who, mine, { section: true, noDone: true,
-          counts: '<span class="cl-count c-waiting"><b>' + waiting + '</b> waiting on ' + esc(who) + '</span><span class="cl-count"><b>' + mine.length + '</b> open</span>' });
+          counts: '<span class="cl-count c-waiting"><b>' + waiting + '</b> need ' + esc(who) + ' now</span><span class="cl-count"><b>' + mine.length + '</b> on ' + esc(who) + '\'s list</span>' });
       }).join('');
     } else {
       body = SECTIONS.map(function (s) {

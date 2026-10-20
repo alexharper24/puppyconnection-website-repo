@@ -55,10 +55,10 @@
 .cl-row + .cl-row, .cl-donebar, .cl-donebar ~ .cl-row { border-top: 1px solid var(--line); }
 /* Rows and their headings share one grid, so every column sits beside the item text rather than at
    the far edge, and the waiting column gets the width left over (Alex, 2026-10-19). */
-.cl-line, .cl-colhead { display: grid; grid-template-columns: 20px minmax(12rem, 1.5fr) 4.6rem 4.6rem 5.6rem minmax(9rem, 1fr); align-items: center;
+.cl-line, .cl-colhead { display: grid; grid-template-columns: 20px minmax(12rem, 1.15fr) 4.6rem 4.6rem 5.6rem minmax(9rem, 1fr); align-items: center;
   column-gap: .75rem; min-height: 42px; padding: 0 .8rem; }
 .cl-board[data-group-by="person"] .cl-line, .cl-board[data-group-by="person"] .cl-colhead {
-  grid-template-columns: 20px minmax(12rem, 1.5fr) 3.6rem 4.6rem 4.6rem 5.6rem minmax(9rem, 1fr); }
+  grid-template-columns: 20px minmax(12rem, 1.15fr) 3.6rem 4.6rem 4.6rem 5.6rem minmax(9rem, 1fr); }
 .cl-colhead { min-height: 30px; font-size: .74rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
   border-bottom: 1px solid var(--line); background: var(--surface); }
 .cl-colhead + .cl-row { border-top: 0; }
@@ -142,6 +142,8 @@
   .cl-cells, .cl-board[data-group-by="person"] .cl-cells { grid-column: 2; display: flex; flex-wrap: wrap; gap: .3rem .5rem; padding-left: 1rem; }
   .cl-parts-n { display: inline-flex; }
   .cl-parts-n:empty, .cl-waits:empty { display: none; }
+  /* The headings are hidden on a phone, so the waiting cell names itself. */
+  .cl-row:not(.is-done) .cl-waits:not(:empty)::before { content: 'Waiting on '; color: var(--muted); }
   .cl-waits { display: block; -webkit-line-clamp: unset; flex: 0 1 auto; min-width: 0; align-self: center; color: var(--muted); }
   .cl-detail { padding: .3rem .7rem .8rem 1.6rem; }
   .cl-detail-grid { grid-template-columns: minmax(0, 1fr); gap: .4rem; }

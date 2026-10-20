@@ -21,6 +21,7 @@ const MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0034_launch_checkli
 const OWNERS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0035_checklist_owners.sql'), 'utf8');
 const DAY_ONE_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0036_checklist_day_one.sql'), 'utf8');
 const GA4_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0037_checklist_ga4.sql'), 'utf8');
+const DB_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0038_checklist_production_database.sql'), 'utf8');
 const DAY_ONE = 6;   // the items migration 0036 adds
 
 let fails = 0, passes = 0;
@@ -64,6 +65,8 @@ db.exec(DAY_ONE_MIGRATION);
 db.exec(DAY_ONE_MIGRATION);
 db.exec(GA4_MIGRATION);
 db.exec(GA4_MIGRATION);
+db.exec(DB_MIGRATION);
+db.exec(DB_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -112,6 +115,12 @@ function seedChecks() {
     ga4.title === 'Google Analytics 4 on the new site' && ga4.waiting_owner === 'Amber' && ga4.status === 'waiting' &&
     ga4Parts.map((p) => p.owner).join() === 'Amber,Alex,Alex,Alex,Alex' &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND action = 'checklist.edit'").get(ga4.id).n === 1);
+  const prod = items.find((i) => i.ref === 'B12');
+  const prodParts = parts.filter((p) => p.item_id === prod.id);
+  check('migration 0038 ticks the production database decision as Alex, leaves writing the steps open, puts the item in progress and notes it follows clearing test data, once',
+    prod.status === 'in_progress' && prodParts[0].done_by === 'Alex' && /^2026-10-19/.test(prodParts[0].done_at) && !prodParts[1].done_at &&
+    db.prepare("SELECT COUNT(*) AS n FROM checklist_comments WHERE item_id = ? AND body LIKE '%Clear the test breeders and test data%'").get(prod.id).n === 1 &&
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND actor = 'claude'").get(prod.id).n === 4);
   check('migration 0035 audits each moved item once, and running it again adds nothing',
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n === db.prepare("SELECT COUNT(DISTINCT entity_id) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n);
 }

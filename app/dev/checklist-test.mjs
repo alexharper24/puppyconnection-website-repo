@@ -20,6 +20,7 @@ const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0034_launch_checklist.sql'), 'utf8');
 const OWNERS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0035_checklist_owners.sql'), 'utf8');
 const DAY_ONE_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0036_checklist_day_one.sql'), 'utf8');
+const GA4_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0037_checklist_ga4.sql'), 'utf8');
 const DAY_ONE = 6;   // the items migration 0036 adds
 
 let fails = 0, passes = 0;
@@ -61,6 +62,8 @@ db.exec(OWNERS_MIGRATION);
 db.exec(OWNERS_MIGRATION);
 db.exec(DAY_ONE_MIGRATION);
 db.exec(DAY_ONE_MIGRATION);
+db.exec(GA4_MIGRATION);
+db.exec(GA4_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -103,6 +106,12 @@ function seedChecks() {
   check('migration 0036 adds the six day-one items to Launch, owned by Alex or Amber, each audited once, and a second run adds nothing',
     dayOne.length === DAY_ONE && dayOne.every((i) => i.section === 'launch' && ['Alex', 'Amber'].includes(i.owner)) &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.add' AND entity_id IN ('cl-074','cl-075','cl-076','cl-077','cl-078','cl-079')").get().n === DAY_ONE);
+  const ga4 = items.find((i) => i.ref === 'B11');
+  const ga4Parts = parts.filter((p) => p.item_id === ga4.id);
+  check('migration 0037 makes the analytics item Google Analytics 4, waiting on Amber, with her one part and four for Alex, once',
+    ga4.title === 'Google Analytics 4 on the new site' && ga4.waiting_owner === 'Amber' && ga4.status === 'waiting' &&
+    ga4Parts.map((p) => p.owner).join() === 'Amber,Alex,Alex,Alex,Alex' &&
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND action = 'checklist.edit'").get(ga4.id).n === 1);
   check('migration 0035 audits each moved item once, and running it again adds nothing',
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n === db.prepare("SELECT COUNT(DISTINCT entity_id) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n);
 }

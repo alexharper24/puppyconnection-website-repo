@@ -1140,7 +1140,9 @@
   }
   function listScreen() {
     var p = params(), st = p.status === 'unsubscribed' || p.status === 'contact' ? p.status : '';
-    Promise.all([refreshStats(), api('GET', '/api/subscribers' + (st ? '?status=' + st : '')), api('GET', '/api/campaigns')]).then(function (r) {
+    var show = p.show === '1000' || p.show === 'all' ? p.show : '';
+    var query = function (s, w) { return [s ? 'status=' + s : '', w ? 'show=' + w : ''].filter(Boolean).join('&'); };
+    Promise.all([refreshStats(), api('GET', '/api/subscribers' + (query(st, show) ? '?' + query(st, show) : '')), api('GET', '/api/campaigns')]).then(function (r) {
       var cmp = r[2], gone = st === 'unsubscribed';
       var d = r[1], n = function (status, source) { return d.counts.filter(function (c) { return c.status === status && (!source || c.source === source); }).reduce(function (a, c) { return a + c.n; }, 0); };
       shell(head('Mailing list', 'People who asked for Puppy Connection emails. Write an email below, send yourself a test, then send it to everyone on the list.',
@@ -1160,7 +1162,11 @@
         '<div class="field"><label for="sub-email">Email address</label><input id="sub-email" type="email" maxlength="200" required></div>' +
         '<button class="btn btn-primary" type="submit">Add</button></form></section></div>' +
         listPanel({ id: 'subs', find: 'Filter by name or email', pick: ['Joined from', ['Site sign-up', 'Imported', 'Added here']],
-          tabs: seg('list', st ? 'status=' + st : '', [['', 'On the list'], ['status=contact', 'Never subscribed'], ['status=unsubscribed', 'Unsubscribed']], 'Who to show') }));
+          tabs: seg('list', query(st, show), [[query('', show), 'On the list'], [query('contact', show), 'Never subscribed'], [query('unsubscribed', show), 'Unsubscribed']], 'Who to show') +
+            '<label class="sr" for="subs-show">How many to show</label><select id="subs-show" data-show>' +
+            [['', 'Newest 200'], ['1000', 'Newest 1,000'], ['all', 'Everyone']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === show ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
+            (d.rows.length < n(st || 'subscribed') ? '<span class="small muted" data-shown-note>Showing the newest ' + d.rows.length.toLocaleString('en-US') + ' of ' + n(st || 'subscribed').toLocaleString('en-US') + '. The filter searches only these.</span>' : '') }));
+      $('#subs-show').addEventListener('change', function () { location.hash = '#/list' + (query(st, this.value) ? '?' + query(st, this.value) : ''); });
       list($('#subs'), { rows: d.rows, text: function (s) { return [s.email, s.name].join(' '); }, pick: function (s) { return SOURCE_NAMES[s.source]; },
         head: sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from', 'hide-sm') + sh('at', gone ? 'Unsubscribed' : st ? 'Added' : 'Joined', 'hide-sm') + (gone ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
         sorts: { email: function (s) { return s.email; }, name: function (s) { return s.name; }, source: function (s) { return SOURCE_NAMES[s.source]; }, at: function (s) { return gone ? s.unsubscribed_at : s.created_at; } },

@@ -710,8 +710,10 @@ ${mates.length ? `<section class="band band-warm">
     const by = [...new Map(shown.filter((p) => realBreeder(p.br)).map((p) => [p.br.slug, p.br])).values()];
     // Off from 2026-10-07 while the import's guessed breeders were wrong, and on again since the
     // 2026-10-18 pairing (SHOW_BREED_BREEDERS).
-    const byLine = SHOW_BREED_BREEDERS && by.length
-      ? `<p>${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}. Each breeder's page shows the rest of their puppies and how to reach them.</p>`
+    // One sentence at the end of the intro paragraph, not a paragraph of its own under the
+    // highlights, which read as clutter (Alex, 2026-10-19).
+    const bySentence = SHOW_BREED_BREEDERS && by.length
+      ? ` ${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}.`
       : '';
     const alsoBreeds = (SEE_ALSO[b.slug] || []).map((s) => listedBreeds.find((x) => x.slug === s)).filter(Boolean);
     // Breed page option 2 (Alex, 2026-10-11): an intro, four highlights and a price card, with the
@@ -724,16 +726,14 @@ ${mates.length ? `<section class="band band-warm">
   <div class="wrap">
     <p class="eyebrow"><a href="breeds.html" style="color:inherit">Breeds</a></p>
     <h1>${esc(b.name)} puppies for sale</h1>
-    <p class="meta">${open.length} available now${priceSpan(shown) ? `, ${open.length ? '' : 'recently '}priced ${priceSpan(shown)}` : ''}</p>
-    ${priceSpan(shown) && !hl ? '<p class="meta" style="margin-top:.2rem">Each breeder sets their own price.</p>' : ''}
   </div>
 </section>
 ${hl ? `<section class="band" style="padding-top:0">
   <div class="wrap breed-top${guidesFor(b.slug).length ? ' has-guides' : ''}">
     <div class="guide bt-text">
-      <p class="breed-intro">${esc(hl.intro)}</p>
+      <p class="breed-intro">${esc(hl.intro)}${bySentence}</p>
       <ul class="highlights">${hl.points.map((x) => `<li><b>${esc(x.lead)}</b> ${esc(x.text)}</li>`).join('')}</ul>
-      ${byLine}${seeAlso}
+      ${seeAlso}
     </div>
     ${lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
     ${guidesFor(b.slug).length ? `<section class="guide-panel bt-guides" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
@@ -746,13 +746,13 @@ ${hl ? `<section class="band" style="padding-top:0">
   </div>
 </section>` : `<section class="band" style="padding-top:0">
   <div class="wrap split">
-    <div class="guide"><p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>${guidesFor(b.slug).length
-      ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${byLine}${seeAlso}</div>
+    <div class="guide"><p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.${bySentence}</p>${guidesFor(b.slug).length
+      ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${seeAlso}</div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
-        <p class="eyebrow">How this works</p>
-        <p class="breeder-note">Choose a puppy, then contact its breeder directly. Puppy Connection lists puppies and does not sell them.</p>
+        <p class="eyebrow">${open.length ? `${open.length} available now${priceSpan(shown) ? `, ${priceSpan(shown)}` : ''}` : 'How this works'}</p>
+        <p class="breeder-note">Choose a puppy, then contact its breeder directly. Each breeder sets their own price, and Puppy Connection lists puppies and does not sell them.</p>
         <div class="btn-row"><a class="btn btn-primary" href="#available">See what is available</a></div>
       </div>
     </aside>
@@ -982,7 +982,6 @@ ${others.length ? `<section class="band">
   <div class="wrap">
     <p class="eyebrow"><a href="puppies.html" style="color:inherit">Puppies</a></p>
     <h1>Puppies for sale in ${esc(S)}</h1>
-    <p class="meta">${open.length} available now from ${brs.length} ${brs.length === 1 ? 'breeder' : 'breeders'}${price ? `, priced ${price}` : ''}</p>
     <div class="prose" style="margin-top:1rem">
       <p>These are the puppies listed by breeders in ${esc(S)}${towns.length ? `, from ${esc(towns.slice(0, 6).join(', ').replace(/, ([^,]*)$/, ' and $1'))}` : ''}. Each one is raised and sold by the breeder named on its page, and you contact that breeder directly.</p>
       ${breedsHere.length ? `<p>Breeds listed in ${esc(S)} right now: ${linkList(breedsHere.map((x) => [pageFor.breed(x.slug), x.name]))}.</p>` : ''}

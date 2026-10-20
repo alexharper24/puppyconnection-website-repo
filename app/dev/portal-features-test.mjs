@@ -367,6 +367,13 @@ async function main() {
       r.status === 200 && r.data.duplicates_in_file === 1 && r.data.already === 0 && JSON.stringify(r.data.added) === '{"subscribed":1,"unsubscribed":1,"contact":-1}' && st(w('p1')) === 'subscribed', JSON.stringify(r.data));
     r = await admin.post('/api/subscribers/import', { cells: [[w('h1')], [w('h2')]], part: 1, batch: batchRes.data.batch });
     check('in a file with no header row, a later part does not import the repeated first row again', r.status === 200 && !st(w('h1')) && st(w('h2')) === 'subscribed', JSON.stringify(r.data));
+    // Each tab loads the newest 200 unless the operator picks more.
+    await admin.post('/api/subscribers/import', { cells: [head, ...Array.from({ length: 205 }, (_, i) => ['M', `many-${i}-${stamp}@families.test`, 'Never subscribed'])] });
+    const contacts = Number(sql("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'contact'")[0].n);
+    const shown = async (qs) => (await admin.get(`/api/subscribers?status=contact${qs}`)).data;
+    check('a tab shows the newest 200 by default, and an unknown choice falls back to it', (await shown('')).rows.length === 200 && (await shown('&show=5')).rows.length === 200 && (await shown('&show=5')).show === '200');
+    check('an operator can show 1,000 or everyone in a tab', (await shown('&show=1000')).rows.length === Math.min(1000, contacts) && (await shown('&show=all')).rows.length === contacts, String(contacts));
+    check('showing everyone in one tab still lists only that state', (await shown('&show=all')).rows.every((x) => !x.email.startsWith('wix-sub-')));
     check('a part of more than 500 rows is refused', (await admin.post('/api/subscribers/import', { cells: Array.from({ length: 502 }, (_, i) => [`x${i}-${stamp}@families.test`]) })).status === 400);
     const goneId = sql(`SELECT id FROM subscribers WHERE email = '${w('p3')}'`)[0].id;
     const contactId = (await admin.get('/api/subscribers?status=contact')).data.rows[0]?.id;

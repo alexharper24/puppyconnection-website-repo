@@ -43,7 +43,7 @@ export function brandPath(breederId, kind, key) {
 export async function exportSite(env) {
   const db = env.DB;
   const site = await db.prepare('SELECT generation FROM site_state WHERE id = 1').first();
-  const breeds = (await db.prepare('SELECT id, slug, name, guide FROM breeds ORDER BY name').all()).results;
+  const breeds = (await db.prepare('SELECT id, slug, name, guide, photo_id FROM breeds ORDER BY name').all()).results;
   const breedSlug = Object.fromEntries(breeds.map((b) => [b.id, b.slug]));
   // Workplan A2. Puppies the inactivity schedule took off the site. Their old addresses forward to
   // the breed page, so each breed carries the slugs (all of which were public before).
@@ -69,6 +69,8 @@ export async function exportSite(env) {
     `SELECT id, puppy_id, r2_key, external_url, aspect, width, height, focus_x, focus_y FROM photos
       WHERE puppy_id IN (SELECT id FROM public_puppies) AND (quality IS NULL OR quality = 'pass') ORDER BY puppy_id, position, id`,
   ).all()).results) (photos[r.puppy_id] ||= []).push(r);
+  const photoSrc = {};
+  for (const list of Object.values(photos)) for (const r of list) photoSrc[r.id] = r.r2_key ? photoPath(r).src : r.external_url;
   // Workplan A3. Only videos Stream has finished with, on public puppies.
   const videos = {};
   for (const r of (await db.prepare(
@@ -78,7 +80,9 @@ export async function exportSite(env) {
 
 
   const files = {
-    'data/breeds.json': text(breeds.map((b) => ({ slug: b.slug, name: b.name, guide: paras(b.guide), ...(gone[b.slug] ? { gone: gone[b.slug] } : {}) }))),
+    // The breed's chosen photo (migrations/0030), named by the same src its puppy's photo carries,
+    // and only while that photo is public. Otherwise the site picks one from the listings.
+    'data/breeds.json': text(breeds.map((b) => ({ slug: b.slug, name: b.name, guide: paras(b.guide), ...(photoSrc[b.photo_id] ? { photo: photoSrc[b.photo_id] } : {}), ...(gone[b.slug] ? { gone: gone[b.slug] } : {}) }))),
     'data/breeders.json': text(breeders.map((b) => ({
       slug: b.slug, name: b.business_name, city: b.city, state: b.state, phone: b.public_phone, email: b.public_email,
       website: b.website_url, facebook: b.facebook_url, about: paras(b.description),

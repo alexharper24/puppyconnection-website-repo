@@ -872,18 +872,22 @@ async function devMail(req, env) {
 // migrations/0011_mailing_list.sql. Sending waits on real email (launch checklist L4).
 
 const LIST_STATES = ['subscribed', 'contact', 'unsubscribed'];
+// How many rows the Mailing list screen loads for one tab: the newest 200 unless the operator
+// picks more. "all" is capped well above the Wix list, so one request can never grow without end.
+const LIST_SHOW = { 200: 200, 1000: 1000, all: 20000 };
 
 async function listSubscribers(req, env) {
   const url = new URL(req.url);
   const status = LIST_STATES.includes(url.searchParams.get('status')) ? url.searchParams.get('status') : 'subscribed';
   const q = String(url.searchParams.get('q') || '').trim().toLowerCase();
+  const show = LIST_SHOW[url.searchParams.get('show')] ? url.searchParams.get('show') : '200';
   const counts = (await env.DB.prepare('SELECT status, source, COUNT(*) AS n FROM subscribers GROUP BY status, source').all()).results;
   const where = q ? 'AND (email LIKE ? OR lower(name) LIKE ?)' : '';
   const bind = q ? [status, `%${q}%`, `%${q}%`] : [status];
   const { results } = await env.DB.prepare(
-    `SELECT id, email, name, source, created_at, unsubscribed_at FROM subscribers WHERE status = ? ${where} ORDER BY created_at DESC LIMIT 200`,
-  ).bind(...bind).all();
-  return json({ counts, rows: results, status, q });
+    `SELECT id, email, name, source, created_at, unsubscribed_at FROM subscribers WHERE status = ? ${where} ORDER BY created_at DESC, email LIMIT ?`,
+  ).bind(...bind, LIST_SHOW[show]).all();
+  return json({ counts, rows: results, status, q, show });
 }
 
 async function addSubscriberAdmin(req, env, ctx, id, who) {

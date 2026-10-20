@@ -405,6 +405,12 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     for (const p of pool) p.photos.forEach((ph, i) => { const sc = photoScore(ph, i); if (sc > top) { top = sc; best = ph; } });
     return best;
   };
+  // A breed's own photo, chosen in the database from the professional-looking listing photos
+  // (Alex, 2026-10-19), while one of its puppies still shows it. Otherwise the best-shaped photo.
+  const breedLead = (b, list) => {
+    if (b.photo) for (const p of list) { const ph = p.photos.find((x) => x.src === b.photo); if (ph) return ph; }
+    return leadOf(list);
+  };
   const listedBreeds = D.breeds.filter((b) => breedCounts[b.slug] || b.guide.length);
   const pcListings = D.puppies.map((p) => ({
     slug: p.slug, name: `${p.name} - ${p.b.name}`, price: p.price, in_stock: !p.placed,
@@ -426,7 +432,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     lead_pos: objectPosition(p.photos[0], 600, 400), lead_pos_tall: objectPosition(p.photos[0], 480, 600),
   }));
   const pcBreeds = listedBreeds.map((b) => {
-    const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
+    const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
     return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : null,
       // The phone home page shows breed cards at portrait 4:5 (Alex, 2026-10-07), cropped around the same focus point.
       photo_tall: lead && isWix(lead.src) ? fill(lead, 480, 600) : null };
@@ -694,7 +700,7 @@ ${mates.length ? `<section class="band band-warm">
 
   // ---- breeds
   const breedCard = (b, w = 600, hh = 400) => {
-    const lead = leadOf(D.puppies.filter((p) => p.b.slug === b.slug));
+    const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
     const open = D.puppies.filter((p) => p.b.slug === b.slug && !p.placed).length;
     return `<a class="card" href="${pageFor.breed(b.slug)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, w, hh)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${guidesFor(b.slug).length ? 'Guides' : ''}</span></div></div></a>`;
@@ -702,7 +708,7 @@ ${mates.length ? `<section class="band band-warm">
   for (const b of listedBreeds) {
     const pups = D.puppies.filter((p) => p.b.slug === b.slug).sort(byStanding);
     const open = pups.filter((p) => !p.placed);
-    const lead = leadOf(pups);
+    const lead = breedLead(b, pups);
     const others = listedBreeds.filter((x) => x.slug !== b.slug).slice(0, 8);
     const shown = open.length ? open : pups;
     const where = sharedState(open.length ? open : pups);
@@ -710,8 +716,10 @@ ${mates.length ? `<section class="band band-warm">
     const by = [...new Map(shown.filter((p) => realBreeder(p.br)).map((p) => [p.br.slug, p.br])).values()];
     // Off from 2026-10-07 while the import's guessed breeders were wrong, and on again since the
     // 2026-10-18 pairing (SHOW_BREED_BREEDERS).
-    const byLine = SHOW_BREED_BREEDERS && by.length
-      ? `<p>${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}. Each breeder's page shows the rest of their puppies and how to reach them.</p>`
+    // One sentence at the end of the intro paragraph, not a paragraph of its own under the
+    // highlights, which read as clutter (Alex, 2026-10-19).
+    const bySentence = SHOW_BREED_BREEDERS && by.length
+      ? ` ${open.length ? `The ${esc(b.name)} puppies listed now come` : `Recent ${esc(b.name)} listings came`} from ${linkList(by.map((x) => [pageFor.breeder(x.slug), x.name]))}.`
       : '';
     const alsoBreeds = (SEE_ALSO[b.slug] || []).map((s) => listedBreeds.find((x) => x.slug === s)).filter(Boolean);
     // Breed page option 2 (Alex, 2026-10-11): an intro, four highlights and a price card, with the
@@ -724,16 +732,14 @@ ${mates.length ? `<section class="band band-warm">
   <div class="wrap">
     <p class="eyebrow"><a href="breeds.html" style="color:inherit">Breeds</a></p>
     <h1>${esc(b.name)} puppies for sale</h1>
-    <p class="meta">${open.length} available now${priceSpan(shown) ? `, ${open.length ? '' : 'recently '}priced ${priceSpan(shown)}` : ''}</p>
-    ${priceSpan(shown) && !hl ? '<p class="meta" style="margin-top:.2rem">Each breeder sets their own price.</p>' : ''}
   </div>
 </section>
 ${hl ? `<section class="band" style="padding-top:0">
   <div class="wrap breed-top${guidesFor(b.slug).length ? ' has-guides' : ''}">
     <div class="guide bt-text">
-      <p class="breed-intro">${esc(hl.intro)}</p>
+      <p class="breed-intro">${esc(hl.intro)}${bySentence}</p>
       <ul class="highlights">${hl.points.map((x) => `<li><b>${esc(x.lead)}</b> ${esc(x.text)}</li>`).join('')}</ul>
-      ${byLine}${seeAlso}
+      ${seeAlso}
     </div>
     ${lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
     ${guidesFor(b.slug).length ? `<section class="guide-panel bt-guides" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
@@ -746,13 +752,13 @@ ${hl ? `<section class="band" style="padding-top:0">
   </div>
 </section>` : `<section class="band" style="padding-top:0">
   <div class="wrap split">
-    <div class="guide"><p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.</p>${guidesFor(b.slug).length
-      ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${byLine}${seeAlso}</div>
+    <div class="guide"><p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.${bySentence}</p>${guidesFor(b.slug).length
+      ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${seeAlso}</div>
     <aside>
       ${lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
-        <p class="eyebrow">How this works</p>
-        <p class="breeder-note">Choose a puppy, then contact its breeder directly. Puppy Connection lists puppies and does not sell them.</p>
+        <p class="eyebrow">${open.length ? `${open.length} available now${priceSpan(shown) ? `, ${priceSpan(shown)}` : ''}` : 'How this works'}</p>
+        <p class="breeder-note">Choose a puppy, then contact its breeder directly. Each breeder sets their own price, and Puppy Connection lists puppies and does not sell them.</p>
         <div class="btn-row"><a class="btn btn-primary" href="#available">See what is available</a></div>
       </div>
     </aside>
@@ -792,7 +798,7 @@ ${others.length ? `<section class="band">
     const b = listedBreeds.find((x) => x.slug === g.breed);
     const pups = D.puppies.filter((p) => p.b.slug === b.slug).sort(byStanding);
     const open = pups.filter((p) => !p.placed);
-    const lead = leadOf(pups);
+    const lead = breedLead(b, pups);
     const siblings = guidesFor(b.slug).filter((x) => x.slug !== g.slug);
     const body = `<main id="guidePage">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem">
@@ -843,7 +849,7 @@ ${open.length ? `<section class="band band-warm">
 ${withGuides.map((b) => {
   // Option A (Alex, 2026-10-11): a card per breed with its photo and its guides.
   const bp = D.puppies.filter((p) => p.b.slug === b.slug);
-  const lead = leadOf(bp), n = bp.filter((p) => !p.placed).length, pr = priceSpan(bp.filter((p) => !p.placed));
+  const lead = breedLead(b, bp), n = bp.filter((p) => !p.placed).length, pr = priceSpan(bp.filter((p) => !p.placed));
   return `<article class="gc" id="${esc(b.slug)}"><a class="gc-photo" href="${pageFor.breed(b.slug)}" tabindex="-1" aria-hidden="true">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="" loading="lazy" decoding="async" width="600" height="400">` : ''}</a>
 <div class="gc-body"><h2><a href="${pageFor.breed(b.slug)}">${esc(b.name)}</a></h2><p class="gc-meta">${n} available${pr ? `, ${pr}` : ''}</p>${guideList(b.slug, 'gc-list')}</div></article>`;
 }).join('\n')}
@@ -982,7 +988,6 @@ ${others.length ? `<section class="band">
   <div class="wrap">
     <p class="eyebrow"><a href="puppies.html" style="color:inherit">Puppies</a></p>
     <h1>Puppies for sale in ${esc(S)}</h1>
-    <p class="meta">${open.length} available now from ${brs.length} ${brs.length === 1 ? 'breeder' : 'breeders'}${price ? `, priced ${price}` : ''}</p>
     <div class="prose" style="margin-top:1rem">
       <p>These are the puppies listed by breeders in ${esc(S)}${towns.length ? `, from ${esc(towns.slice(0, 6).join(', ').replace(/, ([^,]*)$/, ' and $1'))}` : ''}. Each one is raised and sold by the breeder named on its page, and you contact that breeder directly.</p>
       ${breedsHere.length ? `<p>Breeds listed in ${esc(S)} right now: ${linkList(breedsHere.map((x) => [pageFor.breed(x.slug), x.name]))}.</p>` : ''}

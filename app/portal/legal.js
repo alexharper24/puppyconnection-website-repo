@@ -48,6 +48,7 @@ export function privacyPage() {
 <li>The business name you give when you sign up.</li>
 <li>The profile you fill in, meaning your business name, the phone and email buyers can use, your website, your town and state, and the words about your kennel. A contact name is optional and stays private to Puppy Connection.</li>
 <li>The email address, and the name if you give one, of each person you add to your account to help manage it.</li>
+<li>The reference you name before your account is approved, meaning their name, who they are (for example your veterinarian) and their phone or email. Only Puppy Connection sees it, and may contact them to confirm you are a real breeder. It is never shown on the site.</li>
 <li>Your litters and puppies, with the details and photos you add.</li>
 <li>Any extras you choose to add to your profile, meaning a logo, a kennel photo, the breeds you raise and a Facebook page.</li>
 <li>A record of your listing payments, meaning the amount, the date and which puppies each payment covers.</li>

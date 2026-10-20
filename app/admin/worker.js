@@ -9,12 +9,13 @@ import {
 import {
   loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithPuppies, photoUrl,
   profileFields, profileStmt, profileBefore, noticeContactChange, breederBreeds, brandUrl, serveBrand,
-  litterFields, puppyFields, litterInput, puppyInput, currentTerms, contactChanges, puppySet, puppyValues,
+  litterFields, puppyFields, litterInput, puppyInput, currentTerms, contactChanges, puppySet, puppyValues, loadReference,
 } from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
 import { videoUrls, removeVideo } from '../lib/stream.js';
 import { listReports, closeReport } from '../lib/reports.js';
 import { reasonText } from '../lib/photocheck.js';
+import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
 import { buildExport } from '../lib/export.js';
 import { runJob, JOBS } from '../lib/jobs.js';
@@ -22,10 +23,14 @@ import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
 import { addSubscriber, parseSubscriberCsv, readSubscriberRows, EMAIL_OK } from '../lib/subscribers.js';
-import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest } from '../lib/campaigns.js';
+import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest, audienceCount, audienceOf } from '../lib/campaigns.js';
 import { cleanImage } from '../lib/images.js';
 import { randomToken } from '../lib/util.js';
 import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
+import {
+  checklist, checklistSummary, checklistItem, addChecklistItem, editChecklistItem, tickChecklistItem, moveChecklistItem,
+  archiveChecklistItem, commentChecklistItem, addChecklistPart, editChecklistPart, tickChecklistPart, moveChecklistPart, archiveChecklistPart,
+} from '../lib/checklist.js';
 
 /** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
 async function listJobs(req, env) {
@@ -131,7 +136,9 @@ async function breederDetail(req, env, ctx, id) {
   const terms = await currentTerms(env);
   const breeds = (await env.DB.prepare('SELECT id, name FROM breeds ORDER BY name').all()).results;
   const members = (await env.DB.prepare('SELECT email, name, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(id).all()).results;
-  return json({ breeder: b, litters, checkouts, audit, extras, members, close_request: closeRequest || null, notes: await notesFor(env, id),
+  // Workplan A13. The reference they named before submitting, shown beside Approve.
+  const reference = await loadReference(env, id);
+  return json({ breeder: b, litters, checkouts, audit, extras, members, reference, close_request: closeRequest || null, notes: await notesFor(env, id),
     terms: { current: terms.version, accepted: b.terms_version || null }, breeds, registries: (await settings(env)).registries });
 }
 
@@ -275,7 +282,7 @@ async function listListings(req, env) {
   if (!where) throw bad('Unknown filter.');
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.slug, p.name, p.breeder_id, p.price_cents, p.payment_state, p.publication_state, p.availability,
-            p.operator_hold, p.expires_at, p.version, br.name AS breed, bp.business_name,
+            p.operator_hold, p.hold_kind, p.hold_reason, p.expires_at, p.version, br.name AS breed, bp.business_name,
             (SELECT COUNT(*) FROM photos ph WHERE ph.puppy_id = p.id) AS photos,
             (SELECT ph.id FROM photos ph WHERE ph.puppy_id = p.id ORDER BY ph.position LIMIT 1) AS cover_id,
             (SELECT COALESCE(ph.external_url, '') FROM photos ph WHERE ph.puppy_id = p.id ORDER BY ph.position LIMIT 1) AS cover_ext,
@@ -288,16 +295,31 @@ async function listListings(req, env) {
   return json(results);
 }
 
+// A hold takes a listing off the site until an operator releases it. Workplan A14 adds a second
+// kind, photos: take offline until new photos, with a short reason the breeder sees in the portal
+// and by email. That kind lifts itself when the breeder uploads a photo that passes the photo
+// check (photoPassedStmts in lib/inactivity.js), and Release still lifts either kind.
 async function holdPuppy(req, env, ctx, id, who) {
   requireSameOrigin(req);
-  const { on } = await readJson(req);
+  const body = await readJson(req);
+  const on = !!body.on;
+  const photos = on && body.kind === 'photos';
+  const reason = photos ? clean(body.reason, 200) : null;
+  if (photos && !reason) throw bad('Say in a few words what is wrong with the photos. The breeder sees it.');
   const p = await env.DB.prepare('SELECT * FROM puppies WHERE id = ?').bind(id).first();
   if (!p) throw notFound();
+  const t = now();
   await env.DB.batch([
-    env.DB.prepare('UPDATE puppies SET operator_hold = ?, updated_at = ?, version = version + 1 WHERE id = ?').bind(on ? 1 : 0, now(), id),
-    auditStmt(env, 'operator', who.email, on ? 'puppy.hold' : 'puppy.release', 'puppy', id, { operator_hold: p.operator_hold }, { operator_hold: on ? 1 : 0, breeder_id: p.breeder_id }),
+    env.DB.prepare('UPDATE puppies SET operator_hold = ?, hold_kind = ?, hold_reason = ?, hold_at = ?, updated_at = ?, version = version + 1 WHERE id = ?')
+      .bind(on ? 1 : 0, photos ? 'photos' : null, reason, on ? t : null, t, id),
+    auditStmt(env, 'operator', who.email, photos ? 'puppy.photo_hold' : on ? 'puppy.hold' : 'puppy.release', 'puppy', id,
+      { operator_hold: p.operator_hold, hold_kind: p.hold_kind || null }, { operator_hold: on ? 1 : 0, breeder_id: p.breeder_id, ...(photos ? { reason } : {}) }),
     dirtyStmt(env),
   ]);
+  if (photos) {
+    const b = await env.DB.prepare('SELECT email FROM breeders WHERE id = ?').bind(p.breeder_id).first();
+    ctx.waitUntil(sendMail(env, b.email, 'photo_hold', { puppy: p.name, reason, link: `${env.PORTAL_ORIGIN || ''}/#/litters?photos=${id}` }).catch((e) => console.error(e)));
+  }
   return json({ ok: true });
 }
 
@@ -313,9 +335,12 @@ async function compPuppy(req, env, ctx, id, who) {
   await env.DB.batch([
     env.DB.prepare(
       `UPDATE puppies SET payment_state = CASE WHEN payment_state = 'paid' THEN 'paid' ELSE 'comped' END,
-         publication_state = 'published', published_at = COALESCE(published_at, ?), expires_at = ?, updated_at = ?, version = version + 1
+         publication_state = 'published', published_at = COALESCE(published_at, ?), expires_at = ?, updated_at = ?, version = version + 1,
+         -- Workplan A12. Listing a puppy free starts its photo clock, as a payment does.
+         last_photo_at = ?,
+         inactive_stage = NULL, stage_at = NULL, inactive_at = NULL
        WHERE id = ?`,
-    ).bind(t, s.listingDays > 0 ? addDays(base, s.listingDays) : null, t, id),
+    ).bind(t, s.listingDays > 0 ? addDays(base, s.listingDays) : null, t, t, id),
     auditStmt(env, 'operator', who.email, 'puppy.comp', 'puppy', id, { payment_state: p.payment_state, publication_state: p.publication_state },
       { breeder_id: p.breeder_id, days: s.listingDays }),
     dirtyStmt(env),
@@ -409,9 +434,10 @@ const EDITABLE = {
   photo_check_route: (v) => v === 'breeder' || v === 'review',
   // Workplan A8. Days after adoption that a puppy page leaves the sitemap and becomes noindex.
   adopted_index_days: (v) => /^\d{1,3}$/.test(v) && Number(v) >= 1,
-  // Workplan A2. Days to the two reminders, offline and removed, rising, and the free window.
+  // Workplan A12. The go-live date the photo clock waits for, as YYYY-MM-DD, or empty for no wait.
+  photo_clock_start: (v) => v === '' || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))),
+  // Workplan A12. Days with no new photo to the two warnings, offline and removed, rising.
   inactivity_days: (v) => /^\d{1,3},\d{1,3},\d{1,3},\d{1,3}$/.test(v) && v.split(',').map(Number).every((n, i, a) => n >= 1 && (i === 0 || n > a[i - 1])),
-  reactivate_days: (v) => /^\d{1,3}$/.test(v),
   // terms_version is no longer typed in here. Publishing on the Terms screen sets it (plan P3.4).
 };
 
@@ -690,7 +716,7 @@ const REPORT_CSV = {
   breeds: (d) => [['Breed', 'Live on the site', 'Marked placed', 'Drafts'], d.breeds.map((b) => [b.breed, b.live, b.placed, b.draft])],
   summary: (d) => [['Measure', 'Count'], [['Live on the site', d.summary.live], ['Marked placed', d.summary.placed], ['Drafts', d.summary.draft],
     ['On hold', d.summary.held], ['Approved breeders', d.summary.approved_breeders], ['Marked pending', d.summary.pending],
-    ['Reminded, not updated', d.summary.reminded], ['Off the site for no update', d.summary.offline], ['Removed for no update', d.summary.removed],
+    ['Emailed for a new photo', d.summary.reminded], ['Off the site for no new photo', d.summary.offline], ['Removed for no new photo', d.summary.removed],
     ['New breeders, last 30 days', d.summary.new_breeders_30], ['Waiting for approval', d.summary.waiting_approval]]],
   new_breeders: (d) => [['Month', 'Signed up', 'Approved now'], d.new_breeders.map((m) => [m.month, m.signed_up, m.approved])],
   sales: (d) => [['Month', 'Marked placed by breeders', 'Of which imported Wix listings'], d.sales.map((m) => [m.month, m.placed, m.imported])],
@@ -968,10 +994,11 @@ async function subscribersCsv(req, env) {
 
 async function listCampaigns(req, env) {
   const { results } = await env.DB.prepare(
-    'SELECT id, subject, body, status, created_by, created_at, updated_at, send_started_at, sent_at, total, sent_count, failed_count FROM campaigns ORDER BY created_at DESC LIMIT 50',
+    'SELECT id, subject, body, status, audience, created_by, created_at, updated_at, send_started_at, sent_at, total, sent_count, failed_count FROM campaigns ORDER BY created_at DESC LIMIT 50',
   ).all();
-  const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'subscribed'").first();
-  return json({ campaigns: results, subscribed: n, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
+  // The count for each audience, shown on the send button before anything is sent (launch workplan C5).
+  const n = await audienceCount(env, 'subscribers'), all = await audienceCount(env, 'all');
+  return json({ campaigns: results, subscribed: n, audiences: { subscribers: n, all }, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
 }
 
 function campaignInput(body) {
@@ -1035,11 +1062,14 @@ async function sendCampaign(req, env, ctx, id, who) {
   if (c.status !== 'draft') throw bad('That email has already been sent or is sending.');
   if (!(await mailingAddress(env))) throw bad('Add the mailing address first. The law on marketing email requires one in every email.');
   const body = await readJson(req);
-  const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'subscribed'").first();
-  if (!n) throw bad('Nobody is on the list yet.');
-  if (Number(body.confirm_count) !== n) throw bad(`The list has ${n} people on it now. Check the number and send again.`);
-  const total = await startCampaign(env, id);
-  await auditStmt(env, 'operator', who.email, 'campaign.send', 'campaign', id, null, { subject: c.subject, total }).run();
+  let audience;
+  try { audience = audienceOf(body.audience); } catch { throw bad('Choose subscribers only, or all contacts.'); }
+  const n = await audienceCount(env, audience);
+  if (!n) throw bad(audience === 'all' ? 'There are no contacts to send to.' : 'Nobody is on the list yet.');
+  // The count the operator saw must still be the count, so a send never reaches more people than they confirmed.
+  if (Number(body.confirm_count) !== n) throw bad(`${audience === 'all' ? 'All contacts come' : 'The list comes'} to ${n} people now. Check the number and send again.`);
+  const total = await startCampaign(env, id, audience);
+  await auditStmt(env, 'operator', who.email, 'campaign.send', 'campaign', id, null, { subject: c.subject, audience, total }).run();
   ctx.waitUntil(runCampaigns(env).catch((e) => console.error('campaign run failed', e)));
   return json({ ok: true, total });
 }
@@ -1198,6 +1228,8 @@ async function decidePhoto(req, env, ctx, id, who, outcome) {
     auditStmt(env, 'operator', who.email, `photo.${quality}`, 'puppy', ph.puppy_id, null, { photo: id }),
   ];
   if (quality === 'pass' && await isPublicPuppy(env, ph.puppy_id)) stmts.push(dirtyStmt(env));
+  // Workplan A12 and A14. A kept photo counts as a new photo for the schedule and a photo hold.
+  if (quality === 'pass') stmts.push(...await photoPassedStmts(env, ph.puppy_id, ph.created_at, { type: 'operator', email: who.email }));
   await env.DB.batch(stmts);
   if (quality === 'sent_back') {
     const b = await loadBreeder(env, ph.breeder_id);
@@ -1276,6 +1308,21 @@ const STAFF_ALLOWED = [
 const staffMay = (method, pathname) => STAFF_ALLOWED.some(([m, rx]) => m === method && rx.test(pathname));
 
 const ROUTES = [
+  // Workplan A17. The launch checklist (lib/checklist.js). Owners only, like every route staff are not given.
+  ['GET', /^\/api\/checklist$/, checklist],
+  ['GET', /^\/api\/checklist\/summary$/, checklistSummary],
+  ['POST', /^\/api\/checklist\/items$/, addChecklistItem],
+  ['GET', /^\/api\/checklist\/items\/([\w-]+)$/, checklistItem],
+  ['PUT', /^\/api\/checklist\/items\/([\w-]+)$/, editChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/tick$/, tickChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/move$/, moveChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/(archive|restore)$/, archiveChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/comments$/, commentChecklistItem],
+  ['POST', /^\/api\/checklist\/items\/([\w-]+)\/parts$/, addChecklistPart],
+  ['PUT', /^\/api\/checklist\/parts\/([\w-]+)$/, editChecklistPart],
+  ['POST', /^\/api\/checklist\/parts\/([\w-]+)\/tick$/, tickChecklistPart],
+  ['POST', /^\/api\/checklist\/parts\/([\w-]+)\/move$/, moveChecklistPart],
+  ['POST', /^\/api\/checklist\/parts\/([\w-]+)\/(archive|restore)$/, archiveChecklistPart],
   ['GET', /^\/api\/photo-review$/, photoReview],
   ['POST', /^\/api\/photo-review\/([\w-]+)\/(keep|send_back)$/, decidePhoto],
   ['GET', /^\/api\/listing-reports$/, listingReports],

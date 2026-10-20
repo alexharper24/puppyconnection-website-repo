@@ -14,9 +14,9 @@ import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
   BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
-  PUPPY_EDIT_COLS, puppySet, puppyValues,
+  PUPPY_EDIT_COLS, puppySet, puppyValues, referenceFields, referenceStmt, loadReference, REFERENCE_ROLES,
 } from '../lib/store.js';
-import { sendMail, alertOps } from '../lib/mail.js';
+import { sendMail, alertOps, alertOnce, failTest } from '../lib/mail.js';
 import { siteBreederSlug } from '../lib/export.js';
 import { breederStats } from '../lib/stats.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
@@ -28,7 +28,7 @@ import {
 import { cleanImage } from '../lib/images.js';
 import { reportTarget, reportForm, saveReport } from '../lib/reports.js';
 import { photoCheckMode, checkPhoto, reasonText } from '../lib/photocheck.js';
-import { freshStmt, reactivate, reactivation, stillAvailable, inactivitySettings } from '../lib/inactivity.js';
+import { photoPassedStmts, scheduleFor, inactivitySettings } from '../lib/inactivity.js';
 import {
   streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
 } from '../lib/stream.js';
@@ -229,7 +229,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=14"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=15"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
@@ -432,6 +432,9 @@ async function me(request, env) {
   out.terms = { version: terms.version, body: terms.body, published_at: terms.published_at, accepted_version: breeder.terms_version || null,
     needs_accept: termsNeedAccept(breeder, terms.version) };
   out.site_origin = siteOrigin(env) || null;
+  // Workplan A13. The reference a breeder names before approval, shown back to them while pending.
+  out.reference_roles = REFERENCE_ROLES;
+  out.reference = breeder.status === 'pending' ? await loadReference(env, breeder.id) : null;
   out.site_url = siteOrigin(env) && breeder.slug && await isPublicBreeder(env, breeder.id)
     ? sitePage(env, 'breeder', breeder.slug, siteBreederSlug(breeder)) : null;
   return json(out);
@@ -484,10 +487,14 @@ async function submitProfile(request, env, ctx) {
   if (!breeder.public_phone && !breeder.public_email) missing.push('a public phone or email');
   if (!breeder.city || !breeder.state) missing.push('city and state');
   if (missing.length) throw bad(`Your profile still needs ${missing.join(', ')}.`);
+  // Workplan A13. Sign-up cannot finish without one reference who can confirm the breeder is real.
+  const ref = referenceFields(body.reference);
   const s = await settings(env);
   const t = now();
   const first = !breeder.profile_submitted_at;
   await env.DB.batch([
+    referenceStmt(env, breeder.id, ref),
+    auditStmt(env, 'breeder', breeder.email, 'reference.save', 'breeder', breeder.id, null, { role: ref.role }),
     env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, profile_submitted_at = COALESCE(profile_submitted_at, ?), updated_at = ? WHERE id = ?')
       .bind(s.termsVersion, t, t, t, breeder.id),
     auditStmt(env, 'breeder', breeder.email, 'profile.submit', 'breeder', breeder.id, null, { terms_version: s.termsVersion }),
@@ -499,6 +506,22 @@ async function submitProfile(request, env, ctx) {
       ctx.waitUntil(sendMail(env, r.email, 'profile_submitted', { business: breeder.business_name, adminUrl }).catch((e) => console.error(e)));
     }
   }
+  return me(request, env);
+}
+
+/**
+ * Workplan A13. A breeder still waiting for approval adds or corrects their reference. A breeder
+ * who submitted before references were asked for adds one here, and the admin sees it at once.
+ */
+async function saveReference(request, env) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  if (breeder.status !== 'pending') throw forbidden('A reference is asked for only while an account waits for approval.');
+  const ref = referenceFields(await readJson(request));
+  await env.DB.batch([
+    referenceStmt(env, breeder.id, ref),
+    auditStmt(env, 'breeder', breeder.email, 'reference.save', 'breeder', breeder.id, null, { role: ref.role }),
+  ]);
   return me(request, env);
 }
 
@@ -893,7 +916,6 @@ async function setAvailability(request, env, ctx, id) {
     env.DB.prepare('UPDATE puppies SET availability = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ? AND version = ?')
       .bind(availability, now(), id, breeder.id, Number(body.version)),
     auditStmt(env, 'breeder', breeder.email, 'puppy.availability', 'puppy', id, { availability: before.availability }, { availability }),
-    freshStmt(env, id),
   ];
   if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'puppy');
@@ -916,8 +938,6 @@ async function updatePuppy(request, env, ctx, id) {
     ).bind(...puppyValues(f), now(), id, breeder.id, Number(body.version)),
     auditStmt(env, 'breeder', breeder.email, 'puppy.update', 'puppy', id, before, f),
   ];
-  // Workplan A2. A change to price, description or status counts as an update for the schedule.
-  if (f.price_cents !== before.price_cents || f.description !== before.description || f.availability !== before.availability) stmts.push(freshStmt(env, id));
   if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'puppy');
   return json({ ok: true });
@@ -966,8 +986,10 @@ async function uploadPhoto(request, env, ctx, puppyId) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, img.size ? img.size.w : null, img.size ? img.size.h : null, now(), quality),
     auditStmt(env, 'breeder', breeder.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, stripped: raw.length - img.bytes.length }),
-    freshStmt(env, puppyId),
   ];
+  // Workplan A12. With the check off a new photo counts at once. Otherwise it counts when it passes
+  // (lib/photocheck.js), so a photo that is sent back keeps nothing on the site.
+  if (!quality) stmts.push(...await photoPassedStmts(env, puppyId, now(), { type: 'breeder', email: breeder.email }));
   if (await hasPublic(env, 'id = ?', puppyId)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
   return json({ id, url: `/media/${id}`, stripped_bytes: raw.length - img.bytes.length }, 201);
@@ -981,7 +1003,6 @@ async function deletePhoto(request, env, ctx, id) {
   const stmts = [
     env.DB.prepare('DELETE FROM photos WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
     auditStmt(env, 'breeder', breeder.email, 'photo.remove', 'puppy', photo.puppy_id, { photo: id }, null),
-    freshStmt(env, photo.puppy_id),
   ];
   if (await hasPublic(env, 'id = ?', photo.puppy_id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -1007,43 +1028,16 @@ async function uploadCard(request, env, ctx, id) {
   return json({ ok: true, bytes: img.bytes.length }, 201);
 }
 
-// ------------------------------------------------------------------ the inactivity schedule (workplan A2)
+// ------------------------------------------------------------------ the photo-based schedule (workplan A12)
 
-/** The portal's Still available button on a puppy that has had a reminder. */
-async function keepListed(request, env, ctx, id) {
-  requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
-  const p = await owned(env, 'puppy', id, breeder.id);
-  if (p.publication_state !== 'published') throw bad('That puppy is not on the site. Bring it back instead.');
-  await env.DB.batch([freshStmt(env, id), auditStmt(env, 'breeder', breeder.email, 'listing.still_available', 'puppy', id, null, null)]);
-  return json({ ok: true });
-}
-
-async function bringBack(request, env, ctx, id) {
-  requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
-  const p = await owned(env, 'puppy', id, breeder.id);
-  const r = await reactivate(env, p, { type: 'breeder', email: breeder.email });
-  if (r.error) throw bad(r.error);
-  return json(r);
-}
-
-/** The emailed one-click link. GET changes nothing, because mail scanners open links first. */
-function stillAvailablePage(request) {
-  const t = new URL(request.url).searchParams.get('t') || '';
-  return html(page('Still available', `<h1>Is this puppy still available?</h1>
-<p>Press the button to keep the listing on Puppy Connection. Nothing else changes.</p>
-<form method="post" action="/still-available"><input type="hidden" name="t" value="${esc(t)}">
-<button class="btn btn-primary" type="submit">Still available</button></form>`));
-}
-
-async function stillAvailableSubmit(request, env) {
-  requireSameOrigin(request);
-  const form = await request.formData();
-  const p = await stillAvailable(env, String(form.get('t') || ''));
-  if (!p) return html(page('Link already used', '<h1>That link has already been used or has expired</h1><p>Sign in to the breeder portal to see where each listing stands.</p><p><a class="btn btn-primary" href="/">Breeder portal</a></p>'), 410);
-  return html(page('Still available', `<h1>Thank you</h1><p>${esc(p.name)} stays on Puppy Connection.</p><p><a class="btn btn-primary" href="/">Breeder portal</a></p>`));
+/**
+ * The emailed Still available link of the old schedule (A2). Listings now stay up with a new photo,
+ * so an old link only says so and opens the portal. It changes nothing.
+ */
+function stillAvailablePage() {
+  return html(page('Add a new photo', `<h1>Listings now stay up with a new photo</h1>
+<p>Puppy Connection keeps a listing on the site while it has a new photo at least every four weeks. Sign in to the breeder portal and add a photo to any listing that needs one.</p>
+<p><a class="btn btn-primary" href="/#/litters">Breeder portal</a></p>`));
 }
 
 /** Workplan A9. Run the quality check on one of the breeder's photos and say what it found. */
@@ -1163,8 +1157,8 @@ async function listings(request, env) {
   for (const l of litters) {
     for (const p of l.puppies) {
       p.videos = vids[p.id] || [];
-      // Workplan A2. Where the puppy is in the inactivity schedule, and whether it can come back free.
-      p.reactivation = reactivation(p, inact);
+      // Workplan A12. Where the puppy is in the photo schedule and by when it needs a new photo.
+      p.schedule = scheduleFor(p, breeder, inact);
       p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons) }));
       // Workplan A9. A photo the check sent back or is holding does not count toward the listing.
       const usable = p.photos.filter((ph) => !ph.quality || ph.quality === 'pass' || ph.quality === 'pending').length;
@@ -1280,10 +1274,24 @@ async function stripeWebhook(request, env, ctx) {
   if (env.PAYMENTS_MODE !== 'stripe' || !env.STRIPE_WEBHOOK_SECRET) throw notFound();
   let event;
   try { event = await verifyStripe(request, env.STRIPE_WEBHOOK_SECRET); } catch (e) {
+    // Launch workplan B10. A refused webhook is either a stranger or a signing secret out of step
+    // with Stripe, and the second stops every listing payment, so the owners hear of it, once an hour.
+    ctx.waitUntil(alertOnce(env, 'stripe_webhook', 'A Stripe webhook was refused',
+      `The portal refused a call to /stripe/webhook: ${e.message}\n\nOne refusal can be a stranger. Repeated refusals mean STRIPE_WEBHOOK_SECRET no longer matches the endpoint's signing secret in Stripe, and paid listings then go live only through the success page and the checkout check job.`)
+      .catch((x) => console.error('alert failed', x)));
     return json({ error: e.message }, 400);
   }
-  const result = await handleEvent(env, event, ctx);
-  return json({ received: true, result });
+  try {
+    if (failTest(env, 'stripe')) throw new Error('Forced test failure of the webhook handler (FAIL_TEST).');
+    const result = await handleEvent(env, event, ctx);
+    return json({ received: true, result });
+  } catch (e) {
+    console.error('webhook failed', e);
+    // A 500 makes Stripe send the event again, with backoff, for up to three days.
+    await alertOnce(env, 'stripe_webhook_failed', 'A Stripe webhook failed', `Event ${event.id} (${event.type}) could not be handled: ${String(e.message || e)}\n\nStripe sends it again over the next three days. The Payments screen shows the checkout.`)
+      .catch((x) => console.error('alert failed', x));
+    return json({ error: 'The event could not be handled.' }, 500);
+  }
 }
 
 // ------------------------------------------------------------------ local mailbox
@@ -1465,6 +1473,7 @@ const ROUTES = [
   ['GET', /^\/api\/me$/, me],
   ['PUT', /^\/api\/profile$/, saveProfile],
   ['POST', /^\/api\/profile\/submit$/, submitProfile],
+  ['POST', /^\/api\/profile\/reference$/, saveReference],
   ['PUT', /^\/api\/profile\/extras$/, saveExtras],
   ['POST', /^\/api\/profile\/(logo|kennel)$/, uploadBrand],
   ['POST', /^\/api\/profile\/(logo|kennel)\/card$/, uploadBrandCard],
@@ -1498,10 +1507,7 @@ const ROUTES = [
   ['GET', /^\/dev\/stream\/(\w+)\/(iframe|video)$/, (r, e, c, uid, what) => simServe(e, uid, what)],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, uploadCard],
   ['POST', /^\/api\/photos\/([\w-]+)\/check$/, checkMyPhoto],
-  ['POST', /^\/api\/puppies\/([\w-]+)\/still-available$/, keepListed],
-  ['POST', /^\/api\/puppies\/([\w-]+)\/reactivate$/, bringBack],
-  ['GET', /^\/still-available$/, (r) => stillAvailablePage(r)],
-  ['POST', /^\/still-available$/, stillAvailableSubmit],
+  ['GET', /^\/still-available$/, () => stillAvailablePage()],
   ['GET', /^\/media\/([\w-]+)$/, media],
   ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id) => media(r, e, c, id, true)],
   ['POST', /^\/api\/checkouts$/, startCheckout],
@@ -1557,6 +1563,8 @@ export default {
   },
   // The two cron triggers in wrangler.jsonc (lib/jobs.js says which job runs when).
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runScheduled(event, env).then((r) => console.log('jobs', JSON.stringify(r))));
+    // Each job alerts on its own failure (lib/jobs.js). This catches a run that fails outside them.
+    ctx.waitUntil(runScheduled(event, env).then((r) => console.log('jobs', JSON.stringify(r)))
+      .catch((e) => alertOnce(env, 'cron', `The scheduled run ${event.cron} failed`, String(e.stack || e)).catch((x) => console.error('alert failed', x))));
   },
 };

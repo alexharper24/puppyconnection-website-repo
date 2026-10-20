@@ -105,7 +105,7 @@ async function breeder(tag, approve, name) {
   await c.req('POST', '/auth/verify', new URLSearchParams({ t: token }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: business, public_phone: '555-0103', city: 'Nappanee', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true });
+  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   if (approve) await admin.post(`/api/breeders/${me.id}/approve`, {});
   return { c, id: me.id, email, name: business };
 }
@@ -220,6 +220,9 @@ async function features() {
   const t0 = (await admin.get('/api/terms')).data;
   check('P3.4 the terms screen starts from the version on file, marked as a placeholder', !!t0.current.version && /REPLACE THIS/.test(t0.draft.body) && (await A.c.get('/api/me')).data.terms.needs_accept === false,
     JSON.stringify(t0.current));
+  // The starting draft carries Amber's photo standard (workplan A14), so it differs from the version
+  // on file. Put the current text back in the draft to test the refusal.
+  await admin.put('/api/terms/draft', { body: t0.current.body });
   check('P3.4 publishing a draft identical to the current terms is refused', (await admin.post('/api/terms/publish', {})).status === 400);
   const newText = `Test terms ${stamp}. Listings must describe real puppies.\n\nThis is a test version written by the admin suite.`;
   await admin.put('/api/terms/draft', { body: newText });
@@ -385,6 +388,23 @@ async function features() {
     check('a contact who never subscribed gets nothing', (await mailTo(`send-contact-${stamp}@families.test`)).every((m) => m.subject !== `Launch ${stamp}`)
       && !sql(`SELECT 1 FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id WHERE cs.campaign_id = '${cid}' AND s.status = 'contact'`).length);
     check('a sent email can no longer be changed or sent again', (await admin.put(`/api/campaigns/${cid}`, { subject: 'x', body: 'y' })).status === 400 && (await admin.post(`/api/campaigns/${cid}/send`, { confirm_count: list.subscribed })).status === 400);
+
+    // Launch workplan C5. A send to all contacts, with the count shown before sending.
+    const counts = sql("SELECT SUM(status = 'subscribed') AS s, SUM(status IN ('subscribed','contact')) AS a FROM subscribers")[0];
+    check('the send screen shows a count for subscribers and for all contacts', list.audiences && list.audiences.subscribers === counts.s && list.audiences.all === counts.a, JSON.stringify(list.audiences));
+    r = await admin.post('/api/campaigns', { subject: `Announcement ${stamp}`, body: 'The new site is open.' });
+    const aid = r.data.id;
+    check('a send to all contacts refuses the subscriber count', (await admin.post(`/api/campaigns/${aid}/send`, { audience: 'all', confirm_count: list.audiences.subscribers })).status === 400);
+    check('an unknown audience is refused', (await admin.post(`/api/campaigns/${aid}/send`, { audience: 'everyone', confirm_count: list.audiences.all })).status === 400);
+    r = await admin.post(`/api/campaigns/${aid}/send`, { audience: 'all', confirm_count: list.audiences.all });
+    check('the send to all contacts starts for every contact who has not unsubscribed', r.status === 200 && r.data.total === list.audiences.all, JSON.stringify(r.data));
+    for (let i = 0; i < 20; i += 1) { state = sql(`SELECT status, sent_count, total FROM campaigns WHERE id = '${aid}'`)[0]; if (state.status === 'sent' || state.sent_count >= Math.min(400, state.total)) break; await sleep(500); }
+    const ctoken = sql(`SELECT unsub_token FROM subscribers WHERE email = 'send-contact-${stamp}@families.test'`)[0].unsub_token;
+    check('a never-subscribed contact gets the announcement with their own unsubscribe link', (await mailTo(`send-contact-${stamp}@families.test`)).some((m) => m.subject === `Announcement ${stamp}` && m.body.includes(`unsubscribe?t=${ctoken}`)));
+    check('the subscriber gets it too', (await mailTo(`send-a-${stamp}@families.test`)).some((m) => m.subject === `Announcement ${stamp}`));
+    check('the unsubscribed address gets nothing from a send to all contacts', (await mailTo(`send-gone-${stamp}@families.test`)).every((m) => m.subject !== `Announcement ${stamp}`)
+      && !sql(`SELECT 1 FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id WHERE cs.campaign_id = '${aid}' AND s.status = 'unsubscribed' AND cs.status = 'sent'`).length);
+    check('the campaign records that it went to all contacts', sql(`SELECT audience FROM campaigns WHERE id = '${aid}'`)[0].audience === 'all');
   }
 
   // ---------------------------------------------------------------- people and staff

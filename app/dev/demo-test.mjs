@@ -17,7 +17,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { d1, r2, localD1File } from './node-env.mjs';
 import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
 
-const ADMIN = 'http://localhost:8788';
+const ADMIN = process.env.ADMIN || 'http://localhost:8788';
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-demo-'));
 let fails = 0;
 function check(name, ok, detail) { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && detail ? `\n      ${detail}` : ''}`); if (!ok) fails += 1; }

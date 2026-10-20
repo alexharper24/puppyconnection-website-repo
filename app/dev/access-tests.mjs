@@ -47,7 +47,7 @@ async function makeBreeder(tag, state) {
   const { c } = await signUp(email, `Kennel ${stamp}`);
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Kennel ${stamp}`, public_phone: '555-0101', city: 'Elkhart', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true });
+  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   const b = { c, id: me.id, email };
   if (state === 'pending') return b;
   await admin.post(`/api/breeders/${b.id}/approve`, {});
@@ -91,8 +91,6 @@ async function main() {
     deletePhoto: ['DELETE', `/api/photos/${B.draftPhoto}`, null],
     uploadCard: ['POST', `/api/photos/${B.draftPhoto}/card`, JPG],
     checkMyPhoto: ['POST', `/api/photos/${B.draftPhoto}/check`, {}],
-    keepListed: ['POST', `/api/puppies/${B.paid}/still-available`, {}],
-    bringBack: ['POST', `/api/puppies/${B.paid}/reactivate`, {}],
     // Plan P2.4 and P2.3. A batch into B's litter, a copy of B's puppy, marking it placed, and
     // C's logo and kennel photo, which stay private while C is pending.
     addPuppies: ['POST', `/api/litters/${B.litter}/puppies`, { girls: 2 }],

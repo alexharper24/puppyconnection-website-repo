@@ -59,7 +59,7 @@ async function breeder(tag, approve) {
   await c.req('POST', '/auth/verify', new URLSearchParams({ t: token }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Feature Kennel ${stamp}`, public_phone: '555-0102', city: 'Goshen', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true });
+  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   if (approve) await admin.post(`/api/breeders/${me.id}/approve`, {});
   return { c, id: me.id, email, name: `Feature Kennel ${stamp}` };
 }

@@ -84,16 +84,20 @@
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
-  // Workplan A2. Still available and Bring back, wherever a standing line shows them.
+  // Workplan A12. Add a photo and Relist, wherever the banner or a standing line shows them. Add a
+  // photo opens the puppy at its photos, the same place the reminder emails link to.
   document.addEventListener('click', function (e) {
-    var b = e.target.closest && e.target.closest('[data-still], [data-back]');
+    var ph = e.target.closest && e.target.closest('[data-photos]');
+    if (ph) {
+      var target = '#/litters?photos=' + ph.dataset.photos;
+      if (location.hash === target) render(); else location.hash = target;
+      return;
+    }
+    var b = e.target.closest && e.target.closest('[data-relist]');
     if (!b) return;
     b.disabled = true;
-    var still = !!b.dataset.still;
-    api('POST', '/api/puppies/' + (b.dataset.still || b.dataset.back) + (still ? '/still-available' : '/reactivate'), {}).then(function (r) {
-      toast(still ? 'Kept on the site' : r.relisted ? 'Back on the site' : 'Back as a draft. Pay to list it again.');
-      return loadListings().then(function () { closeDrawer(); render(); });
-    }).catch(function (err) { b.disabled = false; toast(err.message); });
+    api('POST', '/api/checkouts', { puppy_ids: [b.dataset.relist] }).then(function (r) { location.href = r.url; })
+      .catch(function (err) { b.disabled = false; toast(err.message); });
   });
 
   // ------------------------------------------------------------ sign in
@@ -228,12 +232,36 @@
       // stays open, and the banner stays until they accept.
       (me.terms && me.terms.needs_accept ? '<div class="notice terms-banner" id="terms-banner"><p><b>The listing terms have changed.</b> Puppy Connection published a new version' +
         (me.terms.published_at ? ' on ' + esc(day(me.terms.published_at)) : '') + '. Please read it and accept it.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and accept</button></div>' : '') +
-      inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';
+      photoBanner() + inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';
     $('#signout').addEventListener('click', function () {
       api('POST', '/auth/signout', {}).then(function () { state.me = null; location.hash = '#/'; render(); });
     });
     var tr = $('#terms-read');
     if (tr) tr.addEventListener('click', termsDrawer);
+  }
+
+  /* Workplan A12 and A14. Every listing that needs a new photo, and by when, at the top of each
+     screen once the listings are loaded. A listing stays up while it gets a new photo at least
+     every four weeks, and a listing Puppy Connection took offline for its photos is listed too. */
+  function needsPhoto() {
+    var out = [];
+    ((state.listings && state.listings.litters) || []).forEach(function (l) {
+      l.puppies.forEach(function (x) {
+        if (x.publication_state === 'archived') return;
+        if (x.operator_hold && x.hold_kind === 'photos') out.push({ x: x, text: 'taken offline by Puppy Connection until new photos are uploaded.' + (x.hold_reason ? ' ' + x.hold_reason : ''), order: 0 });
+        else if (x.schedule && x.schedule.stage === 'warned') out.push({ x: x, text: 'add a new photo by ' + day(x.schedule.by) + ' to keep it on the site.', order: 1, by: x.schedule.by });
+        else if (x.schedule && x.schedule.stage === 'offline') out.push({ x: x, text: 'off the site. Add a new photo by ' + day(x.schedule.by) + ' and it comes back free.', order: 2, by: x.schedule.by });
+      });
+    });
+    return out.sort(function (a, b) { return a.order - b.order || String(a.by).localeCompare(String(b.by)); });
+  }
+  function photoBanner() {
+    var items = needsPhoto();
+    if (!items.length) return '';
+    return '<div class="notice photo-banner" id="photo-banner" role="status"><p><b>' + (items.length === 1 ? 'A listing needs a new photo' : items.length + ' listings need a new photo') + '</b></p>' +
+      '<ul class="banner-list">' + items.map(function (i) {
+        return '<li><span><b>' + esc(i.x.name) + '</b>: ' + esc(i.text) + '</span><button type="button" class="btn btn-sm btn-gold" data-photos="' + esc(i.x.id) + '">Add a photo</button></li>';
+      }).join('') + '</ul></div>';
   }
 
   /* The current listing terms as paragraphs. A REPLACE THIS paragraph is marked as a placeholder. */
@@ -260,7 +288,7 @@
   }
 
   // How long a payment lists a puppy, in words. listing_days 0 means it stays up until removed.
-  function term(L) { return L.listing_days > 0 ? 'for ' + L.listing_days + ' days' : 'once, and it stays up until you remove it or mark it placed'; }
+  function term(L) { return L.listing_days > 0 ? 'for ' + L.listing_days + ' days' : 'once, and it stays up for as long as you add a new photo at least every four weeks'; }
   function head(title, lede, actions) {
     return '<div class="page-head"><div><h1>' + esc(title) + '</h1>' + (lede ? '<p class="lede">' + lede + '</p>' : '') + '</div>' +
       (actions ? '<div class="head-actions">' + actions + '</div>' : '') + '</div>';
@@ -281,7 +309,8 @@
         '<li class="done"><span class="dot">1</span><div><b>Email confirmed</b><div class="muted small">You signed in with ' + esc(me.email) + '.</div></div></li>' +
         '<li class="' + (filled ? 'done' : 'now') + '"><span class="dot">2</span><div><b>Complete your profile</b><div class="muted small">Business name, a phone or email buyers can use, and your town and state.</div>' +
         (filled ? '' : '<a class="btn btn-sm" href="#/profile" style="margin-top:.4rem">Open your profile</a>') + '</div></li>' +
-        '<li class="' + (submitted ? 'done' : filled ? 'now' : '') + '"><span class="dot">3</span><div><b>Accept the listing terms and submit</b>' +
+        '<li class="' + (submitted ? 'done' : filled ? 'now' : '') + '"><span class="dot">3</span><div><b>Name a reference, accept the listing terms and submit</b>' +
+        (submitted ? '' : '<div class="muted small">One person who can confirm you are a real breeder, such as your veterinarian.</div>') +
         (submitted ? '<div class="muted small">Submitted ' + esc(day(me.profile_submitted_at)) + '.</div>' : filled ? '<a class="btn btn-sm btn-gold" href="#/profile" style="margin-top:.4rem">Submit for approval</a>' : '') + '</div></li>' +
         '<li class="' + (submitted ? 'now' : '') + '"><span class="dot">4</span><div><b>Puppy Connection approves your account</b><div class="muted small">You will get an email, and then you can add litters and puppies.</div></div></li>' +
         '</ol></div>';
@@ -318,6 +347,20 @@
   }
 
   // ------------------------------------------------------------ profile
+  /* Workplan A13 (Amber, 2026-10-19). One reference who can confirm the breeder is real, asked for
+     before the account is submitted for approval. Only Puppy Connection sees it. */
+  function referenceFieldsHtml(me) {
+    var r = me.reference || {};
+    var roles = me.reference_roles || {};
+    return '<fieldset class="reference"><legend>Your reference</legend>' +
+      '<p class="hint">Name one person who can confirm you are a real breeder: an AKC representative, a board member of your local animal welfare council (such as ICAW), another respected breeder, or your veterinarian. Only Puppy Connection sees this, and may contact them before approving your account.</p>' +
+      '<div class="field"><label for="r-role">Who they are</label><select id="r-role" name="ref_role" required><option value="">Choose one</option>' +
+      Object.keys(roles).map(function (k) { return '<option value="' + esc(k) + '"' + (r.role === k ? ' selected' : '') + '>' + esc(roles[k]) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="grid-2"><div class="field"><label for="r-name">Their name</label><input id="r-name" name="ref_name" type="text" autocomplete="off" required value="' + esc(r.name || '') + '"></div>' +
+      '<div class="field"><label for="r-contact">Their phone or email</label><input id="r-contact" name="ref_contact" type="text" autocomplete="off" required value="' + esc(r.contact || '') + '"></div></div></fieldset>';
+  }
+  function referenceBody(d) { return { name: d.ref_name, role: d.ref_role, contact: d.ref_contact }; }
+
   function profile() {
     var me = state.me, p = me.profile;
     var editable = me.status === 'pending' || me.status === 'approved';
@@ -337,14 +380,17 @@
       (editable ? '<button class="btn btn-primary" type="submit">Save profile</button>' : '') + '</form>' +
       '<div id="extras-slot"></div>';
     if (me.status === 'pending' && !me.profile_submitted_at) {
-      html += '<form id="submit" class="card" novalidate><h2>Submit for approval</h2>' +
+      html += '<form id="submit" class="card" novalidate><h2>Submit for approval</h2>' + referenceFieldsHtml(me) +
         // Plan P3.4. The current terms, as published on the admin's Terms screen.
         '<div class="terms-preview">' + termsParas(me.terms ? me.terms.body : '') + '</div>' +
         '<p class="hint">Version ' + esc(me.terms_version) + '. <a href="/terms" target="_blank" rel="noopener">Open the listing terms page</a>.</p>' +
         '<label class="check" for="accept-terms"><input type="checkbox" id="accept-terms" name="accept_terms"> I have read and accept the <a href="/terms" target="_blank" rel="noopener">listing terms</a>.</label>' +
         '<div class="btn-row"><button class="btn btn-gold" type="submit">Submit for approval</button></div></form>';
     } else if (me.status === 'pending') {
-      html += '<p class="notice">Submitted ' + esc(day(me.profile_submitted_at)) + '. Puppy Connection will email you when it is approved.</p>';
+      html += '<p class="notice">Submitted ' + esc(day(me.profile_submitted_at)) + '. Puppy Connection will email you when it is approved.</p>' +
+        // Workplan A13. A breeder who submitted before references were asked for adds one here.
+        '<form id="reference" class="card" novalidate><h2>' + (me.reference ? 'Your reference' : 'Add a reference') + '</h2>' + referenceFieldsHtml(me) +
+        '<div class="btn-row"><button class="btn btn-primary" type="submit">Save reference</button></div></form>';
     }
     shell(html, true);
     loadBreeds().then(function () { extras(editable); });
@@ -358,8 +404,14 @@
       e.preventDefault();
       var d = formData(sf);
       if (!d.accept_terms) return showError(sf, new Error('Tick the box to accept the listing terms.'));
-      api('POST', '/api/profile/submit', { accept_terms: true }).then(function (me2) { state.me = me2; toast('Submitted for approval'); location.hash = '#/'; })
+      api('POST', '/api/profile/submit', { accept_terms: true, reference: referenceBody(d) }).then(function (me2) { state.me = me2; toast('Submitted for approval'); location.hash = '#/'; })
         .catch(function (err) { showError(sf, err); });
+    });
+    var rf = $('#reference');
+    if (rf) rf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      api('POST', '/api/profile/reference', referenceBody(formData(rf))).then(function (me2) { state.me = me2; toast('Reference saved'); profile(); })
+        .catch(function (err) { showError(rf, err); });
     });
   }
 
@@ -435,11 +487,13 @@
     var chips = [];
     if (x.publication_state === 'archived') chips.push('<span class="pill">Removed</span>');
     else if (x.is_public) chips.push('<span class="pill pill-ok">' + (expiring() && x.expires_at ? 'Listed until ' + esc(day(x.expires_at)) : 'Listed') + '</span>');
+    else if (x.inactive_stage === 'offline') chips.push('<span class="pill pill-warn">Offline, needs a photo</span>');
+    else if (x.inactive_stage === 'removed') chips.push('<span class="pill pill-warn">Removed, can relist</span>');
     else if (x.publication_state === 'expired') chips.push('<span class="pill pill-warn">Listing ended</span>');
     else if (x.publication_state === 'published') chips.push('<span class="pill pill-warn">Paid, not showing</span>');
     else if (!x.pay_block) chips.push('<span class="pill pill-gold">Draft, ready to pay for</span>');
     else chips.push('<span class="pill">Draft</span>');
-    if (x.operator_hold) chips.push('<span class="pill pill-alert">Paused by Puppy Connection</span>');
+    if (x.operator_hold) chips.push('<span class="pill pill-alert">' + (x.hold_kind === 'photos' ? 'Offline until new photos' : 'Paused by Puppy Connection') + '</span>');
     if (x.held_by) chips.push('<span class="pill pill-gold">In checkout</span>');
     if (x.availability !== 'available') chips.push('<span class="pill">' + (x.availability === 'placed' ? 'Placed' : 'Pending') + '</span>');
     return chips.join('');
@@ -451,21 +505,24 @@
     var L = state.listings || {};
     var fee = money(L.fee_cents);
     if (x.publication_state === 'archived') return { tone: '', text: 'Removed from your listings.' };
+    if (x.operator_hold && x.hold_kind === 'photos') return { tone: 'alert', text: 'Taken off the site by Puppy Connection until new photos are uploaded.' + (x.hold_reason ? ' ' + x.hold_reason : '') + ' Upload a photo that meets the photo standard and it comes back on its own.', photos: true };
     if (x.operator_hold) return { tone: 'alert', text: 'Paused by Puppy Connection, so it is off the site for now. Contact Puppy Connection to restore it.' };
     if (x.held_by) return { tone: 'gold', text: 'In checkout. A payment has started and not finished. If it is not finished, the puppy is free to pay for again within the hour.' };
     var place = x.availability === 'placed' ? ' Buyers see it marked placed.' : x.availability === 'pending' ? ' Buyers see it marked pending.' : '';
-    if (x.is_public && (x.inactive_stage === 'reminded_1' || x.inactive_stage === 'reminded_2')) {
-      return { tone: 'gold', text: 'Listed, and not updated in a while. Press Still available to keep it on the site, or update it.' + place, still: true };
+    if (x.is_public && x.schedule && x.schedule.stage === 'warned') {
+      return { tone: 'gold', text: 'Listed, and it needs a new photo. Add one by ' + day(x.schedule.by) + ' to keep it on the site.' + place, photos: true };
     }
     if (x.is_public) {
       var until = expiring() && x.expires_at ? ' until ' + day(x.expires_at) : '';
       var renew = expiring() && !x.pay_block ? ' Renewal is open now.' : '';
       return { tone: 'ok', text: 'Listed on the site' + until + '.' + place + renew, renew: expiring() && !x.pay_block, plain: !until && !place && !renew };
     }
-    if (x.inactive_stage === 'offline' || x.inactive_stage === 'removed') {
-      var r = x.reactivation || {};
-      return { tone: 'warn', text: (x.inactive_stage === 'removed' ? 'Removed from the directory' : 'Off the site') + ' because it had no update for four weeks. ' +
-        (r.free ? 'Bring it back free until ' + day(r.until) + '.' : 'Bring it back to list it again for ' + fee + '.'), back: true };
+    if (x.inactive_stage === 'offline') {
+      return { tone: 'warn', text: 'Off the site because it had no new photo for six weeks. Add a new photo by ' + day(x.schedule && x.schedule.by) + ' and it comes straight back, free.', photos: true };
+    }
+    if (x.inactive_stage === 'removed') {
+      return { tone: 'warn', text: 'Removed from the site after twelve weeks with no new photo. Everything is kept, so you can relist it for ' + fee + ' without entering it again.' +
+        (x.pay_block ? ' Before it can be relisted, it needs ' + ((x.needs && x.needs.length) ? x.needs.join(' and ') : 'attention') + '.' : ''), relist: !x.pay_block, photos: !!x.pay_block };
     }
     if (x.publication_state === 'expired') return { tone: 'warn', text: 'The listing ended' + (x.expires_at ? ' on ' + day(x.expires_at) : '') + '. Renew it for ' + fee + ' to put it back on the site.', renew: !x.pay_block };
     if (x.publication_state === 'published') return { tone: 'warn', text: 'Paid for, but not showing on the site right now, because your account is paused.' };
@@ -479,8 +536,8 @@
     if (s.plain) return '';
     return '<div class="standing' + (s.tone ? ' standing-' + s.tone : '') + '">' + esc(s.text) +
       (s.pay ? ' <a href="#/pay">Pay to list</a>' : s.renew ? ' <a href="#/pay">Renew</a>' : '') +
-      (s.still ? ' <button type="button" class="btn btn-sm" data-still="' + esc(x.id) + '">Still available</button>' : '') +
-      (s.back ? ' <button type="button" class="btn btn-sm btn-primary" data-back="' + esc(x.id) + '">Bring back</button>' : '') + '</div>';
+      (s.photos ? ' <button type="button" class="btn btn-sm btn-gold" data-photos="' + esc(x.id) + '">Add a photo</button>' : '') +
+      (s.relist ? ' <button type="button" class="btn btn-sm btn-primary" data-relist="' + esc(x.id) + '">Relist for ' + esc(money((state.listings || {}).fee_cents)) + '</button>' : '') + '</div>';
   }
 
   function litters() {
@@ -518,6 +575,16 @@
       $$('[data-add-puppy]').forEach(function (b) { b.addEventListener('click', function () { puppyDrawer(null, b.dataset.addPuppy); }); });
       $$('[data-edit-puppy]').forEach(function (b) { b.addEventListener('click', function () { puppyDrawer(findPuppy(b.dataset.editPuppy)); }); });
       $$('[data-add-many]').forEach(function (b) { b.addEventListener('click', function () { manyDrawer(findLitter(b.dataset.addMany)); }); });
+      // Workplan A12. #/litters?photos=<puppy> opens that puppy at its photos. The reminder emails
+      // and the banner link here. The address goes back to #/litters without a second render.
+      var want = /(?:^|&)photos=([\w-]+)/.exec(state.route.split('?')[1] || '');
+      if (want && findPuppy(want[1])) {
+        history.replaceState(null, '', '#/litters');
+        state.route = 'litters';
+        puppyDrawer(findPuppy(want[1]));
+        var sec = $('#photo-step');
+        if (sec) { sec.scrollIntoView({ block: 'start' }); var lab = $('label[for=ph-input]', sec); if (lab) lab.focus(); }
+      }
       // Plan P2.4. Placed or available straight from the list, and a copy of a puppy in one press.
       $$('[data-avail]').forEach(function (b) {
         b.addEventListener('click', function () {
@@ -775,8 +842,13 @@
     });
   }
 
+  // Amber's photo standard (2026-10-19, workplan A14), word for word in the listing terms draft too.
+  var PHOTO_STANDARD = 'Photos must be high quality, not blurry, and show the puppy clearly with no signs of illness or distress. A listing that falls short can be taken offline by Puppy Connection until proper photos are uploaded.';
   function photoSection(x, canEdit) {
-    return '<section style="margin-top:1.4rem"><h3>Photos</h3><p class="hint">The first photo is the cover. Location and camera details are removed when a photo is uploaded.</p>' +
+    return '<section id="photo-step" style="margin-top:1.4rem"><h3>Photos</h3>' +
+      (x.operator_hold && x.hold_kind === 'photos' ? '<p class="error">Taken off the site until new photos are uploaded.' + (x.hold_reason ? ' ' + esc(x.hold_reason) : '') + ' A new photo that passes the photo check brings it back.</p>' : '') +
+      '<p class="photo-standard"><b>Photo standard.</b> ' + esc(PHOTO_STANDARD) + '</p>' +
+      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. The first photo is the cover. Location and camera details are removed when a photo is uploaded.</p>' +
       '<div class="photos" id="photos">' + x.photos.map(function (ph, i) {
         var flag = ph.quality === 'sent_back' ? '<span class="pill pill-alert cover" title="' + esc((ph.messages || []).join(' ')) + '">Sent back</span>'
           : ph.quality === 'review' ? '<span class="pill pill-warn cover">Being looked at</span>' : ph.quality === 'pending' ? '<span class="pill pill-warn cover">Checking</span>' : '';
@@ -1073,13 +1145,14 @@
       : 'You pay once, and the listing stays up until you remove the puppy. There is nothing to renew.';
     function q(title, body) { return '<section class="card help"><h2>' + esc(title) + '</h2>' + body + '</section>'; }
     shell(head('Help', 'Short answers to the questions breeders ask most.') +
-      q('How do I get approved?', '<p>Fill in your profile with your business name, a phone or email buyers can use, and your town and state. Then accept the listing terms and submit it. Puppy Connection looks over every new breeder before they can list, and emails you when your account is approved.</p><p>Until then you can still edit your profile, and the menu shows only what you can use.</p>') +
+      q('How do I get approved?', '<p>Fill in your profile with your business name, a phone or email buyers can use, and your town and state. Then name one reference who can confirm you are a real breeder, such as your veterinarian, another respected breeder, an AKC representative or a board member of your local animal welfare council. Accept the listing terms and submit. Puppy Connection looks over every new breeder once before they can list, and emails you when your account is approved. After that your listings go live without waiting.</p><p>Until then you can still edit your profile, and the menu shows only what you can use.</p>') +
       q('How does listing work?', '<p>Add a litter first, with the breed and the dates. Then add each puppy to it with a price and ' + photos + '. If a litter has several puppies, use Add several to put them all in at once, then rename each one and add its photos.</p><p>A puppy stays a draft, which only you can see, until you pay to list it. The Litters and puppies screen says what each draft still needs.</p>') +
       q('What does it cost?', '<p>Listing costs ' + esc(fee) + ' per puppy. ' + esc(lasts) + '</p><p>You can pay for a whole litter in one go on the Pay to list screen. Payment is by card through Stripe, and Stripe emails your receipt. Puppy Connection never sees your card number.</p>') +
-      q('How do I keep a listing on the site?', '<p>Keep it current. Any change to the price, description, status or photos counts, and so does the Still available button. If a listing has no update for two weeks, we email you a Still available link for each puppy, and one click keeps it listed.</p>' +
-        '<p>A listing with no update for four weeks comes off the site, and after six weeks it leaves the directory. Its details are kept, and you can bring it back free from Litters and puppies for six weeks after it came off.</p>') +
+      q('How do I keep a listing on the site?', '<p>Add a new photo of the puppy at least every four weeks. A listing kept current this way stays up with no end date, until the puppy goes home or you remove it. Puppies change fast, and families get in touch far more often when the photos show the puppy as it looks today. Only a new photo counts, so changing the price or saying the puppy is still available does not.</p>' +
+        '<p>After four weeks with no new photo we email you that the listing goes offline in two weeks, and after five weeks that it goes offline the next week. Each email links straight to the puppy\'s photos, and the top of the portal lists every listing that needs one and by when.</p>' +
+        '<p>At six weeks the listing comes off the site. Add a new photo within the next six weeks and it goes straight back, free. After twelve weeks it is removed, but everything is kept in Litters and puppies, and you can relist it for ' + esc(fee) + ' without entering it again.</p>') +
       q('What happens when a puppy goes home?', '<p>Mark it placed, either from the list or in the puppy\'s own page in the portal. It stays on the site marked as placed, so buyers can still see the litter and know that puppy is spoken for. You can mark it available again if plans change.</p><p>If you would rather take a puppy off the site entirely, open it and choose Remove puppy.</p>') +
-      q('What makes a good photo?', '<p>Clear daylight photos of one puppy at a time work best, and the first photo is the one buyers see first. A puppy can have up to ' + me.max_photos + ' photos.</p><p>The portal makes each photo smaller before it uploads, so large phone photos are fine, and it removes the hidden location and camera details phones add.</p>' +
+      q('What makes a good photo?', '<p>' + esc(PHOTO_STANDARD) + '</p><p>Clear daylight photos of one puppy at a time work best, and the first photo is the one buyers see first. A puppy can have up to ' + me.max_photos + ' photos.</p><p>The portal makes each photo smaller before it uploads, so large phone photos are fine, and it removes the hidden location and camera details phones add.</p>' +
         '<p>Photos need to be at least 1,000 pixels across. Each one is checked that the puppy can be seen clearly, and if it cannot, for example because the puppy is far away, turned around or blurred, the portal says what is wrong so you can upload a better one.</p>') +
       q('How do I sign in?', '<p>There is no password. Enter your email and we send you a six-digit code and a link. Type the code on the sign-in screen, or open the link, and you are in.' + (c.google ? ' You can also choose Continue with Google.' : '') + '</p>' +
         '<p>You stay signed in on that device for 60 days, and each time you use the portal the 60 days start again. If you lose a phone or used a shared computer, use Sign out of every device on the Account screen.</p>') +
@@ -1090,7 +1163,14 @@
   function render() {
     closeDrawer();
     state.route = (location.hash || '#/').replace(/^#\/?/, '');
-    if (!state.me) return renderSignIn();
+    if (!state.me) {
+      // Workplan A12. An emailed Add a photo link opens the puppy after sign-in, in this browser.
+      if (/^litters\?photos=/.test(state.route)) { try { localStorage.setItem('pc-next', state.route); } catch (e) { /* storage off */ } }
+      return renderSignIn();
+    }
+    var next = null;
+    try { next = localStorage.getItem('pc-next'); if (next) localStorage.removeItem('pc-next'); } catch (e) { next = null; }
+    if (next && !state.route) { location.replace('#/' + next); return; }
     var r = state.route.split('?')[0];
     var q = state.route.split('?')[1] || '';
     if (r === 'listings') {

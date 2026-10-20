@@ -165,6 +165,39 @@ export function profileFields(body) {
   };
 }
 
+// Workplan A13 (Amber, 2026-10-19). Who can vouch for a new breeder, in the order sign-up shows them.
+export const REFERENCE_ROLES = {
+  akc: 'AKC representative',
+  welfare: 'Board member of a local animal welfare council, such as ICAW',
+  breeder: 'Respected breeder',
+  vet: 'Veterinarian',
+};
+
+/** The one reference a breeder names before approval: a name, a role from the list and a contact. */
+export function referenceFields(body) {
+  const r = body || {};
+  const name = clean(r.name, 120), role = clean(r.role, 20), contact = clean(r.contact, 200);
+  if (!name || !role || !contact) throw bad('Add a reference who can confirm you are a real breeder: their name, who they are, and a phone number or email.');
+  if (!REFERENCE_ROLES[role]) throw bad('Choose who your reference is from the list.');
+  const digits = contact.replace(/\D/g, '');
+  if (!EMAIL_RX.test(contact) && digits.length < 10) throw bad("The reference's contact needs to be a phone number or an email address.");
+  return { name, role, contact };
+}
+
+/** Insert or replace a breeder's reference. */
+export function referenceStmt(env, breederId, r) {
+  const t = now();
+  return env.DB.prepare(
+    `INSERT INTO breeder_references (breeder_id, name, role, contact, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (breeder_id) DO UPDATE SET name = excluded.name, role = excluded.role, contact = excluded.contact, updated_at = excluded.updated_at`,
+  ).bind(breederId, r.name, r.role, r.contact, t, t);
+}
+
+export async function loadReference(env, breederId) {
+  const r = await env.DB.prepare('SELECT name, role, contact, updated_at FROM breeder_references WHERE breeder_id = ?').bind(breederId).first();
+  return r ? { ...r, role_label: REFERENCE_ROLES[r.role] || r.role } : null;
+}
+
 /** The profile write, landing only on the version the editor started from. */
 export function profileStmt(env, breederId, f, version) {
   return env.DB.prepare(

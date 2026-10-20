@@ -105,12 +105,17 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
 - **Each Worker has its own config**, `wrangler.hosted.jsonc`, beside its local
   `wrangler.jsonc`, and each pins the account id so a deploy cannot land in another account.
 
-To redeploy after a change, run this from the `app` folder,
+To redeploy the portal and the admin after a change, run this from the `app` folder,
 with `W` standing for `node ../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js`.
 
 ```bash
-(cd portal && $W deploy --config wrangler.hosted.jsonc) && (cd admin && $W deploy --config wrangler.hosted.jsonc) && node dev/build-site.mjs && (cd site && $W deploy --config wrangler.hosted.jsonc)
+(cd portal && $W deploy --config wrangler.hosted.jsonc) && (cd admin && $W deploy --config wrangler.hosted.jsonc)
 ```
+
+The site is not deployed from here. Workers Builds builds it from the site repository (below), so
+a site change goes through `build/sync-site-repo.mjs` and a push there, and a data change reaches it
+through the next publish. Do not run `wrangler deploy` with `site/wrangler.hosted.jsonc`, because
+that config is the old live-read stand-in and would replace the generated pages (2026-10-19).
 
 To take it down, delete the three Workers in the dashboard. The access tests
 (`dev/access-tests.mjs`) run against the local copy only, because they write to the database
@@ -194,8 +199,10 @@ node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stan
 node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
-node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the inactivity schedule on a moved clock, listing review, reports, Visit site, Wix descriptions
+node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the photo-based schedule on a moved clock, approval by reference, take offline until new photos, listing review, reports, Visit site, Wix descriptions
 node app/dev/focus-test.mjs     # the photo focus rule, from the dog detector's boxes
+node app/dev/checklist-test.mjs # docs/launch-workplan.md A17: the launch checklist seed and every checklist route, in this process with no server
+node app/dev/alerts-test.mjs    # launch workplan B10 and C5 on Node, no server: each failure alert forced, the hour's quiet window, and a send to subscribers or to all contacts
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
@@ -235,6 +242,7 @@ the routes it guards, so the suite is known to catch the failure it exists for.
 | Publishing | Real on staging since 2026-10-06. The staging portal and admin run `PUBLISH_MODE` hook with `PUBLISH_HOOK_URL` set, so a publish starts a Workers Builds build of the site repository and the staging site serves the generated pages | The same hook on the production site Worker (launch checklist L16) |
 | Puppy videos (workplan A3) | `STREAM_MODE=sim` keeps each file in R2 under `videos/` and plays it from the portal at `/dev/stream` | Subscribe to Stream on the Puppy Connection account, set the `STREAM_API_TOKEN` secret (Stream Edit) on the portal and the admin, then `STREAM_MODE=stream` and `STREAM_CUSTOMER_CODE` in `wrangler.hosted.jsonc`. Until then staging shows no video upload |
 | Scheduled jobs | Built (plan P4.2), with the publish on the */15 trigger since P4.4 | Nothing, beyond real email for their alerts |
+| Failure alerts (workplan B10) | A failed job on either trigger, a failed publish, a site build that did not finish, a failed backup, and a refused or failed Stripe webhook or a dispute each email every owner and `OPS_EXTRA`, at most one of each kind an hour (`alertOnce` in `lib/mail.js`, table `alert_state`). The rest are held, counted and sent as one summary once the hour is up. `FAIL_TEST`, honored only on local and staging, forces each failure for a test | Real email (L4), and the production portal's `SITE` binding naming the production site Worker |
 
 The local settings live in `app/portal/.dev.vars` and `app/admin/.dev.vars`, which are
 gitignored and copied from the `.example` files by `setup.mjs`. Nothing in `wrangler.jsonc`
@@ -386,20 +394,59 @@ settings, terms and operators are not touched. The audit log and email log are k
 - **Adoption dates come from triggers.** `placed_at` is set and cleared by two SQLite triggers on
   `puppies` (migrations/0019), so no route can forget it. D1 counts a trigger's own changes in
   `meta.changes`, which is why `checkVersion()` treats any count of 1 or more as success.
-- **The inactivity schedule moves one step a run and each step waits its week** (`lib/inactivity.js`),
-  so a listing never skips a reminder, and every listing's clock started at migration 0020 rather
-  than from its old publish date. Imported Wix breeders are left out until they first sign in. The
-  Still available link changes nothing on GET, because mail scanners open links.
+- **The listing schedule runs on photos** (`lib/inactivity.js`, migration 0030, Amber's rule of
+  2026-10-19). Only a new photo that passes the photo check, or a payment, restarts a listing's
+  clock, so a price change or a breeder saying the puppy is still available does not. Emails go at
+  weeks 4 and 5, the listing goes offline at week 6 and a new photo brings it back free, and at
+  week 12 it is removed and relists through the normal checkout with every detail kept. The job
+  moves a listing one step a run and each step waits its week, so no email is skipped. Every
+  listing already on staging started its clock at migration 0030 rather than from its Wix photo
+  dates, so nobody was told "offline in two weeks" on the day it shipped. Imported Wix breeders are
+  left out until they first sign in. The old Still available link only opens a page that points to
+  the portal, and an offline listing cannot be paid for because a photo brings it back free.
+- **One reference per new breeder** (`breeder_references`, migration 0031). Submitting for approval
+  needs a name, one of four roles and a phone or email, kept in its own table because the public
+  views read `breeder_profiles`. Approved and imported breeders were asked for nothing, and a
+  breeder who submitted before references can still be approved without one. Delete a test
+  breeder's `breeder_references` row before its `breeders` row, because of the foreign key.
+- **Take offline until new photos is a kind of operator hold** (`hold_kind` photos, migration
+  0032). It shares `operator_hold`, so the public views already leave it out, and it lifts itself
+  only for a photo uploaded after the hold that passes the check. A plain hold still needs Release.
 - **Breed searches are counted per breed per day only**, by the same beacon as views and clicks,
   from the browse page's breed filter (`js/search-count.js`, written by the generator).
 - **Wix form labels are split out of imported descriptions** by `lib/wixtext.js`, in the seed, in
   the Wix import and by migrations/0022 for staging. The breeder's prose is kept exactly as written,
   and the parents' colors, which have no field, become one line on the litter.
+- **The launch checklist (workplan A17) is the source of truth for launch status.** It lives in
+  `checklist_items`, `checklist_parts` and `checklist_comments` (migrations/0034), on the admin's
+  Launch checklist screen and as a card on the overview. Owners are Alex and Amber only (Alex,
+  2026-10-19, migrations/0035), and `checklist_signers` maps a sign-in address to the names it acts as, so the shared Amber and Luke
+  address picks who is ticking. Nothing is deleted, only archived, and only Alex archives. Every write
+  is in `audit_log` under entity `checklist_item`. `docs/launch-workplan.md` keeps the detail and
+  evidence, and `ops/checklist.mjs` exports the status to `docs/launch-checklist-status.md`, lists
+  drift and ticks an item as Claude. A new operator address needs a `checklist_signers` row.
+- **A failed site build is found by its outcome** (workplan B10). Workers Builds never tells the
+  portal how a build ended, so `build/fetch-data.mjs` writes `build.json` with the generation it
+  fetched, `ci-build.sh` copies it into the pages, and the site Worker serves it at `/api/build`. The
+  portal's */15 run reads it through the `SITE` service binding (a Worker cannot fetch another on
+  the same workers.dev subdomain) and alerts once for a publish whose build has not shown up after
+  `BUILD_DEADLINE_MINUTES` (20). This catches a failed deploy as well as a failed build, with no
+  extra secret. A site built before `build.json` existed answers 404 and is not an alert.
+- **A send to all contacts** (workplan C5, Alex 2026-10-19). Each send picks subscribers only, or
+  every contact who has not unsubscribed, and the send button and its confirmation carry that
+  audience's count, which the server checks again. A contact's email says they have been in touch
+  rather than that they signed up, and carries the same one-click unsubscribe. Unsubscribed
+  addresses are in neither audience and are skipped if they leave mid-send.
 - Report CSVs (plan P3.7) are built on the server, and any text cell starting with `=`, `+`, `-`,
   `@`, a tab or a carriage return gets a leading apostrophe, so a puppy named like a formula
   cannot run in Amber's spreadsheet (`lib/csv.js`).
 
 ## Pending
+
+- [ ] Puppy Connection's own phone number, email address and social links for the Let's Chat
+      button on every site page (workplan A15). Each shows a visible REPLACE THIS until Amber sends
+      them. They go in `CONTACT` at the top of the Let's Chat block at the end of `js/main.js`, the
+      one place they live, then the site's `?v=` is bumped and the site repository synced
 
 - [ ] Cloudflare Stream for puppy videos, on hold until Amber wants video and commits to its cost
       (Alex, 2026-10-17). It is $5 a month for 1,000 minutes stored on either plan, and the Starter

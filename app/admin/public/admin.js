@@ -91,7 +91,7 @@
     var s = state.stats || {};
     var route = state.route.split('?')[0].split('/')[0];
     var groups = [
-      ['Today', [['', 'Overview'], ['approvals', 'Approvals', s.queue], ['reported', 'Reported listings', s.open_reports || null], ['photo-review', 'Photo review', s.photo_review || null]]],
+      ['Today', [['', 'Overview'], ['checklist', 'Launch checklist', state.checklistMine || null], ['approvals', 'Approvals', s.queue], ['reported', 'Reported listings', s.open_reports || null], ['photo-review', 'Photo review', s.photo_review || null]]],
       ['Directory', [['breeders', 'Breeders', s.approved], ['listings', 'Listings', s.public_puppies], ['breeds', 'Breeds']]],
       ['Money', [['payments', 'Payments', s.needs_review || null], ['reports', 'Reports']]],
       ['People', [['list', 'Mailing list'], ['people', 'Sign-ins']]],
@@ -272,6 +272,8 @@
           '<li><span><b>' + plural(s.open_checkouts, 'checkout') + '</b> started and not finished</span><a class="btn btn-sm" href="#/payments">Open</a></li>' +
           '<li><span><b>' + plural(s.suspended, 'breeder') + '</b> suspended</span><a class="btn btn-sm" href="#/breeders?status=suspended">Open</a></li>' +
         '</ul></section></div>');
+      // Workplan A17. The launch checklist counts, drawn by checklist.js.
+      if (window.pcChecklist && state.who.role === 'owner') window.pcChecklist.overview($('.view'));
     });
   }
 
@@ -402,6 +404,8 @@
         (data.close_request ? '<div class="notice notice-alert" id="close-req"><p><b>Asked to close their account</b> on ' + esc(day(data.close_request.created_at)) + '.' +
           (data.close_request.reason ? ' Their reason: ' + esc(data.close_request.reason) : '') + '</p><p class="small">Nothing has been removed. Follow up with them, then mark it handled.</p>' +
           '<div class="btn-row"><button class="btn btn-sm" id="close-handled">Mark handled</button></div></div>' : '') +
+        // Workplan A13. The reference a new breeder names, beside Approve, so it can be checked first.
+        (b.status === 'pending' && b.profile_submitted_at ? referenceCard(data.reference) : '') +
         '<div id="decide"><div class="btn-row">' + actions + '</div></div>' +
         // Plan P3.2. Private notes, never shown to the breeder.
         '<h3>Private notes</h3><p class="hint" style="margin-top:-.3rem">Only operators see these. The breeder never does, and they are in no export or report.</p>' +
@@ -632,13 +636,19 @@
       });
   }
 
+  function referenceCard(r) {
+    if (!r) return '<div class="card ref-card"><h3>Reference</h3><p class="muted small">None given. They submitted before references were asked for, and the portal asks them for one. You can still approve them.</p></div>';
+    var contact = /@/.test(r.contact) ? '<a href="mailto:' + esc(r.contact) + '">' + esc(r.contact) + '</a>' : '<a href="tel:' + esc(r.contact.replace(/[^\d+]/g, '')) + '">' + esc(r.contact) + '</a>';
+    return '<div class="card ref-card"><h3>Reference</h3><p><b>' + esc(r.name) + '</b><br><span class="muted small">' + esc(r.role_label) + '</span><br>' + contact + '</p>' +
+      '<p class="hint" style="margin:0">Someone who can confirm this is a real breeder. Contact them before approving if you need to.</p></div>';
+  }
   function decide(d, b, action) {
     var box = $('#decide', d);
     var needsReason = action === 'decline' || action === 'suspend';
     var verb = { approve: 'Approve', decline: 'Decline', suspend: 'Suspend', reinstate: 'Reinstate', reopen: 'Reopen' }[action];
     if (!needsReason && action !== 'approve') { run({}); return; }
     box.innerHTML = '<form id="decide-form" class="card">' +
-      (action === 'approve' ? '<p><b>Approve ' + esc(b.business_name) + '?</b> They will be emailed and can start listing right away.</p>'
+      (action === 'approve' ? '<p><b>Approve ' + esc(b.business_name) + '?</b> They will be emailed and can start listing right away, and their listings go live without review.</p>'
         : '<div class="field"><label for="d-reason">Private reason, for the record</label><textarea id="d-reason" name="reason" style="min-height:70px"></textarea></div>' +
           (action === 'decline' ? '<div class="field"><label for="d-msg">Message to the breeder (optional)</label><textarea id="d-msg" name="message" style="min-height:70px"></textarea></div>' : '')) +
       '<div class="btn-row"><button class="btn ' + (action === 'approve' ? 'btn-primary' : 'btn-danger') + '" type="submit">' + verb + '</button><button class="btn btn-quiet" type="button" data-cancel>Cancel</button></div></form>';
@@ -668,19 +678,31 @@
     else if (p.publication_state === 'draft') c.push('<span class="pill">Draft</span>');
     else if (p.publication_state === 'published') c.push('<span class="pill pill-warn">Paid, hidden</span>');
     if (p.payment_state === 'comped') c.push('<span class="pill pill-gold">Comped</span>');
-    if (p.operator_hold) c.push('<span class="pill pill-alert">On hold</span>');
+    if (p.operator_hold) c.push('<span class="pill pill-alert"' + (p.hold_reason ? ' title="' + esc(p.hold_reason) + '"' : '') + '>' + (p.hold_kind === 'photos' ? 'Offline for photos' : 'On hold') + '</span>');
     if (p.availability && p.availability !== 'available') c.push('<span class="pill">' + (p.availability === 'placed' ? 'Placed' : 'Pending') + '</span>');
     return c.join('');
   }
   function holdButton(p) {
     var comp = (p.publication_state === 'draft' || p.publication_state === 'expired') ? '<button class="btn btn-sm" data-comp="' + esc(p.id) + '">List free</button>' : '';
-    return comp + (p.operator_hold ? '<button class="btn btn-sm" data-hold="' + esc(p.id) + '" data-on="0">Release</button>' : '<button class="btn btn-sm btn-danger" data-hold="' + esc(p.id) + '" data-on="1">Hold</button>');
+    return comp + (p.operator_hold ? '<button class="btn btn-sm" data-hold="' + esc(p.id) + '" data-on="0">Release</button>'
+      : '<button class="btn btn-sm btn-danger" data-hold="' + esc(p.id) + '" data-on="1">Hold</button>' +
+        // Workplan A14. Off the site until the breeder uploads photos that pass the photo check.
+        '<button class="btn btn-sm" data-photo-hold="' + esc(p.id) + '">Offline until new photos</button>');
   }
   function wireHolds(root, after) {
     $$('[data-hold]', root).forEach(function (b) {
       b.addEventListener('click', function () {
         if (b.dataset.on === '1' && !confirm('Take this listing off the site until you release it? The breeder sees it as paused.')) return;
         api('POST', '/api/puppies/' + b.dataset.hold + '/hold', { on: b.dataset.on === '1' }).then(function () { toast(b.dataset.on === '1' ? 'Listing held' : 'Listing released'); after(); });
+      });
+    });
+    $$('[data-photo-hold]', root).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var reason = prompt('Take this listing offline until new photos are uploaded. In a few words, what is wrong with the photos? The breeder sees this.', 'The photos are blurry. Please upload clear, well-lit photos of the puppy.');
+        if (reason === null) return;
+        api('POST', '/api/puppies/' + b.dataset.photoHold + '/hold', { on: true, kind: 'photos', reason: reason })
+          .then(function () { toast('Offline until new photos. The breeder has been emailed.'); after(); })
+          .catch(function (err) { toast(err.message); });
       });
     });
     $$('[data-comp]', root).forEach(function (b) {
@@ -929,8 +951,8 @@
     registries: ['Registries a breeder can choose for a puppy, separated by commas', 'text'],
     max_videos: ['Most videos a puppy can have (0 turns video uploads off)', 'number'],
     video_max_seconds: ['Longest video, in seconds', 'number'],
-    inactivity_days: ['Days with no update before the first reminder, the second reminder, taking a listing offline, and removing it, separated by commas', 'text'],
-    reactivate_days: ['Days after going offline that a breeder can bring a listing back free', 'number'],
+    photo_clock_start: ['The go-live date the photo clock waits for, as YYYY-MM-DD. No listing counts its four weeks from before this day. Leave it empty to start the clock now', 'text'],
+    inactivity_days: ['Days with no new photo before the first email, the last email, taking a listing offline, and removing it, separated by commas. A new photo brings an offline listing back free until it is removed', 'text'],
     adopted_index_days: ['Days after a puppy is marked adopted that its page leaves Google (the page stays on the site)', 'number'],
     photo_check_route: ['Where a photo that fails the photo check goes: breeder (they are told what is wrong and upload another) or review (it waits for you in Photo review)', 'text'],
   };
@@ -1193,6 +1215,18 @@
   /* Sending to the list (lib/campaigns.js). A draft is written here, a test goes to the owner's
      own address, and the send asks for the number of people to confirm it. */
   var CAMPAIGN_STATUS = { draft: 'Draft', sending: 'Sending', sent: 'Sent' };
+  /* Launch workplan C5. Each send goes to subscribers only, or to every contact who has not
+     unsubscribed, with the count for each shown before anything is sent. */
+  var AUDIENCE_NAMES = { subscribers: 'Subscribers', all: 'All contacts' };
+  function audienceCounts(c) { return c.audiences || { subscribers: c.subscribed, all: c.subscribed }; }
+  function sendLabel(c, a) { var n = audienceCounts(c)[a]; return 'Send to ' + n.toLocaleString('en-US') + ' ' + (n === 1 ? 'person' : 'people'); }
+  function audienceField(c) {
+    var n = audienceCounts(c);
+    return '<fieldset class="field" style="border:0;padding:0;margin:0 0 1rem;display:grid;gap:.4rem"><legend style="font-weight:600;padding:0;margin-bottom:.3rem">Send to</legend>' +
+      '<label class="check"><input type="radio" name="camp-audience" value="subscribers" checked> Subscribers only, ' + n.subscribers.toLocaleString('en-US') + ' people</label>' +
+      '<label class="check"><input type="radio" name="camp-audience" value="all"> All contacts who have not unsubscribed, ' + n.all.toLocaleString('en-US') + ' people</label>' +
+      '<div class="hint">All contacts adds the imported contacts who never subscribed, for announcements such as the new site. Nobody who unsubscribed is ever sent to, and every email carries an unsubscribe link.</div></fieldset>';
+  }
   function emailsPanel(c) {
     var drafts = c.campaigns.filter(function (x) { return x.status === 'draft'; });
     var edit = drafts[0] || null;
@@ -1204,13 +1238,14 @@
       '<form id="camp-form" novalidate' + (edit ? ' data-id="' + esc(edit.id) + '"' : '') + '><div class="field"><label for="camp-subject">Subject</label><input id="camp-subject" type="text" maxlength="150" value="' + esc(edit ? edit.subject : '') + '"></div>' +
       '<div class="field"><label for="camp-body">Email</label><textarea id="camp-body" style="min-height:180px">' + esc(edit ? edit.body : '') + '</textarea>' +
       '<div class="hint">Plain text. Leave a blank line between paragraphs. The unsubscribe link and your mailing address are added at the end of every email.</div></div>' +
+      (edit ? audienceField(c) : '') +
       '<div class="btn-row"><button class="btn" type="submit">Save draft</button>' +
-      (edit ? '<button class="btn" type="button" id="camp-test">Send me a test</button><button class="btn btn-primary" type="button" id="camp-send">Send to ' + c.subscribed.toLocaleString('en-US') + ' ' + (c.subscribed === 1 ? 'person' : 'people') + '</button>' : '') +
+      (edit ? '<button class="btn" type="button" id="camp-test">Send me a test</button><button class="btn btn-primary" type="button" id="camp-send">' + sendLabel(c, 'subscribers') + '</button>' : '') +
       '</div></form>' +
       (c.email_mode === 'log' ? '<p class="notice small">Real email is not switched on yet, so sends land in the test mailbox.</p>' : '') +
-      (c.campaigns.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Subject</th><th>Status</th><th class="num">Sent</th><th class="num">Failed</th><th>When</th></tr></thead><tbody>' +
+      (c.campaigns.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Subject</th><th>To</th><th>Status</th><th class="num">Sent</th><th class="num">Failed</th><th>When</th></tr></thead><tbody>' +
         c.campaigns.map(function (x) {
-          return '<tr><td>' + esc(x.subject) + '</td><td>' + esc(CAMPAIGN_STATUS[x.status]) + (x.status === 'sending' ? ' <span class="muted small">' + x.sent_count + ' of ' + x.total + '</span>' : '') + '</td>' +
+          return '<tr><td>' + esc(x.subject) + '</td><td>' + (x.status === 'draft' ? '' : esc(AUDIENCE_NAMES[x.audience] || 'Subscribers')) + '</td><td>' + esc(CAMPAIGN_STATUS[x.status]) + (x.status === 'sending' ? ' <span class="muted small">' + x.sent_count + ' of ' + x.total + '</span>' : '') + '</td>' +
             '<td class="num">' + (x.status === 'draft' ? '' : x.sent_count) + '</td><td class="num">' + (x.status === 'draft' ? '' : x.failed_count) + '</td>' +
             '<td class="when">' + esc(day(x.sent_at || x.send_started_at || x.updated_at)) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '') +
@@ -1233,9 +1268,14 @@
       api('POST', '/api/campaigns/' + f.dataset.id + '/test', {}).then(function (r) { toast('Test sent to ' + r.to); }).catch(function (err) { showError(f, err); });
     });
     var sbtn = $('#camp-send');
+    function audience() { var r = f.querySelector('input[name="camp-audience"]:checked'); return r ? r.value : 'subscribers'; }
+    Array.prototype.forEach.call(f.querySelectorAll('input[name="camp-audience"]'), function (r) {
+      r.addEventListener('change', function () { if (sbtn) sbtn.textContent = sendLabel(c, audience()); });
+    });
     if (sbtn) sbtn.addEventListener('click', function () {
-      if (!confirm('Send "' + $('#camp-subject').value + '" to ' + c.subscribed + ' people? Save any changes first. This cannot be undone.')) return;
-      api('POST', '/api/campaigns/' + f.dataset.id + '/send', { confirm_count: c.subscribed }).then(function (r) { toast('Sending to ' + r.total + ' people'); listScreen(); })
+      var a = audience(), n = audienceCounts(c)[a];
+      if (!confirm('Send "' + $('#camp-subject').value + '" to ' + n.toLocaleString('en-US') + ' people (' + AUDIENCE_NAMES[a].toLowerCase() + ')? Save any changes first. This cannot be undone.')) return;
+      api('POST', '/api/campaigns/' + f.dataset.id + '/send', { audience: a, confirm_count: n }).then(function (r) { toast('Sending to ' + r.total + ' people'); listScreen(); })
         .catch(function (err) { showError(f, err); });
     });
   }
@@ -1258,8 +1298,8 @@
         // Workplan A4.
         '<div class="stats">' +
           '<a class="stat" href="#/listings"><b>' + s.pending + '</b><span>Marked pending</span></a>' +
-          '<span class="stat"><b>' + s.reminded + '</b><span>Reminded, not updated</span></span>' +
-          '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no update</span></span>' +
+          '<span class="stat"><b>' + s.reminded + '</b><span>Emailed for a new photo</span></span>' +
+          '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no new photo</span></span>' +
           '<a class="stat" href="#/breeders"><b>' + s.new_breeders_30 + '</b><span>New breeders, 30 days</span></a></div>' +
         '<p class="btn-row" style="margin-top:-.4rem">' + csvLink('summary') + '</p>' +
         table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {
@@ -1302,12 +1342,17 @@
     });
   }
 
+  // Workplan A17. checklist.js draws the launch checklist with these.
+  window.pcAdmin = { api: api, esc: esc, day: day, when: when, plural: plural, $: $, $$: $$, params: params, state: state,
+    shell: shell, head: head, toast: toast, showError: showError, openDrawer: openDrawer, closeDrawer: closeDrawer };
+
   function render() {
     closeDrawer();
     state.route = (location.hash || '#/').replace(/^#\/?/, '');
     var r = state.route.split('?')[0].split('/')[0];
     ({ '': overview, approvals: approvals, breeders: breeders, listings: listings, payments: payments, settings: settings, activity: activity, search: search,
-      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, reported: reportedScreen, 'photo-review': photoReviewScreen, list: listScreen, people: peopleScreen }[r] || overview)();
+      breeds: breedsScreen, terms: termsScreen, publish: publishScreen, email: emailScreen, reports: reportsScreen, reported: reportedScreen, 'photo-review': photoReviewScreen, list: listScreen, people: peopleScreen,
+      checklist: function () { window.pcChecklist.screen(); } }[r] || overview)();
     window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', render);

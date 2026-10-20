@@ -39,6 +39,8 @@ export async function fetchData(url, folder, { tries = 3 } = {}) {
     fs.mkdirSync(path.dirname(out), { recursive: true });
     fs.writeFileSync(out, files[f]);
   }
+  // The build record the portal's build check reads at /api/build (app/lib/publish.js, checkBuild).
+  fs.writeFileSync(path.join(folder, 'build.json'), JSON.stringify({ generation: body.generation ?? null, fetched_at: new Date().toISOString().slice(0, 19) + 'Z' }));
   return { generation: body.generation, counts: body.counts || {} };
 }
 

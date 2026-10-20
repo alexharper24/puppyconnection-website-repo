@@ -215,7 +215,7 @@ async function main() {
   let me = (await k.get('/api/me')).data;
   await k.put('/api/profile', { version: me.profile.version, business_name: `Contact Kennel ${stamp}`, public_phone: '555-0100', public_email: `kennel-${stamp}@public.test`, city: 'Goshen', state: 'IN' });
   check('filling in the profile before submitting sends no notice', (await mailFor(kEmail, /contact details/)).length === 0);
-  await k.post('/api/profile/submit', { accept_terms: true });
+  await k.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   const admin = new Client(ADMIN);
   await admin.post(`/api/breeders/${me.id}/approve`, {});
   me = (await k.get('/api/me')).data;

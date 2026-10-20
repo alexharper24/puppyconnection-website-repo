@@ -227,6 +227,10 @@ table.list tr.total-row td { background: var(--ground); }
   grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr)); gap: .25rem 1rem; }
 .breed-picks legend { font-weight: 500; font-size: .9rem; padding: 0 .3rem; }
 .breed-picks .check { align-items: center; min-height: 34px; font-size: .92rem; }
+/* Workplan A13. The reference asked for before approval. */
+.reference { border: 1px solid var(--line); border-radius: 10px; padding: .6rem .9rem .2rem; margin: 0 0 1rem; min-width: 0; }
+.reference legend { font-weight: 500; font-size: .9rem; padding: 0 .3rem; }
+.reference select { max-width: 100%; }
 .brand-pics { display: flex; flex-wrap: wrap; gap: .8rem; margin: 0 0 1rem; }
 .brand-pics figure { margin: 0; width: 9rem; }
 .brand-pics img { display: block; width: 100%; aspect-ratio: 3 / 2; object-fit: contain; background: var(--ground); border-radius: 8px; border: 1px solid var(--line); }
@@ -334,6 +338,14 @@ a.rail-foot:hover b { text-decoration: underline; }
 .terms-preview { border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem 1rem; background: #fff; max-height: 420px; overflow: auto; overflow-wrap: anywhere; }
 .terms-banner { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between; }
 .terms-banner p { margin: 0; }
+/* Workplan A12. Listings that need a new photo, at the top of each portal screen. */
+.photo-banner { border-left-color: var(--gold); background: var(--warn-bg); }
+.photo-banner > p { margin: 0 0 .4rem; }
+.banner-list { list-style: none; margin: 0; padding: 0; }
+.banner-list li { display: flex; flex-wrap: wrap; gap: .4rem .8rem; align-items: center; justify-content: space-between; padding: .45rem 0; border-top: 1px solid rgba(125, 95, 18, .18); }
+.banner-list li > span { flex: 1 1 16rem; min-width: 0; overflow-wrap: anywhere; }
+/* Workplan A14. Amber's photo standard in the photo step. */
+.photo-standard { font-size: .88rem; background: var(--info-bg); border-radius: var(--radius); padding: .6rem .8rem; margin: .4rem 0 .6rem; }
 .pay-row > .btn { margin-left: auto; }
 table.list td.brk { overflow-wrap: anywhere; }
 table.list .row-acts { margin-top: .4rem; }

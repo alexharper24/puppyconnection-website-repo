@@ -11,7 +11,7 @@
 
 import { now, ulid, addMinutes, bad, HttpError, timingSafeEqual } from './util.js';
 import { owned, settings, auditStmt, dirtyStmt } from './store.js';
-import { sendMail, alertOps } from './mail.js';
+import { sendMail, alertOps, alertOnce } from './mail.js';
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 const HOLD_MINUTES = 60;
@@ -202,6 +202,9 @@ export async function payability(env, puppy, s, photoCount, heldBy) {
   if (heldBy) return 'Already in a checkout that has not finished.';
   if (!puppy.name || puppy.price_cents == null) return 'Needs a name and a price.';
   if (photoCount < s.minPhotos) return `Needs at least ${s.minPhotos} photo${s.minPhotos === 1 ? '' : 's'}.`;
+  // Workplan A12. Within six weeks of going offline a new photo brings a listing back free, so it is
+  // never paid for. After that (inactive_stage removed) it relists by paying, like any expired one.
+  if (puppy.inactive_stage === 'offline') return 'Off the site until a new photo is added, which brings it back free.';
   if (puppy.publication_state === 'published') {
     // With no expiry (listing_days 0) one payment lists a puppy for good, so it is never paid for twice.
     if (s.listingDays <= 0 || !puppy.expires_at) return 'Already listed.';
@@ -348,10 +351,16 @@ export async function fulfillCheckout(env, sessionId, source, ctx) {
               expires_at = CASE WHEN ? > 0 THEN strftime('%Y-%m-%dT%H:%M:%SZ',
                              CASE WHEN expires_at IS NOT NULL AND expires_at > ? THEN expires_at ELSE ? END,
                              '+' || ? || ' days') ELSE NULL END,
-              expiry_warned_at = NULL, version = version + 1, updated_at = ?
+              expiry_warned_at = NULL, version = version + 1, updated_at = ?,
+              -- Workplan A12. A payment starts the photo clock, so a breeder is never asked for a new
+              -- photo the day after paying, and a listing relisted after week 12 leaves the schedule.
+              last_photo_at = ?,
+              inactive_at = CASE WHEN inactive_stage = 'removed' THEN NULL ELSE inactive_at END,
+              stage_at = CASE WHEN inactive_stage = 'removed' THEN NULL ELSE stage_at END,
+              inactive_stage = CASE WHEN inactive_stage = 'removed' THEN NULL ELSE inactive_stage END
         WHERE id IN (SELECT puppy_id FROM checkout_items WHERE checkout_id = ?)
           AND breeder_id = ? AND publication_state != 'archived' AND ${unfulfilled}`,
-    ).bind(t, st.listingDays, t, t, st.listingDays, t, co.id, co.breeder_id, co.id),
+    ).bind(t, st.listingDays, t, t, st.listingDays, t, t, co.id, co.breeder_id, co.id),
     env.DB.prepare('DELETE FROM puppy_holds WHERE checkout_id = ?').bind(co.id),
     env.DB.prepare(
       `UPDATE site_state SET dirty = 1, dirty_since = COALESCE(dirty_since, ?), generation = generation + 1
@@ -454,7 +463,8 @@ async function recordDispute(env, type, d, actor) {
     auditStmt(env, actor.type, actor.email, opened ? 'payment.dispute_open' : 'payment.dispute_close', 'checkout', pay?.checkout_id || d.payment_intent || 'unknown',
       null, { dispute: d.id, status: d.status, reason: d.reason || null }),
   ]);
-  await alertOps(env, 'A listing payment is disputed', `Payment ${d.payment_intent}: ${payStatus.replace('_', ' ')}. The listing stays up until you decide.`);
+  // At most one dispute alert an hour. More in that hour arrive as one summary (lib/mail.js).
+  await alertOnce(env, 'stripe_dispute', 'A listing payment is disputed', `Payment ${d.payment_intent}: ${payStatus.replace('_', ' ')}. The listing stays up until you decide. The Payments screen shows every open dispute.`);
   return payStatus;
 }
 

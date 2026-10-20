@@ -23,6 +23,7 @@ const DAY_ONE_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0036_checkl
 const GA4_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0037_checklist_ga4.sql'), 'utf8');
 const DB_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0038_checklist_production_database.sql'), 'utf8');
 const CALLS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0039_checklist_alex_calls.sql'), 'utf8');
+const BUILD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0041_checklist_build_session.sql'), 'utf8');
 const DAY_ONE = 6;
 const ADDED = DAY_ONE + 1;   // the day-one items, and the Puppy video item from migration 0039   // the items migration 0036 adds
 
@@ -71,6 +72,8 @@ db.exec(DB_MIGRATION);
 db.exec(DB_MIGRATION);
 db.exec(CALLS_MIGRATION);
 db.exec(CALLS_MIGRATION);
+db.exec(BUILD_MIGRATION);
+db.exec(BUILD_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -90,7 +93,7 @@ function seedChecks() {
   check(`every open and closed workplan item is on the checklist with a matching status (${wp.length} items read)`, wp.length > 40 && !problems.length, problems.join('; '));
   const closed = wp.filter((w) => w.closed).map((w) => items.find((i) => i.ref === w.id));
   check('every closed workplan item is done with its evidence date and marked as from the launch plan',
-    closed.every((i) => i && i.status === 'done' && /^2026-10-1\d/.test(i.done_at) && ['launch plan', 'Alex'].includes(i.done_by)));
+    closed.every((i) => i && i.status === 'done' && /^2026-10-(1\d|2\d)/.test(i.done_at) && ['launch plan', 'Alex', 'Claude'].includes(i.done_by)));
   const text = [...items.flatMap((i) => [i.title, i.description, i.waiting_on]), ...parts.map((p) => p.title)].filter(Boolean);
   check('no price, hour figure or rate in any seeded text or in the migration',
     !/\$\s?\d|\bper hour\b|\b\d+(\.\d+)?\s?(hours?|hrs?)\b|\brate\b/i.test(text.join(' ') + MIGRATION.replace(/--[^\n]*/g, '')),
@@ -122,18 +125,25 @@ function seedChecks() {
   const prod = items.find((i) => i.ref === 'B12');
   const prodParts = parts.filter((p) => p.item_id === prod.id);
   check('migration 0038 ticks the production database decision as Alex, leaves writing the steps open, puts the item in progress and notes it follows clearing test data, once',
-    prod.status === 'in_progress' && prodParts[0].done_by === 'Alex' && /^2026-10-19/.test(prodParts[0].done_at) && !prodParts[1].done_at &&
+    prodParts[0].done_by === 'Alex' && /^2026-10-19/.test(prodParts[0].done_at) &&
     db.prepare("SELECT COUNT(*) AS n FROM checklist_comments WHERE item_id = ? AND body LIKE '%Clear the test breeders and test data%'").get(prod.id).n === 1 &&
-    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND actor = 'claude'").get(prod.id).n === 4);
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND actor = 'claude'").get(prod.id).n >= 4);
   const byRef = (r) => items.find((i) => i.ref === r);
   const video = items.find((i) => i.title === 'Puppy video');
   check('migration 0039 closes Furry Freight and the puppy details as Alex, and moves the Stream part to a new Gate 1 Puppy video item',
     byRef('D6').status === 'done' && byRef('D6').done_by === 'Alex' && byRef('A3').status === 'done' && video && video.section === 'gate1' && video.owner === 'Alex' &&
     parts.some((p) => p.item_id === video.id && /Stream/.test(p.title)) && !parts.some((p) => p.item_id === byRef('A3').id && /Stream/.test(p.title)));
   check('migration 0039 makes the invitation item a build item for Alex, points analytics at Alex and archives the access part for Amber, and names the three notices',
-    byRef('C5').title === 'Let a mailing list send go to all contacts' && byRef('C5').owner === 'Alex' && byRef('C5').status === 'not_started' &&
+    byRef('C5').title === 'Let a mailing list send go to all contacts' && byRef('C5').owner === 'Alex' &&
     byRef('B11').waiting_owner === 'Alex' && parts.some((p) => p.item_id === byRef('B11').id && p.owner === 'Amber' && p.archived_at) &&
     /^Three notices/.test(byRef('B9').description));
+  check('migration 0041 closes failure alerts, the database plan and the send to all contacts as Claude with evidence, ticks the built parts, and keeps Let\'s Chat waiting on Amber',
+    ['B10', 'B12', 'C5'].every((r) => byRef(r).status === 'done' && byRef(r).done_by === 'Claude') &&
+    parts.filter((p) => p.item_id === byRef('B12').id).every((p) => p.done_at) && parts.some((p) => p.item_id === byRef('A15').id && p.owner === 'Alex' && p.done_at) &&
+    byRef('A15').status === 'waiting' && byRef('A15').waiting_owner === 'Amber' &&
+    db.prepare("SELECT COUNT(*) AS n FROM checklist_comments WHERE id IN ('cl-077-c1','cl-079-c2','cl-016-c1','cl-028-c1')").get().n === 4);
+  check('the nightly backup carries every checklist table', ['checklist_signers', 'checklist_items', 'checklist_parts', 'checklist_comments']
+    .every((t) => new RegExp(`'${t}'`).test(fs.readFileSync(path.join(APP, 'lib/jobs.js'), 'utf8').match(/BACKUP_TABLES = \[([\s\S]*?)\];/)[1])));
   check('migration 0035 audits each moved item once, and running it again adds nothing',
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND after_json LIKE '%Alex and Amber only%'").get().n === db.prepare("SELECT COUNT(DISTINCT entity_id) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND after_json LIKE '%Alex and Amber only%'").get().n);
 }

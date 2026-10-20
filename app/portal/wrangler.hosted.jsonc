@@ -21,6 +21,10 @@
     { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
   ],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  // Launch workplan B10. The */15 run reads the site's /api/build through this binding to tell a
+  // site build that finished from one that failed (lib/publish.js, checkBuild). A Worker cannot
+  // fetch another Worker on the same workers.dev subdomain, so it is a binding, not a URL.
+  "services": [{ "binding": "SITE", "service": "site" }],
   "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }],
   // Workplan A9. The photo quality check on Workers AI (lib/photocheck.js). The free allocation is
   // 10,000 neurons a day, about 350 photos at the measured 28 neurons each; past it a call fails and

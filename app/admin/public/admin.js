@@ -1215,6 +1215,18 @@
   /* Sending to the list (lib/campaigns.js). A draft is written here, a test goes to the owner's
      own address, and the send asks for the number of people to confirm it. */
   var CAMPAIGN_STATUS = { draft: 'Draft', sending: 'Sending', sent: 'Sent' };
+  /* Launch workplan C5. Each send goes to subscribers only, or to every contact who has not
+     unsubscribed, with the count for each shown before anything is sent. */
+  var AUDIENCE_NAMES = { subscribers: 'Subscribers', all: 'All contacts' };
+  function audienceCounts(c) { return c.audiences || { subscribers: c.subscribed, all: c.subscribed }; }
+  function sendLabel(c, a) { var n = audienceCounts(c)[a]; return 'Send to ' + n.toLocaleString('en-US') + ' ' + (n === 1 ? 'person' : 'people'); }
+  function audienceField(c) {
+    var n = audienceCounts(c);
+    return '<fieldset class="field" style="border:0;padding:0;margin:0 0 1rem;display:grid;gap:.4rem"><legend style="font-weight:600;padding:0;margin-bottom:.3rem">Send to</legend>' +
+      '<label class="check"><input type="radio" name="camp-audience" value="subscribers" checked> Subscribers only, ' + n.subscribers.toLocaleString('en-US') + ' people</label>' +
+      '<label class="check"><input type="radio" name="camp-audience" value="all"> All contacts who have not unsubscribed, ' + n.all.toLocaleString('en-US') + ' people</label>' +
+      '<div class="hint">All contacts adds the imported contacts who never subscribed, for announcements such as the new site. Nobody who unsubscribed is ever sent to, and every email carries an unsubscribe link.</div></fieldset>';
+  }
   function emailsPanel(c) {
     var drafts = c.campaigns.filter(function (x) { return x.status === 'draft'; });
     var edit = drafts[0] || null;
@@ -1226,13 +1238,14 @@
       '<form id="camp-form" novalidate' + (edit ? ' data-id="' + esc(edit.id) + '"' : '') + '><div class="field"><label for="camp-subject">Subject</label><input id="camp-subject" type="text" maxlength="150" value="' + esc(edit ? edit.subject : '') + '"></div>' +
       '<div class="field"><label for="camp-body">Email</label><textarea id="camp-body" style="min-height:180px">' + esc(edit ? edit.body : '') + '</textarea>' +
       '<div class="hint">Plain text. Leave a blank line between paragraphs. The unsubscribe link and your mailing address are added at the end of every email.</div></div>' +
+      (edit ? audienceField(c) : '') +
       '<div class="btn-row"><button class="btn" type="submit">Save draft</button>' +
-      (edit ? '<button class="btn" type="button" id="camp-test">Send me a test</button><button class="btn btn-primary" type="button" id="camp-send">Send to ' + c.subscribed.toLocaleString('en-US') + ' ' + (c.subscribed === 1 ? 'person' : 'people') + '</button>' : '') +
+      (edit ? '<button class="btn" type="button" id="camp-test">Send me a test</button><button class="btn btn-primary" type="button" id="camp-send">' + sendLabel(c, 'subscribers') + '</button>' : '') +
       '</div></form>' +
       (c.email_mode === 'log' ? '<p class="notice small">Real email is not switched on yet, so sends land in the test mailbox.</p>' : '') +
-      (c.campaigns.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Subject</th><th>Status</th><th class="num">Sent</th><th class="num">Failed</th><th>When</th></tr></thead><tbody>' +
+      (c.campaigns.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Subject</th><th>To</th><th>Status</th><th class="num">Sent</th><th class="num">Failed</th><th>When</th></tr></thead><tbody>' +
         c.campaigns.map(function (x) {
-          return '<tr><td>' + esc(x.subject) + '</td><td>' + esc(CAMPAIGN_STATUS[x.status]) + (x.status === 'sending' ? ' <span class="muted small">' + x.sent_count + ' of ' + x.total + '</span>' : '') + '</td>' +
+          return '<tr><td>' + esc(x.subject) + '</td><td>' + (x.status === 'draft' ? '' : esc(AUDIENCE_NAMES[x.audience] || 'Subscribers')) + '</td><td>' + esc(CAMPAIGN_STATUS[x.status]) + (x.status === 'sending' ? ' <span class="muted small">' + x.sent_count + ' of ' + x.total + '</span>' : '') + '</td>' +
             '<td class="num">' + (x.status === 'draft' ? '' : x.sent_count) + '</td><td class="num">' + (x.status === 'draft' ? '' : x.failed_count) + '</td>' +
             '<td class="when">' + esc(day(x.sent_at || x.send_started_at || x.updated_at)) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '') +
@@ -1255,9 +1268,14 @@
       api('POST', '/api/campaigns/' + f.dataset.id + '/test', {}).then(function (r) { toast('Test sent to ' + r.to); }).catch(function (err) { showError(f, err); });
     });
     var sbtn = $('#camp-send');
+    function audience() { var r = f.querySelector('input[name="camp-audience"]:checked'); return r ? r.value : 'subscribers'; }
+    Array.prototype.forEach.call(f.querySelectorAll('input[name="camp-audience"]'), function (r) {
+      r.addEventListener('change', function () { if (sbtn) sbtn.textContent = sendLabel(c, audience()); });
+    });
     if (sbtn) sbtn.addEventListener('click', function () {
-      if (!confirm('Send "' + $('#camp-subject').value + '" to ' + c.subscribed + ' people? Save any changes first. This cannot be undone.')) return;
-      api('POST', '/api/campaigns/' + f.dataset.id + '/send', { confirm_count: c.subscribed }).then(function (r) { toast('Sending to ' + r.total + ' people'); listScreen(); })
+      var a = audience(), n = audienceCounts(c)[a];
+      if (!confirm('Send "' + $('#camp-subject').value + '" to ' + n.toLocaleString('en-US') + ' people (' + AUDIENCE_NAMES[a].toLowerCase() + ')? Save any changes first. This cannot be undone.')) return;
+      api('POST', '/api/campaigns/' + f.dataset.id + '/send', { audience: a, confirm_count: n }).then(function (r) { toast('Sending to ' + r.total + ' people'); listScreen(); })
         .catch(function (err) { showError(f, err); });
     });
   }

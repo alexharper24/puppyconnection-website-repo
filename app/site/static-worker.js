@@ -10,6 +10,8 @@
 //   /                     the home page, because html_handling "none" turns off / -> index.html
 //   /media/<id>[/card]    a puppy photo from R2, uploaded or imported, only while its puppy is public
 //   /brand/<id>/<kind>    a breeder's logo or kennel photo, only while the breeder is public
+//   /api/build            this build's record, the generation it fetched, for the portal's
+//                         build check (app/lib/publish.js, checkBuild), never cached
 //   /api/beacon           the view and click count (plan P2.5), which stores a number per puppy
 //                         per day and nothing about the visitor
 // It reads the database's public views and writes only the count.
@@ -31,6 +33,11 @@ export default {
       if (m) return (await serveMedia(env, m[1], { card: !!m[2] })) || notFound();
       const b = url.pathname.match(/^\/brand\/([\w-]+)\/(logo|kennel)$/);
       if (b) return (await serveBrand(env, b[1], b[2], { card: url.searchParams.get('size') === 'card' })) || notFound();
+      if (url.pathname === '/api/build') {
+        const r = await env.ASSETS.fetch(new Request(new URL('/build.json', url)));
+        if (!r.ok) return notFound();
+        return new Response(r.body, { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+      }
       if (url.pathname === '/api/beacon') return (await recordBeacon(request, env)).response;
       return env.ASSETS.fetch(request);
     } catch (e) {

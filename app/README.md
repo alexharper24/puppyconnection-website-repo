@@ -202,6 +202,7 @@ node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo da
 node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the photo-based schedule on a moved clock, approval by reference, take offline until new photos, listing review, reports, Visit site, Wix descriptions
 node app/dev/focus-test.mjs     # the photo focus rule, from the dog detector's boxes
 node app/dev/checklist-test.mjs # docs/launch-workplan.md A17: the launch checklist seed and every checklist route, in this process with no server
+node app/dev/alerts-test.mjs    # launch workplan B10 and C5 on Node, no server: each failure alert forced, the hour's quiet window, and a send to subscribers or to all contacts
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
@@ -241,6 +242,7 @@ the routes it guards, so the suite is known to catch the failure it exists for.
 | Publishing | Real on staging since 2026-10-06. The staging portal and admin run `PUBLISH_MODE` hook with `PUBLISH_HOOK_URL` set, so a publish starts a Workers Builds build of the site repository and the staging site serves the generated pages | The same hook on the production site Worker (launch checklist L16) |
 | Puppy videos (workplan A3) | `STREAM_MODE=sim` keeps each file in R2 under `videos/` and plays it from the portal at `/dev/stream` | Subscribe to Stream on the Puppy Connection account, set the `STREAM_API_TOKEN` secret (Stream Edit) on the portal and the admin, then `STREAM_MODE=stream` and `STREAM_CUSTOMER_CODE` in `wrangler.hosted.jsonc`. Until then staging shows no video upload |
 | Scheduled jobs | Built (plan P4.2), with the publish on the */15 trigger since P4.4 | Nothing, beyond real email for their alerts |
+| Failure alerts (workplan B10) | A failed job on either trigger, a failed publish, a site build that did not finish, a failed backup, and a refused or failed Stripe webhook or a dispute each email every owner and `OPS_EXTRA`, at most one of each kind an hour (`alertOnce` in `lib/mail.js`, table `alert_state`). The rest are held, counted and sent as one summary once the hour is up. `FAIL_TEST`, honored only on local and staging, forces each failure for a test | Real email (L4), and the production portal's `SITE` binding naming the production site Worker |
 
 The local settings live in `app/portal/.dev.vars` and `app/admin/.dev.vars`, which are
 gitignored and copied from the `.example` files by `setup.mjs`. Nothing in `wrangler.jsonc`
@@ -417,17 +419,34 @@ settings, terms and operators are not touched. The audit log and email log are k
   and the parents' colors, which have no field, become one line on the litter.
 - **The launch checklist (workplan A17) is the source of truth for launch status.** It lives in
   `checklist_items`, `checklist_parts` and `checklist_comments` (migrations/0034), on the admin's
-  Launch checklist screen and as a card on the overview. Owners are Alex, Amber, Luke and Claude, and
-  `checklist_signers` maps a sign-in address to the names it acts as, so the shared Amber and Luke
+  Launch checklist screen and as a card on the overview. Owners are Alex and Amber only (Alex,
+  2026-10-19, migrations/0035), and `checklist_signers` maps a sign-in address to the names it acts as, so the shared Amber and Luke
   address picks who is ticking. Nothing is deleted, only archived, and only Alex archives. Every write
   is in `audit_log` under entity `checklist_item`. `docs/launch-workplan.md` keeps the detail and
   evidence, and `ops/checklist.mjs` exports the status to `docs/launch-checklist-status.md`, lists
   drift and ticks an item as Claude. A new operator address needs a `checklist_signers` row.
+- **A failed site build is found by its outcome** (workplan B10). Workers Builds never tells the
+  portal how a build ended, so `build/fetch-data.mjs` writes `build.json` with the generation it
+  fetched, `ci-build.sh` copies it into the pages, and the site Worker serves it at `/api/build`. The
+  portal's */15 run reads it through the `SITE` service binding (a Worker cannot fetch another on
+  the same workers.dev subdomain) and alerts once for a publish whose build has not shown up after
+  `BUILD_DEADLINE_MINUTES` (20). This catches a failed deploy as well as a failed build, with no
+  extra secret. A site built before `build.json` existed answers 404 and is not an alert.
+- **A send to all contacts** (workplan C5, Alex 2026-10-19). Each send picks subscribers only, or
+  every contact who has not unsubscribed, and the send button and its confirmation carry that
+  audience's count, which the server checks again. A contact's email says they have been in touch
+  rather than that they signed up, and carries the same one-click unsubscribe. Unsubscribed
+  addresses are in neither audience and are skipped if they leave mid-send.
 - Report CSVs (plan P3.7) are built on the server, and any text cell starting with `=`, `+`, `-`,
   `@`, a tab or a carriage return gets a leading apostrophe, so a puppy named like a formula
   cannot run in Amber's spreadsheet (`lib/csv.js`).
 
 ## Pending
+
+- [ ] Puppy Connection's own phone number, email address and social links for the Let's Chat
+      button on every site page (workplan A15). Each shows a visible REPLACE THIS until Amber sends
+      them. They go in `CONTACT` at the top of the Let's Chat block at the end of `js/main.js`, the
+      one place they live, then the site's `?v=` is bumped and the site repository synced
 
 - [ ] Cloudflare Stream for puppy videos, on hold until Amber wants video and commits to its cost
       (Alex, 2026-10-17). It is $5 a month for 1,000 minutes stored on either plan, and the Starter

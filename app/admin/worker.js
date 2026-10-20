@@ -23,7 +23,7 @@ import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
 import { addSubscriber, parseSubscriberCsv, readSubscriberRows, EMAIL_OK } from '../lib/subscribers.js';
-import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest } from '../lib/campaigns.js';
+import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest, audienceCount, audienceOf } from '../lib/campaigns.js';
 import { cleanImage } from '../lib/images.js';
 import { randomToken } from '../lib/util.js';
 import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
@@ -994,10 +994,11 @@ async function subscribersCsv(req, env) {
 
 async function listCampaigns(req, env) {
   const { results } = await env.DB.prepare(
-    'SELECT id, subject, body, status, created_by, created_at, updated_at, send_started_at, sent_at, total, sent_count, failed_count FROM campaigns ORDER BY created_at DESC LIMIT 50',
+    'SELECT id, subject, body, status, audience, created_by, created_at, updated_at, send_started_at, sent_at, total, sent_count, failed_count FROM campaigns ORDER BY created_at DESC LIMIT 50',
   ).all();
-  const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'subscribed'").first();
-  return json({ campaigns: results, subscribed: n, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
+  // The count for each audience, shown on the send button before anything is sent (launch workplan C5).
+  const n = await audienceCount(env, 'subscribers'), all = await audienceCount(env, 'all');
+  return json({ campaigns: results, subscribed: n, audiences: { subscribers: n, all }, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
 }
 
 function campaignInput(body) {
@@ -1061,11 +1062,14 @@ async function sendCampaign(req, env, ctx, id, who) {
   if (c.status !== 'draft') throw bad('That email has already been sent or is sending.');
   if (!(await mailingAddress(env))) throw bad('Add the mailing address first. The law on marketing email requires one in every email.');
   const body = await readJson(req);
-  const { n } = await env.DB.prepare("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'subscribed'").first();
-  if (!n) throw bad('Nobody is on the list yet.');
-  if (Number(body.confirm_count) !== n) throw bad(`The list has ${n} people on it now. Check the number and send again.`);
-  const total = await startCampaign(env, id);
-  await auditStmt(env, 'operator', who.email, 'campaign.send', 'campaign', id, null, { subject: c.subject, total }).run();
+  let audience;
+  try { audience = audienceOf(body.audience); } catch { throw bad('Choose subscribers only, or all contacts.'); }
+  const n = await audienceCount(env, audience);
+  if (!n) throw bad(audience === 'all' ? 'There are no contacts to send to.' : 'Nobody is on the list yet.');
+  // The count the operator saw must still be the count, so a send never reaches more people than they confirmed.
+  if (Number(body.confirm_count) !== n) throw bad(`${audience === 'all' ? 'All contacts come' : 'The list comes'} to ${n} people now. Check the number and send again.`);
+  const total = await startCampaign(env, id, audience);
+  await auditStmt(env, 'operator', who.email, 'campaign.send', 'campaign', id, null, { subject: c.subject, audience, total }).run();
   ctx.waitUntil(runCampaigns(env).catch((e) => console.error('campaign run failed', e)));
   return json({ ok: true, total });
 }

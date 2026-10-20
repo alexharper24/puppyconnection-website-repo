@@ -13,9 +13,9 @@
 import { now } from './util.js';
 import { runCampaigns } from './campaigns.js';
 import { settings, auditStmt, dirtyStmt } from './store.js';
-import { sendMail, alertOps } from './mail.js';
+import { sendMail, alertOps, alertOnce, flushHeldAlerts, failTest } from './mail.js';
 import { provider, releaseCheckout, fulfillCheckout } from './payments.js';
-import { publishIfDue } from './publish.js';
+import { publishIfDue, checkBuild } from './publish.js';
 import { videoJob } from './stream.js';
 import { photoJob } from './photocheck.js';
 import { inactivityJob } from './inactivity.js';
@@ -26,6 +26,7 @@ const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
 async function record(env, job, fn) {
   const started = now();
   try {
+    if (failTest(env, job)) throw new Error(`Forced test failure of the ${job} job (FAIL_TEST).`);
     const result = await fn();
     await env.DB.prepare(`INSERT INTO job_runs (job, last_run_at, last_result, last_error) VALUES (?, ?, ?, NULL)
       ON CONFLICT (job) DO UPDATE SET last_run_at = excluded.last_run_at, last_result = excluded.last_result, last_error = NULL`)
@@ -36,7 +37,8 @@ async function record(env, job, fn) {
     await env.DB.prepare(`INSERT INTO job_runs (job, last_run_at, last_result, last_error) VALUES (?, ?, NULL, ?)
       ON CONFLICT (job) DO UPDATE SET last_run_at = excluded.last_run_at, last_error = excluded.last_error`)
       .bind(job, started, String(e.message || e)).run();
-    await alertOps(env, `${job} job failed`, String(e.stack || e)).catch(() => {});
+    // At most one alert per job an hour, so a job stuck failing every 15 minutes cannot flood the inbox.
+    await alertOnce(env, `job:${job}`, `The ${JOB_TITLES[job] || job} job failed`, `${String(e.stack || e)}\n\nThe admin's Jobs screen shows its last run.`).catch((x) => console.error('alert failed', x));
     return { job, ok: false, error: String(e.message || e) };
   }
 }
@@ -125,7 +127,13 @@ async function reconcile(env) {
 // media route serves only rows in photos, so nothing under backups/ is reachable from outside.
 const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'breeder_references', 'people', 'breeds', 'litters', 'puppies', 'photos', 'puppy_videos', 'checkouts', 'checkout_items',
   'puppy_holds', 'payments', 'stripe_events', 'settings', 'site_state', 'audit_log', 'email_log', 'job_runs',
-  'breeder_breeds', 'puppy_stats', 'account_requests', 'operator_notes', 'terms_versions', 'disputes', 'listing_reports', 'breed_searches'];
+  'breeder_breeds', 'puppy_stats', 'account_requests', 'operator_notes', 'terms_versions', 'disputes', 'listing_reports', 'breed_searches',
+  // Added 2026-10-20 (launch workplan B12). Kennel members, and the mailing list with its 4,177
+  // imported contacts and every send, were missing, so a restore lost them. The restore puts tables
+  // it does not order last, in this order, which the foreign keys accept.
+  'breeder_members', 'subscribers', 'campaigns', 'campaign_sends',
+  // Added 2026-10-20 (workplan A17). The launch checklist, items before their parts and comments.
+  'checklist_signers', 'checklist_items', 'checklist_parts', 'checklist_comments'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;
@@ -201,6 +209,9 @@ const videos = (env) => videoJob(env);
 const photos = (env) => photoJob(env, async (e) => (await settings(e)).photoCheckRoute);
 // The week-by-week inactivity schedule (lib/inactivity.js, workplan A2).
 const inactivity = (env) => inactivityJob(env);
+// What an alert calls each job, the same names the admin's Jobs screen uses.
+const JOB_TITLES = { expiry: 'listing expiry', housekeeping: 'housekeeping', backup: 'nightly backup', reconcile: 'checkout check', links: 'breeder link check',
+  campaigns: 'mailing list sending', videos: 'video check', photos: 'photo check', inactivity: 'inactivity schedule', publish: 'site publish', build: 'site build check', alerts: 'held alerts' };
 export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos, photos, inactivity };
 
 export function runJob(env, name) {
@@ -213,7 +224,10 @@ export async function scheduled(event, env) {
   // Reconcile first, because a checkout it fulfills marks the site dirty. Publish is not in JOBS,
   // so the admin has no Run now for it: the admin's Publish now goes through the portal instead,
   // because only the portal holds the GitHub token.
-  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await runJob(env, 'photos'), await record(env, 'publish', () => publishIfDue(env)), await runJob(env, 'campaigns')];
+  // The build check reads whether the last site build finished (lib/publish.js), and the held
+  // alerts go out last, once their hour is up.
+  if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await runJob(env, 'photos'), await record(env, 'publish', () => publishIfDue(env)),
+    await record(env, 'build', () => checkBuild(env)), await runJob(env, 'campaigns'), await record(env, 'alerts', () => flushHeldAlerts(env))];
   const out = [];
   for (const j of ['expiry', 'inactivity', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
   return out;

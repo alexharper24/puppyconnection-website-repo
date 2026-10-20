@@ -28,7 +28,7 @@
 
 import { now } from './util.js';
 import { auditStmt } from './store.js';
-import { alertOps } from './mail.js';
+import { alertOnce, failTest } from './mail.js';
 import { exportSite } from './shape.js';
 import { githubMissing, gitBlobSha, branchTree, commitChanges } from './github.js';
 
@@ -92,14 +92,14 @@ function recordSuccess(env, gen, sha, actor, name, detail) {
   ];
 }
 
-async function recordFailure(env, gen, actor, name, msg) {
+export async function recordFailure(env, gen, actor, name, msg) {
   const before = await env.DB.prepare('SELECT last_error FROM site_state WHERE id = 1').first();
   await env.DB.batch([
     env.DB.prepare('UPDATE site_state SET last_error = ? WHERE id = 1').bind(msg),
     auditStmt(env, actor.type, actor.email, 'site.publish_failed', 'site', name, null, { generation: gen, error: msg }),
   ]);
-  // One alert per distinct error, so a lapsed token does not email every fifteen minutes.
-  if (before?.last_error !== msg) await alertOps(env, 'The public site could not be published', msg).catch(() => {});
+  // One alert per distinct error, and at most one an hour, so a lapsed token does not email every fifteen minutes.
+  if (before?.last_error !== msg) await alertOnce(env, 'publish', 'The public site could not be published', msg).catch(() => {});
 }
 
 /**
@@ -164,6 +164,11 @@ export async function publishHook(env, actor = { type: 'system', email: 'publish
   if (missing) return { ok: false, off: true, error: missing };
   const s = await env.DB.prepare('SELECT generation, published_generation, last_publish_sha FROM site_state WHERE id = 1').first();
   const gen = s.generation;
+  if (failTest(env, 'publish_hook')) {
+    const msg = 'Forced test failure of the publish (FAIL_TEST publish_hook). The deploy hook was not called.';
+    await recordFailure(env, gen, actor, 'hook', msg);
+    return { ok: false, error: msg, recorded: true };
+  }
   if (gen <= s.published_generation) return { ok: true, nothing: true, sha: s.last_publish_sha || 'nothing', generation: gen };
   try {
     const res = await fetch(env.PUBLISH_HOOK_URL, { method: 'POST', headers: { 'user-agent': 'puppyconnection-publish' } });
@@ -226,6 +231,7 @@ export async function publishCommit(env, actor = { type: 'system', email: 'publi
 export async function publishIfDue(env, { minAgeMs = 60000 } = {}) {
   const s = await env.DB.prepare('SELECT generation, published_generation, dirty_since, last_publish_at FROM site_state WHERE id = 1').first();
   const waiting = s.generation - s.published_generation;
+  if (failTest(env, 'publish_hook')) return { waiting, failed: (await publishSite(env, { type: 'system', email: 'publish-cron' })).error };
   if (waiting <= 0) return { waiting: 0 };
   const age = s.dirty_since ? Date.now() - Date.parse(s.dirty_since) : Infinity;
   if (age < minAgeMs) return { waiting, wait: true, age_seconds: Math.floor(age / 1000) };
@@ -240,4 +246,44 @@ export async function publishIfDue(env, { minAgeMs = 60000 } = {}) {
   // A failure is already recorded and alerted once by publishSite, so the job does not alert again.
   if (!r.ok) return { waiting, failed: r.error };
   return { waiting, mode: portalMode(env), sha: r.sha, generation: r.generation, files: r.files, build: r.build, nothing: r.nothing };
+}
+
+/**
+ * Did the last site build finish? (launch workplan B10.) A deploy hook that accepts only means a
+ * build was queued, and the build or its deploy can still fail in Workers Builds, where the portal
+ * never hears of it. So the build writes build.json with the generation it fetched
+ * (build/ci-build.sh), the site Worker serves it at /api/build, and this reads it through the
+ * SITE service binding (a Worker cannot fetch another on the same workers.dev subdomain). When a
+ * hook was accepted BUILD_DEADLINE_MINUTES ago (20) and the site still serves an older generation,
+ * the owners get one alert for that generation.
+ */
+export async function checkBuild(env) {
+  if (portalMode(env) !== 'hook') return { off: 'not hook mode' };
+  const forced = failTest(env, 'build_late');
+  const s = await env.DB.prepare('SELECT published_generation, last_publish_at, last_publish_sha FROM site_state WHERE id = 1').first();
+  if (!forced && (!s.last_publish_at || !String(s.last_publish_sha || '').startsWith('hook:'))) return { nothing: true };
+  const minutes = s.last_publish_at ? Math.floor((Date.now() - Date.parse(s.last_publish_at)) / 60000) : 0;
+  if (!forced && minutes < Number(env.BUILD_DEADLINE_MINUTES ?? 20)) return { waiting: true, minutes };
+  let built;
+  if (forced) built = { generation: -1, fetched_at: 'never (FAIL_TEST build_late)' };
+  else {
+    const read = env.SITE && typeof env.SITE.fetch === 'function' ? (u) => env.SITE.fetch(u)
+      : env.DEV_MODE === 'local' && env.SITE_BUILD_URL ? (u) => fetch(env.SITE_BUILD_URL) : null;
+    if (!read) return { off: 'no SITE binding' };
+    const res = await read('https://site.internal/api/build');
+    // A site built before build.json existed has none, so there is nothing to compare yet.
+    if (res.status === 404) return { unknown: true };
+    if (!res.ok) throw new Error(`The site answered ${res.status} for its build record.`);
+    built = await res.json();
+  }
+  if (Number(built.generation) >= s.published_generation) return { ok: true, generation: built.generation };
+  const title = `The site build for publish ${s.published_generation} did not finish`;
+  const seen = await env.DB.prepare("SELECT last_title FROM alert_state WHERE kind = 'build'").first();
+  if (!forced && seen?.last_title === title) return { late: true, alerted: 'already', generation: built.generation };
+  await alertOnce(env, 'build', title,
+    `A publish started a site build at ${s.last_publish_at || 'an unknown time'}, and ${minutes} minutes later the site still shows ` +
+    `generation ${built.generation} (data fetched ${built.fetched_at || 'at an unknown time'}) rather than ${s.published_generation}. ` +
+    'The build or its deploy failed in Workers Builds. Open the site Worker in the Cloudflare dashboard, then Builds, to read the log. ' +
+    'The site already deployed stays as it was, and the next publish tries again.');
+  return { late: true, generation: built.generation, published: s.published_generation };
 }

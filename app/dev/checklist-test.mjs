@@ -18,6 +18,7 @@ import { workplanItems, drift } from '../ops/checklist.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0034_launch_checklist.sql'), 'utf8');
+const OWNERS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0035_checklist_owners.sql'), 'utf8');
 
 let fails = 0, passes = 0;
 function check(label, ok, detail) {
@@ -53,6 +54,9 @@ db.exec('PRAGMA foreign_keys = ON');
 db.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8'));
 db.exec(MIGRATION);
 const firstCount = db.prepare('SELECT COUNT(*) AS n FROM checklist_items').get().n;
+const before0035 = db.prepare("SELECT (SELECT COUNT(*) FROM checklist_items WHERE owner IN ('Claude','Luke') OR waiting_owner IN ('Claude','Luke')) + (SELECT COUNT(*) FROM checklist_parts WHERE owner IN ('Claude','Luke')) AS n").get().n;
+db.exec(OWNERS_MIGRATION);
+db.exec(OWNERS_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -88,8 +92,11 @@ function seedChecks() {
   const partlyGate = items.filter((i) => i.section !== 'launch' && i.status !== 'done' && parts.some((p) => p.item_id === i.id && p.done_at));
   check(`gate items with parts done before launch show as partly done (${partlyGate.length})`, partlyGate.length >= 2);
   check('every waiting item says what it waits on', items.filter((i) => i.status === 'waiting').every((i) => i.waiting_on));
-  check('owners are only Alex, Amber, Luke and Claude, and Amber and Luke both own something',
-    [...items, ...parts].every((x) => ['Alex', 'Amber', 'Luke', 'Claude'].includes(x.owner)) && [...items, ...parts].some((x) => x.owner === 'Amber') && parts.some((p) => p.owner === 'Luke'));
+  check(`after migration 0035 every owner and waiting person is Alex or Amber (${before0035} rows named Claude or Luke before)`,
+    before0035 > 0 && [...items, ...parts].every((x) => ['Alex', 'Amber'].includes(x.owner)) && items.every((i) => !i.waiting_owner || ['Alex', 'Amber'].includes(i.waiting_owner)));
+  check("Luke's training part moved to Amber with his name kept in the title", parts.some((p) => p.title === 'Luke attends the training' && p.owner === 'Amber'));
+  check('migration 0035 audits each moved item once, and running it again adds nothing',
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n === db.prepare("SELECT COUNT(DISTINCT entity_id) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n);
 }
 
 // ---------------------------------------------------------------- part 2, the routes
@@ -124,14 +131,14 @@ async function routeChecks() {
   r = await call(SHARED, 'POST', '/api/checklist/items', { title: 'Test the welcome email', description: 'Send one to each of us.', section: 'launch', owner: 'Amber', as: 'Amber' });
   const id = r.data.id;
   check('Amber adds an item, recorded as created by Amber with an audit row', r.status === 201 && row(id).created_by === 'Amber' && JSON.parse(lastAudit(id).after_json).as === 'Amber');
-  r = await call(SHARED, 'POST', '/api/checklist/items', { title: 'Waits on nothing named', section: 'gate1', owner: 'Luke', status: 'waiting' });
+  r = await call(SHARED, 'POST', '/api/checklist/items', { title: 'Waits on nothing named', section: 'gate1', owner: 'Amber', status: 'waiting' });
   check('an item set to waiting without saying on what is refused', r.status === 400 && /waiting on/i.test(r.data.error));
 
   // Edit, with the version, then a stale one.
   const v = row(id).version;
-  r = await call(ALEX, 'PUT', `/api/checklist/items/${id}`, { version: v, status: 'waiting', waiting_on: 'Real email being on', waiting_owner: 'Alex', owner: 'Claude' });
-  check('Alex edits it to waiting on real email, owned by Claude, and the edit lists before and after',
-    r.status === 200 && row(id).status === 'waiting' && row(id).owner === 'Claude' && JSON.parse(lastAudit(id).before_json).owner === 'Amber' && JSON.parse(lastAudit(id).after_json).owner === 'Claude');
+  r = await call(ALEX, 'PUT', `/api/checklist/items/${id}`, { version: v, status: 'waiting', waiting_on: 'Real email being on', waiting_owner: 'Alex', owner: 'Alex' });
+  check('Alex edits it to waiting on real email, owned by Alex, and the edit lists before and after',
+    r.status === 200 && row(id).status === 'waiting' && row(id).owner === 'Alex' && JSON.parse(lastAudit(id).before_json).owner === 'Amber' && JSON.parse(lastAudit(id).after_json).owner === 'Alex');
   r = await call(SHARED, 'PUT', `/api/checklist/items/${id}`, { version: v, title: 'Overwritten' });
   check('an edit from an older copy of the item is refused rather than overwriting', r.status === 409 && row(id).title === 'Test the welcome email');
 
@@ -141,17 +148,22 @@ async function routeChecks() {
   const total = Object.values(s1.counts).reduce((n, sec) => n + Object.values(sec).reduce((a, b) => a + b, 0), 0);
   check('the summary counts every item once by section and status', r.status === 200 && total === SEED.length + 1 && s1.counts.launch.waiting >= 1);
   const mineAlex = s1.mine;
-  r = await call(SHARED, 'GET', '/api/checklist/summary?as=Luke');
-  check(`waiting on me differs by person (Alex ${mineAlex}, Luke ${r.data.mine})`, mineAlex > 0 && r.data.mine >= 1 && r.data.mine < mineAlex && r.data.me.name === 'Luke');
+  r = await call(SHARED, 'GET', '/api/checklist/summary?as=Amber');
+  const mineAmber = r.data.mine;
+  const luke = (await call(SHARED, 'GET', '/api/checklist/summary?as=Luke')).data;
+  check(`waiting on me differs by person (Alex ${mineAlex}, Amber ${mineAmber}, Luke ${luke.mine}, as he owns nothing now)`,
+    mineAlex > 0 && mineAmber > 0 && mineAmber !== mineAlex && luke.mine === 0 && luke.me.name === 'Luke');
 
   // Parts.
   r = await call(SHARED, 'POST', `/api/checklist/items/${id}/parts`, { title: 'Write the email', owner: 'Amber', as: 'Amber' });
-  r = await call(SHARED, 'POST', `/api/checklist/items/${id}/parts`, { title: 'Check it on a phone', owner: 'Luke', as: 'Luke' });
+  r = await call(SHARED, 'POST', `/api/checklist/items/${id}/parts`, { title: 'Check it on a phone', owner: 'Amber', as: 'Luke' });
+  const refused = await call(ALEX, 'POST', `/api/checklist/items/${id}/parts`, { title: 'Claude part', owner: 'Claude' });
+  check('Claude or Luke can no longer be given a part or an item', refused.status === 400 && (await call(ALEX, 'POST', '/api/checklist/items', { title: 'x', section: 'launch', owner: 'Luke' })).status === 400);
   const parts = r.data.parts;
-  check('parts are added with their own owners, in order', r.status === 200 && parts.length === 2 && parts[0].owner === 'Amber' && parts[1].owner === 'Luke');
+  check('parts are added with their own owners, in order', r.status === 200 && parts.length === 2 && parts[0].owner === 'Amber' && parts[1].owner === 'Amber' && parts[1].created_by === 'Luke');
   r = await call(SHARED, 'POST', `/api/checklist/parts/${parts[1].id}/tick`, { done: true, as: 'Luke' });
   const ticked = r.data.parts.find((p) => p.id === parts[1].id);
-  check('Luke ticks his part, and the part records Luke and when', ticked.done_by === 'Luke' && ticked.done_at && JSON.parse(lastAudit(id).after_json).as === 'Luke');
+  check('Luke ticks a part on the shared address, and the part records Luke and when', ticked.done_by === 'Luke' && ticked.done_at && JSON.parse(lastAudit(id).after_json).as === 'Luke');
   r = await call(SHARED, 'POST', `/api/checklist/parts/${parts[0].id}/tick`, { done: true, as: 'Alex' });
   check('the shared address cannot tick as Alex, and the tick falls to Amber', r.data.parts.find((p) => p.id === parts[0].id).done_by === 'Amber');
   r = await call(SHARED, 'POST', `/api/checklist/parts/${parts[0].id}/tick`, { done: false });
@@ -218,7 +230,7 @@ async function routeChecks() {
   // A seeded shared item keeps who does which part.
   const shared = db.prepare("SELECT id FROM checklist_items WHERE title = 'Seller statement on every puppy page'").get().id;
   r = await call(SHARED, 'GET', `/api/checklist/items/${shared}`);
-  check('a seeded shared item shows Amber\'s part and Claude\'s part', r.data.parts.map((p) => p.owner).join() === 'Amber,Claude');
+  check('a seeded shared item shows Amber\'s part and Alex\'s part', r.data.parts.map((p) => p.owner).join() === 'Amber,Alex');
 }
 
 seedChecks();

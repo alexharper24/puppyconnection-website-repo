@@ -10,7 +10,7 @@
   var STATUSES = [['not_started', 'Not started'], ['in_progress', 'In progress'], ['waiting', 'Waiting'], ['done', 'Done']];
   var STATUS_NAME = { not_started: 'Not started', in_progress: 'In progress', waiting: 'Waiting', done: 'Done' };
   var STATUS_PILL = { not_started: 'sq sq-not_started', in_progress: 'sq sq-in_progress', waiting: 'sq sq-waiting', done: 'sq sq-done' };
-  var OWNERS = ['Alex', 'Amber', 'Luke', 'Claude'];
+  var OWNERS = ['Alex', 'Amber'];   // Alex, 2026-10-19: owners are Alex and Amber only
   var SEEDED = 'launch plan';
   var data = null;            // the last /api/checklist answer
 
@@ -128,7 +128,7 @@
           '<span class="cl-parts-n">' + (parts.length ? '<span class="cl-bar" aria-hidden="true"><i style="width:' + Math.round(100 * done / parts.length) + '%"></i></span>' + done + '/' + parts.length : '') + '</span>' +
           '<span class="sq sq-owner" title="Owner">' + esc(it.owner) + '</span>' +
           '<span class="sq sq-' + it.status + '">' + STATUS_NAME[it.status] + '</span>' +
-          '<span class="cl-waits"' + (it.waiting_on ? ' title="Waiting on ' + esc(it.waiting_on) + '"' : '') + '>' + (wait ? 'on ' + (it.waiting_owner ? '<b>' + esc(wait) + '</b>' : esc(wait)) : it.status === 'done' ? esc(A().day(it.done_at)) : '') + '</span>' +
+          '<span class="cl-waits"' + (it.waiting_on ? ' title="Waiting on ' + esc(it.waiting_on) + '"' : '') + '>' + (wait ? '' + (it.waiting_owner ? '<b>' + esc(wait) + '</b>' : esc(wait)) : it.status === 'done' ? esc(A().day(it.done_at)) : '') + '</span>' +
         '</span>' +
       '</div>' +
       (open ? '<div class="cl-detail" id="d-' + esc(it.id) + '">' + detailHtml(it) + '</div>' : '') +
@@ -184,6 +184,11 @@
       (c.not_started ? '<span class="cl-count"><b>' + c.not_started + '</b> not started</span>' : '');
   }
 
+  // Column headings for an open group, lined up with the row cells (hidden on a phone, where rows stack).
+  function colHead(opts) {
+    return '<li class="cl-colhead" aria-hidden="true"><span></span><span>Item</span>' + (opts.section ? '<span>Section</span>' : '') +
+      '<span>Parts</span><span>Owner</span><span>Status</span><span>Waiting on</span></li>';
+  }
   function group(key, label, list, opts) {
     var open = isOpen(key);
     var shown = list.filter(function (it) { return it.status !== 'done'; });
@@ -192,7 +197,7 @@
     return '<section class="cl-group' + (open ? ' is-open' : '') + '">' +
       '<h2 class="cl-ghead"><button type="button" data-group="' + esc(key) + '" aria-expanded="' + open + '"><span class="cl-chev" aria-hidden="true"></span>' +
         '<span class="cl-gname">' + esc(label) + '</span>' + (opts.extra || '') + '<span class="cl-gcounts">' + (opts.counts || countLine(list)) + '</span></button></h2>' +
-      (open ? '<ul class="cl-rows">' + (shown.length ? shown.map(function (it) { return itemRow(it, opts); }).join('') : '<li class="cl-empty">Nothing open here.</li>') +
+      (open ? '<ul class="cl-rows">' + colHead(opts) + (shown.length ? shown.map(function (it) { return itemRow(it, opts); }).join('') : '<li class="cl-empty">Nothing open here.</li>') +
         (done.length && !opts.noDone ? '<li class="cl-donebar"><button type="button" data-group="' + esc(key) + ':done" aria-expanded="' + doneOpen + '"><span class="cl-chev" aria-hidden="true"></span>' +
           A().plural(done.length, 'done item') + '</button></li>' + (doneOpen ? done.map(function (it) { return itemRow(it, opts); }).join('') : '') : '') +
         '</ul>' : '') +

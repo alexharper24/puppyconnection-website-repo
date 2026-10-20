@@ -117,9 +117,13 @@ for (const l of LISTINGS) {
   }
   const bid = breedId[breedName];
   const litterKey = l.litter || `solo-${l.slug}`;
-  const litterId = `seed-l-${slugify(litterKey)}`;
+  let litterId = `seed-l-${slugify(litterKey)}`;
+  // A litter holds one breed. data/data.js was built before the harvest put the breed in its litter
+  // key, so two breeds can share a key there, and the litter took the first puppy's breed for all of
+  // them (migration 0046 corrected staging). A puppy of another breed gets a litter of its own breed.
+  if (litters[litterId] && litters[litterId] !== bid) litterId = `${litterId}--${slugify(breedName)}`;
   if (!litters[litterId]) {
-    litters[litterId] = true;
+    litters[litterId] = bid;
     sql.push(`INSERT OR IGNORE INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, description, legacy_id, created_at, updated_at)
 VALUES (${q(litterId)}, ${q(b.id)}, ${q(bid)}, ${q(isoDate(l.birthdate))}, ${q(isoDate(l.ready_date))}, ${q(weight(l.mom_weight))}, ${q(weight(l.dad_weight))}, ${q(l.parent_colors || null)}, ${q(l.litter)}, ${q(NOW)}, ${q(NOW)});`);
   }

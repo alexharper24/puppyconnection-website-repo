@@ -3,15 +3,15 @@ batch: breed-audit
 started: 2026-10-20
 asked_by: Alex
 target: staging D1 `puppyconnection`, every puppy published or not (311)
-stage: waiting-on-alex-approval
+stage: applied-to-staging
 evidence_folder: hs-seo-data/puppyconnection/2026-10-20-breed-audit
 review_page: hs-seo-data/puppyconnection/2026-10-20-breed-audit/review.html
 tasks:
   - {id: t1, status: done, item: "Gather breed evidence for every puppy from text only: Wix title and category (2026-10-18 re-inventory, else the first harvest), the listing address, the description, the breeder's own site, litter mates", evidence: "evidence.py, evidence.json"}
   - {id: t2, status: done, item: "Sort into agree (290), different (16), unclear (5)", evidence: evidence.json}
   - {id: t3, status: done, item: "Review page sent to Alex", evidence: review.html}
-  - {id: t4, status: open, blocked_on: alex, item: "Row approvals, or approve all clear ones"}
-  - {id: t5, status: pending, item: "D1 export backup to app/.state/, numbered migration, fix the litter grouping in _harvest/builddata.py and a guard in app/dev/seed.mjs, apply to staging, publish, check breed and breeder pages, record in the launch workplan"}
+  - {id: t4, status: done, item: "Approved by Alex 2026-10-20, all 16 and both breeder breed lists"}
+  - {id: t5, status: in-progress, item: "D1 export backup (done, .state/staging-2026-10-20-pre0046-breeds.sql), migration 0046 (applied, all 16 verified in staging), harvest and seed fix (done), publish and page check (waiting on the scheduled publish). Was: D1 export backup to app/.state/, numbered migration, fix the litter grouping in _harvest/builddata.py and a guard in app/dev/seed.mjs, apply to staging, publish, check breed and breeder pages, record in the launch workplan"}
 findings:
   - "Cause: _harvest/builddata.py keyed a litter on breeder domain plus birth date, with no breed. Most listings printed peacefulpawspuppies.com, so different breeds born the same day shared a litter and app/dev/seed.mjs gave the litter the first puppy's breed. The 2026-10-18 pairing generator (app/dev/make-breeder-pairing-migration.mjs, single use) copied the source litter's breed onto each split-off litter."
   - "16 puppies, 6 litters, 4 breeders: Cuddly Family Companions 8 (4 Great Danes as Miniature Schnauzer, 4 Shih Tzus as Cavalier), Peaceful Paws 3 Great Danes as Miniature Schnauzer, Responsible Dog Breeder Network 4 Cavaliers (3 as Miniature Dachshund, 1 as Cocker Spaniel), Pine Creek Bulldogs 1 English Bulldog as French Bulldog."

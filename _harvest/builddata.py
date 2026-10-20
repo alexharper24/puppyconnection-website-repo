@@ -106,15 +106,22 @@ for f in files:
     })
 
 # ---- litters, normalisation, demo pairing ----
+# A litter is one breeder, one breed and one birth date. The breed was missing from this key until
+# 2026-10-20, and because most listings printed the same breeder website, puppies of different
+# breeds born the same day shared a litter and all took the first one's breed (migration 0046).
+def litter_key(r):
+    d, b, br = r.get('breeder_domain'), r.get('birthdate'), fixbreed(r.get('breed'))
+    return re.sub(r'[^a-z0-9]+', '-', (d + '-' + br + '-' + b).lower()).strip('-') if d and b and br else None
+
+
 lit = {}
 for r in L:
-    d, b = r.get('breeder_domain'), r.get('birthdate')
-    if d and b:
-        lit.setdefault(re.sub(r'[^a-z0-9]+', '-', (d + '-' + b).lower()).strip('-'), []).append(r['slug'])
+    k = litter_key(r)
+    if k:
+        lit.setdefault(k, []).append(r['slug'])
 
 for i, r in enumerate(L):
-    d, b = r.get('breeder_domain'), r.get('birthdate')
-    k = re.sub(r'[^a-z0-9]+', '-', (d + '-' + b).lower()).strip('-') if d and b else None
+    k = litter_key(r)
     r['litter'] = k if k and len(lit.get(k, [])) > 1 else None
     r['breed'] = fixbreed(r.get('breed'))
     r['deposit'] = int(str(r['deposit']).replace(',', '')) if r.get('deposit') else None

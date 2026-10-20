@@ -19,6 +19,8 @@ import { workplanItems, drift } from '../ops/checklist.mjs';
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0034_launch_checklist.sql'), 'utf8');
 const OWNERS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0035_checklist_owners.sql'), 'utf8');
+const DAY_ONE_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0036_checklist_day_one.sql'), 'utf8');
+const DAY_ONE = 6;   // the items migration 0036 adds
 
 let fails = 0, passes = 0;
 function check(label, ok, detail) {
@@ -57,6 +59,8 @@ const firstCount = db.prepare('SELECT COUNT(*) AS n FROM checklist_items').get()
 const before0035 = db.prepare("SELECT (SELECT COUNT(*) FROM checklist_items WHERE owner IN ('Claude','Luke') OR waiting_owner IN ('Claude','Luke')) + (SELECT COUNT(*) FROM checklist_parts WHERE owner IN ('Claude','Luke')) AS n").get().n;
 db.exec(OWNERS_MIGRATION);
 db.exec(OWNERS_MIGRATION);
+db.exec(DAY_ONE_MIGRATION);
+db.exec(DAY_ONE_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -67,7 +71,7 @@ for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], 
 function seedChecks() {
   const items = db.prepare('SELECT * FROM checklist_items').all();
   const parts = db.prepare('SELECT * FROM checklist_parts').all();
-  check(`the migration seeds ${SEED.length} items and a second run adds nothing`, firstCount === SEED.length && items.length === SEED.length, `${firstCount}, then ${items.length}`);
+  check(`the migration seeds ${SEED.length} items and a second run adds nothing`, firstCount === SEED.length && items.length === SEED.length + DAY_ONE, `${firstCount}, then ${items.length}`);
   check('the seed is recorded once in the audit trail', db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.seed'").get().n === 1);
   const sections = new Set(items.map((i) => i.section));
   check('items sit in the four sections Launch, Gate 1, Gate 2 and Gate 3', ['launch', 'gate1', 'gate2', 'gate3'].every((s) => sections.has(s)) && sections.size === 4);
@@ -95,6 +99,10 @@ function seedChecks() {
   check(`after migration 0035 every owner and waiting person is Alex or Amber (${before0035} rows named Claude or Luke before)`,
     before0035 > 0 && [...items, ...parts].every((x) => ['Alex', 'Amber'].includes(x.owner)) && items.every((i) => !i.waiting_owner || ['Alex', 'Amber'].includes(i.waiting_owner)));
   check("Luke's training part moved to Amber with his name kept in the title", parts.some((p) => p.title === 'Luke attends the training' && p.owner === 'Amber'));
+  const dayOne = items.filter((i) => /^B(7|8|9|10|11|12)$/.test(i.ref || ''));
+  check('migration 0036 adds the six day-one items to Launch, owned by Alex or Amber, each audited once, and a second run adds nothing',
+    dayOne.length === DAY_ONE && dayOne.every((i) => i.section === 'launch' && ['Alex', 'Amber'].includes(i.owner)) &&
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.add' AND entity_id IN ('cl-074','cl-075','cl-076','cl-077','cl-078','cl-079')").get().n === DAY_ONE);
   check('migration 0035 audits each moved item once, and running it again adds nothing',
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n === db.prepare("SELECT COUNT(DISTINCT entity_id) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n);
 }
@@ -119,7 +127,7 @@ const lastAudit = (id) => db.prepare("SELECT * FROM audit_log WHERE entity = 'ch
 
 async function routeChecks() {
   let r = await call(ALEX, 'GET', '/api/checklist');
-  check('Alex reads the checklist, acting as Alex with archiving allowed', r.status === 200 && r.data.me.name === 'Alex' && r.data.me.can_archive && r.data.items.length === SEED.length);
+  check('Alex reads the checklist, acting as Alex with archiving allowed', r.status === 200 && r.data.me.name === 'Alex' && r.data.me.can_archive && r.data.items.length === SEED.length + DAY_ONE);
   r = await call(SHARED, 'GET', '/api/checklist');
   check('the shared address acts as Amber or Luke, Amber first, and may not archive', r.status === 200 && r.data.me.names.join() === 'Amber,Luke' && r.data.me.name === 'Amber' && !r.data.me.can_archive);
   r = await call(STAFF, 'GET', '/api/checklist');
@@ -146,7 +154,7 @@ async function routeChecks() {
   r = await call(ALEX, 'GET', '/api/checklist/summary');
   const s1 = r.data;
   const total = Object.values(s1.counts).reduce((n, sec) => n + Object.values(sec).reduce((a, b) => a + b, 0), 0);
-  check('the summary counts every item once by section and status', r.status === 200 && total === SEED.length + 1 && s1.counts.launch.waiting >= 1);
+  check('the summary counts every item once by section and status', r.status === 200 && total === SEED.length + DAY_ONE + 1 && s1.counts.launch.waiting >= 1);
   const mineAlex = s1.mine;
   r = await call(SHARED, 'GET', '/api/checklist/summary?as=Amber');
   const mineAmber = r.data.mine;

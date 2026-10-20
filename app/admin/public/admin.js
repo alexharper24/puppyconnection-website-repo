@@ -68,6 +68,11 @@
     if (lastFocus && lastFocus.focus && document.body.contains(lastFocus)) lastFocus.focus();
   }
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+  // Below 860px the menu folds behind a Menu button (Alex, 2026-10-19). The rail is redrawn on every screen, so it closes on its own.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.menu-btn'); if (!b) return;
+    b.setAttribute('aria-expanded', String(b.closest('.rail').classList.toggle('open')));
+  });
   // Workplan A3. Remove video, in the puppy editor.
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-remove-video]');
@@ -103,10 +108,11 @@
       groups = groups.map(function (g) { return [g[0], g[1].filter(function (n) { return STAFF[n[0]]; })]; }).filter(function (g) { return g[1].length; });
     }
     var waiting = s.unpublished_changes || 0;
+    var here = ''; groups.forEach(function (g) { g[1].forEach(function (n) { if (n[0] === route) here = n[1]; }); });
     var q = route === 'search' ? params().q || '' : '';
     app.innerHTML = '<div class="app"><aside class="rail" aria-label="Main menu">' +
-      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection operator, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Operator</span></div>' +
-      '<nav class="nav">' + groups.map(function (g) {
+      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection operator, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Operator</span>' + '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav">Menu' + (here ? '<span>' + esc(here) + '</span>' : '') + '</button>' + '</div>' +
+      '<nav class="nav" id="nav">' + groups.map(function (g) {
         return '<div class="nav-group">' + esc(g[0]) + '</div>' + g[1].map(function (n) {
           return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="is-on" aria-current="page"' : '') + (n[2] ? ' aria-label="' + esc(n[1] + ', ' + n[2]) + '"' : '') + '><span>' + esc(n[1]) + '</span>' +
             (n[2] ? '<span class="tally">' + n[2] + '</span>' : '') + '</a>';
@@ -1162,11 +1168,11 @@
             (d.rows.length < n(st || 'subscribed') ? '<span class="small muted" data-shown-note>Showing the newest ' + d.rows.length.toLocaleString('en-US') + ' of ' + n(st || 'subscribed').toLocaleString('en-US') + '. The filter searches only these.</span>' : '') }));
       $('#subs-show').addEventListener('change', function () { location.hash = '#/list' + (query(st, this.value) ? '?' + query(st, this.value) : ''); });
       list($('#subs'), { rows: d.rows, text: function (s) { return [s.email, s.name].join(' '); }, pick: function (s) { return SOURCE_NAMES[s.source]; },
-        head: sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from') + sh('at', gone ? 'Unsubscribed' : st ? 'Added' : 'Joined') + (gone ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
+        head: sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from', 'hide-sm') + sh('at', gone ? 'Unsubscribed' : st ? 'Added' : 'Joined', 'hide-sm') + (gone ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
         sorts: { email: function (s) { return s.email; }, name: function (s) { return s.name; }, source: function (s) { return SOURCE_NAMES[s.source]; }, at: function (s) { return gone ? s.unsubscribed_at : s.created_at; } },
         sortFirst: { at: -1 },
         row: function (s) {
-          return '<tr><td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td>' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when">' + esc(day(gone ? s.unsubscribed_at : s.created_at)) + '</td>' +
+          return '<tr><td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td class="hide-sm">' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when hide-sm">' + esc(day(gone ? s.unsubscribed_at : s.created_at)) + '</td>' +
             (gone ? '' : '<td class="act"><button class="btn btn-sm btn-quiet" data-unsub="' + esc(s.id) + '" data-email="' + esc(s.email) + '">Unsubscribe</button></td>') + '</tr>';
         },
         wire: function (box) {

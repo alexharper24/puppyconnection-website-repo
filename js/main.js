@@ -921,3 +921,85 @@
     document.querySelector('#breedIndexCount').textContent = BREEDS.length;
   }
 })();
+
+/* ---------- Let's Chat, on every page (launch workplan A15) ----------
+   One button in the bottom corner that opens Puppy Connection's own contact details, for a
+   family looking for a puppy and for a breeder who wants to list. A question about one puppy
+   still goes to its breeder, whose details stay on the puppy and breeder pages.
+
+   Puppy Connection's phone, email and social links go in CONTACT below, the one place they
+   live. Until Amber sends them each shows a visible REPLACE THIS (README pending list).
+
+   The button hides while the phone menu is open, because the menu covers the page and a button
+   floating over it lands on the menu's last link. */
+(function () {
+  'use strict';
+  if (document.querySelector('.chat-fab')) return;
+
+  var CONTACT = {
+    phone: '',     // REPLACE THIS with Puppy Connection's phone, for example '(574) 555-0100'
+    email: '',     // REPLACE THIS with Puppy Connection's email address
+    social: []     // REPLACE THIS with [['Facebook', 'https://...'], ['Instagram', 'https://...']]
+  };
+
+  function esc(t) {
+    return String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function todo(what) { return '<span class="todo">REPLACE THIS: ' + esc(what) + '</span>'; }
+  // The value is one element, so a row with two links keeps both beside the label.
+  function row(label, inner) {
+    return '<div class="row"><span class="lbl">' + label + '</span><span class="v">' + inner + '</span></div>';
+  }
+  var digits = CONTACT.phone.replace(/[^\d+]/g, '');
+  var phone = CONTACT.phone
+    ? '<a href="tel:' + esc(digits) + '">' + esc(CONTACT.phone) + '</a> <a class="alt" href="sms:' + esc(digits) + '">text</a>'
+    : todo('phone number');
+  var email = CONTACT.email ? '<a href="mailto:' + esc(CONTACT.email) + '">' + esc(CONTACT.email) + '</a>' : todo('email address');
+  var social = CONTACT.social.length
+    ? CONTACT.social.map(function (s) { return '<a href="' + esc(s[1]) + '" target="_blank" rel="noopener">' + esc(s[0]) + '</a>'; }).join(' ')
+    : todo('social links');
+
+  var fab = document.createElement('button');
+  fab.className = 'chat-fab';
+  fab.type = 'button';
+  fab.setAttribute('aria-expanded', 'false');
+  fab.setAttribute('aria-controls', 'chatPanel');
+  fab.setAttribute('aria-label', 'Let\u2019s chat with Puppy Connection');
+  fab.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 '
+    + '8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 '
+    + '8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg><span class="fab-label">Let\u2019s Chat</span>';
+
+  var panel = document.createElement('div');
+  panel.className = 'chat-panel';
+  panel.id = 'chatPanel';
+  panel.setAttribute('role', 'dialog');
+  panel.setAttribute('aria-label', 'Talk to Puppy Connection');
+  panel.innerHTML = '<button type="button" class="shut" aria-label="Close">&times;</button>'
+    + '<h2>Talk to Puppy Connection</h2>'
+    + '<p>We help families find a puppy and help breeders list theirs. For a question about one puppy, '
+    + 'its breeder\u2019s details are on the listing.</p>'
+    + row('Call or text', phone)
+    + row('Email', email)
+    + row('Follow', social)
+    + row('Families', '<a href="puppies.html">Find a puppy</a>')
+    + row('Breeders', '<a href="list-with-us.html">List your puppies</a>');
+
+  document.body.appendChild(panel);
+  document.body.appendChild(fab);
+
+  function set(open) {
+    panel.classList.toggle('open', open);
+    fab.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  fab.addEventListener('click', function () { set(!panel.classList.contains('open')); });
+  panel.querySelector('.shut').addEventListener('click', function () { set(false); fab.focus(); });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && panel.classList.contains('open')) { set(false); fab.focus(); }
+  });
+  // A tap on the page behind the panel closes it.
+  document.addEventListener('click', function (e) {
+    if (!panel.classList.contains('open')) return;
+    if (panel.contains(e.target) || fab.contains(e.target)) return;
+    set(false);
+  });
+})();

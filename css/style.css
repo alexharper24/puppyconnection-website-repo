@@ -750,3 +750,37 @@ aside .guide-panel{margin-top:1rem}
   .foot-grid{grid-template-columns:minmax(0,28.5rem) repeat(3,minmax(0,1fr))}
   .foot-grid > div:first-child{margin-right:6rem}
 }
+
+/* ---------- Let's Chat (js/main.js, launch workplan A15) ----------
+   A labeled button in the bottom corner on desktop and a 54px circle on a phone, opening
+   Puppy Connection's own contact details. Hidden while the phone menu is open. */
+.chat-fab{position:fixed;right:18px;bottom:18px;z-index:60;display:inline-flex;align-items:center;gap:.5rem;
+  min-height:48px;padding:0 1.15rem;border:1px solid var(--gold);border-radius:999px;background:var(--ink);color:var(--gold);
+  font-family:var(--cond);font-size:1rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;
+  box-shadow:0 6px 20px rgba(0,0,0,.25)}
+.chat-fab:hover,.chat-fab[aria-expanded="true"]{background:var(--gold);color:var(--ink)}
+.chat-fab:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.chat-fab svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.chat-panel{position:fixed;right:18px;bottom:80px;z-index:60;display:none;width:min(360px,calc(100vw - 36px));
+  max-height:calc(100vh - 96px);overflow-y:auto;overscroll-behavior:contain;padding:1.3rem 1.3rem 1.1rem;
+  background:#fff;color:var(--ink);border:1px solid var(--line-strong);box-shadow:0 14px 40px rgba(0,0,0,.22)}
+@supports (height:100dvh){.chat-panel{max-height:calc(100dvh - 96px)}}
+.chat-panel.open{display:block}
+.chat-panel h2{font-family:var(--serif);font-size:1.3rem;font-weight:600;margin:0 2.2rem .35rem 0;line-height:1.25}
+.chat-panel > p{font-size:.95rem;color:var(--ink-soft);margin:0 0 .9rem;line-height:1.5}
+.chat-panel .row{display:grid;grid-template-columns:5.6rem minmax(0,1fr);gap:.8rem;align-items:baseline;padding:.6rem 0;border-top:1px solid var(--line)}
+.chat-panel .lbl{font-family:var(--cond);font-size:.8rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.chat-panel .v{min-width:0;display:flex;flex-wrap:wrap;gap:.2rem .7rem}
+.chat-panel .row a{font-weight:600;color:var(--ink);overflow-wrap:anywhere;text-underline-offset:3px}
+.chat-panel .row a.alt{font-weight:500;color:var(--olive)}
+.chat-panel .todo{font-weight:600;color:var(--alert);background:#fbefe9;padding:.05rem .35rem}
+.chat-panel .shut{position:absolute;top:.45rem;right:.45rem;width:44px;height:44px;border:0;background:none;
+  font-size:1.7rem;line-height:1;color:var(--ink-soft);cursor:pointer}
+.chat-panel .shut:hover{color:var(--ink)}
+@media (max-width:600px){
+  .chat-fab{right:12px;bottom:12px;padding:0;width:54px;height:54px;justify-content:center}
+  .chat-fab .fab-label{display:none}
+  .chat-panel{right:12px;left:12px;width:auto;bottom:76px}
+}
+body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
+@media print{.chat-fab,.chat-panel{display:none!important}}

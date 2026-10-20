@@ -139,7 +139,10 @@ CREATE TABLE IF NOT EXISTS breeds (
   guide_updated_at TEXT,
   -- Suggested colors and coat types for the puppy form, comma-separated (migrations/0009).
   colors           TEXT,
-  coats            TEXT
+  coats            TEXT,
+  -- The photo the breed page and breed cards show, chosen by Alex from the professional-looking
+  -- listing photos (migrations/0030). NULL, or a photo no longer public, lets the site choose.
+  photo_id         TEXT
 );
 
 -- Plan P3.2. Private notes operators keep on a breeder. Never shown to the breeder, and never
@@ -564,12 +567,13 @@ WHERE l.archived_at IS NULL
 
 -- Puppy Connection's own mailing list (migrations/0011_mailing_list.sql). Nothing sends to it
 -- until real email is set up. An unsubscribed row is kept so an import cannot re-add the person.
+-- A 'contact' is a Wix contact who never subscribed, kept with no list email (migrations/0028).
 CREATE TABLE IF NOT EXISTS subscribers (
   id               TEXT PRIMARY KEY,
   email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
   name             TEXT,
   source           TEXT NOT NULL CHECK (source IN ('site','import','admin')),
-  status           TEXT NOT NULL DEFAULT 'subscribed' CHECK (status IN ('subscribed','unsubscribed')),
+  status           TEXT NOT NULL DEFAULT 'subscribed' CHECK (status IN ('subscribed','unsubscribed','contact')),
   unsub_token      TEXT NOT NULL UNIQUE,
   created_at       TEXT NOT NULL,
   unsubscribed_at  TEXT,

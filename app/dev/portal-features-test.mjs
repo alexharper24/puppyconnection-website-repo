@@ -311,7 +311,7 @@ async function main() {
     check('a one-click unsubscribe POST from a mail provider unsubscribes', r.status === 200 && sql(`SELECT status FROM subscribers WHERE email = '${subEmail}'`)[0].status === 'unsubscribed');
     const csv = `First Name,Last Name,Email Address\nAnn,Lee,ann-${stamp}@families.test\nBob,,bob-${stamp}@families.test\n,,${subEmail}\nNope,,not-an-email\nAnn,Lee,ANN-${stamp}@families.test\n`;
     r = await admin.post('/api/subscribers/import', { csv });
-    check('the admin imports a Wix-style CSV, keeping anyone who unsubscribed off the list', r.status === 200 && r.data.added === 2 && r.data.kept_unsubscribed === 1 && r.data.invalid === 1 && r.data.duplicates_in_file === 1, JSON.stringify(r.data));
+    check('the admin imports a Wix-style CSV, keeping anyone who unsubscribed off the list', r.status === 200 && r.data.added.subscribed === 2 && r.data.kept_unsubscribed === 1 && r.data.invalid === 1 && r.data.duplicates_in_file === 1, JSON.stringify(r.data));
     check('an imported name comes from the first and last name columns', sql(`SELECT name FROM subscribers WHERE email = 'ann-${stamp}@families.test'`)[0].name === 'Ann Lee');
     r = await admin.get(`/api/subscribers`);
     check('the admin lists the people on the list', r.status === 200 && r.data.rows.some((x) => x.email === `bob-${stamp}@families.test`));
@@ -319,6 +319,66 @@ async function main() {
     check('the list downloads as CSV without the unsubscribed', (await exp.text().then((t) => t.includes(`bob-${stamp}@families.test`) && !t.includes(subEmail))));
     r = await form({ email: subEmail });
     check('someone who unsubscribed can sign up again themselves from the site', r.status === 200 && sql(`SELECT status FROM subscribers WHERE email = '${subEmail}'`)[0].status === 'subscribed');
+
+    // The Wix contacts export keeps each contact's email state (migrations/0028_contact_state.sql).
+    const st = (e) => (sql(`SELECT status FROM subscribers WHERE email = '${e}'`)[0] || {}).status;
+    const w = (x) => `wix-${x}-${stamp}@families.test`;
+    const wix = 'First Name,Last Name,Email 1,Email 2,Labels,Email subscriber status,SMS subscriber status,Last Activity\n'
+      + `Sue,Sub,${w('sub')},,,Subscribed,,Last Activity\n`
+      + `Nev,Er,${w('never')},${w('second')},,Never subscribed,Never subscribed,x\n`
+      + `Gone,,${w('gone')},,,Unsubscribed,,x\n`
+      + `Nev,Er,${w('never').toUpperCase()},,,Subscribed,,x\n`
+      + `Two,,${w('twice')},,,Never subscribed,,x\n`
+      + `Two,,${w('twice')},,,Never subscribed,,x\n`
+      + 'No,Address,,,,Subscribed,,x\n'
+      + `Bob,,bob-${stamp}@families.test,,,Unsubscribed,,x\n`
+      + `Pend,,${w('pending')},,,Pending,,x\n`;
+    r = await admin.post('/api/subscribers/import', { csv: wix });
+    check('a Wix export is read by its Email subscriber status column', r.status === 200 && r.data.status_column === 'Email subscriber status', JSON.stringify(r.data));
+    check('subscribed contacts join the list, unsubscribed are stored unsubscribed, and the rest are kept as contacts',
+      st(w('sub')) === 'subscribed' && st(w('gone')) === 'unsubscribed' && st(w('twice')) === 'contact' && st(w('pending')) === 'contact', JSON.stringify([w('sub'), w('gone'), w('twice'), w('pending')].map(st)));
+    check('an address twice in the file takes the stronger state, and is counted once as a duplicate',
+      st(w('never')) === 'subscribed' && r.data.duplicates_in_file === 2 && JSON.stringify(r.data.added) === '{"subscribed":2,"unsubscribed":1,"contact":2}', JSON.stringify(r.data));
+    check('only the first email column is read, and a row with no address is counted', !st(w('second')) && r.data.no_address === 1);
+    check('someone on the list who unsubscribed in Wix comes off it', st(`bob-${stamp}@families.test`) === 'unsubscribed' && r.data.unsubscribed_now === 1);
+    r = await admin.get('/api/subscribers?status=contact');
+    check('the admin lists contacts who never subscribed apart from the list', r.status === 200 && r.data.rows.some((x) => x.email === w('twice')) && !r.data.rows.some((x) => x.email === w('sub')));
+    check('the admin counts each state', ['subscribed', 'contact', 'unsubscribed'].every((k) => r.data.counts.some((c) => c.status === k && c.n > 0)));
+    r = await admin.get('/api/subscribers');
+    check('the list itself leaves contacts out', !r.data.rows.some((x) => x.email === w('twice')) && r.data.rows.some((x) => x.email === w('sub')));
+    const exp2 = await (await fetch(`${ADMIN}/api/subscribers.csv`, { headers: { origin: ADMIN } })).text();
+    check('the CSV download holds subscribers only, never contacts or the unsubscribed', exp2.includes(w('sub')) && !exp2.includes(w('twice')) && !exp2.includes(w('gone')));
+    const subs = Number(sql("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'subscribed'")[0].n);
+    check('the count a send confirms is the subscribed count', (await admin.get('/api/campaigns')).data.subscribed === subs);
+    r = await admin.post('/api/subscribers/import', { csv: wix });
+    check('importing the same export again changes nothing', r.status === 200 && JSON.stringify(r.data.added) === '{"subscribed":0,"unsubscribed":0,"contact":0}'
+      && st(w('twice')) === 'contact' && st(w('gone')) === 'unsubscribed' && st(`bob-${stamp}@families.test`) === 'unsubscribed', JSON.stringify(r.data));
+    r = await admin.post('/api/subscribers/import', { csv: `Email 1,Email subscriber status\n${w('twice')},Subscribed\n${w('gone')},Subscribed\n` });
+    check('a contact who later subscribes in Wix joins, and nobody who unsubscribed is put back', st(w('twice')) === 'subscribed' && st(w('gone')) === 'unsubscribed' && r.data.joined === 1 && r.data.kept_unsubscribed === 1, JSON.stringify(r.data));
+    r = await form({ email: w('pending') });
+    check('a contact who signs up on the site joins the list', r.status === 200 && st(w('pending')) === 'subscribed');
+
+    // A large file arrives in parts that share one batch, and the counts add up across them.
+    const head = ['First Name', 'Email 1', 'Email subscriber status'];
+    const batchRes = await admin.post('/api/subscribers/import', { cells: [head, ['A', w('p1'), 'Never subscribed'], ['B', w('p2'), 'Subscribed']], part: 0 });
+    check('the first part of a large file imports and names its batch', batchRes.status === 200 && /^[0-9A-Z]{26}$/.test(batchRes.data.batch), JSON.stringify(batchRes.data));
+    r = await admin.post('/api/subscribers/import', { cells: [head, ['A', w('p1'), 'Subscribed'], ['C', w('p3'), 'Unsubscribed']], part: 1, batch: batchRes.data.batch });
+    check('a later part counts an address from an earlier part as a duplicate and moves its count with it',
+      r.status === 200 && r.data.duplicates_in_file === 1 && r.data.already === 0 && JSON.stringify(r.data.added) === '{"subscribed":1,"unsubscribed":1,"contact":-1}' && st(w('p1')) === 'subscribed', JSON.stringify(r.data));
+    r = await admin.post('/api/subscribers/import', { cells: [[w('h1')], [w('h2')]], part: 1, batch: batchRes.data.batch });
+    check('in a file with no header row, a later part does not import the repeated first row again', r.status === 200 && !st(w('h1')) && st(w('h2')) === 'subscribed', JSON.stringify(r.data));
+    // Each tab loads the newest 200 unless the operator picks more.
+    await admin.post('/api/subscribers/import', { cells: [head, ...Array.from({ length: 205 }, (_, i) => ['M', `many-${i}-${stamp}@families.test`, 'Never subscribed'])] });
+    const contacts = Number(sql("SELECT COUNT(*) AS n FROM subscribers WHERE status = 'contact'")[0].n);
+    const shown = async (qs) => (await admin.get(`/api/subscribers?status=contact${qs}`)).data;
+    check('a tab shows the newest 200 by default, and an unknown choice falls back to it', (await shown('')).rows.length === 200 && (await shown('&show=5')).rows.length === 200 && (await shown('&show=5')).show === '200');
+    check('an operator can show 1,000 or everyone in a tab', (await shown('&show=1000')).rows.length === Math.min(1000, contacts) && (await shown('&show=all')).rows.length === contacts, String(contacts));
+    check('showing everyone in one tab still lists only that state', (await shown('&show=all')).rows.every((x) => !x.email.startsWith('wix-sub-')));
+    check('a part of more than 500 rows is refused', (await admin.post('/api/subscribers/import', { cells: Array.from({ length: 502 }, (_, i) => [`x${i}-${stamp}@families.test`]) })).status === 400);
+    const goneId = sql(`SELECT id FROM subscribers WHERE email = '${w('p3')}'`)[0].id;
+    const contactId = (await admin.get('/api/subscribers?status=contact')).data.rows[0]?.id;
+    check('an operator can unsubscribe a contact', !contactId || (await admin.post(`/api/subscribers/${contactId}/unsubscribe`, {})).status === 200);
+    check('an operator cannot unsubscribe someone twice', (await admin.post(`/api/subscribers/${goneId}/unsubscribe`, {})).status === 404);
   }
 
   console.log(`\n${passes} passed, ${fails} failed`);

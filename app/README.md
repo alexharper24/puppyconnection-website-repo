@@ -207,6 +207,8 @@ node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-phot
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
 
+Before a full run on a fresh `setup.mjs --reset`, compare each `.dev.vars` with its `.dev.vars.example`, because the reset keeps an existing file and new keys such as `STREAM_MODE` and `PHOTO_CHECK_MODE` go missing (2026-10-20). Start the local site on 8791 for the link checks, and fire the 15-minute schedule once (`curl "http://localhost:8787/__scheduled?cron=*/15+*+*+*+*"`) before `jobs-test.mjs`, which expects every job to have run.
+
 `publish-test.mjs` starts its own stand-in GitHub and a second admin on 8794 with `PUBLISH_MODE`
 portal, and needs the `GITHUB_*` lines from `portal/.dev.vars.example` in `portal/.dev.vars`.
 Its part 3 builds the pages from the local database into `app/.preview/static-site` and starts the

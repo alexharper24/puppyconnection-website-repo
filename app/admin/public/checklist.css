@@ -1,8 +1,10 @@
 /* The launch checklist (workplan A17), drawn by checklist.js and checklist-areas.js. A layered, dense view: groups that
-   open and close, one 42px line per item on desktop, square 4px pills (Alex, 2026-10-19). */
+   open and close, one 42px line per item on desktop, square 4px pills (Alex, 2026-10-19). The strip and the board are
+   panels like the other screens' (white on the ground, a line border, the 6px corner), so the checklist stands off the
+   page the same way, and each group heading is white rather than the page color (Alex, 2026-10-20). */
 
 /* Square pills, used for owner and status here and in the item drawer. */
-.sq { display: inline-flex; align-items: center; height: 22px; padding: 0 .45rem; border-radius: 4px; font-size: .74rem; font-weight: 600;
+.sq { display: inline-flex; align-items: center; height: 22px; padding: 0 .45rem; border-radius: var(--radius); font-size: .76rem; font-weight: 600;
   line-height: 1; white-space: nowrap; background: var(--info-bg); color: var(--ink-soft); }
 .sq-owner { background: #fff; border: 1px solid var(--line-strong); color: var(--ink); }
 .sq-not_started { background: var(--info-bg); color: #4d4a43; }
@@ -10,11 +12,9 @@
 .sq-waiting { background: var(--warn-bg); color: var(--warn); }
 .sq-done { background: var(--ok-bg); color: var(--ok); }
 
-.cl-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .6rem; }
-.cl-head .btn { border-radius: 4px; }
 
 /* The summary strip: one compact line rather than tiles. */
-.cl-strip { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); margin-bottom: .6rem; }
+.cl-strip { display: flex; flex-wrap: wrap; border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); margin-bottom: 1rem; }
 .cl-stat { all: unset; box-sizing: border-box; display: flex; align-items: baseline; gap: .45rem; flex: 1 1 0; min-width: 0; padding: .5rem .8rem;
   border-left: 1px solid var(--line); cursor: pointer; font-size: .85rem; color: var(--muted); white-space: nowrap; text-decoration: none; }
 .cl-stat:first-child { border-left: 0; }
@@ -27,21 +27,20 @@
 .c-in_progress { color: #5e4c14; }
 
 /* Controls on one row. */
-.cl-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; margin-bottom: .7rem; }
-.cl-bar-row .seg { border-radius: 4px; }
-.cl-bar-row .seg button, .cl-bar-row .seg a { min-height: 34px; padding: .3rem .7rem; font-size: .84rem; }
-.cl-pickers { display: flex; gap: .4rem; margin-left: auto; }
-.cl-pickers select { width: auto; min-height: 34px; padding: .2rem .5rem; border-radius: 4px; font-size: .86rem; }
+/* The segmented controls and selects keep the shared sizes from portal.css, as on the list screens. */
+.cl-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+.cl-pickers { display: flex; gap: .6rem; margin-left: auto; }
+.cl-pickers select { width: auto; min-height: 40px; }
 .cl-as { display: inline-flex; align-items: center; gap: .4rem; font-size: .84rem; color: var(--muted); }
 
 /* Groups. */
-.cl-board { border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
+.cl-board { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); margin-bottom: 1rem; }
 .cl-group + .cl-group { border-top: 1px solid var(--line); }
 .cl-ghead { margin: 0; font: inherit; }
 .cl-ghead button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .6rem; width: 100%; min-height: 44px; padding: .35rem .8rem;
-  cursor: pointer; background: var(--ground); }
+  cursor: pointer; background: var(--surface); }
 .cl-group.is-open > .cl-ghead button { border-bottom: 1px solid var(--line); }
-.cl-ghead button:hover { background: var(--cream); }
+.cl-ghead button:hover { background: var(--row-hover); }
 .cl-ghead button:focus-visible, .cl-toggle:focus-visible, .cl-donebar button:focus-visible { outline: 2px solid var(--bronze); outline-offset: -2px; }
 .cl-gname { font: 600 1.02rem var(--serif); min-width: 4.5rem; }
 .cl-gcounts { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .82rem; color: var(--muted); }
@@ -59,7 +58,7 @@
   column-gap: .75rem; min-height: 42px; padding: 0 .8rem; }
 .cl-board[data-group-by="person"] .cl-line, .cl-board[data-group-by="person"] .cl-colhead {
   grid-template-columns: 20px minmax(12rem, 1.15fr) 3.6rem 4.6rem 4.6rem 5.6rem minmax(9rem, 1fr); }
-.cl-colhead { min-height: 30px; font-size: .74rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+.cl-colhead { min-height: 30px; font-size: .75rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .08em;
   border-bottom: 1px solid var(--line); background: var(--surface); }
 .cl-colhead + .cl-row { border-top: 0; }
 .cl-row:hover > .cl-line { background: var(--row-hover); }
@@ -83,7 +82,7 @@
 
 /* By area (Alex, 2026-10-20): each area is one line with its open count, a done bar and who it
    waits on. The name column is fixed so the counts line up from area to area. */
-.cl-board[data-group-by="area"] .cl-gname { flex: none; width: 15rem; }
+.cl-board[data-group-by="area"] .cl-gname { flex: none; width: 19rem; white-space: nowrap; }
 .cl-board[data-group-by="area"] .cl-gcounts { flex: 1 1 auto; min-width: 0; flex-wrap: nowrap; align-items: center; }
 .cl-board[data-group-by="area"] .cl-gcounts > .cl-count { flex: none; width: 4.2rem; }
 .cl-gdone { flex: none; width: 7.4rem; }
@@ -91,23 +90,20 @@
 .cl-none b, .cl-none { color: var(--muted); }
 
 /* Asks for one person, grouped by area, with Copy as text. */
-.cl-askhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin: 0 0 .6rem; }
+.cl-askhead { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem 1rem; margin: 0 0 1rem; }
 .cl-askhead p { margin: 0; font-size: .9rem; }
-.cl-askhead .btn { border-radius: 4px; }
-.cl-ahead { display: flex; align-items: center; gap: .6rem; min-height: 40px; padding: .3rem .8rem; background: var(--ground); border-bottom: 1px solid var(--line); }
+.cl-ahead { display: flex; align-items: center; gap: .6rem; min-height: 40px; padding: .3rem .8rem; background: var(--surface); border-bottom: 1px solid var(--line); }
 .cl-asks .cl-aline { grid-template-columns: 20px minmax(0, 1fr) auto; }
 .cl-atext { display: flex; align-items: baseline; gap: .7rem; min-width: 0; }
 .cl-atext .cl-name { flex: 0 1 auto; min-width: 0; }
 .cl-afor { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .8rem; color: var(--muted); }
-.cl-aline .btn { border-radius: 4px; }
 
 /* An item opened in place. */
-.cl-detail { padding: .3rem .8rem .8rem 2.4rem; background: #fdfcf8; border-top: 1px dashed var(--line); }
+.cl-detail { padding: .3rem .8rem .8rem 2.4rem; background: var(--row-hover); border-top: 1px dashed var(--line); }
 .cl-detail-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 1.4rem; }
 .cl-desc { margin: .4rem 0; font-size: .9rem; color: var(--ink-soft); max-width: 70ch; }
 .cl-waitline { margin: 0 0 .4rem; font-size: .86rem; color: var(--warn); }
 .cl-tools { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .5rem; }
-.cl-tools .btn { border-radius: 4px; }
 .cl-side h4 { margin: .5rem 0 .2rem; font: 600 .78rem var(--sans); color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
 
 /* Parts, comments and history, here and in the drawer. */
@@ -150,8 +146,11 @@
   .cl-strip .cl-stat:nth-child(-n+2) { border-top: 0; }
   .cl-strip .cl-stat:nth-child(even) { border-left: 1px solid var(--line); }
   .cl-pickers { margin-left: 0; flex: 1 1 100%; }
-  .cl-pickers select { flex: 1 1 0; min-height: 40px; }
+  .cl-pickers select { flex: 1 1 0; }
   .cl-bar-row .seg { max-width: 100%; }
+  /* Five tabs do not fit 375px, so the controls wrap rather than scroll sideways. */
+  .cl-bar-row .seg { flex-wrap: wrap; gap: 1px; overflow: visible; background: var(--line-strong); }
+  .cl-bar-row .seg > * { flex: 1 1 auto; justify-content: center; text-align: center; border-left: 0 !important; }
   .cl-ghead button { flex-wrap: wrap; row-gap: .2rem; }
   .cl-colhead { display: none; }
   .cl-line, .cl-board[data-group-by="person"] .cl-line { grid-template-columns: 20px minmax(0, 1fr); align-items: start; padding: .5rem .7rem; row-gap: .3rem; }
@@ -165,9 +164,9 @@
   /* The headings are hidden on a phone, so the waiting cell names itself. */
   .cl-row:not(.is-done) .cl-waits:not(:empty)::before { content: 'Waiting on '; color: var(--muted); }
   .cl-waits { display: block; -webkit-line-clamp: unset; flex: 0 1 auto; min-width: 0; align-self: center; color: var(--muted); }
-  .cl-board[data-group-by="area"] .cl-gname { width: auto; flex: 1 1 calc(100% - 2rem); }
+  .cl-board[data-group-by="area"] .cl-gname { width: auto; flex: 1 1 calc(100% - 2rem); white-space: normal; }
   .cl-board[data-group-by="area"] .cl-gcounts { flex: 1 1 100%; flex-wrap: wrap; row-gap: .15rem; padding-left: 1.05rem; }
-  .cl-gwaits { flex: 1 1 100%; white-space: normal; }
+  .cl-gwaits { flex: 1 1 100%; white-space: normal; text-wrap: wrap; }
   .cl-asks .cl-aline { grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; }
   .cl-atext { flex-direction: column; gap: .1rem; }
   .cl-afor { white-space: normal; }

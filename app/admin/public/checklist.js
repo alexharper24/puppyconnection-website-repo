@@ -218,7 +218,7 @@
     var open = list.filter(function (it) { return it.status !== 'done'; }).length, done = list.length - open;
     return '<span class="cl-count' + (open ? '' : ' cl-none') + '"><b>' + open + '</b> open</span>' +
       '<span class="cl-parts-n cl-gdone"><span class="cl-bar" aria-hidden="true"><i style="width:' + Math.round(100 * done / list.length) + '%"></i></span>' + done + '/' + list.length + ' done</span>' +
-      '<span class="cl-gwaits">' + esc(AR().waitSummary(list)) + '</span>';
+      '<span class="cl-gwaits" title="' + esc(AR().waitSummary(list)) + '">' + esc(AR().waitSummary(list)) + '</span>';
   }
 
   /* Asks for one person (Alex, 2026-10-20): every open part they own, grouped by area, to send as
@@ -308,7 +308,9 @@
       }).join('');
     }
 
-    A().shell('<div class="cl-head"><h1>Launch checklist</h1>' + (f.archived ? '' : '<button type="button" class="btn btn-primary btn-sm" id="cl-add">Add an item</button>') + '</div>' +
+    // The shared page heading, as on every other screen, with Add an item as its action.
+    A().shell(A().head('Launch checklist', 'Everything left before go-live, grouped by what is handled together. Open an area for its items, or use Asks for Amber for one list to send her.',
+      f.archived ? '' : '<button type="button" class="btn btn-primary" id="cl-add">Add an item</button>') +
       strip + '<div class="cl-bar-row">' + groupSeg + tabs + pickers + asBar + '</div>' +
       (f.archived ? '<p class="muted small">Archived items, kept with their history. Only Alex can restore one.</p>' : '') +
       (f.asks ? asksBoard(data.items, f.asks) : '<div class="cl-board" data-group-by="' + view.group + '">' + body + '</div>'));

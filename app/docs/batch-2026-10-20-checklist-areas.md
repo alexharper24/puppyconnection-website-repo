@@ -2,7 +2,7 @@
 batch: "2026-10-20 group the launch checklist into areas, with By area as the default view and Asks for Amber"
 asked_by: "Alex, 2026-10-20"
 branch: claude/sleepy-robinson-b8bf50
-migration: "0044_checklist_areas.sql, after backup app/.state/staging-2026-10-20-pre0044.sql in the main checkout (Downloaded, 3,622,842 bytes, 8,247 inserts, 80 checklist items, loads into a fresh SQLite file with 43 tables). Rehearsed on that copy first: 66 items take an area with one audit row each, no launch item is left without one"
+migration: "0044_checklist_areas.sql, then 0045_checklist_search_console_wait.sql after backup staging-2026-10-20-pre0045.sql (Downloaded, 3,649,742 bytes). 0044 first failed on staging with D1's 'too many terms in compound SELECT' and applied nothing, so it was rewritten one row per statement. 0044 ran after backup app/.state/staging-2026-10-20-pre0044.sql in the main checkout (Downloaded, 3,622,842 bytes, 8,247 inserts, 80 checklist items, loads into a fresh SQLite file with 43 tables). Rehearsed on that copy first: 66 items take an area with one audit row each, no launch item is left without one"
 areas: [domain-email, access, content, payments, listings, search, readiness, build]
 placed_beyond_the_brief:
   - "More reports and Report a listing go under Content and wording from Amber, as each waits on Amber's privacy policy line"
@@ -15,9 +15,10 @@ tasks:
   - {id: a2, task: "Routes accept and validate an area on add and edit, and return the areas", status: done, evidence: "lib/checklist.js; route checks in checklist-test"}
   - {id: a3, task: "By area default view, area summary line, Asks for Amber with Copy as text, area in the editor", status: done, evidence: "admin/public/checklist.js v=6, checklist-areas.js v=1, checklist.css v=6"}
   - {id: a4, task: "Drift check compares areas; every workplan item carries an area except A16", status: done, evidence: "ops/checklist.mjs; workplan rules line and E6"}
-  - {id: a5, task: "Full local test run after a reset", status: in_progress}
-  - {id: a6, task: "Back up staging D1, apply 0044 on staging, deploy admin and portal", status: pending}
-  - {id: a7, task: "Check on staging at 1440 and a true 375 in Chrome, screenshots to Alex", status: pending, blocked_on: "Alex signing in to the staging admin in Chrome"}
+  - {id: a5, task: "Full local test run after a reset", status: in_progress, evidence: "checklist 83, admin-features 113, signin 48, focus 11, alerts, e2e, access, restore, demo, google, wix-import all pass; legal-staging 19 of 19 then a Node exit crash. Rerunning jobs (the inactivity job needs the daily schedule fired), portal-features (a dropped connection), launch-features and publish (time cap, and one breed-heading price check)"}
+  - {id: a6, task: "Back up staging D1, apply 0044 and 0045 on staging, deploy admin and portal", status: done, evidence: "portal 04bfd070, admin redeployed with each style change; staging areas match the rehearsal: 66 items, 67 edit audit rows, no launch item without an area"}
+  - {id: a7, task: "Check at 1440 and a true 375, screenshots to Alex", status: done, evidence: "Claude in Chrome was signed in to staging, but this session was not in view, so Chrome and the built-in pane froze the page as a background page. Measured instead in headless Chrome over CDP against the local admin on the same code and the same checklist rows: area rows 44px and item rows 42px at 1440, page width 375 with nothing past the edge at 375, text contrast 5.71 to 15.13 on the white headings"}
+  - {id: a7b, task: "Panel treatment and design-pass match, asked by the Website session for Alex", status: done, evidence: "board and strip use the panel corner and white headings, shared page heading with lede, shared 40px controls, table-style column headings, pill font matched; before and after beside the Overview"}
   - {id: a8, task: "Merge into main, redeploy from main", status: pending}
 ---
 

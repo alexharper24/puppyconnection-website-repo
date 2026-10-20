@@ -29,6 +29,7 @@ const DB_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0038_checklist_p
 const CALLS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0039_checklist_alex_calls.sql'), 'utf8');
 const BUILD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0041_checklist_build_session.sql'), 'utf8');
 const AREAS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0044_checklist_areas.sql'), 'utf8');
+const WAIT_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0045_checklist_search_console_wait.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
 const DAY_ONE = 6;
@@ -84,6 +85,8 @@ db.exec(BUILD_MIGRATION);
 db.exec(BUILD_MIGRATION);
 db.exec(AREAS_NO_ALTER);
 db.exec(AREAS_NO_ALTER);
+db.exec(WAIT_MIGRATION);
+db.exec(WAIT_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -343,7 +346,7 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===
@@ -402,6 +405,9 @@ function areaViewChecks() {
   check(`Asks for Amber lists every open part she owns once, grouped by area in order (${flat.length} asks in ${asks.length} groups)`,
     openAmberParts.every((p) => flat.filter((a) => a.partId === p.id).length === 1) &&
     asks.map((g) => g.label).join('|') === groups.filter((g) => asks.some((a) => a.label === g.label)).map((g) => g.label).join('|') && asks[0].label === 'Domain and email');
+  check('migration 0045 stops the Search Console item naming Amber, so Asks for Amber asks for Search Console access once, audited once',
+    !flat.some((a) => a.text === 'Search Console, Bing and the Business Profile') && flat.filter((a) => /Search Console/.test(a.text)).length === 1 &&
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = 'cl-024' AND at = '2026-10-20T17:00:00Z'").get().n === 1);
   check('it adds an item waiting on her with no part of hers, such as the listing terms, and leaves out done and archived parts',
     flat.some((a) => a.text === 'Listing terms' && !a.partId) && !flat.some((a) => a.partId === 'cl-024-2') &&
     !flat.some((a) => a.partId && db.prepare('SELECT done_at FROM checklist_parts WHERE id = ?').get(a.partId).done_at) &&

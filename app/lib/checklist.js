@@ -15,7 +15,12 @@
 import { now, clean, ulid, bad, notFound, json, readJson, requireSameOrigin, HttpError } from './util.js';
 import { auditStmt, checkVersion } from './store.js';
 
-export const OWNERS = ['Alex', 'Amber', 'Luke', 'Claude'];
+// Who an item or part can belong to (Alex, 2026-10-19: "I just want it to be Amber and Alex").
+// Claude's work is Alex's, and migrations/0035 moved the earlier Claude and Luke rows across.
+export const OWNERS = ['Alex', 'Amber'];
+// Who can be acting. The shared address is Amber and Luke, and a session ticking through
+// ops/checklist.mjs records Claude, so these stay wider than the owners.
+const ACTORS = ['Alex', 'Amber', 'Luke', 'Claude'];
 export const SECTIONS = ['launch', 'gate1', 'gate2', 'gate3'];
 export const STATUSES = ['not_started', 'in_progress', 'waiting', 'done'];
 const ARCHIVER = 'Alex';
@@ -23,7 +28,7 @@ const ARCHIVER = 'Alex';
 /** The names this operator may act as, and the one acting on this request. */
 export async function actor(env, who, asked) {
   const row = await env.DB.prepare('SELECT names FROM checklist_signers WHERE email = ?').bind(who.email).first();
-  const names = row ? row.names.split(',').map((s) => s.trim()).filter((s) => OWNERS.includes(s)) : [];
+  const names = row ? row.names.split(',').map((s) => s.trim()).filter((s) => ACTORS.includes(s)) : [];
   const name = names.includes(asked) ? asked : names[0] || who.person?.name || who.email;
   return { names, name, email: who.email, canArchive: names.includes(ARCHIVER) };
 }

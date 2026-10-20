@@ -41,7 +41,7 @@
 .cl-ghead button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .6rem; width: 100%; min-height: 44px; padding: .35rem .8rem;
   cursor: pointer; background: var(--ground); }
 .cl-group.is-open > .cl-ghead button { border-bottom: 1px solid var(--line); }
-.cl-ghead button:hover { background: #efebe0; }
+.cl-ghead button:hover { background: var(--cream); }
 .cl-ghead button:focus-visible, .cl-toggle:focus-visible, .cl-donebar button:focus-visible { outline: 2px solid var(--bronze); outline-offset: -2px; }
 .cl-gname { font: 600 1.02rem var(--serif); min-width: 4.5rem; }
 .cl-gcounts { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .82rem; color: var(--muted); }
@@ -53,19 +53,27 @@
 /* Item rows: one 42px line on desktop. */
 .cl-rows { list-style: none; margin: 0; padding: 0; }
 .cl-row + .cl-row, .cl-donebar, .cl-donebar ~ .cl-row { border-top: 1px solid var(--line); }
-.cl-line { display: grid; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: .6rem; min-height: 42px; padding: 0 .8rem; }
+/* Rows and their headings share one grid, so every column sits beside the item text rather than at
+   the far edge, and the waiting column gets the width left over (Alex, 2026-10-19). */
+.cl-line, .cl-colhead { display: grid; grid-template-columns: 20px minmax(12rem, 1.15fr) 4.6rem 4.6rem 5.6rem minmax(9rem, 1fr); align-items: center;
+  column-gap: .75rem; min-height: 42px; padding: 0 .8rem; }
+.cl-board[data-group-by="person"] .cl-line, .cl-board[data-group-by="person"] .cl-colhead {
+  grid-template-columns: 20px minmax(12rem, 1.15fr) 3.6rem 4.6rem 4.6rem 5.6rem minmax(9rem, 1fr); }
+.cl-colhead { min-height: 30px; font-size: .74rem; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 1px solid var(--line); background: var(--surface); }
+.cl-colhead + .cl-row { border-top: 0; }
 .cl-row:hover > .cl-line { background: var(--row-hover); }
 .cl-tick, .cl-parts .check input, .cl-parts-edit > li > input { width: 18px; height: 18px; margin: 0; accent-color: var(--ok); }
 .cl-toggle { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .5rem; min-width: 0; min-height: 42px; cursor: pointer; }
 .cl-name { font-size: .92rem; font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .cl-row.is-done .cl-name { color: var(--muted); font-weight: 400; }
-.cl-cells { display: grid; grid-template-columns: 4.6rem 3.7rem 5.6rem 11rem; align-items: center; gap: .5rem; font-size: .82rem; }
-.cl-board[data-group-by="person"] .cl-cells { grid-template-columns: 3.6rem 4.6rem 3.7rem 5.6rem 11rem; }
+.cl-cells { display: contents; font-size: .82rem; }
+.cl-cells > * { font-size: .82rem; }
 .cl-sec { color: var(--muted); font-size: .78rem; }
 .cl-parts-n { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .cl-bar { display: inline-block; width: 2.2rem; height: 5px; background: var(--line); border-radius: 2px; overflow: hidden; }
 .cl-bar i { display: block; height: 100%; background: var(--ok); }
-.cl-waits { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-waits { color: var(--ink-soft); line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .cl-waits b { color: var(--warn); font-weight: 600; }
 .cl-cells .sq { justify-self: start; }
 .cl-empty { padding: .7rem .8rem; color: var(--muted); font-size: .88rem; }
@@ -112,9 +120,9 @@
 
 /* Narrower desktops drop the parts count, then the waiting text moves under the title. */
 @media (max-width: 1100px) {
-  .cl-cells { grid-template-columns: 4.6rem 5.6rem 8rem; }
-  .cl-board[data-group-by="person"] .cl-cells { grid-template-columns: 3.6rem 4.6rem 5.6rem 8rem; }
-  .cl-parts-n { display: none; }
+  .cl-line, .cl-colhead { grid-template-columns: 20px minmax(10rem, 1.3fr) 4.6rem 5.6rem minmax(8rem, 1fr); }
+  .cl-board[data-group-by="person"] .cl-line, .cl-board[data-group-by="person"] .cl-colhead { grid-template-columns: 20px minmax(10rem, 1.3fr) 3.6rem 4.6rem 5.6rem minmax(8rem, 1fr); }
+  .cl-parts-n, .cl-colhead > :nth-last-child(4) { display: none; }
 }
 /* A phone: each row stacks, title first, then the pills on one wrapping line. */
 @media (max-width: 700px) {
@@ -125,7 +133,8 @@
   .cl-pickers select { flex: 1 1 0; min-height: 40px; }
   .cl-bar-row .seg { max-width: 100%; }
   .cl-ghead button { flex-wrap: wrap; row-gap: .2rem; }
-  .cl-line { grid-template-columns: 20px minmax(0, 1fr); align-items: start; padding: .5rem .7rem; row-gap: .3rem; }
+  .cl-colhead { display: none; }
+  .cl-line, .cl-board[data-group-by="person"] .cl-line { grid-template-columns: 20px minmax(0, 1fr); align-items: start; padding: .5rem .7rem; row-gap: .3rem; }
   .cl-line > .cl-tick { margin-top: 7px; }
   .cl-toggle { min-height: 32px; align-items: flex-start; padding-top: 5px; }
   .cl-toggle .cl-chev { margin-top: 6px; }
@@ -133,7 +142,9 @@
   .cl-cells, .cl-board[data-group-by="person"] .cl-cells { grid-column: 2; display: flex; flex-wrap: wrap; gap: .3rem .5rem; padding-left: 1rem; }
   .cl-parts-n { display: inline-flex; }
   .cl-parts-n:empty, .cl-waits:empty { display: none; }
-  .cl-waits { white-space: normal; flex: 0 1 auto; min-width: 0; align-self: center; }
+  /* The headings are hidden on a phone, so the waiting cell names itself. */
+  .cl-row:not(.is-done) .cl-waits:not(:empty)::before { content: 'Waiting on '; color: var(--muted); }
+  .cl-waits { display: block; -webkit-line-clamp: unset; flex: 0 1 auto; min-width: 0; align-self: center; color: var(--muted); }
   .cl-detail { padding: .3rem .7rem .8rem 1.6rem; }
   .cl-detail-grid { grid-template-columns: minmax(0, 1fr); gap: .4rem; }
   .cl-part-add { grid-template-columns: minmax(0, 1fr); }

@@ -206,15 +206,22 @@
       suspended: '<span class="pill pill-alert">Paused</span>', declined: '<span class="pill pill-alert">Not approved</span>' }[s] || '';
   }
 
+  // Below 860px the menu folds behind a Menu button (Alex, 2026-10-19). The rail is redrawn on every screen, so it closes on its own.
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('.menu-btn'); if (!b) return;
+    b.setAttribute('aria-expanded', String(b.closest('.rail').classList.toggle('open')));
+  });
+
   function shell(inner, narrow) {
     document.body.className = '';
     var me = state.me;
     var route = state.route.split('?')[0];
+    var here = ''; nav(me.status).forEach(function (g) { g[1].forEach(function (n) { if (n[0] === route) here = n[1]; }); });
     var foot = { pending: me.profile_submitted_at ? ['Waiting for approval', 'Puppy Connection will email you'] : ['Signing up', 'Finish your profile to submit'],
       approved: ['Approved', 'You can list and pay'], suspended: ['Paused', 'Changes and payments are on hold'], declined: ['Not approved', 'Reply to the email you received'] }[me.status] || ['', ''];
     app.innerHTML = '<div class="app"><aside class="rail" aria-label="Main menu">' +
-      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection breeder portal, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Breeder portal</span></div>' +
-      '<nav class="nav">' + nav(me.status).map(function (g) {
+      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection breeder portal, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Breeder portal</span>' + '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav">Menu' + (here ? '<span>' + esc(here) + '</span>' : '') + '</button>' + '</div>' +
+      '<nav class="nav" id="nav">' + nav(me.status).map(function (g) {
         return '<div class="nav-group">' + esc(g[0]) + '</div>' + g[1].map(function (n) {
           return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="is-on" aria-current="page"' : '') + '><span>' + esc(n[1]) + '</span></a>';
         }).join('');

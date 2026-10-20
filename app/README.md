@@ -201,7 +201,7 @@ node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a 
 node app/dev/demo-test.mjs      # plan P5.1: the demo breeders and Reset demo data, refused outside staging, seed untouched
 node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and video, report a listing, photo check, adoption dates, the photo-based schedule on a moved clock, approval by reference, take offline until new photos, listing review, reports, Visit site, Wix descriptions
 node app/dev/focus-test.mjs     # the photo focus rule, from the dog detector's boxes
-node app/dev/checklist-test.mjs # docs/launch-workplan.md A17: the launch checklist seed and every checklist route, in this process with no server
+node app/dev/checklist-test.mjs # docs/launch-workplan.md A17: the launch checklist seed, every checklist route, and the areas with By area and Asks for Amber, in this process with no server
 node app/dev/alerts-test.mjs    # launch workplan B10 and C5 on Node, no server: each failure alert forced, the hour's quiet window, and a send to subscribers or to all contacts
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
@@ -427,6 +427,16 @@ settings, terms and operators are not touched. The audit log and email log are k
   is in `audit_log` under entity `checklist_item`. `docs/launch-workplan.md` keeps the detail and
   evidence, and `ops/checklist.mjs` exports the status to `docs/launch-checklist-status.md`, lists
   drift and ticks an item as Claude. A new operator address needs a `checklist_signers` row.
+- **Checklist items sit in areas, and By area is the default view** (Alex, 2026-10-20,
+  migrations/0044). `checklist_areas` holds eight areas in a fixed order, from the one that unblocks
+  the most (Domain and email) to the launch build work (Site and portal build), and each item has at
+  most one, set in the item editor. An item with no area groups under its section, which is where
+  most Gate items sit, because only Stripe Connect fits a launch area. Each area row's "Waiting on"
+  line comes from `admin/public/checklist-areas.js`, which shortens a waiting line with no person to
+  its subject, so "the domain moving to Cloudflare" reads "the domain". The Asks for Amber tab lists
+  every open part she owns, plus each item waiting on her with no part of hers, and Copy as text
+  gives the same list as plain text. The workplan carries each item's area after its status, and
+  the drift check reports a difference, so move the workplan's area when an item moves in the admin.
 - **A failed site build is found by its outcome** (workplan B10). Workers Builds never tells the
   portal how a build ended, so `build/fetch-data.mjs` writes `build.json` with the generation it
   fetched, `ci-build.sh` copies it into the pages, and the site Worker serves it at `/api/build`. The

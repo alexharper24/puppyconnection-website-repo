@@ -23,12 +23,12 @@ const WRANGLER = process.env.WRANGLER_JS || path.resolve(APP, '../../teapup-webs
 const WORKPLAN = path.join(APP, 'docs/launch-workplan.md');
 const STATUS_FILE = path.join(APP, 'docs/launch-checklist-status.md');
 
-/** The items in the workplan header, as { id, status, closed }. */
+/** The items in the workplan header, as { id, status, closed, area }. The area follows the status. */
 export function workplanItems(text) {
   const head = text.split(/^---$/m)[1] || '';
-  return [...head.matchAll(/^\s*- \{id: ([A-Z]\d+), status: ("[^"]*"|[\w-]+)/gm)].map((m) => {
+  return [...head.matchAll(/^\s*- \{id: ([A-Z]\d+), status: ("[^"]*"|[\w-]+)(?:, area: ([\w-]+))?/gm)].map((m) => {
     const status = m[2].replace(/^"|"$/g, '');
-    return { id: m[1], status, closed: status === 'closed', moved: /^moved to /i.test(status) };
+    return { id: m[1], status, closed: status === 'closed', moved: /^moved to /i.test(status), area: m[3] || null };
   });
 }
 
@@ -36,7 +36,9 @@ export function workplanItems(text) {
 // own. The seller statement wording is Amber's part of the seller statement item.
 export const MERGED = { D5: 'A6' };
 
-/** Where the two disagree. rows are checklist items with ref, status and archived_at. */
+/** Where the two disagree. rows are checklist items with ref, status, area and archived_at. The
+    checklist is the source of truth for the area too, so a change in the admin shows here until the
+    workplan follows it. */
 export function drift(items, rows) {
   const byRef = new Map(rows.filter((r) => r.ref).map((r) => [r.ref, r]));
   const out = [];
@@ -47,6 +49,9 @@ export function drift(items, rows) {
     if (r.archived_at) out.push(`${it.id} is archived on the checklist and ${it.closed ? 'closed' : 'open'} in the workplan`);
     else if (it.closed && r.status !== 'done') out.push(`${it.id} is closed in the workplan and ${r.status} on the checklist`);
     else if (!it.closed && r.status === 'done') out.push(`${it.id} is done on the checklist and still open in the workplan`);
+    if (!r.archived_at && 'area' in r && (r.area || null) !== it.area) {
+      out.push(it.area ? `${it.id} is in area ${r.area || 'none'} on the checklist and ${it.area} in the workplan` : `${it.id} has no area in the workplan, and ${r.area} on the checklist`);
+    }
   }
   const ids = new Set(items.map((i) => i.id));
   for (const r of rows) if (r.ref && !ids.has(r.ref)) out.push(`${r.ref} is on the checklist and not in the workplan`);
@@ -64,7 +69,7 @@ const q = (v) => (v == null ? 'NULL' : `'${String(v).replace(/'/g, "''")}'`);
 const yq = (v) => (v == null ? 'null' : JSON.stringify(String(v)));
 
 function readRows(local) {
-  const items = d1('SELECT id, ref, section, position, title, owner, status, waiting_on, waiting_owner, done_at, done_by, archived_at FROM checklist_items ORDER BY section != "launch", section, position', local)[0].results;
+  const items = d1('SELECT id, ref, section, area, position, title, owner, status, waiting_on, waiting_owner, done_at, done_by, archived_at FROM checklist_items ORDER BY section != "launch", section, position', local)[0].results;
   const parts = d1('SELECT item_id, title, owner, done_at, done_by FROM checklist_parts WHERE archived_at IS NULL ORDER BY item_id, position', local)[0].results;
   for (const it of items) it.parts = parts.filter((p) => p.item_id === it.id);
   return items;
@@ -79,7 +84,7 @@ function exportStatus(local) {
     'items:'];
   for (const r of live) {
     const parts = r.parts.length ? `, parts: "${r.parts.filter((p) => p.done_at).length} of ${r.parts.length} done", open_parts: [${r.parts.filter((p) => !p.done_at).map((p) => yq(`${p.owner}: ${p.title}`)).join(', ')}]` : '';
-    lines.push(`  - {ref: ${r.ref || 'null'}, section: ${r.section}, title: ${yq(r.title)}, owner: ${r.owner}, status: ${r.status}${
+    lines.push(`  - {ref: ${r.ref || 'null'}, section: ${r.section}, area: ${r.area || 'null'}, title: ${yq(r.title)}, owner: ${r.owner}, status: ${r.status}${
       r.status === 'waiting' ? `, waiting_on: ${yq(r.waiting_on)}` : ''}${r.done_at ? `, done: ${r.done_at.slice(0, 10)}, done_by: ${yq(r.done_by)}` : ''}${parts}}`);
   }
   const archived = rows.filter((r) => r.archived_at);

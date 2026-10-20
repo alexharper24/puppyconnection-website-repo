@@ -638,6 +638,14 @@ CREATE INDEX IF NOT EXISTS campaign_sends_pending ON campaign_sends(campaign_id,
 -- detail and evidence (ops/checklist.mjs compares the two). Nothing is ever deleted: an item or
 -- part leaves the list by archived_at, and only Alex may archive. Every write is in audit_log
 -- under entity checklist_item. ref is the workplan id and is never shown on the screen.
+-- An area groups items that are handled together (migrations/0044), listed in the order that
+-- unblocks the most. An item has at most one, and one with none groups under its section.
+CREATE TABLE IF NOT EXISTS checklist_areas (
+  id         TEXT PRIMARY KEY,
+  name       TEXT NOT NULL,
+  position   INTEGER NOT NULL,
+  created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS checklist_items (
   id            TEXT PRIMARY KEY,
   ref           TEXT UNIQUE,
@@ -656,7 +664,8 @@ CREATE TABLE IF NOT EXISTS checklist_items (
   created_at    TEXT NOT NULL,
   created_by    TEXT NOT NULL,
   updated_at    TEXT NOT NULL,
-  version       INTEGER NOT NULL DEFAULT 1
+  version       INTEGER NOT NULL DEFAULT 1,
+  area          TEXT REFERENCES checklist_areas(id)
 );
 CREATE INDEX IF NOT EXISTS checklist_items_section ON checklist_items(section, position);
 CREATE TABLE IF NOT EXISTS checklist_parts (

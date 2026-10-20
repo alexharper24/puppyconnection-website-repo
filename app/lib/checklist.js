@@ -47,6 +47,9 @@ async function loadItem(env, id) {
   return it;
 }
 
+/** The areas in the order that unblocks the most (migrations/0044). */
+const allAreas = async (env) => (await env.DB.prepare('SELECT id, name, position FROM checklist_areas ORDER BY position, name').all()).results;
+
 /** Every item with its parts and comment count. Archived items come only when asked for. */
 async function allItems(env, archived) {
   const items = (await env.DB.prepare(
@@ -70,7 +73,7 @@ export function waitingOn(item, names) {
 export async function checklist(req, env, ctx, id, who) {
   const me = await actor(env, who, new URL(req.url).searchParams.get('as'));
   const archived = new URL(req.url).searchParams.get('archived') === '1';
-  return json({ items: await allItems(env, archived), me: { names: me.names, name: me.name, can_archive: me.canArchive }, owners: OWNERS });
+  return json({ items: await allItems(env, archived), areas: await allAreas(env), me: { names: me.names, name: me.name, can_archive: me.canArchive }, owners: OWNERS });
 }
 
 /** Counts by section and status for the overview, and how many wait on whoever is signed in. */
@@ -95,8 +98,8 @@ export async function checklistItem(req, env, ctx, id) {
   return json({ item: it, parts, comments, history });
 }
 
-/** The fields an add or an edit may set, checked the same way for both. */
-function itemFields(body, current) {
+/** The fields an add or an edit may set, checked the same way for both. areas is the list of area ids. */
+function itemFields(body, current, areas) {
   const f = {};
   if ('title' in body || !current) { f.title = clean(body.title, 200); if (!f.title) throw bad('Give the item a title.'); }
   if ('description' in body) f.description = clean(body.description, 4000);
@@ -104,6 +107,7 @@ function itemFields(body, current) {
   if ('owner' in body || !current) f.owner = pick(body.owner, OWNERS, 'who owns it');
   if ('status' in body) f.status = pick(body.status, STATUSES, 'a status');
   if ('waiting_on' in body) f.waiting_on = clean(body.waiting_on, 300);
+  if ('area' in body) f.area = body.area ? pick(body.area, areas, 'an area') : null;
   if ('waiting_owner' in body) f.waiting_owner = body.waiting_owner ? pick(body.waiting_owner, OWNERS, 'who it waits on') : null;
   const status = f.status || current?.status || 'not_started';
   const waiting = 'waiting_on' in f ? f.waiting_on : current?.waiting_on;
@@ -115,13 +119,13 @@ export async function addChecklistItem(req, env, ctx, id, who) {
   requireSameOrigin(req);
   const body = await readJson(req);
   const me = await actor(env, who, body.as);
-  const f = { status: 'not_started', ...itemFields(body, null) };
+  const f = { status: 'not_started', ...itemFields(body, null, (await allAreas(env)).map((a) => a.id)) };
   const t = now();
   const newId = ulid();
   const { n } = await env.DB.prepare('SELECT COALESCE(MAX(position), 0) AS n FROM checklist_items WHERE section = ?').bind(f.section).first();
   await env.DB.batch([
-    env.DB.prepare(`INSERT INTO checklist_items (id, section, position, title, description, owner, status, waiting_on, waiting_owner, done_at, done_by, created_at, created_by, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(newId, f.section, n + 1, f.title, f.description || null, f.owner, f.status,
+    env.DB.prepare(`INSERT INTO checklist_items (id, section, area, position, title, description, owner, status, waiting_on, waiting_owner, done_at, done_by, created_at, created_by, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(newId, f.section, f.area || null, n + 1, f.title, f.description || null, f.owner, f.status,
       f.status === 'waiting' ? f.waiting_on : null, f.status === 'waiting' ? f.waiting_owner || null : null,
       f.status === 'done' ? t : null, f.status === 'done' ? me.name : null, t, me.name, t),
     audit(env, me, 'add', newId, null, f),
@@ -135,7 +139,7 @@ export async function editChecklistItem(req, env, ctx, id, who) {
   const me = await actor(env, who, body.as);
   const it = await loadItem(env, id);
   if (it.archived_at) throw bad('That item is archived. Restore it first.');
-  const f = itemFields(body, it);
+  const f = itemFields(body, it, (await allAreas(env)).map((a) => a.id));
   const changed = Object.keys(f).filter((k) => (f[k] ?? null) !== (it[k] ?? null));
   if (!changed.length) return checklistItem(req, env, ctx, id);
   const t = now();
@@ -143,9 +147,9 @@ export async function editChecklistItem(req, env, ctx, id, who) {
   if (next.status !== 'waiting') { next.waiting_on = null; next.waiting_owner = null; }
   const doneNow = next.status === 'done' && it.status !== 'done';
   const stmt = env.DB.prepare(
-    `UPDATE checklist_items SET title = ?, description = ?, section = ?, position = ?, owner = ?, status = ?, waiting_on = ?, waiting_owner = ?,
+    `UPDATE checklist_items SET title = ?, description = ?, section = ?, area = ?, position = ?, owner = ?, status = ?, waiting_on = ?, waiting_owner = ?,
        done_at = ?, done_by = ?, updated_at = ?, version = version + 1 WHERE id = ? AND version = ?`,
-  ).bind(next.title, next.description, next.section,
+  ).bind(next.title, next.description, next.section, next.area ?? null,
     next.section !== it.section ? (await env.DB.prepare('SELECT COALESCE(MAX(position), 0) + 1 AS n FROM checklist_items WHERE section = ?').bind(next.section).first()).n : it.position,
     next.owner, next.status, next.waiting_on, next.waiting_owner,
     next.status === 'done' ? (doneNow ? t : it.done_at) : null, next.status === 'done' ? (doneNow ? me.name : it.done_by) : null, t, id, Number(body.version) || 0);

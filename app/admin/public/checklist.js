@@ -14,6 +14,10 @@
   var SEEDED = 'launch plan';
   var data = null;            // the last /api/checklist answer
 
+  var AR = function () { return window.pcChecklistAreas; };
+  function areas() { return data && data.areas ? data.areas : []; }
+  function areaName(id) { var a = areas().filter(function (x) { return x.id === id; })[0]; return a ? a.name : ''; }
+
   function esc(s) { return A().esc(s); }
   // The shared Amber and Luke address picks who is ticking. Kept in this browser only.
   function storedAs() { try { return localStorage.getItem('pc-checklist-as') || ''; } catch (e) { return ''; } }
@@ -75,7 +79,9 @@
   function loadView() {
     var v = null; try { v = JSON.parse(localStorage.getItem(VIEW_KEY) || 'null'); } catch (e) { v = null; }
     v = v && typeof v === 'object' ? v : {};
-    v.group = v.group === 'person' ? 'person' : 'section';
+    v.group = ['area', 'section', 'person'].indexOf(v.group) >= 0 ? v.group : 'area';
+    // By area became the default on 2026-10-20 (Alex), so a browser that last chose another view starts there once.
+    if (!v.areaDefault) { v.group = 'area'; v.areaDefault = true; }
     v.open = v.open && typeof v.open === 'object' ? v.open : {};
     if (!('sec:launch' in v.open)) v.open['sec:launch'] = true;   // Launch open, the gates closed, until someone changes it
     return v;
@@ -87,18 +93,20 @@
 
   function filters() {
     var p = A().params();
-    return { mine: p.mine === '1', partly: p.partly === '1', section: p.section || '', status: p.status || '', owner: p.owner || '', archived: p.archived === '1' };
+    return { mine: p.mine === '1', partly: p.partly === '1', section: p.section || '', status: p.status || '', owner: p.owner || '', archived: p.archived === '1',
+      asks: OWNERS.indexOf(p.asks) >= 0 ? p.asks : '' };
   }
   function link(f) {
     var q = [];
     if (f.mine) q.push('mine=1'); if (f.partly) q.push('partly=1'); if (f.section) q.push('section=' + f.section);
-    if (f.status) q.push('status=' + f.status); if (f.owner) q.push('owner=' + f.owner); if (f.archived) q.push('archived=1');
+    if (f.status) q.push('status=' + f.status); if (f.owner) q.push('owner=' + f.owner); if (f.archived) q.push('archived=1'); if (f.asks) q.push('asks=' + f.asks);
     return '#/checklist' + (q.length ? '?' + q.join('&') : '');
   }
 
   function screen() {
     var f = filters();
-    if (f.section) setOpen('sec:' + f.section, true);   // a link from the overview opens its section
+    // A link from the overview opens its section, in the section view.
+    if (f.section) { setOpen('sec:' + f.section, true); if (view.group === 'area') { view.group = 'section'; saveView(); } }
     A().api('GET', '/api/checklist' + (asQuery() ? asQuery() + '&' : '?') + (f.archived ? 'archived=1' : '')).then(function (d) {
       data = d;
       if (me().names.length > 1 && me().names.indexOf(storedAs()) < 0) setAs(me().name);
@@ -204,6 +212,46 @@
       '</section>';
   }
 
+  /* By area (Alex, 2026-10-20). Each area is one row with its open count, how much is done and who
+     it waits on, and opens to the usual item rows. */
+  function areaCounts(list) {
+    var open = list.filter(function (it) { return it.status !== 'done'; }).length, done = list.length - open;
+    return '<span class="cl-count' + (open ? '' : ' cl-none') + '"><b>' + open + '</b> open</span>' +
+      '<span class="cl-parts-n cl-gdone"><span class="cl-bar" aria-hidden="true"><i style="width:' + Math.round(100 * done / list.length) + '%"></i></span>' + done + '/' + list.length + ' done</span>' +
+      '<span class="cl-gwaits">' + esc(AR().waitSummary(list)) + '</span>';
+  }
+
+  /* Asks for one person (Alex, 2026-10-20): every open part they own, grouped by area, to send as
+     one batched list. Ticking a part here works as it does in the rows. */
+  function asksBoard(items, who) {
+    var groups = AR().asksFor(items, areas(), who);
+    var n = groups.reduce(function (t, g) { return t + g.asks.length; }, 0);
+    return '<div class="cl-askhead"><p><b>' + A().plural(n, 'open ask') + '</b> for ' + esc(who) + ' across ' + A().plural(groups.length, 'area') + '</p>' +
+      (n ? '<button type="button" class="btn btn-sm" id="cl-copy">Copy as text</button>' : '') + '</div>' +
+      '<div class="cl-board cl-asks">' + (groups.length ? groups.map(function (g) {
+        return '<section class="cl-group is-open"><h2 class="cl-ghead cl-ahead"><span class="cl-gname">' + esc(g.label) + '</span><span class="cl-gcounts"><span class="cl-count"><b>' + g.asks.length + '</b> open</span></span></h2>' +
+          '<ul class="cl-rows">' + g.asks.map(function (a) {
+            return '<li class="cl-row cl-ask"><div class="cl-line cl-aline">' +
+              (a.partId ? '<input type="checkbox" class="cl-tick" data-part-tick="' + esc(a.partId) + '" aria-label="Tick ' + esc(a.text) + '">' : '<span></span>') +
+              '<span class="cl-atext"><span class="cl-name">' + esc(a.text) + '</span>' +
+                '<span class="cl-afor">' + (a.item ? esc(a.item) : a.waiting ? 'Waiting on ' + esc(a.waiting) : '') + '</span></span>' +
+              '<button type="button" class="btn btn-sm btn-quiet" data-open="' + esc(a.itemId) + '">Open</button></div></li>';
+          }).join('') + '</ul></section>';
+      }).join('') : '<p class="cl-empty">Nothing is waiting on ' + esc(who) + '.</p>') + '</div>';
+  }
+
+  function copyText(text) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+    return new Promise(function (ok, fail) {
+      var t = document.createElement('textarea');
+      t.value = text; t.setAttribute('readonly', ''); t.style.position = 'fixed'; t.style.opacity = '0';
+      document.body.appendChild(t); t.select();
+      var done = false; try { done = document.execCommand('copy'); } catch (e) { done = false; }
+      document.body.removeChild(t);
+      if (done) ok(); else fail(new Error('The browser would not copy. Select the list and copy it by hand.'));
+    });
+  }
+
   function draw() {
     var f = filters(), names = myNames();
     var y = window.scrollY;
@@ -225,18 +273,26 @@
       return '<button type="button" data-as="' + esc(n) + '"' + (n === me().name ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>' + esc(n) + '</button>';
     }).join('') + '</span></span>' : '';
     var groupSeg = '<span class="seg" role="group" aria-label="Group by">' +
+      '<button type="button" data-groupby="area"' + (view.group === 'area' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By area</button>' +
       '<button type="button" data-groupby="section"' + (view.group === 'section' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By section</button>' +
       '<button type="button" data-groupby="person"' + (view.group === 'person' ? ' class="on" aria-pressed="true"' : ' aria-pressed="false"') + '>By person</button></span>';
     var tabs = '<span class="seg" role="group" aria-label="Show">' +
-      '<a href="' + link({ owner: f.owner, status: f.status }) + '"' + (!f.mine && !f.partly && !f.archived ? ' class="on" aria-current="true"' : '') + '>All</a>' +
+      '<a href="' + link({ owner: f.owner, status: f.status }) + '"' + (!f.mine && !f.partly && !f.archived && !f.asks ? ' class="on" aria-current="true"' : '') + '>All</a>' +
       '<a href="' + link({ mine: true }) + '"' + (f.mine ? ' class="on" aria-current="true"' : '') + '>Waiting on me</a>' +
+      '<a href="' + link({ asks: 'Amber' }) + '"' + (f.asks === 'Amber' ? ' class="on" aria-current="true"' : '') + '>Asks for Amber</a>' +
       '<a href="' + link({ partly: true }) + '"' + (f.partly ? ' class="on" aria-current="true"' : '') + '>Partly done</a>' +
       '<a href="' + link({ archived: true }) + '"' + (f.archived ? ' class="on" aria-current="true"' : '') + '>Archived</a></span>';
     var pickers = '<span class="cl-pickers"><label class="sr" for="cl-owner">Owner</label><select id="cl-owner"><option value="">Everyone</option>' + OWNERS.map(function (o) { return '<option' + (f.owner === o ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>' +
       '<label class="sr" for="cl-status">Status</label><select id="cl-status"><option value="">Any status</option>' + STATUSES.map(function (t) { return '<option value="' + t[0] + '"' + (f.status === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></span>';
 
-    var body;
-    if (view.group === 'person') {
+    var body = '';
+    if (f.asks) {
+      body = '';
+    } else if (view.group === 'area') {
+      body = AR().byArea(items, areas()).map(function (g) {
+        return group(g.key, g.label, g.items, { counts: areaCounts(g.items) });
+      }).join('');
+    } else if (view.group === 'person') {
       body = OWNERS.map(function (who) {
         var mine = items.map(function (it) { return [personRank(it, who), it]; }).filter(function (x) { return x[0] >= 0; })
           .sort(function (a, b) { return a[0] - b[0]; }).map(function (x) { return x[1]; });
@@ -255,8 +311,14 @@
     A().shell('<div class="cl-head"><h1>Launch checklist</h1>' + (f.archived ? '' : '<button type="button" class="btn btn-primary btn-sm" id="cl-add">Add an item</button>') + '</div>' +
       strip + '<div class="cl-bar-row">' + groupSeg + tabs + pickers + asBar + '</div>' +
       (f.archived ? '<p class="muted small">Archived items, kept with their history. Only Alex can restore one.</p>' : '') +
-      '<div class="cl-board" data-group-by="' + view.group + '">' + body + '</div>');
+      (f.asks ? asksBoard(data.items, f.asks) : '<div class="cl-board" data-group-by="' + view.group + '">' + body + '</div>'));
     wire();
+    var cp = A().$('#cl-copy');
+    if (cp) cp.addEventListener('click', function () {
+      copyText(AR().asksText(AR().asksFor(data.items, areas(), f.asks), f.asks))
+        .then(function () { A().toast('Copied the list for ' + f.asks); }).catch(function (err) { A().toast(err.message); });
+    });
+    if (f.asks) wireDetail(A().$('.cl-asks'));
     window.scrollTo(0, y);
     // Fill in comments and history for items open in place.
     data.items.forEach(function (it) { if (isOpen('item:' + it.id) && !detail[it.id]) loadDetail(it.id); });
@@ -341,6 +403,7 @@
       '<div class="field"><label for="f-title">Title</label><input id="f-title" type="text" maxlength="200" value="' + esc(it.title || '') + '" required></div>' +
       '<div class="field"><label for="f-desc">What it involves</label><textarea id="f-desc" maxlength="4000">' + esc(it.description || '') + '</textarea></div>' +
       '<div class="grid-2"><div class="field"><label for="f-section">Section</label><select id="f-section">' + SECTIONS.map(function (s) { return '<option value="' + s[0] + '"' + (it.section === s[0] ? ' selected' : '') + '>' + s[1] + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="f-area">Area</label><select id="f-area"><option value="">No area</option>' + areas().map(function (a) { return '<option value="' + esc(a.id) + '"' + (it.area === a.id ? ' selected' : '') + '>' + esc(a.name) + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label for="f-owner">Owner</label>' + ownerSelect('f-owner', it.owner, 'Owner').replace(/^<label[^>]*>.*?<\/label>/, '') + '</div></div>' +
       '<div class="field"><label for="f-status">Status</label><select id="f-status">' + STATUSES.map(function (t) { return '<option value="' + t[0] + '"' + (it.status === t[0] ? ' selected' : '') + '>' + t[1] + '</option>'; }).join('') + '</select></div>' +
       '<div id="f-waiting"' + (it.status === 'waiting' ? '' : ' hidden') + '><div class="field"><label for="f-wait">Waiting on</label><input id="f-wait" type="text" maxlength="300" placeholder="Who or what, in words" value="' + esc(it.waiting_on || '') + '"></div>' +
@@ -350,7 +413,7 @@
   }
   function readForm(d) {
     var v = function (id) { return A().$('#' + id, d).value; };
-    return { title: v('f-title'), description: v('f-desc'), section: v('f-section'), owner: v('f-owner'), status: v('f-status'),
+    return { title: v('f-title'), description: v('f-desc'), section: v('f-section'), area: v('f-area') || null, owner: v('f-owner'), status: v('f-status'),
       waiting_on: v('f-wait'), waiting_owner: v('f-wait-owner') || null };
   }
   function wireForm(d, onSubmit) {
@@ -376,8 +439,8 @@
     var part = a.title ? ' the part "' + esc(a.title) + '"' : ' a part';
     var changes = function () {
       return Object.keys(a).filter(function (k) { return k !== 'as'; }).map(function (k) {
-        var name = { title: 'the title', description: 'the description', section: 'the section', owner: 'the owner', status: 'the status', waiting_on: 'what it waits on', waiting_owner: 'who it waits on' }[k] || k;
-        var show = function (v) { return v == null || v === '' ? 'nothing' : esc(STATUS_NAME[v] || SECTION_NAME[v] || v); };
+        var name = { title: 'the title', description: 'the description', section: 'the section', area: 'the area', owner: 'the owner', status: 'the status', waiting_on: 'what it waits on', waiting_owner: 'who it waits on' }[k] || k;
+        var show = function (v) { return v == null || v === '' ? 'nothing' : esc(STATUS_NAME[v] || SECTION_NAME[v] || (k === 'area' && areaName(v)) || v); };
         return k === 'description' ? 'changed the description' : 'changed ' + name + ' from ' + show(b[k]) + ' to ' + show(a[k]);
       }).join(', ');
     };
@@ -395,7 +458,7 @@
     A().api('GET', '/api/checklist/items/' + encodeURIComponent(id)).then(function (r) {
       var it = r.item, archived = !!it.archived_at, canArchive = me().can_archive;
       var parts = r.parts.filter(function (p) { return !p.archived_at; }), oldParts = r.parts.filter(function (p) { return p.archived_at; });
-      var html = '<p class="cl-meta"><span class="' + STATUS_PILL[it.status] + '">' + STATUS_NAME[it.status] + '</span><span>' + esc(SECTION_NAME[it.section]) + '</span><span>Owner ' + esc(it.owner) + '</span></p>' +
+      var html = '<p class="cl-meta"><span class="' + STATUS_PILL[it.status] + '">' + STATUS_NAME[it.status] + '</span><span>' + esc(SECTION_NAME[it.section]) + '</span>' + (it.area ? '<span>' + esc(areaName(it.area)) + '</span>' : '') + '<span>Owner ' + esc(it.owner) + '</span></p>' +
         (it.status === 'done' ? '<p class="muted">' + esc(doneLine(it.done_at, it.done_by)) + '</p>' : '') +
         (archived ? '<p class="notice">Archived ' + esc(A().day(it.archived_at)) + ' by ' + esc(it.archived_by) + '. It is kept with its history and can be restored by Alex.</p>' + (canArchive ? '<div class="btn-row"><button class="btn" id="cl-restore">Restore</button></div>' : '')
           : itemForm(it)) +

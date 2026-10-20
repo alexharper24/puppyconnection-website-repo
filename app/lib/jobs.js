@@ -132,8 +132,9 @@ const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'breeder_references', 'pe
   // imported contacts and every send, were missing, so a restore lost them. The restore puts tables
   // it does not order last, in this order, which the foreign keys accept.
   'breeder_members', 'subscribers', 'campaigns', 'campaign_sends',
-  // Added 2026-10-20 (workplan A17). The launch checklist, items before their parts and comments.
-  'checklist_signers', 'checklist_items', 'checklist_parts', 'checklist_comments'];
+  // Added 2026-10-20 (workplan A17). The launch checklist, areas (migrations/0044) and items before
+  // their parts and comments.
+  'checklist_signers', 'checklist_areas', 'checklist_items', 'checklist_parts', 'checklist_comments'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;

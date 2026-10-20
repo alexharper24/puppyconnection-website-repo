@@ -10,8 +10,9 @@ tasks:
   - {id: choose, status: done, date: 2026-10-19, chosen: "desktop menu A (tighter, every item showing, 817px measured, so it still scrolls on 768 and 900 screens), phone menu B (Menu button), panels A (share a height), contrast A (#ece6d8 ground, #ddd5c3 line), typefaces unchanged, side-panel fix as previewed"}
   - {id: build, status: done, note: "portal.css restyle, Menu button in admin.js and portal.js, two mailing-list columns hidden below 700px. Untouched controls measured equal before and after (top bar 60, search 40, table row 62, buttons 36); stat tiles 84 to 87 from the padding change"}
   - {id: delete-previews, status: done}
-  - {id: deploy, status: pending, note: "portal and admin only, from this branch"}
-  - {id: proof, status: pending}
+  - {id: deploy, status: done, date: 2026-10-19, commit: 37b114a, versions: {portal: 1679174f-5d28-4b38-b55c-a4eab3ca6f64, admin: 3d7ce34e-c109-43dc-834b-de8ee40672df}}
+  - {id: proof, status: done, measured_on_staging: "menu 821px, Overview panels 235 and 235, side-panel row 124px with a 458px name column, phone title at 138px", out: "before-and-after page sent to Alex"}
+  - {id: push, status: blocked, blocked_on: alex, item: "branch not pushed; a deploy from another branch without 37b114a would undo the restyle on staging"}
 measured_2026-10-19:
   admin_menu_1440: "rail head 133px, menu content 1091px, foot 69px, so 1293px in all. 18 links at 44px and 5 group headings at 41px"
   admin_menu_375: "the menu strip is 327px (6 rows) and the top bar 101px, so the page title starts at 428px of an 812px screen"

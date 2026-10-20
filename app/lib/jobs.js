@@ -127,7 +127,11 @@ async function reconcile(env) {
 // media route serves only rows in photos, so nothing under backups/ is reachable from outside.
 const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'people', 'breeds', 'litters', 'puppies', 'photos', 'puppy_videos', 'checkouts', 'checkout_items',
   'puppy_holds', 'payments', 'stripe_events', 'settings', 'site_state', 'audit_log', 'email_log', 'job_runs',
-  'breeder_breeds', 'puppy_stats', 'account_requests', 'operator_notes', 'terms_versions', 'disputes', 'listing_reports', 'breed_searches'];
+  'breeder_breeds', 'puppy_stats', 'account_requests', 'operator_notes', 'terms_versions', 'disputes', 'listing_reports', 'breed_searches',
+  // Added 2026-10-20 (launch workplan B12). Kennel members, and the mailing list with its 4,177
+  // imported contacts and every send, were missing, so a restore lost them. The restore puts tables
+  // it does not order last, in this order, which the foreign keys accept.
+  'breeder_members', 'subscribers', 'campaigns', 'campaign_sends'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;

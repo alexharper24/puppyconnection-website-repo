@@ -25,10 +25,11 @@ items:
   - {id: L10, status: open, blocked_on: alex, item: "Workers Paid ($5 a month) is NOT needed for publishing since 2026-10-06. Alex chose the deploy hook, which fits the free plan, because the in-Worker commit measured 13 to 50 ms of CPU against 10 ms. Needed only if the commit mode is turned on later", evidence: "dev/publish-test.mjs on Node with SQLite time left out: the commit publish 12.5 to 18.3 ms with GitHub canned, 21 to 50 ms with Node fetch"}
   - {id: L11, status: open, blocked_on: alex, item: "Only for the commit mode, kept for later. A fine-grained GitHub token (F4) has an expiry date to put on a calendar. A GITHUB_TOKEN secret was found on the staging portal on 2026-10-06 and is unused in hook mode"}
   - {id: L12, status: open, blocked_on: amber, item: "Privacy policy approved and the listing terms written by Amber, the contact address placeholder replaced"}
-  - {id: L13, status: open, blocked_on: "alex and amber", item: "Staging test data removed from the production database (e2e- breeders, demo breeders, the test mailbox)"}
+  - {id: L13, status: open, blocked_on: "alex and amber", item: "Staging test data removed from the production database (e2e- breeders, demo breeders, the test mailbox). Done as step 2 of L18, from the list Amber approves"}
   - {id: L14, status: open, blocked_on: "alex and amber", item: "One real $14.99 listing payment, then its refund, checked end to end in live mode"}
   - {id: L15, status: open, blocked_on: "claude and alex", item: "One restore from a nightly backup, done and checked, before launch is called done (plan P4.8). Rehearsed locally on 2026-10-06 with app/ops/restore-backup.mjs (dev/restore-test.mjs, every table matched). The staging rehearsal into a new D1 database is still to do"}
   - {id: L16, status: open, blocked_on: "alex (Workers Builds, the deploy hook, PUBLISH_HOOK_URL), then claude", item: "Publishing switched on through a Workers Builds deploy hook (Alex, 2026-10-06). Done by Claude: the site repository holds the build and the site Worker, the portal serves /data/export.json, and the staging portal and admin run PUBLISH_MODE hook. Waiting on Alex: Workers Builds connected to the site Worker, its deploy hook, and the hook address as the portal secret PUBLISH_HOOK_URL. Then Claude checks the first build and Publish now"}
+  - {id: L18, status: open, blocked_on: "amber (approve the test data list), then alex (hostnames L0, live keys L1, email L4, Access L5)", decided: "The staging database becomes the production database once the test data is cleared (Alex, 2026-10-19)", rehearsed: "2026-10-20 on a copy of the staging export staging-2026-10-20-pre0040.sql, every step, nothing changed on staging (section L18 below)", item: "Production database. Six steps in order: a confirmed backup, the test data listed and cleared, the production Workers pointed at the database and the R2 bucket, every production secret and the cron triggers, test mode off, and a sign-in, a listing and a publish checked end to end"}
   - {id: L17, status: open, blocked_on: "amber (d8), then claude and alex", item: "The Wix import. Amber's pairing file, app/ops/wix-import.mjs run on a copy and checked, the photos copied into R2 with --upload-to, then the copy's rows moved to D1. Photos are served from R2 at /media by the site Worker (D11, decided 2026-10-06)"}
 ---
 
@@ -214,6 +215,88 @@ WARNING: Deleting rows cannot be undone. Export a backup to `app/.state/` first.
 - [ ] Empty `dev_mailbox` and `dev_mailbox_owners`.
 - [ ] Delete their photo files from R2.
 
+## L18 Production database
+
+Staging becomes production once its test data is cleared (Alex, 2026-10-19). The database `puppyconnection` and the bucket `puppyconnection-files` keep the breeder pairing, the imported contacts and the photo work. The three Workers `portal`, `admin` and `site` stay the same Workers and move to the real hostnames, so only one set of Workers ever writes to the database. Run the commands from `app/`, with `W` for the wrangler command in the README and `CLOUDFLARE_ACCOUNT_ID` set to the Puppy Connection account.
+
+Run the six steps in order, in one sitting, after L0 to L6 are done.
+
+### Step 1. Take a confirmed backup
+
+WARNING: Step 2 deletes rows, which cannot be undone. Do not start step 2 until this backup is confirmed.
+
+- [ ] Export the database: `$W d1 export puppyconnection --remote --config portal/wrangler.hosted.jsonc --output .state/production-<YYYY-MM-DD>-before-clear.sql`.
+- [ ] Make sure the output reads `Downloaded` and the file is over 3 MB.
+- [ ] Count the rows: `grep -c "^INSERT" .state/production-<YYYY-MM-DD>-before-clear.sql`. Record the number here.
+- [ ] Make sure the nightly backup for today is in R2: `$W r2 object get puppyconnection-files/backups/<YYYY-MM-DD>.json.gz --file backup.json.gz --remote --config portal/wrangler.hosted.jsonc`.
+- [ ] Note the time. D1 Time Travel can restore to any minute before it for 30 days.
+
+### Step 2. List and clear the test data
+
+CAUTION: Clear only the breeders on the approved list. A real breeder may have signed up on staging before launch.
+
+- [ ] Make the list: `node ops/test-data.mjs list --remote --out .state/test-data-<YYYY-MM-DD>.json`. It only reads.
+- [ ] Send the printed list to Amber, and remove any line she says is not test data.
+- [ ] Make the SQL: `node ops/test-data.mjs sql --list .state/test-data-<YYYY-MM-DD>.json --remote --out .state/clear-test-data.sql --keys .state/clear-test-data-keys.txt`.
+- [ ] Load the step 1 export into a copy and run the SQL there first: `node ops/d1-apply.mjs .state/clear-test-data.sql --sqlite <copy>`.
+- [ ] Make sure `PRAGMA foreign_key_check` on the copy returns nothing and the public listing count is unchanged.
+- [ ] Run it on the database: `node ops/d1-apply.mjs .state/clear-test-data.sql --remote`.
+- [ ] Delete each key in `clear-test-data-keys.txt` from `puppyconnection-files` with `$W r2 object delete`.
+- [ ] Run `node ops/test-data.mjs list --remote` again and make sure it lists no breeders.
+- [ ] Replace each operator with a test address (the list names them) with the real address, in the admin People screen.
+
+### Step 3. Point the production Workers at the database and the R2 bucket
+
+- [ ] Make `wrangler.production.jsonc` for the portal and the admin from `wrangler.hosted.jsonc` (L7).
+- [ ] Keep `database_id` `4556bf68-fa4a-406f-9b98-2f64006ea00b` and `bucket_name` `puppyconnection-files` in both.
+- [ ] Keep the portal's `SITE` binding and the admin's `PORTAL` binding, both naming the same Workers.
+- [ ] Add each real hostname as a `custom_domain` route, and set `workers_dev` to false.
+- [ ] Set `PORTAL_ORIGIN`, `ADMIN_ORIGIN` and `SITE_ORIGIN` to the real hostnames.
+- [ ] Check each config with `$W deploy --dry-run --config wrangler.production.jsonc` and read the binding list it prints.
+- [ ] In the site repository, set the build variables `DATA_URL`, `SITE_URL` and `PORTAL_ORIGIN` to the real hostnames (L8).
+
+### Step 4. Set every production secret and the cron triggers
+
+WARNING: A live Stripe key takes real money. Set live keys on the production portal and admin only.
+
+- [ ] On the portal, set `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `RESEND_API_KEY`, `TURNSTILE_SECRET`, `GOOGLE_CLIENT_SECRET` and `PUBLISH_HOOK_URL` with `$W secret put`.
+- [ ] On the admin, set `STRIPE_SECRET_KEY` and `RESEND_API_KEY`.
+- [ ] Delete the unused `GITHUB_TOKEN` from the portal, unless the commit mode is turned on (L11).
+- [ ] Set `OPS_EXTRA` on the portal and the admin to the addresses that get failure alerts beyond the owners.
+- [ ] Make sure the portal config keeps `"triggers": { "crons": ["*/15 * * * *", "0 13 * * *"] }`.
+- [ ] Run `$W secret list --config wrangler.production.jsonc` on each and compare with the two lists above.
+
+### Step 5. Turn off test mode
+
+CAUTION: Real email (L4) and Stripe (L1) must work before this step, or sign-in and payment stop.
+
+- [ ] Remove `DEV_MODE` from both production configs (L7).
+- [ ] Set `EMAIL_MODE` to `resend` and `STRIPE_MODE` to `live`, and remove `EMAIL_ALLOWLIST`.
+- [ ] Deploy the portal, then the admin, with `--config wrangler.production.jsonc`.
+- [ ] Make sure `/dev/mail` answers 404 on both, and `/sim/checkout/x` answers 404 on the portal.
+- [ ] Make sure `/api/config` on the portal reports `notices` false and `mailbox` false.
+
+### Step 6. Check a sign-in, a listing and a publish end to end
+
+- [ ] Sign in to the portal as a breeder with a real inbox, by the emailed code.
+- [ ] Add a litter and a puppy with two photos, and list it through checkout (L14 has the real payment).
+- [ ] Press Publish now in the admin, and make sure one Workers Build starts and passes.
+- [ ] Open the puppy on the site and make sure its photos show.
+- [ ] Make sure no failure alert arrived in the owners' inboxes in the next 30 minutes.
+
+### Rehearsal, 2026-10-20
+
+Each step was run once on a copy of the staging export, never on staging itself.
+
+| Step | Run on | Found |
+|---|---|---|
+| 1 | Staging, read only | `d1 export` printed "Downloaded", 3.56 MB, 8,062 rows, in `.state/staging-2026-10-20-pre0040.sql`. The export loads into a fresh SQLite file with all 42 tables |
+| 2 | The loaded copy | The list found 6 breeders: the 3 demo breeders, a sign-up from `test@userdomain.com`, and 2 unfinished sign-ups with no business name from real Gmail addresses, which need confirming. It also found 9 test mailbox messages, 8 test-mode Stripe events, 60 view counts and breed searches, 3 sign-ins and 1 practice checkout. The SQL removed exactly those in 0.5 seconds. Foreign key check empty, integrity ok, 40 imported breeders, 304 puppies and 4,177 mailing list rows unchanged, public listings 267 before and after, 36 R2 keys listed. The operator `amber@puppyconnection.test` is a test address |
+| 3 | Scratch production configs | `deploy --dry-run` listed `DB (puppyconnection)`, `FILES (puppyconnection-files)` and the `SITE` and `PORTAL` bindings for both Workers |
+| 4 | Staging secret names, read only | The portal holds 6 secrets and the admin 1. `RESEND_API_KEY` is on neither yet, the admin needs it for its alerts, and the portal's `GITHUB_TOKEN` is unused |
+| 5 | The cleared copy, locally, `DEV_MODE` unset | `/dev/mail` and `/sim/checkout/x` answered 404, `/api/config` gave `notices` false and `mailbox` false, the admin refused everyone until Access is set, and every page carried `X-Robots-Tag: noindex` |
+| 6 | The cleared copy, locally, in local mode | `dev/e2e.mjs` passed every check (sign-up, sign-in, approval, listing, photos, payment, publish to the public views). The */15 run finished with no job errors, Publish now recorded generation 48, and the site built from the copy with 270 listings |
+
 ## L14 First real payment
 
 - [ ] List one puppy with a real card for $14.99.
@@ -227,7 +310,7 @@ WARNING: Deleting rows cannot be undone. Export a backup to `app/.state/` first.
 
 Use this procedure for the launch rehearsal and for a real recovery. For a mistake less than 30 days old, D1 Time Travel (`wrangler d1 time-travel restore`) is the first choice, and the nightly backup is the second copy. Run the commands from `app/`, with `W` for the wrangler command in the README.
 
-The backup holds every table except sign-in links, sessions and the test mailbox (`login_tokens`, `sessions`, `dev_mailbox`, `dev_mailbox_owners`, `sim_sessions`). After a restore every breeder signs in again.
+The backup holds every table except sign-in links, sessions, the test mailbox, the link check results and the alert record (`login_tokens`, `sessions`, `dev_mailbox`, `dev_mailbox_owners`, `sim_sessions`, `link_checks`, `alert_state`). After a restore every breeder signs in again and the link check starts over. Kennel members and the mailing list (`breeder_members`, `subscribers`, `campaigns`, `campaign_sends`) were added on 2026-10-20, so a backup from before then does not hold them. Use the D1 export or Time Travel for those.
 
 WARNING: A restore into the live database would overwrite current data. Always restore into a new, empty database. The script refuses a database that already has breeders.
 

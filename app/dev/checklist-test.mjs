@@ -22,7 +22,9 @@ const OWNERS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0035_checkli
 const DAY_ONE_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0036_checklist_day_one.sql'), 'utf8');
 const GA4_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0037_checklist_ga4.sql'), 'utf8');
 const DB_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0038_checklist_production_database.sql'), 'utf8');
-const DAY_ONE = 6;   // the items migration 0036 adds
+const CALLS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0039_checklist_alex_calls.sql'), 'utf8');
+const DAY_ONE = 6;
+const ADDED = DAY_ONE + 1;   // the day-one items, and the Puppy video item from migration 0039   // the items migration 0036 adds
 
 let fails = 0, passes = 0;
 function check(label, ok, detail) {
@@ -67,6 +69,8 @@ db.exec(GA4_MIGRATION);
 db.exec(GA4_MIGRATION);
 db.exec(DB_MIGRATION);
 db.exec(DB_MIGRATION);
+db.exec(CALLS_MIGRATION);
+db.exec(CALLS_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -77,7 +81,7 @@ for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], 
 function seedChecks() {
   const items = db.prepare('SELECT * FROM checklist_items').all();
   const parts = db.prepare('SELECT * FROM checklist_parts').all();
-  check(`the migration seeds ${SEED.length} items and a second run adds nothing`, firstCount === SEED.length && items.length === SEED.length + DAY_ONE, `${firstCount}, then ${items.length}`);
+  check(`the migration seeds ${SEED.length} items and a second run adds nothing`, firstCount === SEED.length && items.length === SEED.length + ADDED, `${firstCount}, then ${items.length}`);
   check('the seed is recorded once in the audit trail', db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.seed'").get().n === 1);
   const sections = new Set(items.map((i) => i.section));
   check('items sit in the four sections Launch, Gate 1, Gate 2 and Gate 3', ['launch', 'gate1', 'gate2', 'gate3'].every((s) => sections.has(s)) && sections.size === 4);
@@ -86,7 +90,7 @@ function seedChecks() {
   check(`every open and closed workplan item is on the checklist with a matching status (${wp.length} items read)`, wp.length > 40 && !problems.length, problems.join('; '));
   const closed = wp.filter((w) => w.closed).map((w) => items.find((i) => i.ref === w.id));
   check('every closed workplan item is done with its evidence date and marked as from the launch plan',
-    closed.every((i) => i && i.status === 'done' && /^2026-10-1\d/.test(i.done_at) && i.done_by === 'launch plan'));
+    closed.every((i) => i && i.status === 'done' && /^2026-10-1\d/.test(i.done_at) && ['launch plan', 'Alex'].includes(i.done_by)));
   const text = [...items.flatMap((i) => [i.title, i.description, i.waiting_on]), ...parts.map((p) => p.title)].filter(Boolean);
   check('no price, hour figure or rate in any seeded text or in the migration',
     !/\$\s?\d|\bper hour\b|\b\d+(\.\d+)?\s?(hours?|hrs?)\b|\brate\b/i.test(text.join(' ') + MIGRATION.replace(/--[^\n]*/g, '')),
@@ -112,17 +116,26 @@ function seedChecks() {
   const ga4 = items.find((i) => i.ref === 'B11');
   const ga4Parts = parts.filter((p) => p.item_id === ga4.id);
   check('migration 0037 makes the analytics item Google Analytics 4, waiting on Amber, with her one part and four for Alex, once',
-    ga4.title === 'Google Analytics 4 on the new site' && ga4.waiting_owner === 'Amber' && ga4.status === 'waiting' &&
+    ga4.title === 'Google Analytics 4 on the new site' && ga4.status === 'waiting' &&
     ga4Parts.map((p) => p.owner).join() === 'Amber,Alex,Alex,Alex,Alex' &&
-    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND action = 'checklist.edit'").get(ga4.id).n === 1);
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND action = 'checklist.edit' AND after_json LIKE '%chose Google Analytics 4%'").get(ga4.id).n === 1);
   const prod = items.find((i) => i.ref === 'B12');
   const prodParts = parts.filter((p) => p.item_id === prod.id);
   check('migration 0038 ticks the production database decision as Alex, leaves writing the steps open, puts the item in progress and notes it follows clearing test data, once',
     prod.status === 'in_progress' && prodParts[0].done_by === 'Alex' && /^2026-10-19/.test(prodParts[0].done_at) && !prodParts[1].done_at &&
     db.prepare("SELECT COUNT(*) AS n FROM checklist_comments WHERE item_id = ? AND body LIKE '%Clear the test breeders and test data%'").get(prod.id).n === 1 &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND actor = 'claude'").get(prod.id).n === 4);
+  const byRef = (r) => items.find((i) => i.ref === r);
+  const video = items.find((i) => i.title === 'Puppy video');
+  check('migration 0039 closes Furry Freight and the puppy details as Alex, and moves the Stream part to a new Gate 1 Puppy video item',
+    byRef('D6').status === 'done' && byRef('D6').done_by === 'Alex' && byRef('A3').status === 'done' && video && video.section === 'gate1' && video.owner === 'Alex' &&
+    parts.some((p) => p.item_id === video.id && /Stream/.test(p.title)) && !parts.some((p) => p.item_id === byRef('A3').id && /Stream/.test(p.title)));
+  check('migration 0039 makes the invitation item a build item for Alex, points analytics at Alex and archives the access part for Amber, and names the three notices',
+    byRef('C5').title === 'Let a mailing list send go to all contacts' && byRef('C5').owner === 'Alex' && byRef('C5').status === 'not_started' &&
+    byRef('B11').waiting_owner === 'Alex' && parts.some((p) => p.item_id === byRef('B11').id && p.owner === 'Amber' && p.archived_at) &&
+    /^Three notices/.test(byRef('B9').description));
   check('migration 0035 audits each moved item once, and running it again adds nothing',
-    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n === db.prepare("SELECT COUNT(DISTINCT entity_id) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude'").get().n);
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND after_json LIKE '%Alex and Amber only%'").get().n === db.prepare("SELECT COUNT(DISTINCT entity_id) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND after_json LIKE '%Alex and Amber only%'").get().n);
 }
 
 // ---------------------------------------------------------------- part 2, the routes
@@ -145,7 +158,7 @@ const lastAudit = (id) => db.prepare("SELECT * FROM audit_log WHERE entity = 'ch
 
 async function routeChecks() {
   let r = await call(ALEX, 'GET', '/api/checklist');
-  check('Alex reads the checklist, acting as Alex with archiving allowed', r.status === 200 && r.data.me.name === 'Alex' && r.data.me.can_archive && r.data.items.length === SEED.length + DAY_ONE);
+  check('Alex reads the checklist, acting as Alex with archiving allowed', r.status === 200 && r.data.me.name === 'Alex' && r.data.me.can_archive && r.data.items.length === SEED.length + ADDED);
   r = await call(SHARED, 'GET', '/api/checklist');
   check('the shared address acts as Amber or Luke, Amber first, and may not archive', r.status === 200 && r.data.me.names.join() === 'Amber,Luke' && r.data.me.name === 'Amber' && !r.data.me.can_archive);
   r = await call(STAFF, 'GET', '/api/checklist');
@@ -172,7 +185,7 @@ async function routeChecks() {
   r = await call(ALEX, 'GET', '/api/checklist/summary');
   const s1 = r.data;
   const total = Object.values(s1.counts).reduce((n, sec) => n + Object.values(sec).reduce((a, b) => a + b, 0), 0);
-  check('the summary counts every item once by section and status', r.status === 200 && total === SEED.length + DAY_ONE + 1 && s1.counts.launch.waiting >= 1);
+  check('the summary counts every item once by section and status', r.status === 200 && total === SEED.length + ADDED + 1 && s1.counts.launch.waiting >= 1);
   const mineAlex = s1.mine;
   r = await call(SHARED, 'GET', '/api/checklist/summary?as=Amber');
   const mineAmber = r.data.mine;

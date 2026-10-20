@@ -11,7 +11,7 @@
 
 import { now, ulid, addMinutes, bad, HttpError, timingSafeEqual } from './util.js';
 import { owned, settings, auditStmt, dirtyStmt } from './store.js';
-import { sendMail, alertOps } from './mail.js';
+import { sendMail, alertOps, alertOnce } from './mail.js';
 
 const STRIPE_API = 'https://api.stripe.com/v1';
 const HOLD_MINUTES = 60;
@@ -454,7 +454,8 @@ async function recordDispute(env, type, d, actor) {
     auditStmt(env, actor.type, actor.email, opened ? 'payment.dispute_open' : 'payment.dispute_close', 'checkout', pay?.checkout_id || d.payment_intent || 'unknown',
       null, { dispute: d.id, status: d.status, reason: d.reason || null }),
   ]);
-  await alertOps(env, 'A listing payment is disputed', `Payment ${d.payment_intent}: ${payStatus.replace('_', ' ')}. The listing stays up until you decide.`);
+  // At most one dispute alert an hour. More in that hour arrive as one summary (lib/mail.js).
+  await alertOnce(env, 'stripe_dispute', 'A listing payment is disputed', `Payment ${d.payment_intent}: ${payStatus.replace('_', ' ')}. The listing stays up until you decide. The Payments screen shows every open dispute.`);
   return payStatus;
 }
 

@@ -12,6 +12,24 @@ import { now } from './util.js';
 import { unsubscribeUrl } from './subscribers.js';
 
 export const PER_REQUEST = 100;
+
+// Whom a send goes to (launch workplan C5, Alex 2026-10-19). Subscribers only, or every contact who
+// has not unsubscribed, because the list also works as a mailing service for announcements such as
+// the new site. An unsubscribed address is in neither, and the unsubscribe link in every email
+// works the same for a contact as for a subscriber.
+export const AUDIENCES = { subscribers: ['subscribed'], all: ['subscribed', 'contact'] };
+export function audienceOf(v) {
+  if (v === undefined || v === null || v === '') return 'subscribers';
+  if (!AUDIENCES[v]) throw new Error(`Unknown audience ${v}.`);
+  return v;
+}
+const statusList = (audience) => AUDIENCES[audienceOf(audience)].map((x) => `'${x}'`).join(', ');
+
+/** How many people a send to this audience would reach now. */
+export async function audienceCount(env, audience) {
+  const { n } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM subscribers WHERE status IN (${statusList(audience)})`).first();
+  return n;
+}
 export const BATCHES = 4;
 
 /** D1 batches kept to 50 statements each. */
@@ -22,11 +40,12 @@ export async function mailingAddress(env) {
   return r ? String(r.value).trim() : '';
 }
 
-/** The email one subscriber receives. */
-export function renderCampaign(c, { token, portalOrigin, address }) {
+/** The email one person receives. status is theirs on the list, which sets the reason line. */
+export function renderCampaign(c, { token, portalOrigin, address, status = 'subscribed' }) {
   const unsub = unsubscribeUrl(portalOrigin, token);
   const body = String(c.body).replace(/\r\n/g, '\n').trim();
-  const text = `${body}\n\n--\nPuppy Connection\n${address}\n\nYou're getting this because you signed up for Puppy Connection emails. `
+  const why = status === 'contact' ? "You're getting this because you have been in touch with Puppy Connection." : "You're getting this because you signed up for Puppy Connection emails.";
+  const text = `${body}\n\n--\nPuppy Connection\n${address}\n\n${why} `
     + `To stop getting them, open this link:\n${unsub}\n`;
   return {
     subject: c.subject,
@@ -35,13 +54,14 @@ export function renderCampaign(c, { token, portalOrigin, address }) {
   };
 }
 
-/** Queue one row per subscribed person and mark the campaign sending. Returns the count. */
-export async function startCampaign(env, id) {
+/** Queue one row per person in the audience and mark the campaign sending. Returns the count. */
+export async function startCampaign(env, id, audience = 'subscribers') {
   const t = now();
+  const a = audienceOf(audience);
   const r = await env.DB.batch([
     env.DB.prepare(`INSERT OR IGNORE INTO campaign_sends (campaign_id, subscriber_id, status)
-      SELECT ?, id, 'pending' FROM subscribers WHERE status = 'subscribed'`).bind(id),
-    env.DB.prepare("UPDATE campaigns SET status = 'sending', send_started_at = ?, updated_at = ? WHERE id = ? AND status = 'draft'").bind(t, t, id),
+      SELECT ?, id, 'pending' FROM subscribers WHERE status IN (${statusList(a)})`).bind(id),
+    env.DB.prepare("UPDATE campaigns SET status = 'sending', audience = ?, send_started_at = ?, updated_at = ? WHERE id = ? AND status = 'draft'").bind(a, t, t, id),
   ]);
   if (r[1].meta.changes !== 1) throw new Error('That email has already been sent or is sending.');
   const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM campaign_sends WHERE campaign_id = ?').bind(id).first();
@@ -95,9 +115,10 @@ export async function runCampaigns(env, { batches = BATCHES } = {}) {
       left -= 1;
       const t = now();
       // Someone who unsubscribed after the send started, or who is outside a test allowlist, is skipped.
-      const go = rows.filter((r) => r.status === 'subscribed' && (!allow.length || allow.includes(r.email.toLowerCase())));
+      const may = AUDIENCES[audienceOf(c.audience)];
+      const go = rows.filter((r) => may.includes(r.status) && (!allow.length || allow.includes(r.email.toLowerCase())));
       const skip = rows.filter((r) => !go.includes(r));
-      const results = go.length ? await deliver(env, go.map((r) => ({ to: r.email, ...renderCampaign(c, { token: r.unsub_token, portalOrigin, address }) }))) : [];
+      const results = go.length ? await deliver(env, go.map((r) => ({ to: r.email, ...renderCampaign(c, { token: r.unsub_token, portalOrigin, address, status: r.status }) }))) : [];
       const stmts = [
         ...go.map((r, i) => env.DB.prepare('UPDATE campaign_sends SET status = ?, provider_id = ?, error = ?, sent_at = ? WHERE campaign_id = ? AND subscriber_id = ?')
           .bind(results[i].ok ? 'sent' : 'failed', results[i].id || null, results[i].error || null, t, c.id, r.subscriber_id)),

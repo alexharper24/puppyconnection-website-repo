@@ -87,6 +87,9 @@ mkdir -p dist
 cp -R "$OUT"/. dist/
 # The checker's settings are for the check only, so they are not served.
 rm -f dist/.sitecheck.json
+# The generation this build fetched, served at /api/build, so the portal can tell a build that
+# finished from one that failed (app/lib/publish.js, checkBuild). Commit mode fetches nothing.
+[ -f "${DATA_DIR}/build.json" ] && cp "${DATA_DIR}/build.json" dist/build.json
 echo "$(find dist -name '*.html' | wc -l | tr -d ' ') pages in dist"
 
 if [ "${1:-}" = "--deploy" ]; then

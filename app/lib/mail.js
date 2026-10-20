@@ -187,12 +187,63 @@ async function logSend(env, to, template, id, status) {
     .bind(to, template, now(), id, status).run();
 }
 
-/** Alerts go to every operator in people, and to OPS_EXTRA (Alex) when it is set. */
+/**
+ * Alerts go to every owner in people, and to OPS_EXTRA (Alex) when it is set. Staff get none,
+ * until Amber chooses an inbox for each notice (launch workplan, the notice inboxes item).
+ */
 export async function alertOps(env, title, detail) {
-  const { results } = await env.DB.prepare('SELECT email FROM people').all();
+  const { results } = await env.DB.prepare("SELECT email FROM people WHERE role = 'owner'").all();
   const to = new Set(results.map((r) => r.email));
   for (const e of (env.OPS_EXTRA || '').split(',').map((s) => s.trim()).filter(Boolean)) to.add(e);
   for (const addr of to) {
     try { await sendMail(env, addr, 'ops_alert', { title, detail }); } catch (e) { console.error('alert failed', e); }
   }
+}
+
+// Failure alerts (launch workplan B10). A failure that repeats, such as a job that fails every
+// fifteen minutes, sends at most one alert of its kind an hour. The ones held back are counted in
+// alert_state (migrations/0040) and sent as one summary by flushHeldAlerts once the hour is up,
+// from the portal's */15 run, so a held alert is late but never lost.
+export const ALERT_QUIET_MS = 3600000;
+
+const hourAgo = () => now(new Date(Date.now() - ALERT_QUIET_MS));
+
+/** Send an alert of this kind unless one went out in the last hour, in which case hold it. */
+export async function alertOnce(env, kind, title, detail) {
+  const t = now();
+  await env.DB.prepare('INSERT OR IGNORE INTO alert_state (kind, last_sent_at, held) VALUES (?, NULL, 0)').bind(kind).run();
+  const before = await env.DB.prepare('SELECT held, held_since FROM alert_state WHERE kind = ?').bind(kind).first();
+  // The claim is one conditional update, so two runs at once cannot both send.
+  const claim = await env.DB.prepare(
+    'UPDATE alert_state SET last_sent_at = ?, held = 0, held_since = NULL, last_title = ?, last_detail = ? WHERE kind = ? AND (last_sent_at IS NULL OR last_sent_at <= ?)',
+  ).bind(t, title, String(detail).slice(0, 2000), kind, hourAgo()).run();
+  if (claim.meta.changes >= 1) {
+    const extra = before && before.held ? `\n\n${before.held} more alert${before.held === 1 ? '' : 's'} of this kind were held back since ${before.held_since}.` : '';
+    await alertOps(env, title, `${detail}${extra}`);
+    return { sent: true };
+  }
+  await env.DB.prepare('UPDATE alert_state SET held = held + 1, held_since = COALESCE(held_since, ?), last_title = ?, last_detail = ? WHERE kind = ?')
+    .bind(t, title, String(detail).slice(0, 2000), kind).run();
+  return { sent: false, held: true };
+}
+
+/** One summary for each kind whose held alerts have waited out the hour. */
+export async function flushHeldAlerts(env) {
+  const { results } = await env.DB.prepare('SELECT * FROM alert_state WHERE held > 0 AND last_sent_at <= ?').bind(hourAgo()).all();
+  let sent = 0;
+  for (const r of results) {
+    const claim = await env.DB.prepare('UPDATE alert_state SET last_sent_at = ?, held = 0, held_since = NULL WHERE kind = ? AND held = ? AND last_sent_at <= ?')
+      .bind(now(), r.kind, r.held, hourAgo()).run();
+    if (claim.meta.changes < 1) continue;
+    await alertOps(env, `${r.last_title} (${r.held} more since ${r.held_since})`,
+      `This failure happened ${r.held} more time${r.held === 1 ? '' : 's'} after the last alert, which were held back so the inbox is not flooded. The latest one:\n\n${r.last_detail}`);
+    sent += 1;
+  }
+  return { sent };
+}
+
+/** Forced failures for testing (FAIL_TEST, a comma list), honored only on local and staging. */
+export function failTest(env, kind) {
+  if (env.DEV_MODE !== 'local' && env.DEV_MODE !== 'staging') return false;
+  return String(env.FAIL_TEST || '').split(',').map((s) => s.trim()).includes(kind);
 }

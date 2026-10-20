@@ -563,6 +563,11 @@ async function part3() {
     const g = build({ dataDir, out: checked, base: `${STATIC}/` });
     const chk = siteChecks(checked);
     build({ dataDir, out: path.join(APP, '.preview/static-site'), base: `${STATIC}/` });
+    // Launch workplan B10. ci-build.sh copies the build record fetch-data.mjs wrote into the pages,
+    // and the site Worker serves it at /api/build for the portal's build check.
+    const rec = JSON.parse(fs.readFileSync(path.join(dataDir, 'build.json'), 'utf8'));
+    check('the data fetch writes a build record with the generation it read', rec.generation === fetched.generation && /Z$/.test(rec.fetched_at), JSON.stringify(rec));
+    fs.copyFileSync(path.join(dataDir, 'build.json'), path.join(APP, '.preview/static-site/build.json'));
     check(`the full local dataset builds and passes check_site.py (${g.pages} pages, ${counts.puppies} puppies)`, chk.ok && g.puppies === counts.puppies, chk.out.split('\n').filter((l) => /ERROR|error\(s\)/.test(l)).slice(0, 6).join('\n'));
 
     site = spawn(process.execPath, [WRANGLER, 'dev', '--config', path.join(APP, 'site/wrangler.static.jsonc'), '--persist-to', path.join(APP, '.state'),
@@ -571,6 +576,9 @@ async function part3() {
     const upNow = await waitFor(`${STATIC}/`, 120000);
     check('the generated-pages site Worker starts on 8795', upNow, log.slice(-600));
     if (!upNow) return;
+    const br = await tryFetch(`${STATIC}/api/build`);
+    const brBody = await br.json().catch(() => ({}));
+    check('the site Worker serves the build record at /api/build, never cached', br.status === 200 && brBody.generation === fetched.generation && /no-store/.test(br.headers.get('cache-control') || ''), `${br.status} ${JSON.stringify(brBody)}`);
     const home = await tryFetch(`${STATIC}/`);
     const homeText = await home.text();
     check('/ serves the home page, though html_handling is none', home.status === 200 && /<title>/.test(homeText) && /data\/data\.js\?v=/.test(homeText));

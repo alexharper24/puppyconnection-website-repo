@@ -16,7 +16,7 @@ import {
   BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
   PUPPY_EDIT_COLS, puppySet, puppyValues,
 } from '../lib/store.js';
-import { sendMail, alertOps } from '../lib/mail.js';
+import { sendMail, alertOps, alertOnce, failTest } from '../lib/mail.js';
 import { siteBreederSlug } from '../lib/export.js';
 import { breederStats } from '../lib/stats.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
@@ -1280,10 +1280,24 @@ async function stripeWebhook(request, env, ctx) {
   if (env.PAYMENTS_MODE !== 'stripe' || !env.STRIPE_WEBHOOK_SECRET) throw notFound();
   let event;
   try { event = await verifyStripe(request, env.STRIPE_WEBHOOK_SECRET); } catch (e) {
+    // Launch workplan B10. A refused webhook is either a stranger or a signing secret out of step
+    // with Stripe, and the second stops every listing payment, so the owners hear of it, once an hour.
+    ctx.waitUntil(alertOnce(env, 'stripe_webhook', 'A Stripe webhook was refused',
+      `The portal refused a call to /stripe/webhook: ${e.message}\n\nOne refusal can be a stranger. Repeated refusals mean STRIPE_WEBHOOK_SECRET no longer matches the endpoint's signing secret in Stripe, and paid listings then go live only through the success page and the checkout check job.`)
+      .catch((x) => console.error('alert failed', x)));
     return json({ error: e.message }, 400);
   }
-  const result = await handleEvent(env, event, ctx);
-  return json({ received: true, result });
+  try {
+    if (failTest(env, 'stripe')) throw new Error('Forced test failure of the webhook handler (FAIL_TEST).');
+    const result = await handleEvent(env, event, ctx);
+    return json({ received: true, result });
+  } catch (e) {
+    console.error('webhook failed', e);
+    // A 500 makes Stripe send the event again, with backoff, for up to three days.
+    await alertOnce(env, 'stripe_webhook_failed', 'A Stripe webhook failed', `Event ${event.id} (${event.type}) could not be handled: ${String(e.message || e)}\n\nStripe sends it again over the next three days. The Payments screen shows the checkout.`)
+      .catch((x) => console.error('alert failed', x));
+    return json({ error: 'The event could not be handled.' }, 500);
+  }
 }
 
 // ------------------------------------------------------------------ local mailbox
@@ -1557,6 +1571,8 @@ export default {
   },
   // The two cron triggers in wrangler.jsonc (lib/jobs.js says which job runs when).
   async scheduled(event, env, ctx) {
-    ctx.waitUntil(runScheduled(event, env).then((r) => console.log('jobs', JSON.stringify(r))));
+    // Each job alerts on its own failure (lib/jobs.js). This catches a run that fails outside them.
+    ctx.waitUntil(runScheduled(event, env).then((r) => console.log('jobs', JSON.stringify(r)))
+      .catch((e) => alertOnce(env, 'cron', `The scheduled run ${event.cron} failed`, String(e.stack || e)).catch((x) => console.error('alert failed', x))));
   },
 };

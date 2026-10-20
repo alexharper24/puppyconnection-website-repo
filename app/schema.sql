@@ -594,7 +594,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
   sent_at         TEXT,
   total           INTEGER NOT NULL DEFAULT 0,
   sent_count      INTEGER NOT NULL DEFAULT 0,
-  failed_count    INTEGER NOT NULL DEFAULT 0
+  failed_count    INTEGER NOT NULL DEFAULT 0,
+  -- migrations/0040. Subscribers only, or all contacts who have not unsubscribed.
+  audience        TEXT NOT NULL DEFAULT 'subscribers' CHECK (audience IN ('subscribers','all'))
 );
 
 CREATE TABLE IF NOT EXISTS campaign_sends (
@@ -607,3 +609,13 @@ CREATE TABLE IF NOT EXISTS campaign_sends (
   PRIMARY KEY (campaign_id, subscriber_id)
 );
 CREATE INDEX IF NOT EXISTS campaign_sends_pending ON campaign_sends(campaign_id, status);
+
+-- Failure alerts, at most one of each kind an hour (migrations/0040, lib/mail.js alertOnce).
+CREATE TABLE IF NOT EXISTS alert_state (
+  kind         TEXT PRIMARY KEY,
+  last_sent_at TEXT,
+  held         INTEGER NOT NULL DEFAULT 0,
+  held_since   TEXT,
+  last_title   TEXT,
+  last_detail  TEXT
+);

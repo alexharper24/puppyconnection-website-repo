@@ -385,6 +385,23 @@ async function features() {
     check('a contact who never subscribed gets nothing', (await mailTo(`send-contact-${stamp}@families.test`)).every((m) => m.subject !== `Launch ${stamp}`)
       && !sql(`SELECT 1 FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id WHERE cs.campaign_id = '${cid}' AND s.status = 'contact'`).length);
     check('a sent email can no longer be changed or sent again', (await admin.put(`/api/campaigns/${cid}`, { subject: 'x', body: 'y' })).status === 400 && (await admin.post(`/api/campaigns/${cid}/send`, { confirm_count: list.subscribed })).status === 400);
+
+    // Launch workplan C5. A send to all contacts, with the count shown before sending.
+    const counts = sql("SELECT SUM(status = 'subscribed') AS s, SUM(status IN ('subscribed','contact')) AS a FROM subscribers")[0];
+    check('the send screen shows a count for subscribers and for all contacts', list.audiences && list.audiences.subscribers === counts.s && list.audiences.all === counts.a, JSON.stringify(list.audiences));
+    r = await admin.post('/api/campaigns', { subject: `Announcement ${stamp}`, body: 'The new site is open.' });
+    const aid = r.data.id;
+    check('a send to all contacts refuses the subscriber count', (await admin.post(`/api/campaigns/${aid}/send`, { audience: 'all', confirm_count: list.audiences.subscribers })).status === 400);
+    check('an unknown audience is refused', (await admin.post(`/api/campaigns/${aid}/send`, { audience: 'everyone', confirm_count: list.audiences.all })).status === 400);
+    r = await admin.post(`/api/campaigns/${aid}/send`, { audience: 'all', confirm_count: list.audiences.all });
+    check('the send to all contacts starts for every contact who has not unsubscribed', r.status === 200 && r.data.total === list.audiences.all, JSON.stringify(r.data));
+    for (let i = 0; i < 20; i += 1) { state = sql(`SELECT status, sent_count, total FROM campaigns WHERE id = '${aid}'`)[0]; if (state.status === 'sent' || state.sent_count >= Math.min(400, state.total)) break; await sleep(500); }
+    const ctoken = sql(`SELECT unsub_token FROM subscribers WHERE email = 'send-contact-${stamp}@families.test'`)[0].unsub_token;
+    check('a never-subscribed contact gets the announcement with their own unsubscribe link', (await mailTo(`send-contact-${stamp}@families.test`)).some((m) => m.subject === `Announcement ${stamp}` && m.body.includes(`unsubscribe?t=${ctoken}`)));
+    check('the subscriber gets it too', (await mailTo(`send-a-${stamp}@families.test`)).some((m) => m.subject === `Announcement ${stamp}`));
+    check('the unsubscribed address gets nothing from a send to all contacts', (await mailTo(`send-gone-${stamp}@families.test`)).every((m) => m.subject !== `Announcement ${stamp}`)
+      && !sql(`SELECT 1 FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id WHERE cs.campaign_id = '${aid}' AND s.status = 'unsubscribed' AND cs.status = 'sent'`).length);
+    check('the campaign records that it went to all contacts', sql(`SELECT audience FROM campaigns WHERE id = '${aid}'`)[0].audience === 'all');
   }
 
   // ---------------------------------------------------------------- people and staff

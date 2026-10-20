@@ -164,8 +164,8 @@ export async function publishHook(env, actor = { type: 'system', email: 'publish
   if (missing) return { ok: false, off: true, error: missing };
   const s = await env.DB.prepare('SELECT generation, published_generation, last_publish_sha FROM site_state WHERE id = 1').first();
   const gen = s.generation;
-  if (failTest(env, 'publish')) {
-    const msg = 'Forced test failure of the publish (FAIL_TEST). The deploy hook was not called.';
+  if (failTest(env, 'publish_hook')) {
+    const msg = 'Forced test failure of the publish (FAIL_TEST publish_hook). The deploy hook was not called.';
     await recordFailure(env, gen, actor, 'hook', msg);
     return { ok: false, error: msg, recorded: true };
   }
@@ -231,7 +231,7 @@ export async function publishCommit(env, actor = { type: 'system', email: 'publi
 export async function publishIfDue(env, { minAgeMs = 60000 } = {}) {
   const s = await env.DB.prepare('SELECT generation, published_generation, dirty_since, last_publish_at FROM site_state WHERE id = 1').first();
   const waiting = s.generation - s.published_generation;
-  if (failTest(env, 'publish')) return { waiting, failed: (await publishSite(env, { type: 'system', email: 'publish-cron' })).error };
+  if (failTest(env, 'publish_hook')) return { waiting, failed: (await publishSite(env, { type: 'system', email: 'publish-cron' })).error };
   if (waiting <= 0) return { waiting: 0 };
   const age = s.dirty_since ? Date.now() - Date.parse(s.dirty_since) : Infinity;
   if (age < minAgeMs) return { waiting, wait: true, age_seconds: Math.floor(age / 1000) };
@@ -259,13 +259,13 @@ export async function publishIfDue(env, { minAgeMs = 60000 } = {}) {
  */
 export async function checkBuild(env) {
   if (portalMode(env) !== 'hook') return { off: 'not hook mode' };
-  const forced = failTest(env, 'build');
+  const forced = failTest(env, 'build_late');
   const s = await env.DB.prepare('SELECT published_generation, last_publish_at, last_publish_sha FROM site_state WHERE id = 1').first();
   if (!forced && (!s.last_publish_at || !String(s.last_publish_sha || '').startsWith('hook:'))) return { nothing: true };
   const minutes = s.last_publish_at ? Math.floor((Date.now() - Date.parse(s.last_publish_at)) / 60000) : 0;
   if (!forced && minutes < Number(env.BUILD_DEADLINE_MINUTES ?? 20)) return { waiting: true, minutes };
   let built;
-  if (forced) built = { generation: -1, fetched_at: 'never (FAIL_TEST)' };
+  if (forced) built = { generation: -1, fetched_at: 'never (FAIL_TEST build_late)' };
   else {
     const read = env.SITE && typeof env.SITE.fetch === 'function' ? (u) => env.SITE.fetch(u)
       : env.DEV_MODE === 'local' && env.SITE_BUILD_URL ? (u) => fetch(env.SITE_BUILD_URL) : null;

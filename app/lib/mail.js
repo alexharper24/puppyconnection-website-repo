@@ -242,7 +242,12 @@ export async function flushHeldAlerts(env) {
   return { sent };
 }
 
-/** Forced failures for testing (FAIL_TEST, a comma list), honored only on local and staging. */
+/**
+ * Forced failures for testing (FAIL_TEST, a comma list), honored only on local and staging. A job
+ * name (reconcile, backup, ...) fails that job before it runs. publish_hook fails the publish where
+ * the deploy hook would be called, build_late makes the build check find a build that did not
+ * finish, and stripe fails the webhook handler after the signature passes.
+ */
 export function failTest(env, kind) {
   if (env.DEV_MODE !== 'local' && env.DEV_MODE !== 'staging') return false;
   return String(env.FAIL_TEST || '').split(',').map((s) => s.trim()).includes(kind);

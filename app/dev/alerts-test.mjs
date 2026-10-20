@@ -164,6 +164,13 @@ async function failureAlerts() {
   const other = await alertOnce(env, 'job:links', 'z', 'w');
   check('a different kind of failure in the same hour is still sent', other.sent === true);
 
+  // The switches a staging run uses to reach the publish and build alerts on their own paths.
+  env = await freshEnv({ PUBLISH_MODE: 'hook', PUBLISH_HOOK_URL: 'https://api.cloudflare.com/client/v4/x', FAIL_TEST: 'publish_hook,build_late' });
+  let fp = await publishIfDue(env);
+  check('FAIL_TEST publish_hook fails the publish where the hook would be called, and alerts', /publish_hook/.test(fp.failed || '') && (await alerts(env, '%could not be published%')).length === 3, JSON.stringify(fp));
+  fp = await checkBuild(env);
+  check('FAIL_TEST build_late makes the build check alert that the build did not finish', fp.late === true && (await alerts(env, '%did not finish%')).length === 3, JSON.stringify(fp));
+
   // FAIL_TEST does nothing on production.
   env = await freshEnv({ DEV_MODE: undefined, FAIL_TEST: 'reconcile' });
   const r = await runJob(env, 'reconcile');

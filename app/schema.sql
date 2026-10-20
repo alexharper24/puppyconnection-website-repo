@@ -139,7 +139,10 @@ CREATE TABLE IF NOT EXISTS breeds (
   guide_updated_at TEXT,
   -- Suggested colors and coat types for the puppy form, comma-separated (migrations/0009).
   colors           TEXT,
-  coats            TEXT
+  coats            TEXT,
+  -- The photo the breed page and breed cards show, chosen by Alex from the professional-looking
+  -- listing photos (migrations/0030). NULL, or a photo no longer public, lets the site choose.
+  photo_id         TEXT
 );
 
 -- Plan P3.2. Private notes operators keep on a breeder. Never shown to the breeder, and never

@@ -1,7 +1,8 @@
 /* The launch checklist (workplan A17), drawn by checklist.js and checklist-areas.js. A layered, dense view: groups that
    open and close, one 42px line per item on desktop, square 4px pills (Alex, 2026-10-19). The strip and the board are
    panels like the other screens' (white on the ground, a line border, the 6px corner), so the checklist stands off the
-   page the same way, and each group heading is white rather than the page color (Alex, 2026-10-20). */
+   page the same way, and each group heading is white rather than the page color (Alex, 2026-10-20). Each group is
+   its own card, so the ground shows between them. */
 
 /* Square pills, used for owner and status here and in the item drawer. */
 .sq { display: inline-flex; align-items: center; height: 22px; padding: 0 .45rem; border-radius: var(--radius); font-size: .76rem; font-weight: 600;
@@ -34,8 +35,10 @@
 .cl-as { display: inline-flex; align-items: center; gap: .4rem; font-size: .84rem; color: var(--muted); }
 
 /* Groups. */
-.cl-board { border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; background: var(--surface); margin-bottom: 1rem; }
-.cl-group + .cl-group { border-top: 1px solid var(--line); }
+/* Each group is a card of its own with the page ground showing between them, as the Overview's
+   cards are. One white block on the ground read as the same color as the page (Alex, 2026-10-20). */
+.cl-board { display: grid; gap: .5rem; margin-bottom: 1rem; }
+.cl-group { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; }
 .cl-ghead { margin: 0; font: inherit; }
 .cl-ghead button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .6rem; width: 100%; min-height: 44px; padding: .35rem .8rem;
   cursor: pointer; background: var(--surface); }
@@ -76,6 +79,7 @@
 .cl-waits b { color: var(--warn); font-weight: 600; }
 .cl-cells .sq { justify-self: start; }
 .cl-empty { padding: .7rem .8rem; color: var(--muted); font-size: .88rem; }
+.cl-board > .cl-empty { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 .cl-donebar button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .5rem; width: 100%; min-height: 36px; padding: 0 .8rem 0 2.4rem; cursor: pointer;
   font-size: .82rem; color: var(--muted); }
 .cl-donebar button:hover { color: var(--ink); background: var(--row-hover); }

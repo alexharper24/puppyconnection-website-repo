@@ -41,7 +41,7 @@
 .cl-ghead button { all: unset; box-sizing: border-box; display: flex; align-items: center; gap: .6rem; width: 100%; min-height: 44px; padding: .35rem .8rem;
   cursor: pointer; background: var(--ground); }
 .cl-group.is-open > .cl-ghead button { border-bottom: 1px solid var(--line); }
-.cl-ghead button:hover { background: #efebe0; }
+.cl-ghead button:hover { background: var(--cream); }
 .cl-ghead button:focus-visible, .cl-toggle:focus-visible, .cl-donebar button:focus-visible { outline: 2px solid var(--bronze); outline-offset: -2px; }
 .cl-gname { font: 600 1.02rem var(--serif); min-width: 4.5rem; }
 .cl-gcounts { display: flex; flex-wrap: wrap; gap: .3rem .9rem; font-size: .82rem; color: var(--muted); }

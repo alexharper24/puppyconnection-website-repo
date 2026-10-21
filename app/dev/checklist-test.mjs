@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import vm from 'node:vm';
 import { SEED } from '../ops/checklist-seed.mjs';
-import { workplanItems, drift } from '../ops/checklist.mjs';
+import { workplanItems, drift, MERGED } from '../ops/checklist.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0034_launch_checklist.sql'), 'utf8');
@@ -30,11 +30,12 @@ const CALLS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0039_checklis
 const BUILD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0041_checklist_build_session.sql'), 'utf8');
 const AREAS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0044_checklist_areas.sql'), 'utf8');
 const WAIT_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0045_checklist_search_console_wait.sql'), 'utf8');
+const AMBER_NOTES_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0048_checklist_amber_plan_notes.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
 const DAY_ONE = 6;
 // The day-one items from migration 0036, the Puppy video item from 0039, and Search Console access from 0044.
-const ADDED = DAY_ONE + 2;
+const ADDED = DAY_ONE + 4; // + search by distance and PayPal back as later Gate 1 items (0048)
 
 let fails = 0, passes = 0;
 function check(label, ok, detail) {
@@ -87,6 +88,8 @@ db.exec(AREAS_NO_ALTER);
 db.exec(AREAS_NO_ALTER);
 db.exec(WAIT_MIGRATION);
 db.exec(WAIT_MIGRATION);
+db.exec(AMBER_NOTES_MIGRATION);
+db.exec(AMBER_NOTES_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -104,7 +107,7 @@ function seedChecks() {
   const wp = workplanItems(fs.readFileSync(path.join(APP, 'docs/launch-workplan.md'), 'utf8'));
   const problems = drift(wp, items);
   check(`every open and closed workplan item is on the checklist with a matching status (${wp.length} items read)`, wp.length > 40 && !problems.length, problems.join('; '));
-  const closed = wp.filter((w) => w.closed).map((w) => items.find((i) => i.ref === w.id));
+  const closed = wp.filter((w) => w.closed && !MERGED[w.id]).map((w) => items.find((i) => i.ref === w.id));
   check('every closed workplan item is done with its evidence date and marked as from the launch plan',
     closed.every((i) => i && i.status === 'done' && /^2026-10-(1\d|2\d)/.test(i.done_at) && ['launch plan', 'Alex', 'Claude'].includes(i.done_by)));
   const text = [...items.flatMap((i) => [i.title, i.description, i.waiting_on]), ...parts.map((p) => p.title)].filter(Boolean);
@@ -116,7 +119,7 @@ function seedChecks() {
   check('no em dash in the seeded wording', !text.some((t) => t.includes('—')));
   const titles = (s) => items.filter((i) => i.section === s).map((i) => i.title.toLowerCase());
   check('family accounts with a subscription are in Gate 1', titles('gate1').some((t) => t.includes('family accounts') && t.includes('subscription')));
-  check('PayPal and search by distance are not in Gate 1', !titles('gate1').some((t) => /paypal|distance/.test(t)));
+  check('PayPal and search by distance are back in Gate 1 as later items (Amber, 2026-10-21)', ['later: paypal for the listing fee', 'later: search by distance'].every((t) => titles('gate1').includes(t)));
   check('public reviews are gone from Gate 3, with Stripe Connect and messaging there as later items',
     !items.some((i) => /review/i.test(i.title) && i.section === 'gate3') && titles('gate3').some((t) => t.includes('stripe connect')) && titles('gate3').some((t) => t.includes('messages')));
   const partlyGate = items.filter((i) => i.section !== 'launch' && i.status !== 'done' && parts.some((p) => p.item_id === i.id && p.done_at));
@@ -346,7 +349,7 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===

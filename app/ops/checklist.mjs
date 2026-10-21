@@ -34,7 +34,7 @@ export function workplanItems(text) {
 
 // Workplan items that are a part of another item on the checklist rather than an item of their
 // own. The seller statement wording is Amber's part of the seller statement item.
-export const MERGED = { D5: 'A6' };
+export const MERGED = { D5: 'A6', A22: 'A5' };
 
 /** Where the two disagree. rows are checklist items with ref, status, area and archived_at. The
     checklist is the source of truth for the area too, so a change in the admin shows here until the

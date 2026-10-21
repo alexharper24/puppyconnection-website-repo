@@ -31,6 +31,7 @@ const BUILD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0041_checklis
 const AREAS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0044_checklist_areas.sql'), 'utf8');
 const WAIT_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0045_checklist_search_console_wait.sql'), 'utf8');
 const AMBER_NOTES_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0048_checklist_amber_plan_notes.sql'), 'utf8');
+const GO_AHEAD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0049_checklist_build_go_ahead.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
 const DAY_ONE = 6;
@@ -90,6 +91,8 @@ db.exec(WAIT_MIGRATION);
 db.exec(WAIT_MIGRATION);
 db.exec(AMBER_NOTES_MIGRATION);
 db.exec(AMBER_NOTES_MIGRATION);
+db.exec(GO_AHEAD_MIGRATION);
+db.exec(GO_AHEAD_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -145,6 +148,12 @@ function seedChecks() {
     db.prepare("SELECT COUNT(*) AS n FROM checklist_comments WHERE item_id = ? AND body LIKE '%Clear the test breeders and test data%'").get(prod.id).n === 1 &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND actor = 'claude'").get(prod.id).n >= 4);
   const byRef = (r) => items.find((i) => i.ref === r);
+  const audits = (id, at) => db.prepare('SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND at = ?').get(id, at).n;
+  check('migration 0048 moves saved moms and dads, documents and quality prompts to the launch build, and 0049 gives them the go-ahead, each audited once',
+    ['A19', 'A20', 'A21'].every((r) => byRef(r).section === 'launch' && byRef(r).area === 'build' && byRef(r).status === 'in_progress' && !byRef(r).waiting_on && !byRef(r).waiting_owner &&
+      audits(byRef(r).id, '2026-10-21T18:00:00Z') === 1 && audits(byRef(r).id, '2026-10-21T20:00:00Z') === 1));
+  check('migration 0049 leaves Report a listing waiting only on the privacy policy line and real email, not on Alex, audited once',
+    byRef('A5').status === 'waiting' && !byRef('A5').waiting_owner && /^the privacy policy line and real email/.test(byRef('A5').waiting_on) && audits(byRef('A5').id, '2026-10-21T20:00:00Z') === 1);
   const video = items.find((i) => i.title === 'Puppy video');
   check('migration 0039 closes Furry Freight and the puppy details as Alex, and moves the Stream part to a new Gate 1 Puppy video item',
     byRef('D6').status === 'done' && byRef('D6').done_by === 'Alex' && byRef('A3').status === 'done' && video && video.section === 'gate1' && video.owner === 'Alex' &&
@@ -349,7 +358,7 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===

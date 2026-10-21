@@ -1213,7 +1213,7 @@
     if (!litter || (!litter.mom_id && !litter.dad_id)) gaps.push(['parents', 'No mom or dad is picked on the litter. Families like to see both parents, so pick them when you edit the litter.']);
     else if (!litter.mom_id || !litter.dad_id) gaps.push(['parents', 'Only the ' + (litter.mom_id ? 'mom' : 'dad') + ' is picked on the litter. Pick the ' + (litter.mom_id ? 'dad' : 'mom') + ' too, so families see both parents.']);
     var photos = x ? x.photos.filter(function (ph) { return ph.quality !== 'sent_back' && ph.quality !== 'review'; }).length : 0;
-    if (photos < GOOD_PHOTOS) gaps.push(['photos', (x ? (photos ? 'Only ' + plural(photos, 'photo') + '.' : 'No photos yet.') : 'Add photos once the puppy is saved.') + ' Listings with at least ' + GOOD_PHOTOS + ' clear photos from different angles get more interest.']);
+    if (photos < GOOD_PHOTOS) gaps.push(['photos', (x ? (photos ? 'Only ' + plural(photos, 'photo') + '.' : 'No photos yet.') : 'Add photos once the puppy is saved.') + ' At least ' + GOOD_PHOTOS + ' clear photos from different angles show families the puppy well.']);
     if (litter && !litter.born_on) gaps.push(['born', 'The litter has no birth date, so families cannot see the puppy\'s age.']);
     return gaps;
   }

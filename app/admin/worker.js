@@ -17,6 +17,8 @@ import { listReports, closeReport } from '../lib/reports.js';
 import { reasonText } from '../lib/photocheck.js';
 import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
+import { checkLitterParents, parentsFor, documentsFor } from '../lib/parents.js';
+import { serveParentPhoto, serveDocument } from '../lib/media.js';
 import { buildExport } from '../lib/export.js';
 import { runJob, JOBS } from '../lib/jobs.js';
 import { provider, handleEvent } from '../lib/payments.js';
@@ -110,9 +112,15 @@ async function breederDetail(req, env, ctx, id) {
   for (const v of (await env.DB.prepare('SELECT id, puppy_id, stream_uid, status FROM puppy_videos WHERE breeder_id = ? ORDER BY position, created_at').bind(id).all()).results) {
     (vids[v.puppy_id] ||= []).push({ id: v.id, status: v.status, ...(v.status === 'ready' ? videoUrls(env, v.stream_uid, env.PORTAL_ORIGIN || '') : {}) });
   }
+  // Workplan A19 and A20. The saved moms and dads, and every document with the private ones, which
+  // only operators can open (/media/doc/<id> below).
+  const parents = await parentsFor(env, id);
+  const docs = {};
+  for (const d of await documentsFor(env, id)) if (d.puppy_id) (docs[d.puppy_id] ||= []).push(d);
   for (const l of litters) for (const p of l.puppies) {
     p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph) }));
     p.videos = vids[p.id] || [];
+    p.documents = docs[p.id] || [];
     p.is_public = pub.has(p.id);
   }
   const checkouts = (await env.DB.prepare('SELECT * FROM checkouts WHERE breeder_id = ? ORDER BY created_at DESC LIMIT 50').bind(id).all()).results;
@@ -138,7 +146,7 @@ async function breederDetail(req, env, ctx, id) {
   const members = (await env.DB.prepare('SELECT email, name, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(id).all()).results;
   // Workplan A13. The reference they named before submitting, shown beside Approve.
   const reference = await loadReference(env, id);
-  return json({ breeder: b, litters, checkouts, audit, extras, members, reference, close_request: closeRequest || null, notes: await notesFor(env, id),
+  return json({ breeder: b, litters, parents, checkouts, audit, extras, members, reference, close_request: closeRequest || null, notes: await notesFor(env, id),
     terms: { current: terms.version, accepted: b.terms_version || null }, breeds, registries: (await settings(env)).registries });
 }
 
@@ -379,13 +387,14 @@ async function editLitter(req, env, ctx, id, who) {
   const l = await env.DB.prepare('SELECT * FROM litters WHERE id = ?').bind(id).first();
   if (!l) throw notFound();
   if (l.archived_at) throw bad('The breeder removed that litter.');
-  const f = litterFields({ ...litterInput(l), ...body });
+  // The mom and dad must be the litter's own breeder's (workplan A19), whoever makes the edit.
+  const f = await checkLitterParents(env, l.breeder_id, litterFields({ ...litterInput(l), ...body }), l);
   if (!(await env.DB.prepare('SELECT 1 AS x FROM breeds WHERE id = ?').bind(f.breed_id).first())) throw bad('Choose a breed from the list.');
   const stmts = [
     env.DB.prepare(
-      `UPDATE litters SET breed_id = ?, born_on = ?, ready_on = ?, mom_weight_lb = ?, dad_weight_lb = ?, description = ?,
+      `UPDATE litters SET breed_id = ?, born_on = ?, ready_on = ?, mom_weight_lb = ?, dad_weight_lb = ?, description = ?, mom_id = ?, dad_id = ?,
          updated_at = ?, version = version + 1 WHERE id = ? AND version = ?`,
-    ).bind(f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, now(), id, Number(body.version)),
+    ).bind(f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, f.mom_id, f.dad_id, now(), id, Number(body.version)),
     auditStmt(env, 'operator', who.email, 'litter.update', 'litter', id, { ...litterInput(l), breeder_id: l.breeder_id }, { ...f, breeder_id: l.breeder_id }),
   ];
   if (await env.DB.prepare('SELECT 1 AS x FROM public_puppies WHERE litter_id = ? LIMIT 1').bind(id).first()) stmts.push(dirtyStmt(env));
@@ -840,6 +849,22 @@ async function media(req, env, ctx, id, card) {
   const obj = (card && await env.FILES.get(`${photo.r2_key}.card`)) || await env.FILES.get(photo.r2_key);
   if (!obj) throw notFound();
   return new Response(obj.body, { headers: { 'content-type': obj.httpMetadata?.contentType || photo.content_type || 'application/octet-stream', 'cache-control': 'private, no-store' } });
+}
+
+/** A saved parent's photo (workplan A19). Operators see it whether or not it is on the site. */
+async function parentPhotoAdmin(req, env, id, card) {
+  const res = await serveParentPhoto(env, id, { card, allowPrivate: async () => true });
+  if (!res) throw notFound();
+  res.headers.set('cache-control', 'private, no-store');
+  return res;
+}
+
+/** Any document, public or private, to a signed-in operator (workplan A20). The router has already checked who they are. */
+async function documentAdmin(req, env, ctx, id) {
+  const res = await serveDocument(env, id, { allowPrivate: async () => true });
+  if (!res) throw notFound();
+  res.headers.set('cache-control', 'private, no-store');
+  return res;
 }
 
 /** A breeder's logo or kennel photo. Operators see them whether or not the breeder is public. */
@@ -1389,6 +1414,9 @@ const ROUTES = [
   ['PUT', /^\/api\/settings$/, putSettings],
   ['GET', /^\/api\/export$/, exportData],
   ['POST', /^\/api\/site\/published$/, markPublished],
+  ['GET', /^\/media\/parent\/([\w-]+)$/, (r, e, c, id) => parentPhotoAdmin(r, e, id, false)],
+  ['GET', /^\/media\/parent\/([\w-]+)\/card$/, (r, e, c, id) => parentPhotoAdmin(r, e, id, true)],
+  ['GET', /^\/media\/doc\/([\w-]+)$/, documentAdmin],
   ['GET', /^\/media\/([\w-]+)$/, media],
   ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id, who) => media(r, e, c, id, true)],
 ];

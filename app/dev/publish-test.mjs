@@ -309,7 +309,7 @@ async function part1() {
   const havGuide = fs.existsSync(path.join(out, 'guide-havanese-price.html')) ? fs.readFileSync(path.join(out, 'guide-havanese-price.html'), 'utf8') : '';
   check('a guide line starting "## " becomes a section heading on the guide page', havGuide.includes('<h2>How much is a Havanese puppy?</h2>'));
   check('the guide figures fill from the listings and leave no token behind', /Havanese puppies listed on Puppy Connection right now are priced (at|from) \$/.test(havGuide) && /mothers weigh \d/.test(havGuide) && !havGuide.includes('{{'));
-  check('the breed heading carries the price range of the puppies shown, and says breeders set their prices', /available now, priced \$[\d,]+( to \$[\d,]+)?<\/p>/.test(hav) && hav.includes('Each breeder sets their own price.'));
+  check('the breed page price box carries the price range of the puppies shown, and says breeders set their prices (layout of 2026-10-19)', /<span class="bb-price">\$[\d,]+( to \$[\d,]+)?<\/span>/.test(hav) && hav.includes('Each breeder sets their own price.'));
   const inPups = fs.readFileSync(path.join(out, 'puppies-for-sale-in-indiana.html'), 'utf8');
   const inBreeders = fs.readFileSync(path.join(out, 'dog-breeders-in-indiana.html'), 'utf8');
   check('Indiana gets a "puppies for sale in" page listing the puppies of breeders there', inPups.includes('<title>Puppies for Sale in Indiana | Puppy Connection</title>') && inPups.includes('<h1>Puppies for sale in Indiana</h1>') && inPups.includes('puppy-pepper-havanese-test.html') && inPups.includes('"@type":"ItemList"'));
@@ -732,7 +732,10 @@ async function part4workers() {
     const keys = (f) => [...new Set(JSON.parse(body.files[f]).flatMap((o) => Object.keys(o)))].sort().join();
     check('... holding only the public fields, so no sign-in address, note or payment can be in it',
       keys('data/breeders.json') === 'about,breeds,city,email,facebook,kennel_photo,logo,name,phone,slug,state,website'
-      && keys('data/puppies.json') === 'about,availability,breeder,breeder_url,deposit,hypoallergenic,includes,legacy_slug,litter,name,photos,price,published_at,sex,slug,color,coat,registry,markings,health,vaccinations,deworming,disclosures,deposit_url,videos,placed_at,unlist_after'.split(',').sort().join(), `${keys('data/breeders.json')} | ${keys('data/puppies.json')}`);
+      && keys('data/puppies.json') === 'about,availability,breeder,breeder_url,deposit,hypoallergenic,includes,legacy_slug,litter,name,photos,price,published_at,sex,slug,color,coat,registry,markings,health,vaccinations,deworming,disclosures,deposit_url,videos,placed_at,unlist_after,documents'.split(',').sort().join()
+      // Workplan A19. A litter carries its saved mom and dad, each with only the fields families see.
+      && keys('data/litters.json') === 'about,breed,breeder,born_on,dad,dad_weight_lb,id,mom,mom_weight_lb,ready_on'.split(',').sort().join(),
+      `${keys('data/breeders.json')} | ${keys('data/puppies.json')} | ${keys('data/litters.json')}`);
   } finally {
     portal.kill();
   }

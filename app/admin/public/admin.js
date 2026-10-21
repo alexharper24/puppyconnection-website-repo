@@ -378,6 +378,28 @@
     });
   }
 
+  /* Workplan A19 and A20. A breeder's moms and dads with their health testing, and every document
+     with who can see it. Operators open private documents here, and nobody else can. */
+  function docLinks(docs) {
+    return docs.map(function (d) {
+      return '<li><a href="' + esc(d.url) + '" target="_blank" rel="noopener">' + esc(d.title) + '</a> <span class="muted small">' + esc(d.kind_label) + '</span> ' +
+        '<span class="pill ' + (d.visibility === 'public' ? 'pill-ok' : '') + '">' + (d.visibility === 'public' ? 'Families can see it' : 'Private') + '</span></li>';
+    }).join('');
+  }
+  function parentsAdmin(parents, pups) {
+    var pupDocs = pups.filter(function (p) { return (p.documents || []).length; });
+    return (parents.length ? '<h3>Moms and dads (' + parents.length + ')</h3>' + parents.map(function (p) {
+      return '<div class="puppy-row">' + (p.photo_url ? '<img class="thumb" src="' + esc(p.photo_url.replace('?', '/card?')) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
+        '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + (p.sex === 'female' ? 'Mom' : 'Dad') + (p.registry ? ', ' + esc(p.registry) + (p.registration ? ' ' + esc(p.registration) : '') : '') +
+        (p.archived_at ? ', removed from the picker' : '') + '</span>' +
+        '<span class="small">' + (p.test_labels.length ? esc(p.test_labels.join(', ')) : 'No tests picked') + (p.health_other ? '. Other: ' + esc(p.health_other) : '') + '</span>' +
+        (p.documents.length ? '<ul class="small" style="margin:.3rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul>' : '') + '</div></div>';
+    }).join('') : '') +
+      (pupDocs.length ? '<h3>Puppy documents</h3>' + pupDocs.map(function (p) {
+        return '<div class="small" style="padding:.3rem 0;border-top:1px solid var(--line)"><b>' + esc(p.name) + '</b><ul style="margin:.2rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul></div>';
+      }).join('') : '');
+  }
+
   function breederDrawer(id) {
     api('GET', '/api/breeders/' + id).then(function (data) {
       var b = data.breeder, x = data.extras;
@@ -423,6 +445,8 @@
           return '<div class="pay-row"><span><b>' + esc(l.breed_name) + '</b></span><span class="muted small">' + (l.born_on ? 'born ' + esc(day(l.born_on)) + ', ' : '') + plural(n, 'puppy', 'puppies') + '</span>' +
             '<button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button></div>';
         }).join('') : '') +
+        // Workplan A19 and A20. The saved moms and dads, and every document, private ones included.
+        parentsAdmin(data.parents || [], pups) +
         '<h3>Puppies (' + pups.length + ')</h3>' + (pups.length ? pups.map(function (p) {
           return '<div class="puppy-row">' + (p.photos[0] ? '<img class="thumb" src="' + esc(thumb(p.photos[0].url)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
             '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + esc(p.breed) + ', ' + esc(money(p.price_cents)) + '</span><div class="chips">' + listingChips(p) + '</div></div>' +

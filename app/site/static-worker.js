@@ -9,6 +9,8 @@
 // for the paths in run_worker_first (wrangler.jsonc there):
 //   /                     the home page, because html_handling "none" turns off / -> index.html
 //   /media/<id>[/card]    a puppy photo from R2, uploaded or imported, only while its puppy is public
+//   /media/parent/<id>[/card]  a saved mom or dad's photo, only while it is on a public litter
+//   /media/doc/<id>       a document marked public, of a public puppy or parent (migrations/0050)
 //   /brand/<id>/<kind>    a breeder's logo or kennel photo, only while the breeder is public
 //   /api/build            this build's record, the generation it fetched, for the portal's
 //                         build check (app/lib/publish.js, checkBuild), never cached
@@ -20,7 +22,7 @@
 // reads the database live, until Workers Builds is connected to the site repository.
 
 import { recordBeacon } from '../lib/stats.js';
-import { serveMedia, serveBrand } from '../lib/media.js';
+import { serveMedia, serveBrand, serveParentPhoto, serveDocument } from '../lib/media.js';
 
 const notFound = () => new Response('Not found.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 
@@ -31,6 +33,10 @@ export default {
       if (url.pathname === '/') return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
       const m = url.pathname.match(/^\/media\/([\w-]+)(\/card)?$/);
       if (m) return (await serveMedia(env, m[1], { card: !!m[2] })) || notFound();
+      const pm = url.pathname.match(/^\/media\/parent\/([\w-]+)(\/card)?$/);
+      if (pm) return (await serveParentPhoto(env, pm[1], { card: !!pm[2] })) || notFound();
+      const dm = url.pathname.match(/^\/media\/doc\/([\w-]+)$/);
+      if (dm) return (await serveDocument(env, dm[1])) || notFound();
       const b = url.pathname.match(/^\/brand\/([\w-]+)\/(logo|kennel)$/);
       if (b) return (await serveBrand(env, b[1], b[2], { card: url.searchParams.get('size') === 'card' })) || notFound();
       if (url.pathname === '/api/build') {

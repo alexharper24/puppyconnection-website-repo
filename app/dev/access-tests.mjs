@@ -58,11 +58,14 @@ async function makeBreeder(tag, state) {
   await c.req('POST', `/api/puppies/${paid}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } });
   // Workplan A3. A video on the draft, through the stand-in Stream.
   const video = (await c.post(`/api/puppies/${draft}/videos`, {})).data.id;
+  // Workplan A19 and A20. A saved mom and a document on the draft.
+  const parent = (await c.post('/api/parents', { name: `${tag} mom`, sex: 'female', breed: 'havanese' })).data.id;
+  const doc = (await c.req('POST', `/api/puppies/${draft}/documents?kind=health&visibility=private`, new TextEncoder().encode('%PDF-1.4 %%EOF'), { headers: { 'content-type': 'application/pdf' } })).data.id;
   const co = (await c.post('/api/checkouts', { puppy_ids: [paid] })).data;
   const sp = new URL(co.url).pathname;
   const pay = await c.req('POST', `${sp}/pay`, form({ webhook: '1' }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   await c.get(new URL(pay.location).pathname + new URL(pay.location).search);
-  Object.assign(b, { litter, draft, paid, draftPhoto, video, checkout: co.checkout_id });
+  Object.assign(b, { litter, draft, paid, draftPhoto, video, parent, doc, checkout: co.checkout_id });
   if (state === 'suspended') await admin.post(`/api/breeders/${b.id}/suspend`, { reason: 'access test' });
   return b;
 }
@@ -103,6 +106,16 @@ async function main() {
     startVideo: ['POST', `/api/puppies/${B.draft}/videos`, {}],
     checkVideo: ['POST', `/api/videos/${B.video}/check`, {}],
     deleteVideo: ['DELETE', `/api/videos/${B.video}`, null],
+    // Workplan A19 and A20. B's saved mom, her photo and documents, and B's puppy document.
+    updateParent: ['PUT', `/api/parents/${B.parent}`, { name: 'hijack', sex: 'female', version: 1 }],
+    archiveParent: ['POST', `/api/parents/${B.parent}/archive`, {}],
+    uploadParentPhoto: ['POST', `/api/parents/${B.parent}/photo`, JPG],
+    uploadParentCard: ['POST', `/api/parents/${B.parent}/photo/card`, JPG],
+    removeParentPhoto: ['DELETE', `/api/parents/${B.parent}/photo`, null],
+    uploadParentDocument: ['POST', `/api/parents/${B.parent}/documents?kind=health&visibility=public`, JPG],
+    uploadPuppyDocument: ['POST', `/api/puppies/${B.draft}/documents?kind=health&visibility=public`, JPG],
+    updateDocument: ['PUT', `/api/documents/${B.doc}`, { visibility: 'public' }],
+    deleteDocument: ['DELETE', `/api/documents/${B.doc}`, null],
   };
   const covered = idRoutes.every((m) => attacks[m[3]]);
   check(0, `every id route in the portal router is attacked (${idRoutes.map((m) => m[3]).join(', ')})`, covered,
@@ -131,6 +144,11 @@ async function main() {
     bDraft.name === 'b draft' && bDraft.publication_state === 'draft' && bDraft.photos.length === 1 && !bDetail.litters[0].archived_at);
   check(2, "B's litter gained no puppies and B's draft is still available",
     bDetail.litters.flatMap((l) => l.puppies).length === 2 && bDraft.availability === 'available');
+  const bParent = (await B.c.get('/api/parents')).data.parents.find((p) => p.id === B.parent);
+  const bDoc = bDetail.litters.flatMap((l) => l.puppies).find((p) => p.id === B.draft).documents;
+  check(2, "B's mom and document are unchanged afterwards", bParent?.name === 'b mom' && !bParent.archived_at && !bParent.photo_key && bParent.documents.length === 0 &&
+    bDoc.length === 1 && bDoc[0].visibility === 'private');
+  check(2, "A cannot pick B's mom on A's own litter", (await A.c.put(`/api/litters/${A.litter}`, { breed_id: 'breed-havanese', mom_id: B.parent, version: 1 })).status === 404);
   check(2, "C's own logo is there, so the 404s above were the ownership rule", (await C.c.get(`/brand/${C.id}/logo`)).status === 200);
 
   // The profile extras, counts and account routes take no id at all, so a breeder can only

@@ -194,6 +194,28 @@ CREATE TABLE IF NOT EXISTS disputes (
 );
 CREATE INDEX IF NOT EXISTS disputes_payment ON disputes(payment_intent);
 
+-- Saved moms and dads (migrations/0050, workplan A19). breed is a slug from lib/healthtests.js,
+-- which also names the health tests in health_tests_json. Archived ones leave the litter picker only.
+CREATE TABLE IF NOT EXISTS parent_dogs (
+  id                TEXT PRIMARY KEY,
+  breeder_id        TEXT NOT NULL REFERENCES breeders(id),
+  sex               TEXT NOT NULL CHECK (sex IN ('female','male')),
+  name              TEXT NOT NULL,
+  breed             TEXT,
+  registry          TEXT,
+  registration      TEXT,
+  health_tests_json TEXT NOT NULL DEFAULT '[]',
+  health_other      TEXT,
+  pedigree          TEXT,
+  photo_key         TEXT,
+  archived_at       TEXT,
+  created_at        TEXT NOT NULL,
+  updated_at        TEXT NOT NULL,
+  version           INTEGER NOT NULL DEFAULT 1,
+  UNIQUE (id, breeder_id)
+);
+CREATE INDEX IF NOT EXISTS parent_dogs_breeder ON parent_dogs(breeder_id);
+
 CREATE TABLE IF NOT EXISTS litters (
   id            TEXT PRIMARY KEY,
   breeder_id    TEXT NOT NULL REFERENCES breeders(id),
@@ -205,6 +227,9 @@ CREATE TABLE IF NOT EXISTS litters (
   description   TEXT,
   archived_at   TEXT,
   legacy_id     TEXT,
+  -- The saved mom and dad picked for this litter (migrations/0050). The weights above stay.
+  mom_id        TEXT REFERENCES parent_dogs(id),
+  dad_id        TEXT REFERENCES parent_dogs(id),
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL,
   version       INTEGER NOT NULL DEFAULT 1,
@@ -335,6 +360,29 @@ CREATE TABLE IF NOT EXISTS puppy_videos (
   FOREIGN KEY (puppy_id, breeder_id) REFERENCES puppies (id, breeder_id)
 );
 CREATE INDEX IF NOT EXISTS puppy_videos_puppy ON puppy_videos(puppy_id, position);
+
+-- Health records, guarantees and pedigrees for a puppy or a parent (migrations/0050, workplan A20).
+-- A public file is under docs/ in R2 and a private one under private/, and only public_documents
+-- reaches the site.
+CREATE TABLE IF NOT EXISTS documents (
+  id           TEXT PRIMARY KEY,
+  breeder_id   TEXT NOT NULL REFERENCES breeders(id),
+  puppy_id     TEXT,
+  parent_id    TEXT,
+  kind         TEXT NOT NULL CHECK (kind IN ('health','guarantee','pedigree','other')),
+  title        TEXT NOT NULL,
+  visibility   TEXT NOT NULL DEFAULT 'private' CHECK (visibility IN ('public','private')),
+  r2_key       TEXT NOT NULL UNIQUE,
+  content_type TEXT NOT NULL,
+  bytes        INTEGER NOT NULL,
+  created_at   TEXT NOT NULL,
+  updated_at   TEXT NOT NULL,
+  CHECK ((puppy_id IS NULL) <> (parent_id IS NULL)),
+  FOREIGN KEY (puppy_id, breeder_id) REFERENCES puppies (id, breeder_id),
+  FOREIGN KEY (parent_id, breeder_id) REFERENCES parent_dogs (id, breeder_id)
+);
+CREATE INDEX IF NOT EXISTS documents_puppy ON documents(puppy_id);
+CREATE INDEX IF NOT EXISTS documents_parent ON documents(parent_id);
 
 -- Breed searches on the browse page, per breed per day, nothing about the visitor (migrations/0021).
 CREATE TABLE IF NOT EXISTS breed_searches (
@@ -550,6 +598,8 @@ INSERT OR IGNORE INTO terms_versions (version, body, updated_at, updated_by, pub
    '2026-09-30T00:00:00Z', 'setup', NULL, NULL);
 
 -- What the public may see. The exporter reads only these views (spec 4.1).
+DROP VIEW IF EXISTS public_documents;
+DROP VIEW IF EXISTS public_parents;
 DROP VIEW IF EXISTS public_litters;
 DROP VIEW IF EXISTS public_puppies;
 DROP VIEW IF EXISTS public_breeders;
@@ -583,10 +633,23 @@ WHERE pu.publication_state = 'published'
 
 CREATE VIEW public_litters AS
 SELECT l.id, l.breeder_id, l.breed_id, l.born_on, l.ready_on, l.mom_weight_lb,
-       l.dad_weight_lb, l.description
+       l.dad_weight_lb, l.description, l.mom_id, l.dad_id
 FROM litters l
 WHERE l.archived_at IS NULL
   AND EXISTS (SELECT 1 FROM public_puppies pp WHERE pp.litter_id = l.id);
+
+-- migrations/0050. Only parents on a public litter, and only public documents of public puppies and parents.
+CREATE VIEW public_parents AS
+SELECT d.id, d.breeder_id, d.sex, d.name, d.breed, d.registry, d.registration, d.health_tests_json,
+       d.health_other, d.pedigree, d.photo_key
+FROM parent_dogs d
+WHERE d.id IN (SELECT mom_id FROM public_litters UNION SELECT dad_id FROM public_litters);
+CREATE VIEW public_documents AS
+SELECT doc.id, doc.puppy_id, doc.parent_id, doc.kind, doc.title, doc.content_type, doc.r2_key
+FROM documents doc
+WHERE doc.visibility = 'public' AND doc.r2_key LIKE 'docs/%'
+  AND (doc.puppy_id IN (SELECT id FROM public_puppies) OR doc.parent_id IN (SELECT id FROM public_parents));
+
 
 -- Puppy Connection's own mailing list (migrations/0011_mailing_list.sql). Nothing sends to it
 -- until real email is set up. An unsubscribed row is kept so an import cannot re-add the person.

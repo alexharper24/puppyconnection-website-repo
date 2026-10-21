@@ -4,7 +4,7 @@
   'use strict';
 
   var app = document.getElementById('app');
-  var state = { config: null, me: null, breeds: [], listings: null, route: '' };
+  var state = { config: null, me: null, breeds: [], listings: null, parents: null, route: '' };
 
   // ------------------------------------------------------------ helpers
   function esc(s) {
@@ -192,7 +192,7 @@
   // ------------------------------------------------------------ shell
   // A pending or declined breeder sees only the screens that work for them (plan P1.5).
   function nav(status) {
-    var listing = [['', 'Overview'], ['litters', 'Litters and puppies'], ['pay', 'Pay to list'], ['stats', 'Views and clicks']];
+    var listing = [['', 'Overview'], ['litters', 'Litters and puppies'], ['parents', 'Moms and dads'], ['pay', 'Pay to list'], ['stats', 'Views and clicks']];
     var account = [['profile', 'Profile'], ['payments', 'Payments'], ['account', 'Account'], ['help', 'Help']];
     if (status === 'pending') return [['Getting started', [['', 'Overview'], ['profile', 'Profile']]], ['Account', [['account', 'Account'], ['help', 'Help']]]];
     if (status === 'declined') return [['Account', [['', 'Overview'], ['account', 'Account'], ['help', 'Help']]]];
@@ -560,7 +560,9 @@
         var pups = l.puppies.filter(function (x) { return x.publication_state !== 'archived'; });
         html += '<section class="card" aria-label="' + esc(l.breed_name) + ' litter"><div class="card-head"><div><h2>' + esc(l.breed_name) + '</h2>' +
           '<div class="muted small">' + (l.born_on ? 'Born ' + esc(day(l.born_on)) : 'Birth date not set') + (l.ready_on ? ', ready ' + esc(day(l.ready_on)) : '') +
-          (l.mom_weight_lb || l.dad_weight_lb ? '. Parents ' + (l.mom_weight_lb ? esc(l.mom_weight_lb) + ' lb mom' : '') + (l.mom_weight_lb && l.dad_weight_lb ? ', ' : '') + (l.dad_weight_lb ? esc(l.dad_weight_lb) + ' lb dad' : '') : '') + '</div></div>' +
+          (l.mom_weight_lb || l.dad_weight_lb ? '. Parents ' + (l.mom_weight_lb ? esc(l.mom_weight_lb) + ' lb mom' : '') + (l.mom_weight_lb && l.dad_weight_lb ? ', ' : '') + (l.dad_weight_lb ? esc(l.dad_weight_lb) + ' lb dad' : '') : '') +
+          // Workplan A19. The saved mom and dad, by name.
+          (l.mom_id || l.dad_id ? '. ' + [l.mom_id ? 'Mom ' + esc(parentName(l.mom_id)) : '', l.dad_id ? 'Dad ' + esc(parentName(l.dad_id)) : ''].filter(Boolean).join(', ') : '') + '</div></div>' +
           (canEdit ? '<div class="btn-row" style="margin:0"><button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button><button class="btn btn-sm" data-add-many="' + esc(l.id) + '">Add several</button><button class="btn btn-sm btn-primary" data-add-puppy="' + esc(l.id) + '">Add a puppy</button></div>' : '') + '</div>' +
           (pups.length ? '<div class="puppy-grid">' + pups.map(function (x) {
             var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
@@ -646,6 +648,20 @@
     return out;
   }
 
+  // Workplan A19. The saved moms and dads to pick from. A removed one stays on a litter that has it.
+  function parentName(id) { var p = ((state.listings && state.listings.parents) || []).filter(function (x) { return x.id === id; })[0]; return p ? p.name : ''; }
+  function parentPickers(l) {
+    var all = (state.listings && state.listings.parents) || [];
+    function pick(col, sex, label) {
+      var cur = l ? l[col] : '';
+      var opts = all.filter(function (p) { return p.sex === sex && (!p.archived_at || p.id === cur); });
+      return '<div class="field"><label for="l-' + col + '">' + label + '</label><select id="l-' + col + '" name="' + col + '"><option value="">Not chosen</option>' +
+        opts.map(function (p) { return '<option value="' + esc(p.id) + '"' + (p.id === cur ? ' selected' : '') + '>' + esc(p.name) + '</option>'; }).join('') + '</select></div>';
+    }
+    return '<div class="grid-2">' + pick('mom_id', 'female', 'Mom') + pick('dad_id', 'male', 'Dad') + '</div>' +
+      '<p class="hint" style="margin:-.4rem 0 1rem">' + (all.length ? 'Families see both parents on every puppy page. ' : 'Save each mom and dad once, then pick them here. ') + '<a href="#/parents">Moms and dads</a></p>';
+  }
+
   function litterDrawer(l) {
     var opts = state.breeds.map(function (b) { return '<option value="' + esc(b.id) + '"' + (l && l.breed_id === b.id ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('');
     openDrawer(l ? 'Edit litter' : 'Add a litter',
@@ -655,6 +671,7 @@
       '<div class="field"><label for="l-ready">Ready to go home</label><input id="l-ready" name="ready_on" type="date" value="' + esc(l ? l.ready_on : '') + '"></div></div>' +
       '<div class="grid-2"><div class="field"><label for="l-mom">Mom\'s weight (lb)</label><input id="l-mom" name="mom_weight_lb" type="number" min="0" step="0.1" value="' + esc(l ? l.mom_weight_lb : '') + '"></div>' +
       '<div class="field"><label for="l-dad">Dad\'s weight (lb)</label><input id="l-dad" name="dad_weight_lb" type="number" min="0" step="0.1" value="' + esc(l ? l.dad_weight_lb : '') + '"></div></div>' +
+      parentPickers(l) +
       '<div class="field"><label for="l-desc">About this litter</label><textarea id="l-desc" name="description">' + esc(l ? l.description : '') + '</textarea></div>' +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (l ? 'Save litter' : 'Add litter') + '</button>' +
       (l ? '<button class="btn btn-danger" type="button" id="archive-litter">Remove litter</button>' : '') + '</div></form>',
@@ -722,8 +739,9 @@
       '<div class="field"><label for="p-inc">Comes with</label><textarea id="p-inc" name="includes" style="min-height:80px"' + dis + '>' + esc(inc) + '</textarea><div class="hint">One item per line, like "Vet exam" or "Microchipped".</div></div>' +
       '<div class="field"><label for="p-url">Link to this puppy on your site</label><input id="p-url" name="breeder_url" type="url" value="' + esc(x ? x.breeder_url : '') + '"' + dis + '><div class="hint">Optional. Buyers are sent here to contact you.</div></div>' +
       detailFields(x, dis) +
+      (canEdit ? '<div id="quality" aria-live="polite">' + qualityBox(x, findLitter(x ? x.litter_id : litterId), null) + '</div>' : '') +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + (x ? '<button class="btn btn-danger" type="button" id="archive-puppy">Remove puppy</button>' : '') + '</div>' : '') +
-      '</form>' + (x ? photoSection(x, canEdit) + videoSection(x, canEdit) : '<p class="hint" style="margin-top:1rem">Add photos and videos after the puppy is saved.</p>'),
+      '</form>' + (x ? photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy') : '<p class="hint" style="margin-top:1rem">Add photos, videos and documents after the puppy is saved.</p>'),
       function (d) {
         var form = $('#puppy', d);
         $$('[data-av]', d).forEach(function (b) {
@@ -750,7 +768,10 @@
           if (!confirm('Remove ' + x.name + ' from your listings?')) return;
           api('POST', '/api/puppies/' + x.id + '/archive', {}).then(function () { closeDrawer(); toast('Puppy removed'); litters(); }).catch(function (err) { showError(form, err); });
         });
-        if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); }
+        if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); wireDocs(d, canEdit, '/api/puppies/' + x.id + '/documents', function () { return loadListings().then(function () { puppyDrawer(findPuppy(x.id)); litters(); }); }); }
+        // Workplan A21. The prompts follow the form as the breeder types.
+        var qbox = $('#quality', d), qlit = findLitter(x ? x.litter_id : litterId);
+        if (qbox) form.addEventListener('input', function () { qbox.innerHTML = qualityBox(x, qlit, form); });
       });
   }
 
@@ -993,6 +1014,216 @@
     });
   }
 
+  // ------------------------------------------------------------ moms and dads (workplan A19)
+  /* Each mom and dad is saved once and picked on a litter. Health tests come from the breed's
+     published list (lib/healthtests.js), with an Other box for anything else. */
+  function loadParents() {
+    return api('GET', '/api/parents').then(function (P) { state.parents = P; return P; });
+  }
+  function findParent(id) { return ((state.parents && state.parents.parents) || []).filter(function (p) { return p.id === id; })[0]; }
+  function catalogFor(slug) { return ((state.parents && state.parents.breeds) || []).filter(function (b) { return b.slug === slug; })[0] || null; }
+
+  function parentsView() {
+    var canEdit = state.me.status === 'approved';
+    loadParents().then(function (P) {
+      var live = P.parents.filter(function (p) { return !p.archived_at; });
+      var gone = P.parents.filter(function (p) { return p.archived_at; });
+      var html = head('Moms and dads', 'Save each mom and dad once, with their health testing, then pick them on each litter. Families see both parents on every puppy page.',
+        canEdit ? '<button class="btn btn-primary" data-new-parent="female">Add a mom</button><button class="btn btn-primary" data-new-parent="male">Add a dad</button>' : '');
+      if (!canEdit) html += '<p class="notice">' + (state.me.status === 'suspended' ? 'Your account is paused, so this is read only.' : 'Moms and dads open once your account is approved.') + '</p>';
+      function card(p) {
+        var img = p.photo_url ? '<img class="thumb" src="' + esc(p.photo_url.replace('?', '/card?')) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
+        var br = catalogFor(p.breed);
+        return '<div class="puppy-card"><div class="pc-top">' + img + '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' +
+          (p.sex === 'female' ? 'Mom' : 'Dad') + (br ? ', ' + esc(br.name) : '') + (p.registry ? ', ' + esc(p.registry) : '') + '. ' +
+          plural(p.test_labels.length, 'health test') + (p.health_other ? ' and other testing' : '') + ', ' + plural(p.documents.length, 'document') + '. ' +
+          (p.litters ? 'On ' + plural(p.litters, 'litter') + '.' : 'Not on a litter yet.') + '</span></div>' +
+          '<button class="btn btn-sm" data-edit-parent="' + esc(p.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button></div></div>';
+      }
+      html += '<section class="card" aria-label="Your moms and dads">' + (live.length ? '<div class="puppy-grid">' + live.map(card).join('') + '</div>'
+        : empty('No moms or dads yet', canEdit ? 'Add each mom and dad once, then choose them when you add or edit a litter.' : '', '')) + '</section>';
+      if (gone.length) html += '<section class="card" aria-label="Removed moms and dads"><div class="card-head"><h2>Removed</h2></div><p class="muted small">These are off the litter picker. Litters that already name them still show them.</p><div class="puppy-grid">' + gone.map(card).join('') + '</div></section>';
+      shell(html);
+      $$('[data-new-parent]').forEach(function (b) { b.addEventListener('click', function () { parentDrawer(null, b.dataset.newParent); }); });
+      $$('[data-edit-parent]').forEach(function (b) { b.addEventListener('click', function () { parentDrawer(findParent(b.dataset.editParent)); }); });
+    });
+  }
+
+  function testPicks(slug, picked, dis) {
+    var br = catalogFor(slug);
+    var list = br ? br.tests : [];
+    var have = {}; (picked || []).forEach(function (k) { have[k] = true; });
+    // A test ticked under another breed stays ticked and shown, so changing the breed loses nothing.
+    var shown = {}; list.forEach(function (t) { shown[t.key] = true; });
+    var extra = ((state.parents && state.parents.breeds) || []).reduce(function (out, b) {
+      b.tests.forEach(function (t) { if (have[t.key] && !shown[t.key] && !out.some(function (o) { return o.key === t.key; })) out.push(t); });
+      return out;
+    }, []);
+    var note = !br ? 'Choose the breed to see its health tests.' : br.general
+      ? 'There is no published list of health tests for the ' + esc(br.name) + ', so these are the common screenings. Add anything else under Other.'
+      : 'From the ' + br.sources.map(function (s) { return '<a href="' + esc(s.url) + '" target="_blank" rel="noopener">' + esc(s.name) + '</a>'; }).join(' and ') + '. Tests the program requires are listed first.';
+    return '<fieldset class="breed-picks test-picks" id="pa-tests"><legend>Health testing done</legend><p class="hint" style="grid-column:1/-1;margin:0 0 .3rem">' + note + '</p>' +
+      list.concat(extra).map(function (t) {
+        return '<label class="check"><input type="checkbox" name="test" value="' + esc(t.key) + '"' + (have[t.key] ? ' checked' : '') + dis + '><span>' + esc(t.label) + (t.required ? ' <span class="muted small">required</span>' : '') + '</span></label>';
+      }).join('') + '</fieldset>';
+  }
+
+  function parentDrawer(p, sex) {
+    var P = state.parents;
+    var canEdit = state.me.status === 'approved';
+    var dis = canEdit ? '' : ' disabled';
+    sex = p ? p.sex : sex;
+    var regs = (P.registries || []).slice();
+    if (p && p.registry && regs.indexOf(p.registry) < 0) regs.push(p.registry);
+    var word = sex === 'female' ? 'mom' : 'dad';
+    openDrawer(p ? p.name : 'Add a ' + word,
+      '<form id="parent" novalidate>' + (p ? '<input type="hidden" name="version" value="' + esc(p.version) + '">' : '') +
+      '<input type="hidden" name="sex" value="' + esc(sex) + '">' +
+      '<div class="field"><label for="pa-name">Name</label><input id="pa-name" name="name" type="text" value="' + esc(p ? p.name : '') + '" required' + dis + '><div class="hint">The ' + word + '\'s call name or registered name.</div></div>' +
+      '<div class="field"><label for="pa-breed">Breed</label><select id="pa-breed" name="breed"' + dis + '><option value="">Choose a breed</option>' +
+        P.breeds.map(function (b) { return '<option value="' + esc(b.slug) + '"' + (p && p.breed === b.slug ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="grid-2"><div class="field"><label for="pa-reg">Registration</label><select id="pa-reg" name="registry"' + dis + '><option value="">Not registered or not set</option>' +
+        regs.map(function (r) { return '<option' + (p && r === p.registry ? ' selected' : '') + '>' + esc(r) + '</option>'; }).join('') + '</select></div>' +
+      '<div class="field"><label for="pa-regno">Registration number</label><input id="pa-regno" name="registration" type="text" value="' + esc(p ? p.registration : '') + '"' + dis + '></div></div>' +
+      '<div id="pa-tests-slot">' + testPicks(p ? p.breed : '', p ? p.health_tests : [], dis) + '</div>' +
+      '<div class="field"><label for="pa-other">Other health testing</label><textarea id="pa-other" name="health_other" style="min-height:70px"' + dis + '>' + esc(p ? p.health_other : '') + '</textarea><div class="hint">Any test not on the list, and results if you want families to see them.</div></div>' +
+      '<div class="field"><label for="pa-ped">Pedigree</label><textarea id="pa-ped" name="pedigree" style="min-height:70px"' + dis + '>' + esc(p ? p.pedigree : '') + '</textarea><div class="hint">The ' + word + '\'s parents and lines, as you would tell a family. You can also upload the pedigree below.</div></div>' +
+      (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (p ? 'Save ' + word : 'Add ' + word) + '</button>' +
+        (p ? '<button class="btn btn-quiet" type="button" id="archive-parent">' + (p.archived_at ? 'Put back on the litter picker' : 'Remove from the litter picker') + '</button>' : '') + '</div>' : '') +
+      '</form>' + (p ? parentPhotoSection(p, canEdit) + docSection(p.documents, canEdit, 'parent') : '<p class="hint" style="margin-top:1rem">Add a photo and documents after the ' + word + ' is saved.</p>'),
+      function (d) {
+        var form = $('#parent', d);
+        $('#pa-breed', d).addEventListener('change', function () {
+          var picked = $$('[name=test]:checked', form).map(function (c) { return c.value; });
+          $('#pa-tests-slot', d).innerHTML = testPicks(this.value, picked, dis);
+        });
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var body = formData(form);
+          delete body.test;
+          body.health_tests = $$('[name=test]:checked', form).map(function (c) { return c.value; });
+          (p ? api('PUT', '/api/parents/' + p.id, body) : api('POST', '/api/parents', body))
+            .then(function (r) { toast(p ? 'Saved' : 'Added. Add a photo next.'); return loadParents().then(function () { parentsView(); parentDrawer(findParent(p ? p.id : r.id)); }); })
+            .catch(function (err) { showError(form, err); });
+        });
+        var ar = $('#archive-parent', d);
+        if (ar) ar.addEventListener('click', function () {
+          api('POST', '/api/parents/' + p.id + '/archive', { archived: !p.archived_at }).then(function () { closeDrawer(); toast(p.archived_at ? 'Back on the litter picker' : 'Removed from the litter picker'); parentsView(); })
+            .catch(function (err) { showError(form, err); });
+        });
+        if (p) { wireParentPhoto(d, p, canEdit); wireDocs(d, canEdit, '/api/parents/' + p.id + '/documents', function () { return loadParents().then(function () { parentsView(); parentDrawer(findParent(p.id)); }); }); }
+      });
+  }
+
+  function parentPhotoSection(p, canEdit) {
+    return '<section style="margin-top:1.4rem"><h3>Photo</h3>' +
+      (p.photo_url ? '<img src="' + esc(p.photo_url) + '" alt="' + esc(p.name) + '" style="max-width:100%;max-height:16rem;border-radius:8px;display:block">' : '<p class="muted small">No photo yet. Families like to see the parents.</p>') +
+      (canEdit ? '<div class="upload btn-row"><label for="pa-photo" class="btn btn-sm">' + (p.photo_url ? 'Replace photo' : 'Add a photo') + '</label><input id="pa-photo" type="file" accept="image/*" hidden>' +
+        (p.photo_url ? '<button type="button" class="btn btn-sm btn-quiet" id="pa-photo-remove">Remove photo</button>' : '') + '</div><p class="error" id="pa-photo-error" hidden></p>' : '') + '</section>';
+  }
+  function wireParentPhoto(d, p, canEdit) {
+    if (!canEdit) return;
+    function reopen() { return loadParents().then(function () { parentsView(); parentDrawer(findParent(p.id)); }); }
+    var input = $('#pa-photo', d), errBox = $('#pa-photo-error', d);
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      errBox.hidden = true;
+      shrink(file).then(function (s) {
+        return api('POST', '/api/parents/' + p.id + '/photo', undefined, s.full)
+          .then(function () { return s.card ? api('POST', '/api/parents/' + p.id + '/photo/card', undefined, s.card).catch(function () {}) : null; });
+      }).then(function () { toast('Photo added'); reopen(); }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
+    });
+    var rm = $('#pa-photo-remove', d);
+    if (rm) rm.addEventListener('click', function () {
+      api('DELETE', '/api/parents/' + p.id + '/photo').then(function () { toast('Photo removed'); reopen(); }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
+    });
+  }
+
+  // ------------------------------------------------------------ documents (workplan A20)
+  /* Health records, guarantees and pedigrees, as a PDF or an image, for a puppy or a parent. Each is
+     shown to families or kept for Puppy Connection staff only, and starts private until chosen. */
+  function docKinds() { return (state.listings && state.listings.doc_kinds) || (state.parents && state.parents.doc_kinds) || {}; }
+  function docSection(docs, canEdit, owner) {
+    var K = docKinds();
+    var max = (state.listings && state.listings.max_docs) || (state.parents && state.parents.max_docs) || 10;
+    return '<section class="docs" style="margin-top:1.4rem"><h3>Documents</h3><p class="hint">Health records, health guarantees and pedigrees, as a PDF or a photo of the page, up to 10 MB each. Choose for each one whether families can see it on the ' + (owner === 'parent' ? 'puppy pages of this parent\'s litters' : 'puppy page') + ', or keep it for Puppy Connection staff only.</p>' +
+      (docs.length ? '<ul class="doc-list">' + docs.map(function (doc) {
+        var pub = doc.visibility === 'public';
+        return '<li class="doc" data-id="' + esc(doc.id) + '"><div class="doc-main">' + (pub ? '<a href="' + esc(doc.url) + '" target="_blank" rel="noopener">' + esc(doc.title) + '</a>' : '<b>' + esc(doc.title) + '</b>') +
+          '<span class="muted small">' + esc(doc.kind_label) + ', ' + (doc.content_type === 'application/pdf' ? 'PDF' : 'image') + '</span>' +
+          '<span class="pill ' + (pub ? 'pill-ok' : '') + '">' + (pub ? 'Families can see it' : 'Puppy Connection only') + '</span></div>' +
+          (canEdit ? '<div class="btn-row" style="margin:0"><button type="button" class="btn btn-sm" data-doc-vis="' + (pub ? 'private' : 'public') + '">' + (pub ? 'Make private' : 'Show to families') + '</button>' +
+            '<button type="button" class="btn btn-sm btn-quiet" data-doc-remove>Remove</button></div>' : '') + '</li>';
+      }).join('') + '</ul>' : '<p class="muted small">No documents yet.</p>') +
+      (canEdit && docs.length < max ? '<form class="doc-form" novalidate><div class="grid-2"><div class="field"><label for="doc-kind-' + owner + '">What it is</label><select id="doc-kind-' + owner + '" name="kind">' +
+          Object.keys(K).map(function (k) { return '<option value="' + esc(k) + '">' + esc(K[k]) + '</option>'; }).join('') + '</select></div>' +
+        '<div class="field"><label for="doc-title-' + owner + '">Name</label><input id="doc-title-' + owner + '" name="title" type="text" maxlength="120"><div class="hint">Optional. The file name is used otherwise.</div></div></div>' +
+        '<fieldset class="field doc-vis"><legend>Who can see it</legend><label class="check"><input type="radio" name="visibility" value="public"><span>Families, on the site</span></label>' +
+        '<label class="check"><input type="radio" name="visibility" value="private" checked><span>Puppy Connection staff only</span></label></fieldset>' +
+        '<label for="doc-file-' + owner + '" class="btn btn-sm">Choose a file and upload</label><input id="doc-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>' +
+        '<p class="error" data-doc-error hidden></p></form>' : '') + '</section>';
+  }
+  function wireDocs(d, canEdit, uploadPath, reopen) {
+    if (!canEdit) return;
+    var sec = $('.docs', d);
+    if (!sec) return;
+    var form = $('.doc-form', sec), errBox = form && $('[data-doc-error]', form);
+    var max = (state.listings && state.listings.max_doc_bytes) || (state.parents && state.parents.max_doc_bytes) || 10485760;
+    if (form) $('input[type=file]', form).addEventListener('change', function () {
+      var file = this.files && this.files[0];
+      if (!file) return;
+      errBox.hidden = true;
+      if (file.size > max) { errBox.hidden = false; errBox.textContent = file.name + ' is larger than 10 MB. A scan at a lower resolution, or one page per file, will fit.'; return; }
+      var f = formData(form);
+      var vis = ($('[name=visibility]:checked', form) || {}).value || 'private';
+      var q = '?kind=' + encodeURIComponent(f.kind) + '&visibility=' + encodeURIComponent(vis) + '&title=' + encodeURIComponent(f.title || '') + '&name=' + encodeURIComponent(file.name.replace(/\.[^.]+$/, ''));
+      api('POST', uploadPath + q, undefined, file).then(function () { toast(vis === 'public' ? 'Document added for families to see' : 'Document added, for Puppy Connection only'); reopen(); })
+        .catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
+    });
+    $$('[data-doc-vis]', sec).forEach(function (b) {
+      b.addEventListener('click', function () {
+        b.disabled = true;
+        api('PUT', '/api/documents/' + b.closest('.doc').dataset.id, { visibility: b.dataset.docVis })
+          .then(function () { toast(b.dataset.docVis === 'public' ? 'Families can see it now' : 'Kept for Puppy Connection only'); reopen(); })
+          .catch(function (err) { b.disabled = false; toast(err.message); });
+      });
+    });
+    $$('[data-doc-remove]', sec).forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!confirm('Remove this document?')) return;
+        api('DELETE', '/api/documents/' + b.closest('.doc').dataset.id).then(function () { toast('Document removed'); reopen(); }).catch(function (err) { toast(err.message); });
+      });
+    });
+  }
+
+  // ------------------------------------------------------------ listing quality prompts (workplan A21)
+  /* What would make a listing stronger, worked out from the form as the breeder types. It never
+     blocks a save or a payment. Each line says what is missing and what to add. */
+  // A description under SHORT_DESC characters, or with only one sentence, counts as one line.
+  var GOOD_PHOTOS = 3, SHORT_DESC = 60;
+  function qualityGaps(x, litter, form) {
+    var v = function (name) { var el = form && $('[name=' + name + ']', form); return el ? String(el.value || '').trim() : String((x && x[name]) || '').trim(); };
+    var gaps = [];
+    var desc = v('description');
+    if (!desc) gaps.push(['desc', 'Add a description. A few sentences about the puppy\'s personality, size and what it is used to help families decide.']);
+    else if (desc.length < SHORT_DESC || !/[.!?]\s+\S/.test(desc)) gaps.push(['desc', 'The description is one line. A few more sentences about the puppy\'s personality, size and what it is used to help families decide.']);
+    var healthDoc = x && (x.documents || []).some(function (d) { return d.kind === 'health'; });
+    if (!v('health_notes') && !v('vaccinations') && !v('deworming') && !healthDoc) gaps.push(['health', 'No health details yet. Add vaccinations, deworming or health notes, or upload a health record.']);
+    if (!litter || (!litter.mom_id && !litter.dad_id)) gaps.push(['parents', 'No mom or dad is picked on the litter. Families like to see both parents, so pick them when you edit the litter.']);
+    else if (!litter.mom_id || !litter.dad_id) gaps.push(['parents', 'Only the ' + (litter.mom_id ? 'mom' : 'dad') + ' is picked on the litter. Pick the ' + (litter.mom_id ? 'dad' : 'mom') + ' too, so families see both parents.']);
+    var photos = x ? x.photos.filter(function (ph) { return ph.quality !== 'sent_back' && ph.quality !== 'review'; }).length : 0;
+    if (photos < GOOD_PHOTOS) gaps.push(['photos', (x ? (photos ? 'Only ' + plural(photos, 'photo') + '.' : 'No photos yet.') : 'Add photos once the puppy is saved.') + ' Listings with at least ' + GOOD_PHOTOS + ' clear photos from different angles get more interest.']);
+    if (litter && !litter.born_on) gaps.push(['born', 'The litter has no birth date, so families cannot see the puppy\'s age.']);
+    return gaps;
+  }
+  function qualityBox(x, litter, form) {
+    var gaps = qualityGaps(x, litter, form);
+    if (!gaps.length) return '<div class="quality quality-ok"><b>This listing has what families look for.</b></div>';
+    return '<div class="quality"><b>Make this listing stronger</b><ul>' + gaps.map(function (g) { return '<li data-gap="' + g[0] + '">' + esc(g[1]) + '</li>'; }).join('') + '</ul>' +
+      '<p class="hint" style="margin:.3rem 0 0">You can still save and list it as it is.</p></div>';
+  }
+
   // ------------------------------------------------------------ pay
   function pay() {
     var me = state.me;
@@ -1000,7 +1231,7 @@
     loadListings().then(function (L) {
       var rows = [];
       L.litters.forEach(function (l) {
-        l.puppies.forEach(function (x) { if (x.publication_state !== 'archived') rows.push({ x: x, breed: l.breed_name }); });
+        l.puppies.forEach(function (x) { if (x.publication_state !== 'archived') rows.push({ x: x, breed: l.breed_name, l: l }); });
       });
       var ready = rows.filter(function (r) { return !r.x.pay_block; });
       var blocked = rows.filter(function (r) { return r.x.pay_block && !r.x.is_public; });
@@ -1013,7 +1244,9 @@
           var img = r.x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(r.x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
           return '<label class="pay-row check"><input type="checkbox" name="p" value="' + esc(r.x.id) + '" aria-label="' + esc('Pay for ' + r.x.name) + '">' + img +
             '<span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' +
-            (r.x.publication_state === 'published' ? 'Renew, listed until ' + esc(day(r.x.expires_at)) : r.x.publication_state === 'expired' ? 'Listing ended, renew it' : 'Draft') + '</span></span></label>';
+            (r.x.publication_state === 'published' ? 'Renew, listed until ' + esc(day(r.x.expires_at)) : r.x.publication_state === 'expired' ? 'Listing ended, renew it' : 'Draft') + '</span>' +
+            // Workplan A21. What would make it stronger, before the breeder pays. It never blocks.
+            (function (g) { return g.length ? '<br><span class="why quality-note">Could be stronger: ' + esc(g.map(function (x) { return { desc: 'a fuller description', health: 'health details', parents: 'both parents', photos: 'more photos', born: 'a birth date' }[x[0]]; }).join(', ')) + '. <a href="#/litters?photos=' + esc(r.x.id) + '">Open it</a></span>' : ''; })(qualityGaps(r.x, r.l, null)) + '</span></label>';
         }).join('') : '<p class="muted">Nothing is ready to pay for right now. A puppy shows here once it has a price and enough photos, which you add in <a href="#/litters">Litters and puppies</a>.</p>') +
         '<div class="total" style="margin-top:1rem"><span>Total</span><b id="total">$0</b></div>' +
         '<div class="btn-row"><button class="btn btn-gold" type="submit" id="paybtn" disabled>Continue to payment</button></div></form>';
@@ -1188,7 +1421,7 @@
     var allowed = OPEN_TO[state.me.status];
     if (allowed && allowed.indexOf(r) < 0) { if (r) { location.replace('#/'); return; } }
     window.scrollTo(0, 0);
-    ({ '': overview, profile: profile, litters: litters, pay: pay, payments: payments, stats: stats, account: accountScreen, help: help }[r] || overview)();
+    ({ '': overview, profile: profile, litters: litters, parents: parentsView, pay: pay, payments: payments, stats: stats, account: accountScreen, help: help }[r] || overview)();
   }
 
   window.addEventListener('hashchange', function () {

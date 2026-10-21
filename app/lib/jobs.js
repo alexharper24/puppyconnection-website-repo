@@ -134,7 +134,9 @@ const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'breeder_references', 'pe
   'breeder_members', 'subscribers', 'campaigns', 'campaign_sends',
   // Added 2026-10-20 (workplan A17). The launch checklist, areas (migrations/0044) and items before
   // their parts and comments.
-  'checklist_signers', 'checklist_areas', 'checklist_items', 'checklist_parts', 'checklist_comments'];
+  'checklist_signers', 'checklist_areas', 'checklist_items', 'checklist_parts', 'checklist_comments',
+  // Added 2026-10-21 (workplan A19 and A20, migrations/0050). Saved moms and dads, and documents.
+  'parent_dogs', 'documents'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;

@@ -301,6 +301,32 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
 })();
 `;
 
+// Workplan A19. A saved parent on a puppy page: the photo, name, breed, registration, the health
+// tests the breeder ticked and any other testing, the pedigree, and the parent's public documents.
+const plist = (list) => (list || []).map((t) => `<p>${esc(t)}</p>`).join('');
+function parentFact(par, weight) {
+  const w = weight != null ? `${weight} lbs adult weight` : null;
+  if (!par) return w;
+  return w ? `${par.name}, ${w}` : par.name;
+}
+function docList(docs) {
+  return `<ul class="doc-links">${docs.map((d) => `<li><a href="${esc(d.src)}" target="_blank" rel="noopener">${esc(d.title)}</a> <span class="doc-kind">${esc(d.kind)}${d.pdf ? ', PDF' : ''}</span></li>`).join('')}</ul>`;
+}
+function parentCard(role, par, weight, puppyName) {
+  const facts = [['Breed', par.breed], ['Registration', [par.registry, par.registration].filter(Boolean).join(' ') || null], ['Adult weight', weight != null ? `${weight} lbs` : null]].filter((f) => f[1]);
+  return `<article class="parent-card">
+        ${par.photo ? `<img src="${esc(par.photo.card)}" alt="${esc(par.name)}, ${role === 'Mother' ? 'mother' : 'father'} of ${esc(puppyName)}" loading="lazy" decoding="async">` : ''}
+        <div class="parent-body">
+          <p class="parent-role">${esc(role)}</p>
+          <h3>${esc(par.name)}</h3>
+          ${facts.length ? `<dl class="parent-facts">${facts.map((f) => `<div><dt>${esc(f[0])}</dt><dd>${esc(f[1])}</dd></div>`).join('')}</dl>` : ''}
+          ${par.tests.length || par.other_tests.length ? `<p class="parent-sub">Health testing</p>${par.tests.length ? `<ul class="parent-tests">${par.tests.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}${plist(par.other_tests)}` : ''}
+          ${par.pedigree.length ? `<p class="parent-sub">Pedigree</p>${plist(par.pedigree)}` : ''}
+          ${par.documents.length ? docList(par.documents) : ''}
+        </div>
+      </article>`;
+}
+
 /** Read the data files and join them into what the pages need. */
 export function loadData(dataDir) {
   const read = (f) => {
@@ -612,12 +638,15 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const mates = D.puppies.filter((x) => x.litter === p.litter && x.slug !== p.slug).sort(byStanding);
     const facts = [['Breed', p.b.name], ['Sex', p.sex ? p.sex[0].toUpperCase() + p.sex.slice(1) : null], ['Color', p.color], ['Coat type', p.coat],
       ['Born', longDate(p.l.born_on)], ['Ready to go home', longDate(p.l.ready_on)], ['Deposit', p.deposit ? money(p.deposit) : null],
-      ['Mother', p.l.mom_weight_lb != null ? `${p.l.mom_weight_lb} lbs adult weight` : null], ['Father', p.l.dad_weight_lb != null ? `${p.l.dad_weight_lb} lbs adult weight` : null],
+      ['Mother', parentFact(p.l.mom, p.l.mom_weight_lb)], ['Father', parentFact(p.l.dad, p.l.dad_weight_lb)],
       ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null], ['Registration', p.registry], ['Markings', p.markings]].filter((f) => f[1]);
     // Workplan A3. The health details the breeder wrote, each optional, in one block.
     const health = [['Health', p.health], ['Vaccinations', p.vaccinations], ['Deworming', p.deworming], ['Breeder disclosures', p.disclosures]]
       .filter((h) => h[1] && h[1].length);
     const videos = (p.videos || []).filter((v) => v.iframe);
+    // Workplan A19 and A20. Both saved parents, and the documents the breeder chose to show families.
+    const parents = [['Mother', p.l.mom, p.l.mom_weight_lb], ['Father', p.l.dad, p.l.dad_weight_lb]].filter((x) => x[1]);
+    const docs = p.documents || [];
     // The buttons under the price (Alex, 2026-10-11): the puppy's own page on the breeder's site
     // when there is one, otherwise their listings page, and a jump to the contact details.
     const outLabel = ownPage(p) ? `See ${p.name} on the breeder's website` : "See the breeder's available puppies";
@@ -650,7 +679,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       </div>` : ''}
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}
       ${videos.length ? `<section class="about-block puppy-videos"><p class="eyebrow">${videos.length === 1 ? 'Video' : 'Videos'}</p>${videos.map((v, i) => `<div class="video-frame" style="position:relative;padding-top:56.25%;margin:0 0 .8rem"><iframe src="${esc(v.iframe)}${v.poster ? `?poster=${encodeURIComponent(v.poster)}` : ''}" title="Video ${i + 1} of ${esc(p.name)}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`).join('')}</section>` : ''}
+      ${parents.length ? `<section class="about-block puppy-parents"><p class="eyebrow">${parents.length === 2 ? 'The parents' : 'Parent'}</p><div class="parent-grid">${parents.map((x) => parentCard(x[0], x[1], x[2], p.name)).join('')}</div></section>` : ''}
       ${health.length ? `<section class="about-block puppy-health"><p class="eyebrow">Health and care</p>${health.map((h) => `<h3>${esc(h[0])}</h3>${paras(h[1])}`).join('')}</section>` : ''}
+      ${docs.length ? `<section class="about-block puppy-docs"><p class="eyebrow">Documents from the breeder</p>${docList(docs)}</section>` : ''}
     </div>
     <div class="d-detail">
       <dl class="facts">${facts.map((f) => `<div><dt>${esc(f[0])}</dt><dd>${esc(f[1])}</dd></div>`).join('')}</dl>

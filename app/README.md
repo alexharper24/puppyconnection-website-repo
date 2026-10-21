@@ -203,6 +203,7 @@ node app/dev/launch-features-test.mjs   # docs/launch-workplan.md: details and v
 node app/dev/focus-test.mjs     # the photo focus rule, from the dog detector's boxes
 node app/dev/checklist-test.mjs # docs/launch-workplan.md A17: the launch checklist seed, every checklist route, and the areas with By area and Asks for Amber, in this process with no server
 node app/dev/alerts-test.mjs    # launch workplan B10 and C5 on Node, no server: each failure alert forced, the hour's quiet window, and a send to subscribers or to all contacts
+node app/dev/parents-docs-test.mjs   # launch workplan A19 to A21: the health test lists, saved moms and dads on a litter and a puppy page, public and private documents, the site Worker over a stand-in D1, and the listing quality prompts
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
@@ -449,6 +450,26 @@ settings, terms and operators are not touched. The audit log and email log are k
   audience's count, which the server checks again. A contact's email says they have been in touch
   rather than that they signed up, and carries the same one-click unsubscribe. Unsubscribed
   addresses are in neither audience and are skipped if they leave mid-send.
+- **Saved moms and dads** (workplan A19, migrations/0050, `lib/parents.js`). A breeder saves each
+  parent once in Moms and dads and picks them on a litter, and the generated puppy page shows both,
+  with photo, registration, health testing, pedigree and public documents. The litter's own mom and
+  dad weights stay. Health tests are picked from the parent's breed list in `lib/healthtests.js`,
+  which is each breed's OFA CHIC program as published on 2026-10-21. A cross takes both parent
+  breeds' tests, and a breed with no published list (Victorian Bulldog, or a breed added in the
+  admin since) gets the six common OFA screenings and says so. `docs/health-test-sources.md`
+  quotes every source. A test is stored by its key, so keys are never renamed or removed. Removing
+  a parent only takes it off the litter picker, and a litter that names it keeps showing it.
+- **Documents** (workplan A20). A PDF or a JPEG, PNG or WebP image up to 10 MB, checked by its first
+  bytes, ten per puppy or parent. Images have their metadata stripped like photos. Each is public or
+  private and starts private. A public file lives in R2 under `docs/` and a private one under
+  `private/`, a change of visibility moves the file, and `public_documents` names only rows under
+  `docs/`, so a private file is never where the site Worker reads. The site serves a public document
+  of a public puppy or parent at `/media/doc/<id>`, the portal serves the breeder's own public ones
+  before listing, and only the admin serves a private one, to a signed-in operator.
+- **Listing quality prompts** (workplan A21). The puppy form lists what would make the listing
+  stronger as the breeder types: a one-line description, no health details or health record, no
+  mom or dad on the litter, fewer than three photos, and no birth date. The Pay to list screen
+  repeats them. Nothing is blocked.
 - Report CSVs (plan P3.7) are built on the server, and any text cell starting with `=`, `+`, `-`,
   `@`, a tab or a carriage return gets a leading apostrophe, so a puppy named like a formula
   cannot run in Amber's spreadsheet (`lib/csv.js`).

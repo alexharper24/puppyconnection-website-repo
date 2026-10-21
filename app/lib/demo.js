@@ -166,8 +166,11 @@ export function wipeStatements(env) {
     `DELETE FROM checkouts WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM photos WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM puppy_videos WHERE breeder_id ${NOT_SEED}`,
+    // migrations/0050. Documents before their puppies and parents, and parents after the litters naming them.
+    `DELETE FROM documents WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM puppies WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM litters WHERE breeder_id ${NOT_SEED}`,
+    `DELETE FROM parent_dogs WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM breeder_breeds WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM operator_notes WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM account_requests WHERE breeder_id ${NOT_SEED}`,
@@ -188,8 +191,10 @@ async function filesToRemove(env) {
   const photos = (await env.DB.prepare(`SELECT r2_key FROM photos WHERE breeder_id ${NOT_SEED} AND r2_key IS NOT NULL`).all()).results.map((r) => r.r2_key);
   const brand = (await env.DB.prepare(`SELECT logo_key, kennel_key FROM breeder_profiles WHERE breeder_id ${NOT_SEED}`).all()).results
     .flatMap((r) => [r.logo_key, r.kennel_key]).filter(Boolean);
-  // Each upload has a card copy beside it, named <key>.card.
-  return [...photos, ...brand].flatMap((k) => [k, `${k}.card`]);
+  const parents = (await env.DB.prepare(`SELECT photo_key FROM parent_dogs WHERE breeder_id ${NOT_SEED} AND photo_key IS NOT NULL`).all()).results.map((r) => r.photo_key);
+  const docs = (await env.DB.prepare(`SELECT r2_key FROM documents WHERE breeder_id ${NOT_SEED}`).all()).results.map((r) => r.r2_key);
+  // Each photo has a card copy beside it, named <key>.card. A document has none.
+  return [...[...photos, ...brand, ...parents].flatMap((k) => [k, `${k}.card`]), ...docs];
 }
 
 const b64bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));

@@ -16,6 +16,8 @@ const TABLES = {
   photo: 'photos',
   checkout: 'checkouts',
   video: 'puppy_videos',
+  parent: 'parent_dogs',
+  document: 'documents',
 };
 
 export async function owned(env, kind, id, breederId) {
@@ -303,6 +305,8 @@ export function litterFields(body) {
     breed_id: String(body.breed_id), born_on: isoDate(body.born_on), ready_on: isoDate(body.ready_on),
     mom_weight_lb: num(body.mom_weight_lb, 300), dad_weight_lb: num(body.dad_weight_lb, 300),
     description: clean(body.description, 4000),
+    // The saved mom and dad (migrations/0050), checked against the breeder by lib/parents.js checkLitterParents.
+    mom_id: clean(body.mom_id, 40), dad_id: clean(body.dad_id, 40),
   };
 }
 
@@ -343,7 +347,8 @@ export function puppyFields(body, registries) {
 
 /** A stored litter or puppy in the shape the field rules read, so an edit may send only what changes. */
 export function litterInput(l) {
-  return { breed_id: l.breed_id, born_on: l.born_on, ready_on: l.ready_on, mom_weight_lb: l.mom_weight_lb, dad_weight_lb: l.dad_weight_lb, description: l.description };
+  return { breed_id: l.breed_id, born_on: l.born_on, ready_on: l.ready_on, mom_weight_lb: l.mom_weight_lb, dad_weight_lb: l.dad_weight_lb, description: l.description,
+    mom_id: l.mom_id, dad_id: l.dad_id };
 }
 export function puppyInput(p) {
   return {

@@ -125,8 +125,10 @@ async function sql() {
     `DELETE FROM checkouts WHERE breeder_id IN ${inIds};`,
     `DELETE FROM photos WHERE breeder_id IN ${inIds};`,
     `DELETE FROM puppy_videos WHERE breeder_id IN ${inIds};`,
+    ...(has('documents') ? [`DELETE FROM documents WHERE breeder_id IN ${inIds};`] : []),
     `DELETE FROM puppies WHERE breeder_id IN ${inIds};`,
     `DELETE FROM litters WHERE breeder_id IN ${inIds};`,
+    ...(has('parent_dogs') ? [`DELETE FROM parent_dogs WHERE breeder_id IN ${inIds};`] : []),
     ...['breeder_breeds', 'operator_notes', 'account_requests', 'listing_reports', 'breeder_members', 'breeder_references']
       .filter(has).map((t) => `DELETE FROM ${t} WHERE breeder_id IN ${inIds};`),
     `DELETE FROM sessions WHERE breeder_id IN ${inIds};`,
@@ -139,8 +141,10 @@ async function sql() {
   fs.writeFileSync(opt('out'), lines.join('\n') + '\n');
   const photos = all(`SELECT r2_key FROM photos WHERE breeder_id IN ${inIds} AND r2_key IS NOT NULL`).map((r) => r.r2_key);
   const brand = all(`SELECT logo_key, kennel_key FROM breeder_profiles WHERE breeder_id IN ${inIds}`).flatMap((r) => [r.logo_key, r.kennel_key]).filter(Boolean);
-  // Each upload has a card copy beside it, named <key>.card. Videos live in Stream, not R2.
-  const keys = [...photos, ...brand].flatMap((k) => [k, `${k}.card`]);
+  const parents = has('parent_dogs') ? all(`SELECT photo_key FROM parent_dogs WHERE breeder_id IN ${inIds} AND photo_key IS NOT NULL`).map((r) => r.photo_key) : [];
+  const docs = has('documents') ? all(`SELECT r2_key FROM documents WHERE breeder_id IN ${inIds}`).map((r) => r.r2_key) : [];
+  // Each photo has a card copy beside it, named <key>.card. Videos live in Stream, not R2, and documents have no card.
+  const keys = [...[...photos, ...brand, ...parents].flatMap((k) => [k, `${k}.card`]), ...docs];
   if (opt('keys')) fs.writeFileSync(opt('keys'), keys.join('\n') + (keys.length ? '\n' : ''));
   console.log(`wrote ${opt('out')}: ${lines.length - 4} statements for ${ids.length} breeders and ${clear.size} whole tables`);
   console.log(`${keys.length} R2 keys${opt('keys') ? ` in ${opt('keys')}` : ''}, to delete from puppyconnection-files after the SQL has run`);

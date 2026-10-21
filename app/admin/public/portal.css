@@ -442,3 +442,17 @@ table.list .row-acts { margin-top: .4rem; }
 .drawer .puppy-row .btn-row .btn { min-height: 32px; padding: 0; border: 0; background: none; color: var(--olive); font-size: .86rem; }
 .drawer .puppy-row .btn-row .btn-danger { color: var(--alert); }
 .drawer .puppy-row .btn-row .btn:hover { text-decoration: underline; }
+/* Workplan A19 to A21. Health test picks, documents, and the listing quality prompts. */
+.test-picks .check span .small { font-size: .78rem; }
+.doc-list { list-style: none; margin: .6rem 0 1rem; padding: 0; display: grid; gap: .5rem; }
+.doc { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .8rem; border: 1px solid var(--line); border-radius: var(--r-lg); padding: .6rem .8rem; min-width: 0; }
+.doc-main { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; min-width: 0; flex: 1 1 14rem; }
+.doc-main a, .doc-main b { overflow-wrap: anywhere; }
+.doc-vis { border: 0; padding: 0; margin: 0 0 .8rem; display: grid; gap: .2rem; }
+.doc-vis legend { font-weight: 500; font-size: .9rem; padding: 0; margin-bottom: .3rem; }
+.doc-vis .check { min-height: 36px; align-items: center; }
+.quality { border: 1px solid var(--line-strong); border-left: 4px solid var(--warn); border-radius: var(--r-lg); padding: .7rem .9rem; margin: 0 0 1rem; background: var(--warn-bg); }
+.quality ul { margin: .4rem 0 0; padding-left: 1.1rem; }
+.quality li { margin: .2rem 0; }
+.quality-ok { border-left-color: var(--ok); background: var(--ok-bg); }
+.quality-note { color: var(--warn); }

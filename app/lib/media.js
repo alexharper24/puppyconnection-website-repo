@@ -5,6 +5,8 @@
 // browser made one. The public site serves it at /media/<photo id> and /media/<photo id>/card,
 // and only while its puppy is public. A logo or kennel photo lives under brand/<breeder id>/ and
 // is served at /brand/<breeder id>/logo or /kennel, to anyone only while the breeder is public.
+// A saved parent's photo and a public document (migrations/0050) are served at /media/parent/<id>
+// and /media/doc/<id>, only while the parent is on a public litter or the document is public.
 //
 // Imported only by small Workers, so this file must not import anything heavier than itself.
 // The site repository (alexharper24/puppyconnection-site) carries a copy, made by
@@ -49,6 +51,50 @@ export async function serveBrand(env, breederId, kind, { card = false, allowPriv
     headers: {
       'content-type': obj.httpMetadata?.contentType || 'application/octet-stream',
       'cache-control': row.pub ? 'public, max-age=86400' : 'private, no-store',
+    },
+  });
+}
+
+/**
+ * A saved mom or dad's photo (migrations/0050), under parents/<breeder id>/ with a ".card" copy.
+ * Anyone may have it while the parent is on a public litter (public_parents); otherwise only a
+ * caller that allowPrivate(row) says may see it. Returns null when it should answer 404.
+ */
+export async function serveParentPhoto(env, id, { card = false, allowPrivate = async () => false } = {}) {
+  const row = await env.DB.prepare(
+    'SELECT d.photo_key, d.breeder_id, EXISTS (SELECT 1 FROM public_parents pp WHERE pp.id = d.id) AS pub FROM parent_dogs d WHERE d.id = ?',
+  ).bind(id).first();
+  if (!row || !row.photo_key) return null;
+  if (!row.pub && !(await allowPrivate(row))) return null;
+  const obj = (card && await env.FILES.get(`${row.photo_key}.card`)) || await env.FILES.get(row.photo_key);
+  if (!obj) return null;
+  return new Response(obj.body, {
+    headers: { 'content-type': obj.httpMetadata?.contentType || 'application/octet-stream', 'cache-control': row.pub ? 'public, max-age=86400' : 'private, no-store' },
+  });
+}
+
+/**
+ * A health record, guarantee or pedigree (migrations/0050). The site gives anyone only what
+ * public_documents names, a public document of a public puppy or parent, kept under docs/ in R2.
+ * The admin passes allowPrivate for operators, so a private one is served only to signed-in staff.
+ * The file was checked by its first bytes at upload, and nosniff keeps the browser to that type.
+ */
+export async function serveDocument(env, id, { allowPrivate = async () => false } = {}) {
+  const row = await env.DB.prepare(
+    'SELECT d.*, EXISTS (SELECT 1 FROM public_documents pd WHERE pd.id = d.id) AS pub FROM documents d WHERE d.id = ?',
+  ).bind(id).first();
+  if (!row) return null;
+  if (!row.pub && !(await allowPrivate(row))) return null;
+  const obj = await env.FILES.get(row.r2_key);
+  if (!obj) return null;
+  const ext = String(row.r2_key).split('.').pop();
+  const name = `${String(row.title || 'document').replace(/[^\w .()-]+/g, '').trim().slice(0, 80) || 'document'}.${ext}`;
+  return new Response(obj.body, {
+    headers: {
+      'content-type': row.content_type, 'x-content-type-options': 'nosniff',
+      'content-disposition': `inline; filename="${name}"`,
+      // A document marked private later must not stay in a cache for long.
+      'cache-control': row.pub ? 'public, max-age=300' : 'private, no-store',
     },
   });
 }

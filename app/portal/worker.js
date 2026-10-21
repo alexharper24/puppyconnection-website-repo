@@ -33,6 +33,11 @@ import {
   streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
 } from '../lib/stream.js';
 import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle, randomString } from '../lib/google.js';
+import {
+  parentFields, PARENT_EDIT_COLS, checkLitterParents, parentsFor, documentsFor, storeDocument, moveDocument, DOC_KINDS, MAX_DOCS, MAX_DOC_BYTES,
+  healthCatalog,
+} from '../lib/parents.js';
+import { serveParentPhoto, serveDocument } from '../lib/media.js';
 
 // Plan P6.3. A session lasts 60 days from its last renewal. Using it more than a day into
 // its current window pushes the end out to 60 days from now and refreshes the cookie, so an
@@ -746,16 +751,16 @@ async function createLitter(request, env) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
   requireApproved(breeder);
-  const f = litterFields(await readJson(request));
+  const f = await checkLitterParents(env, breeder.id, litterFields(await readJson(request)));
   const breed = await env.DB.prepare('SELECT id FROM breeds WHERE id = ?').bind(f.breed_id).first();
   if (!breed) throw bad('Choose a breed from the list.');
   const id = ulid();
   const t = now();
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, description, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, breeder.id, f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, t, t),
+      `INSERT INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, description, mom_id, dad_id, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, breeder.id, f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, f.mom_id, f.dad_id, t, t),
     auditStmt(env, 'breeder', breeder.email, 'litter.create', 'litter', id, null, f),
   ]);
   return json({ id }, 201);
@@ -772,12 +777,12 @@ async function updateLitter(request, env, ctx, id) {
   requireApproved(breeder);
   const before = await owned(env, 'litter', id, breeder.id);
   const body = await readJson(request);
-  const f = litterFields(body);
+  const f = await checkLitterParents(env, breeder.id, litterFields(body), before);
   const stmts = [
     env.DB.prepare(
-      `UPDATE litters SET breed_id = ?, born_on = ?, ready_on = ?, mom_weight_lb = ?, dad_weight_lb = ?, description = ?,
+      `UPDATE litters SET breed_id = ?, born_on = ?, ready_on = ?, mom_weight_lb = ?, dad_weight_lb = ?, description = ?, mom_id = ?, dad_id = ?,
          updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ? AND version = ?`,
-    ).bind(f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, now(), id, breeder.id, Number(body.version)),
+    ).bind(f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, f.mom_id, f.dad_id, now(), id, breeder.id, Number(body.version)),
     auditStmt(env, 'breeder', breeder.email, 'litter.update', 'litter', id, before, f),
   ];
   if (await hasPublic(env, 'litter_id = ?', id)) stmts.push(dirtyStmt(env));
@@ -1139,6 +1144,228 @@ async function media(request, env, ctx, id, card) {
   });
 }
 
+// ------------------------------------------------------------------ moms and dads (workplan A19)
+
+const isPublicParent = async (env, id) => !!(await env.DB.prepare('SELECT 1 AS x FROM public_parents WHERE id = ?').bind(id).first());
+
+/** The breeder's saved moms and dads, with the health test list for each breed. */
+async function parentsScreen(request, env) {
+  const { breeder } = await needSession(request, env);
+  const s = await settings(env);
+  const site = (await env.DB.prepare('SELECT slug, name FROM breeds').all()).results;
+  return json({ parents: await parentsFor(env, breeder.id), breeds: healthCatalog(site), registries: s.registries,
+    doc_kinds: DOC_KINDS, max_doc_bytes: MAX_DOC_BYTES, max_docs: MAX_DOCS });
+}
+
+async function createParent(request, env) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const f = parentFields(await readJson(request), (await settings(env)).registries);
+  const id = ulid();
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO parent_dogs (id, breeder_id, ${PARENT_EDIT_COLS.join(', ')}, created_at, updated_at)
+       VALUES (?, ?, ${PARENT_EDIT_COLS.map(() => '?').join(', ')}, ?, ?)`,
+    ).bind(id, breeder.id, ...PARENT_EDIT_COLS.map((c) => f[c] ?? null), t, t),
+    auditStmt(env, 'breeder', breeder.email, 'parent.create', 'parent', id, null, f),
+  ]);
+  return json({ id }, 201);
+}
+
+async function updateParent(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const before = await owned(env, 'parent', id, breeder.id);
+  const body = await readJson(request);
+  // A registry since taken off the list stays valid on the parent that already has it.
+  const f = parentFields(body, [...(await settings(env)).registries, before.registry]);
+  if (f.sex !== before.sex && await env.DB.prepare('SELECT 1 AS x FROM litters WHERE mom_id = ? OR dad_id = ? LIMIT 1').bind(id, id).first()) {
+    throw bad(`${before.name} is the ${before.sex === 'female' ? 'mom' : 'dad'} of a litter, so that cannot change.`);
+  }
+  const stmts = [
+    env.DB.prepare(
+      `UPDATE parent_dogs SET ${PARENT_EDIT_COLS.map((c) => `${c} = ?`).join(', ')}, updated_at = ?, version = version + 1
+       WHERE id = ? AND breeder_id = ? AND version = ?`,
+    ).bind(...PARENT_EDIT_COLS.map((c) => f[c] ?? null), now(), id, breeder.id, Number(body.version)),
+    auditStmt(env, 'breeder', breeder.email, 'parent.update', 'parent', id, before, f),
+  ];
+  if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
+  checkVersion((await env.DB.batch(stmts))[0], 'mom or dad');
+  return json({ ok: true });
+}
+
+/** Take a parent out of the litter picker, or put it back. Litters that already name it keep it. */
+async function archiveParent(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  await owned(env, 'parent', id, breeder.id);
+  const off = (await readJson(request)).archived !== false;
+  await env.DB.batch([
+    env.DB.prepare('UPDATE parent_dogs SET archived_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(off ? now() : null, now(), id, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, off ? 'parent.archive' : 'parent.restore', 'parent', id, null, null),
+  ]);
+  return json({ ok: true });
+}
+
+const PARENT_CARD_EDGE = 1000;
+
+/** The parent's photo, shrunk in the browser as puppy photos are, with its metadata stripped here. */
+async function uploadParentPhoto(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const p = await owned(env, 'parent', id, breeder.id);
+  const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[img.type];
+  const key = `parents/${breeder.id}/${id}-${ulid().slice(-10).toLowerCase()}.${ext}`;
+  await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
+  const stmts = [
+    env.DB.prepare('UPDATE parent_dogs SET photo_key = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(key, now(), id, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'parent.photo', 'parent', id, null, { bytes: img.bytes.length }),
+  ];
+  if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  if (p.photo_key) await env.FILES.delete([p.photo_key, `${p.photo_key}.card`]);
+  return json({ ok: true }, 201);
+}
+
+async function uploadParentCard(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const p = await owned(env, 'parent', id, breeder.id);
+  if (!p.photo_key) throw bad('Add the photo first.');
+  const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
+  if (!img.size || Math.max(img.size.w, img.size.h) > PARENT_CARD_EDGE) throw bad(`A card copy can be up to ${PARENT_CARD_EDGE} pixels on its longest side.`);
+  await env.FILES.put(`${p.photo_key}.card`, img.bytes, { httpMetadata: { contentType: img.type } });
+  return json({ ok: true }, 201);
+}
+
+async function removeParentPhoto(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const p = await owned(env, 'parent', id, breeder.id);
+  if (!p.photo_key) return json({ ok: true });
+  const stmts = [
+    env.DB.prepare('UPDATE parent_dogs SET photo_key = NULL, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(now(), id, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'parent.photo.remove', 'parent', id, null, null),
+  ];
+  if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  await env.FILES.delete([p.photo_key, `${p.photo_key}.card`]);
+  return json({ ok: true });
+}
+
+/** A parent photo is served to its breeder, or to anyone once the parent is on a public litter. */
+async function parentPhoto(request, env, ctx, id, card) {
+  const res = await serveParentPhoto(env, id, {
+    card: !!card, allowPrivate: async (row) => { const s = await currentSession(request, env); return !!s && s.breeder.id === row.breeder_id; },
+  });
+  if (!res) throw notFound();
+  return res;
+}
+
+// ------------------------------------------------------------------ documents (workplan A20)
+
+/** Whether a document's puppy or parent is on the site now, so a change to it needs a publish. */
+async function docOnSite(env, doc) {
+  return doc.puppy_id ? hasPublic(env, 'id = ?', doc.puppy_id) : isPublicParent(env, doc.parent_id);
+}
+
+async function addDocument(request, env, breeder, { puppyId = null, parentId = null }) {
+  const n = await env.DB.prepare(`SELECT COUNT(*) AS n FROM documents WHERE ${puppyId ? 'puppy_id' : 'parent_id'} = ?`).bind(puppyId || parentId).first();
+  if (n.n >= MAX_DOCS) throw bad(`Each ${puppyId ? 'puppy' : 'mom or dad'} can have up to ${MAX_DOCS} documents.`);
+  if (Number(request.headers.get('content-length') || 0) > MAX_DOC_BYTES) throw bad('Documents can be up to 10 MB. A scan at a lower resolution, or one page per file, will fit.');
+  const url = new URL(request.url);
+  const { row, stmt } = await storeDocument(env, {
+    breederId: breeder.id, puppyId, parentId, raw: new Uint8Array(await request.arrayBuffer()), params: url.searchParams, fileName: url.searchParams.get('name'),
+  });
+  const stmts = [stmt, auditStmt(env, 'breeder', breeder.email, 'document.add', puppyId ? 'puppy' : 'parent', puppyId || parentId, null,
+    { document: row.id, kind: row.kind, visibility: row.visibility, bytes: row.bytes })];
+  if (row.visibility === 'public' && await docOnSite(env, row)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ id: row.id, visibility: row.visibility }, 201);
+}
+
+async function uploadPuppyDocument(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const puppy = await owned(env, 'puppy', id, breeder.id);
+  if (puppy.publication_state === 'archived') throw bad('That puppy has been removed.');
+  return addDocument(request, env, breeder, { puppyId: id });
+}
+
+async function uploadParentDocument(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  await owned(env, 'parent', id, breeder.id);
+  return addDocument(request, env, breeder, { parentId: id });
+}
+
+/** Rename a document, change what it is, or show it to families or keep it private. */
+async function updateDocument(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const doc = await owned(env, 'document', id, breeder.id);
+  const body = await readJson(request);
+  const kind = body.kind == null ? doc.kind : String(body.kind);
+  if (!DOC_KINDS[kind]) throw bad('Choose what the document is: a health record, a health guarantee, a pedigree or other.');
+  const visibility = body.visibility == null ? doc.visibility : String(body.visibility);
+  if (!['public', 'private'].includes(visibility)) throw bad('Choose whether families can see the document.');
+  const title = body.title == null ? doc.title : (clean(body.title, 120) || DOC_KINDS[kind]);
+  const key = await moveDocument(env, doc, visibility);
+  const stmts = [
+    env.DB.prepare('UPDATE documents SET kind = ?, title = ?, visibility = ?, r2_key = ?, updated_at = ? WHERE id = ? AND breeder_id = ?')
+      .bind(kind, title, visibility, key, now(), id, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'document.update', doc.puppy_id ? 'puppy' : 'parent', doc.puppy_id || doc.parent_id,
+      { document: id, kind: doc.kind, title: doc.title, visibility: doc.visibility }, { document: id, kind, title, visibility }),
+  ];
+  if ((visibility === 'public' || doc.visibility === 'public') && await docOnSite(env, doc)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  if (key !== doc.r2_key) await env.FILES.delete(doc.r2_key);
+  return json({ ok: true });
+}
+
+async function deleteDocument(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const doc = await owned(env, 'document', id, breeder.id);
+  const stmts = [
+    env.DB.prepare('DELETE FROM documents WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
+    auditStmt(env, 'breeder', breeder.email, 'document.remove', doc.puppy_id ? 'puppy' : 'parent', doc.puppy_id || doc.parent_id, { document: id, title: doc.title }, null),
+  ];
+  if (doc.visibility === 'public' && await docOnSite(env, doc)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  await env.FILES.delete(doc.r2_key);
+  return json({ ok: true });
+}
+
+/**
+ * A document's file. Families get a public one once its puppy or parent is on the site, and the
+ * breeder can open their own public ones before that. A private one is never served here, only
+ * to signed-in staff in the admin.
+ */
+async function documentFile(request, env, ctx, id) {
+  const res = await serveDocument(env, id, {
+    allowPrivate: async (row) => {
+      if (row.visibility !== 'public') return false;
+      const s = await currentSession(request, env);
+      return !!s && s.breeder.id === row.breeder_id;
+    },
+  });
+  if (!res) throw notFound();
+  return res;
+}
+
 // ------------------------------------------------------------------ listings and payment
 
 async function listings(request, env) {
@@ -1150,6 +1377,9 @@ async function listings(request, env) {
   const counts = Object.fromEntries((await breederStats(env, breeder.id, 30)).puppies.map((r) => [r.id, r]));
   const site = siteOrigin(env);
   const inact = await inactivitySettings(env);
+  const docs = {};
+  for (const d of await documentsFor(env, breeder.id)) if (d.puppy_id) (docs[d.puppy_id] ||= []).push(d);
+  const parents = (await env.DB.prepare('SELECT id, name, sex, archived_at FROM parent_dogs WHERE breeder_id = ? ORDER BY name').bind(breeder.id).all()).results;
   const vids = {};
   for (const v of (await env.DB.prepare('SELECT id, puppy_id, stream_uid, status, duration_s FROM puppy_videos WHERE breeder_id = ? ORDER BY position, created_at').bind(breeder.id).all()).results) {
     (vids[v.puppy_id] ||= []).push({ id: v.id, status: v.status, duration: v.duration_s, ...(v.status === 'ready' ? videoUrls(env, v.stream_uid, videoOrigin(request, env)) : {}) });
@@ -1157,6 +1387,7 @@ async function listings(request, env) {
   for (const l of litters) {
     for (const p of l.puppies) {
       p.videos = vids[p.id] || [];
+      p.documents = docs[p.id] || [];
       // Workplan A12. Where the puppy is in the photo schedule and by when it needs a new photo.
       p.schedule = scheduleFor(p, breeder, inact);
       p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons) }));
@@ -1176,7 +1407,8 @@ async function listings(request, env) {
     }
   }
   return json({ litters, fee_cents: s.feeCents, listing_days: s.listingDays, warn_days: s.warnDays, min_photos: s.minPhotos,
-    registries: s.registries, videos: { on: !!streamMode(env), max: s.maxVideos, max_seconds: s.videoMaxSeconds, max_bytes: MAX_UPLOAD_BYTES } });
+    registries: s.registries, videos: { on: !!streamMode(env), max: s.maxVideos, max_seconds: s.videoMaxSeconds, max_bytes: MAX_UPLOAD_BYTES },
+    parents, doc_kinds: DOC_KINDS, max_doc_bytes: MAX_DOC_BYTES, max_docs: MAX_DOCS });
 }
 
 async function startCheckout(request, env) {
@@ -1488,6 +1720,20 @@ const ROUTES = [
   ['GET', /^\/api\/stats$/, myStats],
   ['GET', /^\/api\/breeds$/, (r, e) => listBreeds(e)],
   ['GET', /^\/api\/listings$/, listings],
+  ['GET', /^\/api\/parents$/, parentsScreen],
+  ['POST', /^\/api\/parents$/, createParent],
+  ['PUT', /^\/api\/parents\/([\w-]+)$/, updateParent],
+  ['POST', /^\/api\/parents\/([\w-]+)\/archive$/, archiveParent],
+  ['POST', /^\/api\/parents\/([\w-]+)\/photo$/, uploadParentPhoto],
+  ['POST', /^\/api\/parents\/([\w-]+)\/photo\/card$/, uploadParentCard],
+  ['DELETE', /^\/api\/parents\/([\w-]+)\/photo$/, removeParentPhoto],
+  ['POST', /^\/api\/parents\/([\w-]+)\/documents$/, uploadParentDocument],
+  ['POST', /^\/api\/puppies\/([\w-]+)\/documents$/, uploadPuppyDocument],
+  ['PUT', /^\/api\/documents\/([\w-]+)$/, updateDocument],
+  ['DELETE', /^\/api\/documents\/([\w-]+)$/, deleteDocument],
+  ['GET', /^\/media\/parent\/([\w-]+)$/, parentPhoto],
+  ['GET', /^\/media\/parent\/([\w-]+)\/card$/, (r, e, c, id) => parentPhoto(r, e, c, id, true)],
+  ['GET', /^\/media\/doc\/([\w-]+)$/, documentFile],
   ['POST', /^\/api\/litters$/, createLitter],
   ['PUT', /^\/api\/litters\/([\w-]+)$/, updateLitter],
   ['POST', /^\/api\/litters\/([\w-]+)\/archive$/, archiveLitter],

@@ -80,7 +80,7 @@ export async function exportSite(env) {
 
 
   const files = {
-    // The breed's chosen photo (migrations/0030), named by the same src its puppy's photo carries,
+    // The breed's chosen photo (migrations/0043), named by the same src its puppy's photo carries,
     // and only while that photo is public. Otherwise the site picks one from the listings.
     'data/breeds.json': text(breeds.map((b) => ({ slug: b.slug, name: b.name, guide: paras(b.guide), ...(photoSrc[b.photo_id] ? { photo: photoSrc[b.photo_id] } : {}), ...(gone[b.slug] ? { gone: gone[b.slug] } : {}) }))),
     'data/breeders.json': text(breeders.map((b) => ({

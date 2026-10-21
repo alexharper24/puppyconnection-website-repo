@@ -1,4 +1,5 @@
 -- 2026-10-19. Each breed's own photo for its breed page, breed cards and guide pages. Alex chose
+-- Renumbered from 0030 on 2026-10-20, because a second 0030 (the photo schedule) merged at the same time. It already ran on staging, so do not run it again there.
 -- them from the breed photo picker, which ranked each breed's listing photos by a sharp puppy on a
 -- soft background, the puppy's share of the frame, size and exposure. Where he kept today's photo
 -- it is pinned here too, so it no longer changes as listings change. A photo that stops being

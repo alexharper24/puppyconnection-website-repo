@@ -152,7 +152,7 @@ CREATE TABLE IF NOT EXISTS breeds (
   colors           TEXT,
   coats            TEXT,
   -- The photo the breed page and breed cards show, chosen by Alex from the professional-looking
-  -- listing photos (migrations/0030). NULL, or a photo no longer public, lets the site choose.
+  -- listing photos (migrations/0043). NULL, or a photo no longer public, lets the site choose.
   photo_id         TEXT
 );
 

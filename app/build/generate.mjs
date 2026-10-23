@@ -369,7 +369,10 @@ export function build({ now = Date.now(), dataDir, out, templates, guides = path
   const urlUses = {};
   for (const p of D.puppies) if (p.breeder_url) urlUses[p.breeder_url] = (urlUses[p.breeder_url] || 0) + 1;
   const ownPage = (p) => !!p.breeder_url && urlUses[p.breeder_url] === 1;
-  const concept = (f) => fs.readFileSync(path.join(T, f), 'utf8').replace(/\r\n/g, '\n');
+  // The hints to connect early to Wix go once no photo is served from Wix (workplan C2).
+  const onWix = /wixstatic\.com/.test(JSON.stringify([D.puppies, D.breeds, D.breeders]));
+  const wixHint = /<link rel="(?:preconnect|dns-prefetch)" href="https:\/\/static\.wixstatic\.com"[^>]*>\n?/g;
+  const concept = (f) => { const s = fs.readFileSync(path.join(T, f), 'utf8').replace(/\r\n/g, '\n'); return onWix ? s : s.replace(wixHint, ''); };
   const idx = concept('index.html');
   const cssV = (idx.match(/css\/style\.css\?v=(\d+)/) || [])[1];
   const head0 = idx.slice(0, idx.indexOf('<title>'));
@@ -485,7 +488,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     itemListElement: [['Home', base], ...trail].map(([name, item], i) => ({ '@type': 'ListItem', position: i + 1, name, item })),
   })}</script>`;
   const fonts = [
-    '<link rel="preconnect" href="https://static.wixstatic.com" crossorigin>',
+    ...(onWix ? ['<link rel="preconnect" href="https://static.wixstatic.com" crossorigin>'] : []),
     '<link rel="preconnect" href="https://fonts.googleapis.com">',
     '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
     '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&family=Barlow:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">',

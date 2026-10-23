@@ -90,12 +90,21 @@ export function jpegOrientation(b) {
   return 1;
 }
 
+// Tried three times, because one dropped connection stopped the first full run after batch 10
+// (2026-10-23). Every write here is safe to send twice.
 function d1(sql) {
-  const raw = execFileSync(process.execPath, [WRANGLER, 'd1', 'execute', 'puppyconnection', '--remote', '--config', CONFIG, '--json', '--command', sql],
-    { cwd: APP, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }).toString();
-  const res = JSON.parse(raw.slice(raw.indexOf('[')));
-  if (!res.every((r) => r.success)) throw new Error(`D1 reported a failure: ${raw.slice(0, 500)}`);
-  return res;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const raw = execFileSync(process.execPath, [WRANGLER, 'd1', 'execute', 'puppyconnection', '--remote', '--config', CONFIG, '--json', '--command', sql],
+        { cwd: APP, stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 64 * 1024 * 1024 }).toString();
+      const res = JSON.parse(raw.slice(raw.indexOf('[')));
+      if (!res.every((r) => r.success)) throw new Error(`D1 reported a failure: ${raw.slice(0, 500)}`);
+      return res;
+    } catch (e) {
+      if (attempt >= 3) throw e;
+      execFileSync(process.execPath, ['-e', `setTimeout(() => {}, ${5000 * attempt})`]);
+    }
+  }
 }
 
 // ---- Wix, one request at a time with a pause, stopping if it keeps refusing

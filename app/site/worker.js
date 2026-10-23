@@ -65,14 +65,17 @@ async function asset(request, env, url) {
   return out;
 }
 
-async function media(env, id, card) {
+async function media(env, id, card, share) {
   const photo = await env.DB.prepare(
     'SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND p.puppy_id IN (SELECT id FROM public_puppies)',
   ).bind(id).first();
   if (!photo?.r2_key) return new Response('Not found.', { status: 404 });
   // The card copy is the small one the portal makes at upload. Older photos have none and
   // are served whole. A photo id never changes its file, so browsers keep it for a day.
-  const obj = (card && await env.FILES.get(`${photo.r2_key}.card`)) || await env.FILES.get(photo.r2_key);
+  // A photo copied from Wix is served from its copies, as in lib/media.js serveMedia.
+  const k = photo.r2_key;
+  const obj = (card && await env.FILES.get(`${k}.card`)) || (share && await env.FILES.get(`${k}.share`))
+    || (!card && await env.FILES.get(`${k}.display`)) || await env.FILES.get(k);
   if (!obj) return new Response('Not found.', { status: 404 });
   return new Response(obj.body, {
     headers: { 'content-type': obj.httpMetadata?.contentType || photo.content_type, 'cache-control': 'public, max-age=86400' },
@@ -86,8 +89,8 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname === '/data/data.js') return await dataJs(request, env);
-      const m = url.pathname.match(/^\/media\/([\w-]+)(\/card)?$/);
-      if (m) return await media(env, m[1], !!m[2]);
+      const m = url.pathname.match(/^\/media\/([\w-]+)(?:\/(card|share))?$/);
+      if (m) return await media(env, m[1], m[2] === 'card', m[2] === 'share');
       if (url.pathname === '/api/beacon') return (await recordBeacon(request, env)).response;
       const brand = url.pathname.match(/^\/brand\/([\w-]+)\/(logo|kennel)$/);
       if (brand) return (await serveBrand(env, brand[1], brand[2], { card: url.searchParams.get('size') === 'card' })) || new Response('Not found.', { status: 404 });

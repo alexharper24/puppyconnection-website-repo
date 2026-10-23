@@ -17,14 +17,22 @@ export const BRAND = { logo: 'logo_key', kennel: 'kennel_key' };
 /**
  * A puppy photo by its id, or null when it should answer 404. A photo id never changes its
  * file, so browsers keep it for a day. Older uploads have no card copy and are served whole.
+ * A photo copied from Wix keeps its original at r2_key as the record and is served from the
+ * copies beside it (ops/photo_copies.py): ".display", 1600 px WebP, for the photo itself, and
+ * ".share", 1200 px JPEG, for og:image. A breeder's upload was drawn at 1600 px by the portal
+ * and has neither, so it is served whole as before.
  */
-export async function serveMedia(env, id, { card = false } = {}) {
+export async function serveMedia(env, id, { card = false, share = false } = {}) {
   const photo = await env.DB.prepare(
     // A photo the quality check sent back or is holding is never public (migrations/0018).
     "SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND p.puppy_id IN (SELECT id FROM public_puppies) AND (p.quality IS NULL OR p.quality = 'pass')",
   ).bind(id).first();
   if (!photo?.r2_key) return null;
-  const obj = (card && await env.FILES.get(`${photo.r2_key}.card`)) || await env.FILES.get(photo.r2_key);
+  const k = photo.r2_key;
+  const obj = (card && await env.FILES.get(`${k}.card`))
+    || (share && await env.FILES.get(`${k}.share`))
+    || (!card && await env.FILES.get(`${k}.display`))
+    || await env.FILES.get(k);
   if (!obj) return null;
   return new Response(obj.body, {
     headers: { 'content-type': obj.httpMetadata?.contentType || photo.content_type, 'cache-control': 'public, max-age=86400' },

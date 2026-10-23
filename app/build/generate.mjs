@@ -106,6 +106,9 @@ function fillAttrs(photo, w, h) {
   const pos = objectPosition(photo, w, h);
   return `src="${esc(fill(photo, w, h))}"${pos ? ` style="object-position:${pos}"` : ''}`;
 }
+// og:image for a photo in R2 is its JPEG share copy, which the site Worker serves at
+// media/<id>/share, or the photo itself where it has none (lib/media.js).
+const shareSrc = (src) => (/^media\/[\w-]+$/.test(src || '') ? `${src}/share` : src);
 function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wixFit(photo.src, w, h) : (w <= 640 && photo.card ? photo.card : photo.src); }
 
 export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html`, guide: (s) => `guide-${s}.html` };
@@ -718,7 +721,7 @@ ${mates.length ? `<section class="band band-warm">
       // SEO plan P11. "for sale" only while the puppy is, since an adopted puppy's page stays up.
       title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
       desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 158),
-      body, trail: [['Available puppies', `${base}puppies.html`], [p.name, `${base}${pageFor.puppy(p.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      body, trail: [['Available puppies', `${base}puppies.html`], [p.name, `${base}${pageFor.puppy(p.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       // Product snippet markup (Alex, 2026-10-11). Puppy Connection is not the seller, so this
       // is not merchant listing markup: the Offer names the breeder as seller, and a puppy with
       // no price carries none, since Google requires an offer price.
@@ -819,7 +822,7 @@ ${others.length ? `<section class="band">
       desc: clip(n
         ? `${n} ${b.name} ${n === 1 ? 'puppy' : 'puppies'} for sale from ${by.length === 1 ? 'a small family breeder' : 'small family breeders'}${where ? ` in ${where}` : ''}${priceRange(open)}. See each puppy and contact its breeder directly.`
         : `${b.name} puppies from small family breeders. None are listed right now, so see recent litters here or browse the other breeds.`, 158),
-      body, trail: [['Breeds', `${base}breeds.html`], [b.name, `${base}${pageFor.breed(b.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      body, trail: [['Breeds', `${base}breeds.html`], [b.name, `${base}${pageFor.breed(b.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       // SEO plan P14. The puppies the page lists, in the order it shows them.
       ld: [{ '@type': 'ItemList', name: `${b.name} puppies`, numberOfItems: shown.length,
         itemListElement: shown.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.puppy(p.slug)}`, name: `${p.name}, ${p.b.name}` })) }],
@@ -865,7 +868,7 @@ ${open.length ? `<section class="band band-warm">
     write(pageFor.guide(g.slug), {
       title: g.title || `${g.h1} | Puppy Connection`, desc: g.description, body,
       trail: [['Breeds', `${base}breeds.html`], [b.name, `${base}${pageFor.breed(b.slug)}`], [g.h1, `${base}${pageFor.guide(g.slug)}`]],
-      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       ld: [{ '@type': 'Article', headline: g.h1, description: g.description, about: { '@type': 'Thing', name: b.name }, mainEntityOfPage: `${base}${pageFor.guide(g.slug)}`, publisher: { '@type': 'Organization', name: 'Puppy Connection', url: base } }],
       images: [imageUrl(lead)],
     });
@@ -1042,7 +1045,7 @@ ${others.length ? `<section class="band">
       title: `Puppies for Sale in ${S} | Puppy Connection`,
       desc: clip(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from small family breeders in ${S}${price ? `, priced ${price}` : ''}. See each puppy and contact its breeder directly.`, 158),
       body: pupBody, trail: [['Available puppies', `${base}puppies.html`], [`Puppies in ${S}`, `${base}${pageFor.statePuppies(S)}`]],
-      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : lead.src)),
+      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       ld: [{ '@type': 'ItemList', name: `Puppies for sale in ${S}`, numberOfItems: shown.length,
         itemListElement: shown.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.puppy(p.slug)}`, name: `${p.name}, ${p.b.name}` })) }],
       images: shown.slice(0, 20).map((p) => imageUrl(p.photos[0])),

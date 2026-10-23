@@ -8,7 +8,8 @@
 // Cloudflare serves the generated pages straight from the assets folder. This Worker runs only
 // for the paths in run_worker_first (wrangler.jsonc there):
 //   /                     the home page, because html_handling "none" turns off / -> index.html
-//   /media/<id>[/card]    a puppy photo from R2, uploaded or imported, only while its puppy is public
+//   /media/<id>[/card|/share]  a puppy photo from R2, uploaded or imported, only while its puppy is
+//                         public. /share is the JPEG for og:image, where a photo has one
 //   /media/parent/<id>[/card]  a saved mom or dad's photo, only while it is on a public litter
 //   /media/doc/<id>       a document marked public, of a public puppy or parent (migrations/0050)
 //   /brand/<id>/<kind>    a breeder's logo or kennel photo, only while the breeder is public
@@ -31,8 +32,8 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname === '/') return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
-      const m = url.pathname.match(/^\/media\/([\w-]+)(\/card)?$/);
-      if (m) return (await serveMedia(env, m[1], { card: !!m[2] })) || notFound();
+      const m = url.pathname.match(/^\/media\/([\w-]+)(?:\/(card|share))?$/);
+      if (m) return (await serveMedia(env, m[1], { card: m[2] === 'card', share: m[2] === 'share' })) || notFound();
       const pm = url.pathname.match(/^\/media\/parent\/([\w-]+)(\/card)?$/);
       if (pm) return (await serveParentPhoto(env, pm[1], { card: !!pm[2] })) || notFound();
       const dm = url.pathname.match(/^\/media\/doc\/([\w-]+)$/);

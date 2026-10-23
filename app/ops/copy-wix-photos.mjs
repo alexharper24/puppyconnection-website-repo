@@ -24,7 +24,12 @@
 //   --ids a,b     only these photo ids
 //   --batch n     photos per batch, one progress line and one D1 write each (default 100)
 //   --retry       try again the photos in failures.json, which a normal run skips
+//   --copies-only only make and upload the served copies (servedCopies below) for photos in R2
 //   --dry-run     list what would be copied and change nothing
+//
+// After the originals, every run makes the copies the site serves (ops/photo_copies.py): a
+// 1600 px WebP for the photo itself, a 640 px WebP card in place of the JPEG card from Wix, and a
+// 1200 px JPEG for og:image. The original stays at r2_key as the record and is not served.
 //
 // It is safe to stop and run again. A row is written only after both its files are in R2, the
 // UPDATE names r2_key IS NULL, a file already put is listed in uploaded.json and is not put
@@ -204,6 +209,7 @@ export async function main() {
   const log = (o) => fs.appendFileSync(LOG, `${JSON.stringify({ at: new Date().toISOString(), ...o })}\n`);
 
   const ids = opt('ids') ? opt('ids').split(',').map((s) => s.trim()).filter(Boolean) : null;
+  if (flag('copies-only')) { const r = await servedCopies(ids, log); return { ok: r.ok }; }
   const rows = d1(`SELECT id, breeder_id, puppy_id, external_url, width, height FROM photos
     WHERE r2_key IS NULL AND external_url LIKE 'https://static.wixstatic.com/%'${ids ? ` AND id IN (${ids.map(q).join(',')})` : ''} ORDER BY id`)[0].results;
   let todo = rows.filter((r) => flag('retry') || ids || !failures[r.id]);
@@ -265,7 +271,51 @@ export async function main() {
       VALUES (${q(new Date().toISOString())}, 'system', 'claude', 'photos.copy_from_wix', 'site', 'wix', NULL, ${q(JSON.stringify({ copied, failed, bucket: BUCKET }))});`);
   }
   console.log(`${failed ? 'BAD ' : 'ok  '} copied ${copied} photos to ${BUCKET}${failed ? `, ${failed} failed (see ${path.relative(process.cwd(), FAILURES)})` : ''}`);
-  return { ok: !failed, copied, failed };
+  const served = await servedCopies(ids, log);
+  return { ok: !failed && served.ok, copied, failed };
+}
+
+/**
+ * The copies the site serves for every imported photo already in R2 (Alex, 2026-10-23: WebP at
+ * sizes for quality and performance). ops/photo_copies.py makes them from the stripped original
+ * kept in FILES, and they go up beside it: <key>.display (1600 px WebP), <key>.card (640 px WebP,
+ * replacing the JPEG card taken from Wix) and <key>.share (1200 px JPEG for og:image). The
+ * original at <key> is left as the record. copies.json lists what is up, so a rerun skips it.
+ */
+async function servedCopies(ids, log) {
+  const copiesFile = path.join(STATE, 'copies.json');
+  const up = new Set(fs.existsSync(copiesFile) ? JSON.parse(fs.readFileSync(copiesFile, 'utf8')) : []);
+  const save = () => fs.writeFileSync(copiesFile, JSON.stringify([...up].sort()));
+  const rows = d1(`SELECT id, r2_key FROM photos WHERE r2_key LIKE 'uploads/%' AND external_url LIKE 'https://static.wixstatic.com/%'${ids ? ` AND id IN (${ids.map(q).join(',')})` : ''} ORDER BY id`)[0].results;
+  const parts = (r) => [[`${r.r2_key}.display`, `${r.id}.display.webp`, 'image/webp'], [`${r.r2_key}.card`, `${r.id}.card.webp`, 'image/webp'], [`${r.r2_key}.share`, `${r.id}.share.jpg`, 'image/jpeg']];
+  const todo = rows.filter((r) => parts(r).some(([k]) => !up.has(k)));
+  console.log(`served copies: ${rows.length} imported photos in R2, ${todo.length} to make and upload`);
+  let failed = 0, made = 0;
+  const started = Date.now();
+  for (let at = 0; at < todo.length; at += 100) {
+    const batch = todo.slice(at, at + 100).filter((r) => {
+      if (fs.existsSync(path.join(FILES, `${r.id}.full`))) return true;
+      failed += 1;
+      log({ id: r.id, failed: 'served copies: the original is not in the local folder' });
+      return false;
+    });
+    const out = execFileSync('python', ['-I', path.join(HERE, 'photo_copies.py'), FILES, ...batch.map((r) => r.id)], { maxBuffer: 16 * 1024 * 1024 }).toString();
+    const result = Object.fromEntries(out.trim().split('\n').filter(Boolean).map((l) => { const o = JSON.parse(l); return [o.id, o]; }));
+    const queue = batch.slice();
+    async function worker() {
+      for (let r = queue.shift(); r; r = queue.shift()) {
+        try {
+          if (!result[r.id] || result[r.id].error) throw new Error(`photo_copies.py: ${result[r.id]?.error || 'no result'}`);
+          for (const [key, file, type] of parts(r)) await put(key, path.join(FILES, file), type, up);
+          made += 1;
+        } catch (e) { failed += 1; log({ id: r.id, failed: `served copies: ${e.message}` }); }
+      }
+    }
+    await Promise.all(Array.from({ length: 4 }, worker));
+    save();
+    console.log(`served copies: ${made} of ${todo.length} done, ${failed} failed, ${((Date.now() - started) / 60000).toFixed(1)} min`);
+  }
+  return { ok: !failed, made, failed };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

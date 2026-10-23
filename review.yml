@@ -120,9 +120,8 @@ editor:
     - {app: admin, kind: breeder, screen: breeders, rows: "tr[data-open]", id_attr: data-open}
     - {app: admin, kind: breed, screen: breeds, rows: "tr[data-open]", id_attr: data-open}
     # The checklist opens grouped by area with every group closed, so its items are opened from
-    # the launch section's list: expand the row, then its Edit, assign or comment button. Only
-    # the launch section is opened, because a second section reached by changing the hash
-    # query shows the same rows (2026-10-23, review-ledger.md), and every item uses one drawer.
+    # the launch section's list: expand the row, then its Edit, assign or comment button. Every
+    # item uses the same drawer, so the launch section's items stand for the gate sections too.
     - {app: admin, kind: checklist-launch, screen: checklist-launch, rows: "button.cl-toggle", id_attr: data-item, then: 'button[data-open="{id}"]'}
     - {app: admin, kind: new-breed, screen: breeds, action: "#add-breed"}
     - {app: admin, kind: new-checklist-item, screen: checklist, action: "#cl-add"}

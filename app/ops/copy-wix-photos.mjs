@@ -25,6 +25,7 @@
 //   --batch n     photos per batch, one progress line and one D1 write each (default 100)
 //   --retry       try again the photos in failures.json, which a normal run skips
 //   --copies-only only make and upload the served copies (servedCopies below) for photos in R2
+//   --uploads n   R2 puts at once for the served copies (default 4). They touch only R2, not Wix
 //   --dry-run     list what would be copied and change nothing
 //
 // After the originals, every run makes the copies the site serves (ops/photo_copies.py): a
@@ -311,7 +312,7 @@ async function servedCopies(ids, log) {
         } catch (e) { failed += 1; log({ id: r.id, failed: `served copies: ${e.message}` }); }
       }
     }
-    await Promise.all(Array.from({ length: 4 }, worker));
+    await Promise.all(Array.from({ length: Number(opt('uploads', 4)) }, worker));
     save();
     console.log(`served copies: ${made} of ${todo.length} done, ${failed} failed, ${((Date.now() - started) / 60000).toFixed(1)} min`);
   }

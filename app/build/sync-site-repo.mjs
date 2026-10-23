@@ -23,7 +23,8 @@ import { fileURLToPath } from 'node:url';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
 const REPO = path.resolve(APP, '..');
-const SITE_CHECKS = path.resolve(REPO, '../site-checks/check_site.py');
+// SITE_CHECKS points elsewhere when this runs from a worktree, where ../site-checks is not beside it.
+const SITE_CHECKS = process.env.SITE_CHECKS || path.resolve(REPO, '../site-checks/check_site.py');
 
 /** Every file the site repository gets, as [path there, path here]. */
 export function fileList() {

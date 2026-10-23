@@ -184,6 +184,17 @@ R2 under `uploads/<breeder id>/<photo id>.<ext>`, the data names them `media/<ph
 site Worker serves them from R2 while their puppy is public (`lib/media.js`). A Wix photo not
 imported yet keeps its Wix address.
 
+The listing photos that were on Wix were copied into R2 on 2026-10-23 by
+`app/ops/copy-wix-photos.mjs` (workplan C2), and each row keeps its Wix address in `external_url`
+as the record of where it came from. The original, stripped of metadata, sits at the row's
+`r2_key` and is not served. The site serves the copies beside it that `app/ops/photo_copies.py`
+makes, at the portal's own sizes: `<key>.display`, 1600 px WebP, at `/media/<id>`;
+`<key>.card`, 640 px WebP, at `/media/<id>/card`; and `<key>.share`, 1200 px JPEG, at
+`/media/<id>/share` for og:image (Alex, 2026-10-23, after the 7.5 MB original of one photo took
+7.2 seconds to load on its breed page). An original that asked to be rotated was stored as Wix's
+own rotated full-size copy instead, because stripping removes the rotation. A breeder's own
+upload has no display or share copy, because the portal already drew it at 1600 px.
+
 ## Tests
 
 ```bash

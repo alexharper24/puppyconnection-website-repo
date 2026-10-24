@@ -6,7 +6,8 @@
 //                  videos      puppy videos Stream has finished with (lib/stream.js)
 //                  photos      photos still waiting for the quality check (lib/photocheck.js)
 //                  publish     the site, when changes have waited a minute (lib/publish.js, plan P4.4)
-//   0 13 * * *     daily       expiry warnings and expiry, the inactivity schedule, housekeeping, the backup, then the breeder link check
+//   0 13 * * *     daily       expiry warnings and expiry, the inactivity schedule, housekeeping, retention
+//                              (lib/retention.js), the backup, then the breeder link check
 // 13:00 UTC is 8 or 9 in the morning in Indiana, so warnings arrive at the start of the day.
 // Each job records its last run in job_runs, which the admin shows.
 
@@ -19,6 +20,7 @@ import { publishIfDue, checkBuild } from './publish.js';
 import { videoJob } from './stream.js';
 import { photoJob } from './photocheck.js';
 import { inactivityJob } from './inactivity.js';
+import { retentionJob } from './retention.js';
 
 const DAY = 86400000;
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
@@ -212,10 +214,12 @@ const videos = (env) => videoJob(env);
 const photos = (env) => photoJob(env, async (e) => (await settings(e)).photoCheckRoute);
 // The week-by-week inactivity schedule (lib/inactivity.js, workplan A2).
 const inactivity = (env) => inactivityJob(env);
+// What the privacy policy says is kept and for how long, and closed accounts removed (lib/retention.js, workplan D1).
+const retention = (env) => retentionJob(env);
 // What an alert calls each job, the same names the admin's Jobs screen uses.
 const JOB_TITLES = { expiry: 'listing expiry', housekeeping: 'housekeeping', backup: 'nightly backup', reconcile: 'checkout check', links: 'breeder link check',
-  campaigns: 'mailing list sending', videos: 'video check', photos: 'photo check', inactivity: 'inactivity schedule', publish: 'site publish', build: 'site build check', alerts: 'held alerts' };
-export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos, photos, inactivity };
+  campaigns: 'mailing list sending', videos: 'video check', photos: 'photo check', inactivity: 'inactivity schedule', retention: 'retention', publish: 'site publish', build: 'site build check', alerts: 'held alerts' };
+export const JOBS = { expiry, housekeeping, reconcile, backup, links, campaigns, videos, photos, inactivity, retention };
 
 export function runJob(env, name) {
   if (!JOBS[name]) throw new Error(`Unknown job ${name}`);
@@ -232,6 +236,6 @@ export async function scheduled(event, env) {
   if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await runJob(env, 'photos'), await record(env, 'publish', () => publishIfDue(env)),
     await record(env, 'build', () => checkBuild(env)), await runJob(env, 'campaigns'), await record(env, 'alerts', () => flushHeldAlerts(env))];
   const out = [];
-  for (const j of ['expiry', 'inactivity', 'housekeeping', 'backup', 'links']) out.push(await runJob(env, j));
+  for (const j of ['expiry', 'inactivity', 'housekeeping', 'retention', 'backup', 'links']) out.push(await runJob(env, j));
   return out;
 }

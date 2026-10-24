@@ -21,6 +21,7 @@ import { checkLitterParents, parentsFor, documentsFor } from '../lib/parents.js'
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
 import { buildExport } from '../lib/export.js';
 import { runJob, JOBS } from '../lib/jobs.js';
+import { KEEP } from '../lib/retention.js';
 import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
@@ -140,13 +141,18 @@ async function breederDetail(req, env, ctx, id) {
   const closeRequest = await env.DB.prepare(
     'SELECT id, reason, created_at FROM account_requests WHERE breeder_id = ? AND withdrawn_at IS NULL AND resolved_at IS NULL ORDER BY created_at DESC LIMIT 1',
   ).bind(id).first();
+  // A close already marked closed, with when the retention job removes or removed the account (lib/retention.js).
+  const closed = await env.DB.prepare(
+    'SELECT resolved_at, resolved_by, removed_at FROM account_requests WHERE breeder_id = ? AND withdrawn_at IS NULL AND resolved_at IS NOT NULL ORDER BY resolved_at LIMIT 1',
+  ).bind(id).first();
   // Plan P3.2 and P3.4. The private notes, newest first, and which terms version they accepted.
   const terms = await currentTerms(env);
   const breeds = (await env.DB.prepare('SELECT id, name FROM breeds ORDER BY name').all()).results;
   const members = (await env.DB.prepare('SELECT email, name, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(id).all()).results;
   // Workplan A13. The reference they named before submitting, shown beside Approve.
   const reference = await loadReference(env, id);
-  return json({ breeder: b, litters, parents, checkouts, audit, extras, members, reference, close_request: closeRequest || null, notes: await notesFor(env, id),
+  return json({ breeder: b, litters, parents, checkouts, audit, extras, members, reference, close_request: closeRequest || null,
+    closed: closed ? { ...closed, remove_after: new Date(Date.parse(closed.resolved_at) + KEEP.closeDays * 86400000).toISOString().slice(0, 19) + 'Z' } : null, notes: await notesFor(env, id),
     terms: { current: terms.version, accepted: b.terms_version || null }, breeds, registries: (await settings(env)).registries });
 }
 
@@ -171,7 +177,10 @@ async function addNote(req, env, ctx, id, who) {
   return json(await notesFor(env, id), 201);
 }
 
-/** Mark a breeder's request to close their account as followed up. Nothing is deleted. */
+/**
+ * Mark a breeder's request to close their account as closed. Nothing is deleted here. The daily
+ * retention job removes the account's information 30 days later (lib/retention.js, workplan D1).
+ */
 async function resolveClose(req, env, ctx, id, who) {
   requireSameOrigin(req);
   const t = now();
@@ -407,12 +416,12 @@ async function editLitter(req, env, ctx, id, who) {
 async function listCheckouts(req, env) {
   const status = new URL(req.url).searchParams.get('status');
   const { results } = await env.DB.prepare(
-    `SELECT c.*, bp.business_name,
-            (SELECT group_concat(p.name, ', ') FROM checkout_items i JOIN puppies p ON p.id = i.puppy_id WHERE i.checkout_id = c.id) AS puppies,
+    `SELECT c.*, COALESCE(bp.business_name, b.email || ' (closed)') AS business_name,
+            (SELECT group_concat(COALESCE(p.name, i.puppy_name), ', ') FROM checkout_items i LEFT JOIN puppies p ON p.id = i.puppy_id WHERE i.checkout_id = c.id) AS puppies,
             (SELECT status FROM payments pay WHERE pay.checkout_id = c.id) AS payment_status,
             (SELECT d.status FROM disputes d WHERE d.checkout_id = c.id ORDER BY d.opened_at DESC LIMIT 1) AS dispute_status,
             (SELECT COUNT(*) FROM disputes d WHERE d.checkout_id = c.id AND d.closed_at IS NULL) AS dispute_open
-       FROM checkouts c JOIN breeder_profiles bp ON bp.breeder_id = c.breeder_id
+       FROM checkouts c JOIN breeders b ON b.id = c.breeder_id LEFT JOIN breeder_profiles bp ON bp.breeder_id = c.breeder_id
       ${status ? 'WHERE c.status = ?' : ''} ORDER BY c.created_at DESC LIMIT 200`,
   ).bind(...(status ? [status] : [])).all();
   return json(results);
@@ -1004,7 +1013,9 @@ async function importSubscribers(req, env, ctx, id, who) {
 
 async function unsubscribeAdmin(req, env, ctx, id, who) {
   requireSameOrigin(req);
-  const r = await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ? WHERE id = ? AND status IN ('subscribed', 'contact')").bind(now(), id).run();
+  // Only what keeps the address from being emailed again stays (lib/retention.js).
+  const t = now();
+  const r = await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ?, name = NULL, import_batch = NULL, created_at = ? WHERE id = ? AND status IN ('subscribed', 'contact')").bind(t, t, id).run();
   if (r.meta.changes !== 1) throw notFound();
   await auditStmt(env, 'operator', who.email, 'subscriber.unsubscribe', 'subscriber', id, null, null).run();
   return json({ ok: true });

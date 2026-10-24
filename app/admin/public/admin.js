@@ -227,7 +227,7 @@
   /* Plan P3.9. Everything that needs an operator, from /api/attention: approvals, payments to
      review, disputes, a failed publish or job, close requests, and public contact details
      that changed in the last week. */
-  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check', campaigns: 'Mailing list sending', videos: 'Video check', photos: 'Photo check', inactivity: 'Inactivity schedule' };
+  var JOB_NAMES = { expiry: 'Listing expiry', housekeeping: 'Housekeeping', backup: 'Backup', reconcile: 'Checkout check', links: 'Breeder link check', campaigns: 'Mailing list sending', videos: 'Video check', photos: 'Photo check', inactivity: 'Inactivity schedule', retention: 'Retention' };
   function attentionItems(a) {
     var li = function (text, href, btn, sub) {
       return '<li><span>' + text + (sub ? '<span class="att-sub">' + sub + '</span>' : '') + '</span><a class="btn btn-sm" href="' + href + '">' + btn + '</a></li>';
@@ -430,8 +430,10 @@
           (x.kennel_url ? '<figure><img src="' + esc(x.kennel_url) + '&size=card" alt="' + esc(b.business_name) + ' kennel photo"><figcaption>Kennel photo</figcaption></figure>' : '') + '</div>' : '') +
         (b.description ? '<div class="card"><h3 style="margin-top:0">About</h3>' + String(b.description).split(/\n\s*\n/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div>' : '') +
         (data.close_request ? '<div class="notice notice-alert" id="close-req"><p><b>Asked to close their account</b> on ' + esc(day(data.close_request.created_at)) + '.' +
-          (data.close_request.reason ? ' Their reason: ' + esc(data.close_request.reason) : '') + '</p><p class="small">Nothing has been removed. Follow up with them, then mark it handled.</p>' +
-          '<div class="btn-row"><button class="btn btn-sm" id="close-handled">Mark handled</button></div></div>' : '') +
+          (data.close_request.reason ? ' Their reason: ' + esc(data.close_request.reason) : '') + '</p><p class="small">Nothing has been removed. Follow up with them first. Once you mark it closed, the daily job removes their profile, photos, videos, documents, listings, saved parents, people and sessions 30 days later, and keeps their payment records and activity record.</p>' +
+          '<div class="btn-row"><button class="btn btn-sm" id="close-handled">Mark closed</button></div></div>' : '') +
+        (data.closed ? '<div class="notice" id="closed-note"><p><b>Account closed</b> on ' + esc(day(data.closed.resolved_at)) + ' by ' + esc(data.closed.resolved_by || 'an operator') + '. ' +
+          (data.closed.removed_at ? 'Its information was removed on ' + esc(day(data.closed.removed_at)) + '.' : 'Its information is removed by the daily job on or after ' + esc(day(data.closed.remove_after)) + '.') + '</p></div>' : '') +
         // Workplan A13. The reference a new breeder names, beside Approve, so it can be checked first.
         (b.status === 'pending' && b.profile_submitted_at ? referenceCard(data.reference) : '') +
         '<div id="decide"><div class="btn-row">' + actions + '</div></div>' +
@@ -465,7 +467,7 @@
           wireHolds(d, function () { breederDrawer(id); });
           var ch = $('#close-handled', d);
           if (ch) ch.addEventListener('click', function () {
-            api('POST', '/api/breeders/' + b.id + '/close-request/resolve', {}).then(function () { toast('Marked handled'); refreshStats(); breederDrawer(id); })
+            api('POST', '/api/breeders/' + b.id + '/close-request/resolve', {}).then(function () { toast('Marked closed'); refreshStats(); breederDrawer(id); })
               .catch(function (err) { showError($('#close-req', d), err); });
           });
           $('#email-form', d).addEventListener('submit', function (e) {
@@ -929,6 +931,7 @@
     alerts: ['Held alerts', 'Every 15 minutes. Sends alerts that were held back once their hour is up.', 'auto'],
     inactivity: ['Photo reminders', 'Every morning. Emails breeders whose listings need a new photo, and takes listings off the site on the photo schedule.'],
     links: ['Breeder link check', 'Every morning. Checks each puppy\'s link and each breeder\'s website, and lists the ones that fail.'],
+    retention: ['Retention', 'Every morning. Removes a closed account 30 days after it is marked closed, deletes activity older than 2 years and payment records older than 7 years, and keeps only the address of anyone who unsubscribed.'],
   };
   // A job the cron records that this table does not name yet still shows, under its own name,
   // rather than stopping the whole screen (site review, 2026-10-23).
@@ -937,6 +940,7 @@
     if (!r) return '';
     if (job === 'expiry') return r.off ? 'Off, because listings do not expire' : plural(r.warned || 0, 'warning') + ' sent, ' + plural(r.expired || 0, 'listing') + ' expired';
     if (job === 'housekeeping') return (r.tokens || 0) + ' links, ' + (r.sessions || 0) + ' sessions and ' + (r.holds || 0) + ' holds cleared';
+    if (job === 'retention') return plural(r.accounts_removed || 0, 'closed account') + ' removed, ' + plural(r.activity_deleted || 0, 'old activity row') + ' and ' + plural(r.checkouts_deleted || 0, 'old payment') + ' deleted';
     if (job === 'backup') return r.rows ? r.rows.toLocaleString('en-US') + ' rows, ' + Math.round((r.bytes || 0) / 1024) + ' KB' : '';
     if (job === 'reconcile') return plural(r.closed || 0, 'checkout') + ' closed, ' + (r.fulfilled || 0) + ' published';
     return r.error || '';

@@ -495,8 +495,10 @@ p{margin:0 0 1rem;max-width:70ch}
 .qa h2:first-child{margin-top:0}
 /* The site's own pages: About, How it works, Tips, Reviews, Contact (2026-10-10). */
 .replace-this{display:inline-block;background:#fff3c4;border:1px dashed var(--bronze);color:var(--ink);padding:.15rem .45rem;font-size:.92em}
-.reviews{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:1.2rem}
-.review{margin:0;background:var(--paper-warm);border:1px solid var(--line);padding:1.3rem 1.4rem;display:flex;flex-direction:column;gap:.8rem}
+/* Reviews run in balanced columns (Alex, 2026-10-24), so a short review is not stretched to the
+   height of a long one beside it. Each card keeps to one column. */
+.reviews{columns:3 300px;column-gap:1.2rem}
+.review{margin:0 0 1.2rem;background:var(--paper-warm);border:1px solid var(--line);padding:1.3rem 1.4rem;display:flex;flex-direction:column;gap:.8rem;break-inside:avoid}
 .review blockquote{margin:0}
 .review blockquote p{margin:0;font-size:.98rem;line-height:1.6}
 .review figcaption{margin-top:auto;font-family:var(--cond);font-size:.82rem;letter-spacing:.12em;text-transform:uppercase;color:var(--olive)}

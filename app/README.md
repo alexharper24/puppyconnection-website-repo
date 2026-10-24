@@ -319,7 +319,7 @@ settings, terms and operators are not touched. The audit log and email log are k
   `pbkdf2-sha256$<iterations>$<salt>$<hash>`. Workers caps PBKDF2 at 100,000 iterations, which is
   the default. `PASSWORD_ITERATIONS` can set fewer (not below 10,000), and a sign-in with an older,
   lower count rehashes at the current one. One hash at 100,000 measured about 13 ms in Node and about
-  105 to 120 ms in local workerd on 2026-10-24, so it does not fit Workers Free's 10 ms of CPU.
+  50 to 122 ms in local workerd across four runs on 2026-10-24, so it does not fit Workers Free's 10 ms of CPU.
 - Wrong passwords and wrong authenticator codes are counted in `signin_failures`. Ten for one
   address, or a hundred from one network address, in 15 minutes stop further tries until the
   window passes. An address with no account still costs one hash, so the answer takes as long.
@@ -526,7 +526,7 @@ settings, terms and operators are not touched. The audit log and email log are k
 ## Pending
 
 - [ ] Password hashing and the Workers CPU limit (launch workplan A26). One PBKDF2 hash at the
-      100,000 maximum measured about 13 ms in Node and 105 to 120 ms in local workerd (2026-10-24),
+      100,000 maximum measured about 13 ms in Node and 50 to 122 ms in local workerd across four runs (2026-10-24),
       against Workers Free's 10 ms of CPU a request. Alex decides between Workers Paid for the portal,
       or a lower `PASSWORD_ITERATIONS` until then, before password sign-in goes to staging
 - [ ] The `TOTP_KEY` secret on the staging and production portal, a random value Alex generates,

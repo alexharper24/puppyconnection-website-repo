@@ -33,6 +33,7 @@ const WAIT_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0045_checklist
 const AMBER_NOTES_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0048_checklist_amber_plan_notes.sql'), 'utf8');
 const AMBER_DECISIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0051_checklist_amber_decisions.sql'), 'utf8');
 const LAUNCH_ASKS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0053_checklist_launch_asks.sql'), 'utf8');
+const RECOMMENDATIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0054_checklist_alex_recommendations.sql'), 'utf8');
 const GO_AHEAD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0049_checklist_build_go_ahead.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
@@ -99,6 +100,8 @@ db.exec(AMBER_DECISIONS_MIGRATION);
 db.exec(AMBER_DECISIONS_MIGRATION);
 db.exec(LAUNCH_ASKS_MIGRATION);
 db.exec(LAUNCH_ASKS_MIGRATION);
+db.exec(RECOMMENDATIONS_MIGRATION);
+db.exec(RECOMMENDATIONS_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -354,7 +357,11 @@ function areaSeedChecks() {
     ['B7', 'E1'].every((r) => byRef(r).owner === 'Alex' && byRef(r).status === 'not_started' && !byRef(r).waiting_on && live(r).filter((p) => !p.done_at).every((p) => p.owner === 'Alex')));
   const amberParts = items.filter((i) => i.area === 'content').flatMap((i) => live(i.ref).filter((p) => p.owner === 'Amber' && !p.done_at));
   check(`every open content item asks Amber one specific thing per part (${amberParts.length} parts)`,
-    amberParts.length >= 9 && !amberParts.some((p) => /four privacy decisions|About words, reviews and contact/.test(p.title)));
+    amberParts.length >= 4 && !amberParts.some((p) => /four privacy decisions|About words, reviews and contact/.test(p.title)));
+  check("migration 0054 takes Alex's answers: the seller statement approved, the privacy rules recommended for Amber to confirm, and reviews from the Business Profile",
+    live('A6').find((p) => p.id === 'cl-005-1').done_by === 'Alex' && byRef('D1').status === 'in_progress' &&
+    live('D1').filter((p) => p.owner === 'Amber').map((p) => p.title).join() === 'Read the finished privacy policy and confirm it' &&
+    live('D4').some((p) => p.owner === 'Alex' && /Google Business Profile/.test(p.title)) && !live('D4').some((p) => /three reviews/.test(p.title)));
   check('migration 0053 adds the three build items from 2026-10-24 under the build area',
     ['A24', 'A25', 'A26'].every((r) => byRef(r) && byRef(r).area === 'build' && byRef(r).section === 'launch' && live(r).length === 2));
   const e6 = byRef('E6');
@@ -375,7 +382,7 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION, RECOMMENDATIONS_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===

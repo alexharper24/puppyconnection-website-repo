@@ -22,24 +22,38 @@ function signOff() {
 }
 
 export const TEMPLATES = {
-  // Plan P6.2. The code is for the browser that asked, typed into the page still open there,
-  // and the link works anywhere. Either one signs in once, and both end after 15 minutes.
-  signin_link: ({ link, code, purpose }) => ({
-    subject: purpose === 'signup' ? 'Finish creating your Puppy Connection account' : 'Your Puppy Connection sign-in link',
-    text: (purpose === 'signup' ? 'Thanks for signing up.' : 'Here is the sign-in you asked for.') +
-      (code ? `\n\nYour sign-in code is\n\n    ${code}\n\nType it into the Puppy Connection page you have open, in the same browser where you asked for it.` : '') +
-      `\n\n${code ? 'Or open this link' : 'Open this link'} and press Sign in.\n\n${link}\n\n` +
-      `${code ? 'The code and the link each work once' : 'The link works once'} and stop working after 15 minutes. ` +
-      `If you did not ask for this, you can ignore it and nothing will change.${code ? ' Never share the code with anyone.' : ''}` + signOff(),
+  // Launch workplan A26. Email carries only invitations and password resets. Sign-in is a
+  // password (with an authenticator app if the person set one up) or Google, never an emailed code.
+  // A new breeder proves the address first, and the link opens the page that sets the password.
+  signup_verify: ({ link }) => ({
+    subject: 'Confirm your email to finish creating your Puppy Connection account',
+    text: 'Thanks for signing up to list with Puppy Connection.\n\nOpen this link to confirm this is your email address and choose your password.\n\n' +
+      `${link}\n\nThe link works once and stops working after 24 hours. If you did not sign up, you can ignore this email and nothing will change.` + signOff(),
     link,
   }),
-  // A breeder added this person to their kennel. They sign in with this address the usual way.
-  member_added: ({ business, by, portalUrl }) => ({
+  password_reset: ({ link }) => ({
+    subject: 'Set your Puppy Connection password',
+    text: 'Here is the link to set a new password for the breeder portal. If you have never had a password, this sets your first one.\n\n' +
+      `${link}\n\nThe link works once and stops working after 1 hour. If you did not ask for this, you can ignore it and your password stays as it is.` + signOff(),
+    link,
+  }),
+  // Workplan A25. Puppy Connection invites someone to a kennel from the admin.
+  invitation: ({ business, link, days }) => ({
+    subject: `You are invited to manage ${business} on Puppy Connection`,
+    text: `Puppy Connection has invited you to manage ${business} in the breeder portal, where you can keep its profile, litters and puppies up to date.\n\n` +
+      `Open this link to choose your password and sign in.\n\n${link}\n\nThe link works once and stops working after ${days} days. ` +
+      'After that you sign in with this email address and your password, or with Continue with Google if this address is a Google account. ' +
+      'If you were not expecting this, you can ignore it, or reply and let us know.' + signOff(),
+    link,
+  }),
+  // A breeder added this person to their kennel. The link sets their password, as an invitation does.
+  member_added: ({ business, by, link, days }) => ({
     subject: `You can now sign in to ${business} on Puppy Connection`,
     text: `${by} added you to ${business} on Puppy Connection, so you can manage its profile, litters and puppies.\n\n` +
-      `To sign in, open the breeder portal and enter this email address. We will send you a sign-in code.\n\n${portalUrl}\n\n` +
+      `Open this link to choose your password and sign in.\n\n${link}\n\nThe link works once and stops working after ${days} days. ` +
+      'After that you sign in with this email address and your password, or with Continue with Google if this address is a Google account. ' +
       'If you were not expecting this, you can ignore it, or reply and let us know.' + signOff(),
-    link: portalUrl,
+    link,
   }),
   // Plan P6.6. Sent to the sign-in address, so the real owner hears about a change they did not make.
   contact_changed: ({ business, changes, by, portalUrl }) => ({

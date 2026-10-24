@@ -456,3 +456,18 @@ table.list .row-acts { margin-top: .4rem; }
 .quality li { margin: .2rem 0; }
 .quality-ok { border-left-color: var(--ok); background: var(--ok-bg); }
 .quality-note { color: var(--warn); }
+/* Launch workplan A24 to A26. The operator's banner, the authenticator set-up, and people on a kennel. */
+.operator-banner { border-left-color: #6b4fa0; background: #f6f3fb; display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between; }
+.operator-banner p { margin: 0; flex: 1 1 260px; min-width: 0; overflow-wrap: anywhere; }
+.setup-steps { margin: 0 0 1rem; padding-left: 1.2rem; }
+.qr-box { display: flex; justify-content: center; margin: .5rem 0 1rem; }
+.qr-box svg { width: 220px; max-width: 100%; height: auto; background: #fff; }
+.secret-key code { display: inline-block; font-size: 1rem; letter-spacing: .08em; overflow-wrap: anywhere; word-break: break-all; }
+.recovery-codes { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(8.5rem, 1fr)); gap: .4rem; }
+.recovery-codes code { font-size: 1rem; }
+.member-list li .btn-row { flex-wrap: wrap; justify-content: flex-end; margin: 0; }
+.access-toggle { margin: .4rem 0; font-weight: 600; }
+fieldset.field { border: 0; padding: 0; margin: 0 0 1rem; }
+fieldset.field legend { font-weight: 600; margin-bottom: .4rem; }
+fieldset.field .check { margin: .3rem 0; }
+@media (max-width: 560px) { .member-list li { flex-wrap: wrap; } .member-list li .btn-row { justify-content: flex-start; } }

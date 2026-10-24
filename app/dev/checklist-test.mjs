@@ -32,12 +32,13 @@ const AREAS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0044_checklis
 const WAIT_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0045_checklist_search_console_wait.sql'), 'utf8');
 const AMBER_NOTES_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0048_checklist_amber_plan_notes.sql'), 'utf8');
 const AMBER_DECISIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0051_checklist_amber_decisions.sql'), 'utf8');
+const LAUNCH_ASKS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0053_checklist_launch_asks.sql'), 'utf8');
 const GO_AHEAD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0049_checklist_build_go_ahead.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
 const DAY_ONE = 6;
 // The day-one items from migration 0036, the Puppy video item from 0039, and Search Console access from 0044.
-const ADDED = DAY_ONE + 4; // + search by distance and PayPal back as later Gate 1 items (0048)
+const ADDED = DAY_ONE + 4 + 3; // + search by distance and PayPal back as later Gate 1 items (0048), + the three build items of 2026-10-24 (0053)
 
 let fails = 0, passes = 0;
 function check(label, ok, detail) {
@@ -96,6 +97,8 @@ db.exec(GO_AHEAD_MIGRATION);
 db.exec(GO_AHEAD_MIGRATION);
 db.exec(AMBER_DECISIONS_MIGRATION);
 db.exec(AMBER_DECISIONS_MIGRATION);
+db.exec(LAUNCH_ASKS_MIGRATION);
+db.exec(LAUNCH_ASKS_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -156,7 +159,7 @@ function seedChecks() {
     ['A19', 'A20', 'A21'].every((r) => byRef(r).section === 'launch' && byRef(r).area === 'build' && byRef(r).status === 'in_progress' && !byRef(r).waiting_on && !byRef(r).waiting_owner &&
       audits(byRef(r).id, '2026-10-21T18:00:00Z') === 1 && audits(byRef(r).id, '2026-10-21T20:00:00Z') === 1));
   check('migration 0049 leaves Report a listing waiting only on the privacy policy line and real email, not on Alex, audited once',
-    byRef('A5').status === 'waiting' && !byRef('A5').waiting_owner && /^the privacy policy line and real email/.test(byRef('A5').waiting_on) && audits(byRef('A5').id, '2026-10-21T20:00:00Z') === 1);
+    byRef('A5').status === 'waiting' && !byRef('A5').waiting_owner && /^the privacy policy/.test(byRef('A5').waiting_on) && /real email$/.test(byRef('A5').waiting_on) && audits(byRef('A5').id, '2026-10-21T20:00:00Z') === 1);
   const video = items.find((i) => i.title === 'Puppy video');
   check('migration 0039 closes Furry Freight and the puppy details as Alex, and moves the Stream part to a new Gate 1 Puppy video item',
     byRef('D6').status === 'done' && byRef('D6').done_by === 'Alex' && byRef('A3').status === 'done' && video && ['gate1', 'launch'].includes(video.section) && video.owner === 'Alex' &&
@@ -315,11 +318,13 @@ async function routeChecks() {
 const BRIEF = {
   'domain-email': ['E1', 'E2', 'B7', 'B8', 'B3', 'B9'],
   payments: ['B2', 'F3'],
-  access: ['B4', 'B5', 'E6'],
+  access: ['B4', 'B5'],
   content: ['A18', 'A6', 'A15', 'D1', 'A4', 'A5', 'D2', 'D4'],
   listings: ['C1', 'C2', 'F2'],
-  search: ['E3', 'E4', 'B11', 'C4', 'E5'],
-  readiness: ['F1', 'F4', 'F5', 'F6'],
+  search: ['E3', 'B11', 'C4', 'E5'],
+  readiness: ['F1'],
+  // Alex, 2026-10-24 (migration 0053): not launch blockers.
+  'after-launch': ['E4', 'E6', 'F4', 'F5', 'F6'],
 };
 const sandbox = {};
 vm.runInNewContext(fs.readFileSync(path.join(APP, 'admin/public/checklist-areas.js'), 'utf8'), sandbox);
@@ -331,7 +336,8 @@ function areaSeedChecks() {
   const areas = db.prepare('SELECT * FROM checklist_areas ORDER BY position').all();
   const byRef = (r) => items.find((i) => i.ref === r);
   check('migration 0044 adds eight areas, in the order that unblocks the most, with Domain and email first and the launch build last',
-    areas.map((a) => a.id).join() === 'domain-email,access,content,payments,listings,search,readiness,build' && areas[0].name === 'Domain and email');
+    areas.map((a) => a.id).slice(0, 8).join() === 'domain-email,access,content,payments,listings,search,readiness,build' && areas[0].name === 'Domain and email');
+  check('migration 0053 adds After launch, not blocking as the ninth area', areas.length === 9 && areas[8].id === 'after-launch');
   const wrong = Object.entries(BRIEF).flatMap(([a, refs]) => refs.filter((r) => !byRef(r) || byRef(r).area !== a).map((r) => `${r} is ${byRef(r)?.area}`));
   check('every item Alex named sits in the area he named for it', !wrong.length, wrong.join('; '));
   const openLaunch = items.filter((i) => i.section === 'launch' && i.status !== 'done' && !i.archived_at);
@@ -340,17 +346,25 @@ function areaSeedChecks() {
   const gateAreas = items.filter((i) => i.section !== 'launch' && i.area);
   check('the gate items take an area only where one fits, which is Stripe Connect under Payments',
     gateAreas.length === 1 && /Stripe Connect/.test(gateAreas[0].title) && gateAreas[0].area === 'payments');
-  const grants = ['B4', 'B5', 'E6'].map((r) => db.prepare('SELECT owner FROM checklist_parts WHERE item_id = ? AND archived_at IS NULL ORDER BY position').all(byRef(r).id).map((p) => p.owner));
-  check('each grant under Access to grant has parts naming who gives it (Amber) and who uses it (Alex)',
-    grants.every((o) => o.includes('Amber') && o.includes('Alex')), JSON.stringify(grants));
+  const live = (r) => db.prepare('SELECT * FROM checklist_parts WHERE item_id = ? AND archived_at IS NULL ORDER BY position').all(byRef(r).id);
+  check("migration 0053 leaves Google sign-in to Alex alone, and Luke's address is answered with nobody added",
+    live('B4').every((p) => p.owner === 'Alex') && live('B4').length === 1 && byRef('B4').status === 'not_started' &&
+    live('B5').some((p) => p.id === 'cl-013-1' && p.done_at) && !live('B5').some((p) => p.id === 'cl-013-2'));
+  check('migration 0053 gives Resend and the nameserver change to Alex alone, with nothing waiting',
+    ['B7', 'E1'].every((r) => byRef(r).owner === 'Alex' && byRef(r).status === 'not_started' && !byRef(r).waiting_on && live(r).filter((p) => !p.done_at).every((p) => p.owner === 'Alex')));
+  const amberParts = items.filter((i) => i.area === 'content').flatMap((i) => live(i.ref).filter((p) => p.owner === 'Amber' && !p.done_at));
+  check(`every open content item asks Amber one specific thing per part (${amberParts.length} parts)`,
+    amberParts.length >= 9 && !amberParts.some((p) => /four privacy decisions|About words, reviews and contact/.test(p.title)));
+  check('migration 0053 adds the three build items from 2026-10-24 under the build area',
+    ['A24', 'A25', 'A26'].every((r) => byRef(r) && byRef(r).area === 'build' && byRef(r).section === 'launch' && live(r).length === 2));
   const e6 = byRef('E6');
   const oldPart = db.prepare("SELECT * FROM checklist_parts WHERE id = 'cl-024-2'").get();
   check("Search Console access is its own item waiting on Amber, and her old part on the Search Console item is archived and kept",
     e6.title === 'Search Console access for Alex' && e6.status === 'waiting' && e6.waiting_owner === 'Amber' && e6.created_by === 'Claude' &&
     oldPart && oldPart.archived_at && byRef('E4').waiting_on === 'Search Console access for Alex, under Access to grant');
-  const areaAudits = db.prepare("SELECT entity_id, COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND json_extract(after_json, '$.area') IS NOT NULL GROUP BY entity_id").all();
+  const areaAudits = db.prepare("SELECT entity_id, COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND json_extract(after_json, '$.area') IS NOT NULL AND at != '2026-10-24T22:30:00Z' GROUP BY entity_id").all();
   check(`each item's area is audited once as Claude, and running the migration again adds nothing (${areaAudits.length} items)`,
-    areaAudits.length === items.filter((i) => i.area).length && areaAudits.every((a) => a.n === 1) &&
+    areaAudits.length === items.filter((i) => i.area && i.created_at !== '2026-10-24T22:30:00Z').length && areaAudits.every((a) => a.n === 1) &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.part.add' AND entity_id IN ('cl-012','cl-013','cl-081')").get().n === 8);
   const wp = workplanItems(fs.readFileSync(path.join(APP, 'docs/launch-workplan.md'), 'utf8'));
   check('the workplan gives every item an area except the one that moved to Gate 1', wp.filter((w) => !w.area).map((w) => w.id).join() === 'A16');
@@ -361,19 +375,19 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===
     db.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join();
   check('on a database from before areas the whole migration applies, a second run stops at the ALTER, and the areas match a new database',
-    hadArea === 0 && same && /duplicate column/i.test(again) && old.prepare('SELECT COUNT(*) AS n FROM checklist_areas').get().n === 8);
+    hadArea === 0 && same && /duplicate column/i.test(again) && old.prepare('SELECT COUNT(*) AS n FROM checklist_areas').get().n === 9);
   old.close();
 }
 
 async function areaRouteChecks() {
   let r = await call(SHARED, 'GET', '/api/checklist');
-  check('the checklist answer carries the areas in order', r.status === 200 && r.data.areas.map((a) => a.id)[0] === 'domain-email' && r.data.areas.length === 8 &&
+  check('the checklist answer carries the areas in order', r.status === 200 && r.data.areas.map((a) => a.id)[0] === 'domain-email' && r.data.areas.length === 9 &&
     r.data.items.every((i) => 'area' in i));
   const terms = db.prepare("SELECT * FROM checklist_items WHERE ref = 'D2'").get();
   r = await call(SHARED, 'PUT', `/api/checklist/items/${terms.id}`, { version: terms.version, area: 'listings', as: 'Amber' });
@@ -401,13 +415,13 @@ function areaViewChecks() {
   const areas = db.prepare('SELECT id, name, position FROM checklist_areas ORDER BY position').all();
   const groups = AR.byArea(items, areas);
   check('By area lists the areas in order, then the gate items with no area under their gate, and every item once',
-    groups.map((g) => g.label).slice(0, 8).join('|') === areas.map((a) => a.name).join('|') &&
-    groups.slice(8).map((g) => g.label).join('|') === 'Gate 1 additions|Gate 2 additions|Gate 3 additions' &&
+    groups.map((g) => g.label).slice(0, areas.length).join('|') === areas.map((a) => a.name).join('|') &&
+    groups.slice(areas.length).map((g) => g.label).join('|') === 'Gate 1 additions|Gate 2 additions|Gate 3 additions' &&
     groups.reduce((n, g) => n + g.items.length, 0) === items.length);
   const dom = groups[0];
   const line = AR.waitSummary(dom.items);
   check(`the summary names who an area waits on, people first ("${line}")`,
-    /^Waiting on Amber for \d/.test(line) && /, on the domain for 2/.test(line) && !/,\s*$/.test(line));
+    /^Waiting on Alex for 2, on Amber for 1/.test(line) && /, on the domain for 2/.test(line) && !/,\s*$/.test(line));
   check('a waiting line with no person is cut to its subject, and a line naming both people stays both',
     AR.waitWho({ status: 'waiting', waiting_on: 'the domain moving to Cloudflare', owner: 'Alex' }) === 'the domain' &&
     AR.waitWho({ status: 'waiting', waiting_on: 'the site, portal and admin being on puppy-connection.com', owner: 'Alex' }) === 'the site' &&
@@ -424,7 +438,7 @@ function areaViewChecks() {
     !flat.some((a) => a.text === 'Search Console, Bing and the Business Profile') && flat.filter((a) => /Search Console/.test(a.text)).length === 1 &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = 'cl-024' AND at = '2026-10-20T17:00:00Z'").get().n === 1);
   check('it adds an item waiting on her with no part of hers, such as the listing terms, and leaves out done and archived parts',
-    flat.some((a) => a.text === 'Listing terms' && !a.partId) && !flat.some((a) => a.partId === 'cl-024-2') &&
+    AR.asksFor([{ id: 'x', section: 'launch', area: 'content', title: 'Listing terms', status: 'waiting', waiting_owner: 'Amber', owner: 'Alex', parts: [] }], areas, 'Amber').flatMap((g) => g.asks).some((a) => a.text === 'Listing terms' && !a.partId) && !flat.some((a) => a.partId === 'cl-024-2') &&
     !flat.some((a) => a.partId && db.prepare('SELECT done_at FROM checklist_parts WHERE id = ?').get(a.partId).done_at) &&
     flat.some((a) => a.partId === 'cl-081-1'));
   const text = AR.asksText(asks, 'Amber', new Date('2026-10-20T12:00:00'));

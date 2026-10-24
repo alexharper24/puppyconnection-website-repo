@@ -145,6 +145,9 @@ async function main() {
       db.prepare("INSERT INTO disputes (id, payment_intent, checkout_id, status, opened_at, updated_at) VALUES (?, ?, ?, 'won', ?, ?)").bind(`${co}-dp`, `${co}-pi`, co, at, at),
       db.prepare("INSERT INTO stripe_events (event_id, type, livemode, received_at) VALUES (?, 'checkout.session.completed', 0, ?)").bind(`${co}-ev`, at),
     ]),
+    // Operator notes and listing reports about the breeder who stays, at 23 and 25 months (Alex, 2026-10-24: kept 2 years).
+    db.prepare("INSERT INTO operator_notes (id, breeder_id, author, body, created_at) VALUES ('ret-e-n23', 'ret-e', 'amber@puppyconnection.test', 'At 23 months.', ?), ('ret-e-n25', 'ret-e', 'amber@puppyconnection.test', 'At 25 months.', ?)").bind(ago(700), ago(760)),
+    db.prepare("INSERT INTO listing_reports (id, breeder_id, puppy_id, reason, details, reporter_email, created_at) VALUES ('ret-e-r23', 'ret-e', 'ret-e-p0', 'other', 'At 23 months.', 'family@family.test', ?), ('ret-e-r25', 'ret-e', 'ret-e-p0', 'other', 'At 25 months.', 'family@family.test', ?)").bind(ago(700), ago(760)),
     // Page and search counts, old and new.
     db.prepare("INSERT INTO puppy_stats (puppy_id, day, views, clicks) VALUES ('ret-e-p1', ?, 9, 2), ('ret-e-p1', ?, 4, 0)").bind(yearsAgo(8).slice(0, 10), ago(1).slice(0, 10)),
     db.prepare("INSERT INTO breed_searches (breed_id, day, searches) VALUES ('breed-havanese', ?, 12), ('breed-havanese', ?, 3)").bind(yearsAgo(8).slice(0, 10), ago(1).slice(0, 10)),
@@ -182,7 +185,8 @@ async function main() {
   check('the run wrote one audit row per account removed and one per batch deleted, and kept every one of them',
     runRows.filter((x) => x.action === 'account.removed').length === 1 && runRows.filter((x) => x.action === 'retention.activity_deleted').length === 1
       && runRows.filter((x) => x.action === 'retention.payments_deleted').length === 1 && runRows.filter((x) => x.action === 'retention.payment_events_deleted').length === 1
-      && runRows.filter((x) => x.action === 'retention.unsubscribed_tidied').length === 1,
+      && runRows.filter((x) => x.action === 'retention.unsubscribed_tidied').length === 1
+      && runRows.filter((x) => x.action === 'retention.operator_notes_deleted').length === 1 && runRows.filter((x) => x.action === 'retention.listing_reports_deleted').length === 1,
     runRows.map((x) => x.action).join(', '));
   check('the activity rows the run wrote all sit above the highest id that existed before it', (await db.prepare("SELECT MIN(id) AS n FROM audit_log WHERE actor = 'retention'").first()).n > auditMaxBefore);
 
@@ -216,8 +220,8 @@ async function main() {
 
   // The closed account
   const after = { c: await countsFor(env, 'ret-c'), d: await countsFor(env, 'ret-d'), e: await countsFor(env, 'ret-e') };
-  const gonePart = ['breeder_profiles', 'breeder_breeds', 'breeder_members', 'sessions', 'parent_dogs', 'litters', 'puppies', 'photos', 'puppy_videos', 'documents'];
-  check('a close resolved 30 days ago removes the profile, breeds raised, people, sessions, saved parents, litters, puppies, photos, videos and documents',
+  const gonePart = ['breeder_profiles', 'breeder_breeds', 'breeder_members', 'breeder_references', 'sessions', 'parent_dogs', 'litters', 'puppies', 'photos', 'puppy_videos', 'documents'];
+  check('a close resolved 30 days ago removes the profile, breeds raised, people, the reference, sessions, saved parents, litters, puppies, photos, videos and documents',
     gonePart.every((tb) => before.c[tb] > 0 && after.c[tb] === 0), JSON.stringify(after.c));
   check("its R2 files go: photos and card copies, logo, kennel photo, parent photo, both documents, the video and a file no row named",
     filesBefore.c.length === 13 && filesOf(env, 'ret-c').length === 0 && !fs.existsSync(path.join(bucket, 'uploads', 'ret-c', 'orphan.webp')),
@@ -227,8 +231,8 @@ async function main() {
       && (await db.prepare("SELECT group_concat(puppy_name, '|') AS n FROM (SELECT puppy_name FROM checkout_items WHERE checkout_id = 'ret-c-co' ORDER BY puppy_name)").first()).n === 'Closing Kennel Pup 0|Closing Kennel Pup 1');
   check('its activity record stays, with one row for the removal',
     after.c.audit === before.c.audit && (await db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'account.removed' AND entity_id = 'ret-c'").first()).n === 1);
-  check('nothing else of the account is deleted: the breeder row, reference, notes, reports and the close request stay',
-    ['breeders', 'breeder_references', 'operator_notes', 'listing_reports', 'account_requests'].every((tb) => after.c[tb] === before.c[tb]), JSON.stringify(after.c));
+  check('nothing else of the account is deleted: the breeder row, its recent operator notes and listing reports, and the close request stay',
+    ['breeders', 'operator_notes', 'listing_reports', 'account_requests'].every((tb) => after.c[tb] === before.c[tb]), JSON.stringify(after.c));
   const cRow = await db.prepare("SELECT b.status, b.status_reason, ar.removed_at FROM breeders b JOIN account_requests ar ON ar.breeder_id = b.id WHERE b.id = 'ret-c'").first();
   check('the account is suspended with the reason, the request records the removal, and the site is marked to publish',
     cRow.status === 'suspended' && /closed/i.test(cRow.status_reason) && cRow.removed_at && (await db.prepare('SELECT dirty FROM site_state WHERE id = 1').first()).dirty === 1, JSON.stringify(cRow));
@@ -236,8 +240,13 @@ async function main() {
 
   // 29 days and the other breeder
   check('a close resolved 29 days ago removes nothing', JSON.stringify(after.d) === JSON.stringify(before.d) && JSON.stringify(filesOf(env, 'ret-d')) === JSON.stringify(filesBefore.d), JSON.stringify(after.d));
-  const eExpect = { ...before.e, checkouts: before.e.checkouts - 1, checkout_items: before.e.checkout_items - 1 };
-  check('the other breeder is untouched apart from its one payment past seven years',
+  const eExpect = { ...before.e, checkouts: before.e.checkouts - 1, checkout_items: before.e.checkout_items - 1,
+    operator_notes: before.e.operator_notes - 1, listing_reports: before.e.listing_reports - 1 };
+  const kept = async (tb, id) => (await db.prepare(`SELECT COUNT(*) AS n FROM ${tb} WHERE id = ?`).bind(id).first()).n;
+  check('an operator note and a listing report written 23 months ago stay, and ones written 25 months ago are deleted',
+    (await kept('operator_notes', 'ret-e-n23')) === 1 && (await kept('listing_reports', 'ret-e-r23')) === 1
+      && (await kept('operator_notes', 'ret-e-n25')) === 0 && (await kept('listing_reports', 'ret-e-r25')) === 0 && r1.notes_deleted === 1 && r1.reports_deleted === 1, JSON.stringify(r1));
+  check('the other breeder is untouched apart from its one payment past seven years and its note and report past two years',
     JSON.stringify(after.e) === JSON.stringify(eExpect) && JSON.stringify(filesOf(env, 'ret-e')) === JSON.stringify(filesBefore.e), JSON.stringify({ before: before.e, after: after.e }));
 
   // The site
@@ -347,10 +356,12 @@ retention job's own time on Node, D1 and R2 time left out, median of ${runs} run
     audit: await plan('SELECT id FROM audit_log WHERE at < ? AND id <= ? ORDER BY at, id LIMIT 1000', c.audit, 1e9),
     checkouts: await plan('SELECT id FROM checkouts WHERE created_at < ? ORDER BY created_at, id LIMIT 40', c.payment),
     events: await plan('SELECT 1 FROM stripe_events WHERE received_at < ? LIMIT 500', c.payment),
+    notes: await plan('SELECT id FROM operator_notes WHERE created_at < ? ORDER BY created_at, id LIMIT 500', c.audit),
+    reports: await plan('SELECT id FROM listing_reports WHERE created_at < ? ORDER BY created_at, id LIMIT 500', c.audit),
     log: await plan("SELECT e.id FROM subscribers s JOIN email_log e ON e.to_addr = s.email WHERE s.status = 'unsubscribed' AND e.template = 'campaign' LIMIT 1000"),
   };
-  check('the daily reads of the activity record, checkouts, Stripe events and email log go through an index, not a whole-table scan',
-    !/SCAN (audit_log|checkouts|stripe_events|e)\b(?! USING)/.test(Object.values(plans).join(' | ')), JSON.stringify(plans));
+  check('the daily reads of the activity record, checkouts, Stripe events, notes, reports and email log go through an index, not a whole-table scan',
+    !/SCAN (audit_log|checkouts|stripe_events|operator_notes|listing_reports|e)\b(?! USING)/.test(Object.values(plans).join(' | ')), JSON.stringify(plans));
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

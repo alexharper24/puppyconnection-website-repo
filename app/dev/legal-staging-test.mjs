@@ -56,9 +56,10 @@ const get = (url, headers = {}) => fetch(url, { headers, redirect: 'manual' });
     [/<h2>Our email list<\/h2>/, /one click takes you off the list/, /each person you add to your account/, /cannot see the email list/].every((rx) => rx.test(p)));
   check('/privacy gives the contact address Alex set, info@puppy-connection.com, for questions and closing',
     (p.match(/<a href="mailto:info@puppy-connection\.com">info@puppy-connection\.com<\/a>/g) || []).length === 2);
-  check('/privacy states the retention rules of 2026-10-24: activity 2 years, payments 7 years, counts kept, unsubscribed address only, closed accounts within 30 days',
+  check('/privacy states the retention rules of 2026-10-24: activity 2 years, payments 7 years, counts kept, unsubscribed address only, closed accounts within 30 days with the reference, notes and reports 2 years, staff kept from the email log',
     [/activity record is kept for 2 years/, /Payment records are kept for 7 years/, /breed search counts are kept, because they hold nothing about any visitor/,
-      /only so it is never emailed again\. We remove your name/, /Within 30 days of your account being closed, we remove your profile, photos, videos, documents, listings, saved moms and dads, the people on your account and every sign-in session/,
+      /only so it is never emailed again\. We remove your name/, /Within 30 days of your account being closed, we remove your profile, photos, videos, documents, listings, saved moms and dads, the people on your account, the reference you named and every sign-in session/,
+      /Listing reports, and Puppy Connection's own notes about a breeder, are kept for 2 years/, /cannot see the email list, the record of emails sent or listing reports/,
       /payment records and the activity record are kept for the periods above/].every((rx) => rx.test(p)));
   check('/privacy describes the launch additions: breed search counting, listing reports, the photo check and puppy videos',
     [/search for a breed on the browse page/, /<h2>Reporting a listing<\/h2>/, /automated check, run on Cloudflare's AI service/, /Cloudflare Stream/].every((rx) => rx.test(p)));

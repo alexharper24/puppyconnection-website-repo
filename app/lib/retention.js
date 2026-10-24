@@ -16,8 +16,10 @@
 //                      people on the account and every session go, with their files in R2 and
 //                      their videos at Stream. The breeders row stays, suspended, because the
 //                      payment records and the activity record still name it for their periods.
-//                      Nothing else of the account is deleted: the reference, operator notes,
-//                      listing reports, the close request and the email log stay.
+//                      The reference goes with them (Alex, 2026-10-24). Operator notes and listing
+//                      reports stay on their own 2 years, and the close request and email log stay.
+//   notes, reports     operator_notes and listing_reports older than 2 years by created_at are
+//                      deleted, whoever they are about (Alex, 2026-10-24)
 //
 // Every delete names its table and its bound, never a whole table. Each run writes one audit row per
 // account removed and per batch of old rows deleted, and the activity record is pruned only below
@@ -40,6 +42,7 @@ export const LIMITS = {
   checkoutBatch: 40, checkoutBatches: 3,      // 40 keeps each IN list under D1's 100 bound values
   eventBatch: 500,                            // Stripe event receipts and loose disputes per run
   unsubBatch: 1000,                           // unsubscribed rows tidied, send rows and log rows per run
+  noteBatch: 500, noteBatches: 2,             // operator notes and listing reports, each table
   accounts: 2,                                // closed accounts removed per run
   videos: 5,                                  // Stream deletes per run, each an outside request
   listPages: 5,                               // R2 list calls per prefix per account
@@ -82,6 +85,27 @@ async function pruneAudit(env, cut, ceiling) {
     if (r.n < LIMITS.auditBatch) break;
   }
   return { rows, batches };
+}
+
+/**
+ * Operator notes and listing reports older than two years, oldest first, in batches. Each table's
+ * batch is the same ordered subquery in the count and in the delete, read through its created_at
+ * index (migrations/0060).
+ */
+async function pruneOld(env, table, cut) {
+  let rows = 0;
+  const pick = `SELECT id FROM ${table} WHERE created_at < ? ORDER BY created_at, id LIMIT ?`;
+  for (let i = 0; i < LIMITS.noteBatches; i += 1) {
+    const r = await env.DB.prepare(`SELECT COUNT(*) AS n FROM (${pick})`).bind(cut, LIMITS.noteBatch).first();
+    if (!r || !r.n) break;
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM ${table} WHERE id IN (${pick})`).bind(cut, LIMITS.noteBatch),
+      audit(env, `retention.${table}_deleted`, table, `before ${cut}`, { rows: r.n, older_than: cut }),
+    ]);
+    rows += r.n;
+    if (r.n < LIMITS.noteBatch) break;
+  }
+  return rows;
 }
 
 /** Payment records older than seven years, a batch of checkouts at a time, children first. */
@@ -211,6 +235,7 @@ async function removeAccount(env, acct, budget) {
     ['parents', 'DELETE FROM parent_dogs WHERE breeder_id = ?'],
     ['breeds_raised', 'DELETE FROM breeder_breeds WHERE breeder_id = ?'],
     ['people', 'DELETE FROM breeder_members WHERE breeder_id = ?'],
+    ['reference', 'DELETE FROM breeder_references WHERE breeder_id = ?'],
     ['sessions', 'DELETE FROM sessions WHERE breeder_id = ?'],
     ['profile', 'DELETE FROM breeder_profiles WHERE breeder_id = ?'],
   ];
@@ -247,12 +272,16 @@ export async function retentionJob(env, { nowMs = Date.now() } = {}) {
   for (const a of await dueAccounts(env, cut.close)) accounts.push(await removeAccount(env, a, budget));
   const payments = await prunePayments(env, cut.payment);
   const unsubscribed = await tidyUnsubscribed(env);
+  const notes = await pruneOld(env, 'operator_notes', cut.audit);
+  const reports = await pruneOld(env, 'listing_reports', cut.audit);
   const activity = await pruneAudit(env, cut.audit, ceiling);
   return {
     accounts_removed: accounts.filter((a) => a.done).length,
     accounts_waiting: accounts.filter((a) => !a.done).length,
     accounts,
     activity_deleted: activity.rows,
+    notes_deleted: notes,
+    reports_deleted: reports,
     checkouts_deleted: payments.checkouts,
     payment_events_deleted: payments.events + payments.disputes,
     unsubscribed_tidied: unsubscribed.rows,

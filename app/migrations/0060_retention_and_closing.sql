@@ -19,7 +19,8 @@
 --
 -- account_requests gains removed_at, the day the retention job finished removing that account, so
 -- a second run leaves the account alone. The indexes let the job find old rows without reading
--- every row of each table every day.
+-- every row of each table every day, operator notes and listing reports included, which are kept
+-- 2 years like the activity record (Alex, 2026-10-24).
 --
 -- Back up D1 first and confirm the export printed "Downloaded". Apply with ops/d1-apply.mjs, because
 -- the rebuild needs PRAGMA defer_foreign_keys. Run it once, because the ALTER line fails on a second
@@ -70,5 +71,7 @@ CREATE INDEX IF NOT EXISTS audit_log_at ON audit_log(at);
 CREATE INDEX IF NOT EXISTS checkouts_created ON checkouts(created_at);
 CREATE INDEX IF NOT EXISTS stripe_events_received ON stripe_events(received_at);
 CREATE INDEX IF NOT EXISTS email_log_to ON email_log(to_addr);
+CREATE INDEX IF NOT EXISTS operator_notes_created ON operator_notes(created_at);
+CREATE INDEX IF NOT EXISTS listing_reports_created ON listing_reports(created_at);
 
 ALTER TABLE account_requests ADD COLUMN removed_at TEXT;

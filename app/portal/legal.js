@@ -19,11 +19,12 @@
 //   profile extras               portal/worker.js saveExtras and uploadBrand (logo, kennel photo, breeds, Facebook)
 //   people on an account         breeder_members, migrations/0010_kennel_members.sql
 //   email list                   lib/subscribers.js, lib/campaigns.js, portal/worker.js subscribe (rate limit by address, not stored)
-//   staff access                 admin/worker.js STAFF_ALLOWED (breeder detail includes checkouts; no email list, no reports)
+//   staff access                 admin/worker.js STAFF_ALLOWED (breeder detail includes checkouts; no email list, email log or reports)
 //   pages set up from a breeder's own website   migrations/0014_breeder_profiles_from_sites.sql
 //   how long things are kept     lib/retention.js (launch workplan D1, Alex 2026-10-24): activity 2
 //                                years, payment records 7 years, counts kept, unsubscribed address
-//                                only, a closed account removed 30 days after it is marked closed
+//                                only, a closed account removed 30 days after it is marked closed,
+//                                operator notes and listing reports 2 years
 // The terms are Amber's own words (build spec section 14). Until she supplies them the page
 // shows a clearly marked placeholder, and the README pending list carries it.
 
@@ -48,7 +49,7 @@ export function privacyPage() {
 <p>When you contact a breeder, you do it directly with the details on the breeder's page, so that conversation does not pass through Puppy Connection. Each breeder handles what you send them under their own practices.</p>
 
 <h2>Reporting a listing</h2>
-<p>Every puppy and breeder page has a link to report the listing to Puppy Connection, for example if the details look wrong or you are worried about the animals. We keep the reason you choose, what you write and the listing it is about. Your email address is optional, and we keep it only if you give it so we can reply.</p>
+<p>Every puppy and breeder page has a link to report the listing to Puppy Connection, for example if the details look wrong or you are worried about the animals. We keep the reason you choose, what you write and the listing it is about. Your email address is optional, and we keep it only if you give it so we can reply. We keep a report for 2 years from when it was made, and then delete it.</p>
 <p>A report is emailed to Puppy Connection's owner and listed in our own tools. It is not shown on the site, and staff who help run Puppy Connection cannot see reports. The form uses Cloudflare's Turnstile check to keep out automated reports, and we look at the internet address a report came from to stop repeated reports. We do not save it.</p>
 
 <h2>Our email list</h2>
@@ -70,6 +71,7 @@ export function privacyPage() {
 <li>A record of your listing payments, meaning the amount, the date and which puppies each payment covers.</li>
 <li>The date you accepted the listing terms, and which version you accepted.</li>
 <li>An activity record of changes to your account and listings, showing what changed, when, and who made the change.</li>
+<li>Notes Puppy Connection writes about your account, such as a record of a phone call with you. They are private to Puppy Connection and never shown to you or on the site.</li>
 </ul>
 <p>We never ask for your street address, and we do not keep one.</p>
 
@@ -91,7 +93,7 @@ export function privacyPage() {
 <p>Listing payments are taken by Stripe on its own secure checkout page. Your card details go straight to Stripe. Puppy Connection never sees or stores your card number.</p>
 
 <h2>Who can see your information</h2>
-<p>Puppy Connection's owner can see breeder accounts, listings, payments, listing reports and the email list to run the service. Staff who help run it can see breeder accounts, listings and each breeder's payments to look after breeder accounts, answer questions and keep the site accurate, and they cannot see the email list or listing reports.</p>
+<p>Puppy Connection's owner can see breeder accounts, listings, payments, listing reports and the email list to run the service. Staff who help run it can see breeder accounts, listings and each breeder's payments to look after breeder accounts, answer questions and keep the site accurate, and they cannot see the email list, the record of emails sent or listing reports.</p>
 
 <h2>Who helps us run Puppy Connection</h2>
 <ul>
@@ -107,6 +109,7 @@ export function privacyPage() {
 <li>Your account, profile, listings, photos, videos, saved moms and dads, and documents are kept while your account is open, and removed when it closes, as the next section explains.</li>
 <li>The activity record is kept for 2 years, and then each entry is deleted.</li>
 <li>Payment records are kept for 7 years, and then they are deleted.</li>
+<li>Listing reports, and Puppy Connection's own notes about a breeder, are kept for 2 years from when each was written, and then deleted.</li>
 <li>The daily page, link and breed search counts are kept, because they hold nothing about any visitor.</li>
 <li>An email list address is kept until you unsubscribe, and after that only as an unsubscribed address so it is never emailed again.</li>
 <li>Sign-in records are deleted after a day, and ended sign-in sessions after a week.</li>
@@ -115,7 +118,7 @@ export function privacyPage() {
 
 <h2>Closing your account</h2>
 <p>To close your account, use Ask to close my account on the Account screen of the portal, or write to ${CONTACT} from your sign-in email address. We confirm with you first, and then mark your account closed.</p>
-<p>Within 30 days of your account being closed, we remove your profile, photos, videos, documents, listings, saved moms and dads, the people on your account and every sign-in session, including the stored files. Your breeder page and puppies leave the public site when it next updates. Your payment records and the activity record are kept for the periods above, together with your sign-in email address, which they belong to.</p>
+<p>Within 30 days of your account being closed, we remove your profile, photos, videos, documents, listings, saved moms and dads, the people on your account, the reference you named and every sign-in session, including the stored files. Your breeder page and puppies leave the public site when it next updates. Your payment records and the activity record are kept for the periods above, together with your sign-in email address, which they belong to. Listing reports about your listings and Puppy Connection's notes about your account are kept for their 2 years too.</p>
 
 <h2>Children</h2>
 <p>Puppy Connection is meant for adults buying or selling puppies. We do not knowingly collect information from children under 13.</p>

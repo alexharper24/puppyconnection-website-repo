@@ -168,6 +168,8 @@ CREATE TABLE IF NOT EXISTS operator_notes (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS operator_notes_breeder ON operator_notes(breeder_id, created_at);
+-- The retention job deletes notes older than 2 years by this (migrations/0060).
+CREATE INDEX IF NOT EXISTS operator_notes_created ON operator_notes(created_at);
 
 -- Plan P3.4. The listing terms text, one row per published version plus the working draft
 -- (version 'draft', never published). settings.terms_version names the current version, and a
@@ -410,6 +412,8 @@ CREATE TABLE IF NOT EXISTS listing_reports (
 );
 CREATE INDEX IF NOT EXISTS listing_reports_status ON listing_reports(status, created_at);
 CREATE INDEX IF NOT EXISTS listing_reports_breeder ON listing_reports(breeder_id);
+-- The retention job deletes reports older than 2 years by this (migrations/0060).
+CREATE INDEX IF NOT EXISTS listing_reports_created ON listing_reports(created_at);
 
 CREATE TABLE IF NOT EXISTS checkouts (
   id                       TEXT PRIMARY KEY,

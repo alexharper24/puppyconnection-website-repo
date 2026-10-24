@@ -42,7 +42,7 @@ import { exportData } from './export-data.mjs';
 import { fetchData } from '../build/fetch-data.mjs';
 
 const GH = 'http://localhost:8798';
-const PORTAL = 'http://localhost:8787', ADMIN2 = 'http://localhost:8794', STATIC = 'http://localhost:8795';
+const PORTAL = process.env.PORTAL || 'http://localhost:8787', ADMIN2 = 'http://localhost:8794', STATIC = 'http://localhost:8795';
 const WRANGLER = path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
 const CHECK_SITE = path.resolve(APP, '../../site-checks/check_site.py');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-publish-'));
@@ -452,7 +452,7 @@ async function part2() {
   if (!(await waitFor(`${PORTAL}/api/config`, 5000))) { check('pc-portal is running on 8787', false); return; }
   await gs('/_reset', {});
   check('the portal answers 404 to /internal/publish from outside', (await fetch(`${PORTAL}/internal/publish`, { method: 'POST', body: '{}' })).status === 404);
-  check('... even with a Host header naming the binding address', await rawPost(8787, '/internal/publish', 'portal.internal') === 404);
+  check('... even with a Host header naming the binding address', await rawPost(Number(new URL(PORTAL).port), '/internal/publish', 'portal.internal') === 404);
 
   // A second admin, the same code and database, with PUBLISH_MODE portal.
   const admin = spawn(process.execPath, [WRANGLER, 'dev', '--config', path.join(APP, 'admin/wrangler.jsonc'), '--persist-to', path.join(APP, '.state'),

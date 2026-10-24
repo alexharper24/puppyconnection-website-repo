@@ -202,6 +202,7 @@ node app/dev/e2e.mjs            # the whole journey, 41 checks
 node app/dev/access-tests.mjs   # the ten acceptance tests from build spec section 4
 node app/dev/signin-test.mjs    # the sign-in code, 60-day sessions, the contact change notice
 node app/dev/jobs-test.mjs      # the scheduled jobs
+node app/dev/retention-test.mjs # launch workplan D1 on Node, no server: activity 2 years, payments 7 years, counts kept, unsubscribed tidied, closed accounts removed at 30 days, the caps and the job's cost
 node app/dev/google-test.mjs    # Continue with Google, against a stand-in Google on 8799
 node app/dev/legal-staging-test.mjs     # the privacy and terms pages and the staging mode
 node app/dev/portal-features-test.mjs   # plan P2: standing, site links, extras, batches, views, account
@@ -344,7 +345,21 @@ settings, terms and operators are not touched. The audit log and email log are k
   their own address by code, link or Google and has the same access as the first person.
   Removing someone ends only their sessions, and an address belongs to one kennel only.
 - Asking to close an account (plan P2.7) records a request in `account_requests` and tells the
-  operators. Nothing is deleted, and the admin marks the request handled after following up.
+  operators. Nothing is deleted then. The admin follows up and marks the account closed, and 30
+  days later the daily retention job (`lib/retention.js`, migration 0060, launch workplan D1)
+  removes the profile, breeds raised, photos, videos, documents, litters, puppies with their page
+  counts, saved parents, people on the account and every session, with their R2 files and Stream
+  videos. It keeps the breeders row (suspended, with the reason), the payment records with each
+  puppy's name in `checkout_items.puppy_name`, the activity record, the reference, operator notes,
+  listing reports and the close request, which records `removed_at`. The breeder leaves the site at
+  the next publish. At most two accounts and five Stream deletes a run, and the rest wait a day.
+- The same job keeps the privacy policy's other periods. Activity older than 2 years and payment
+  records older than 7 years (checkouts with their items, payments, disputes and Stripe events) are
+  deleted in capped batches, each batch with its own audit row. Page and breed search counts are
+  kept. An unsubscribed address keeps only its email, state, date and unsubscribe link, and loses
+  its name, source, join date and import batch, its send rows for finished emails and its list
+  emails in `email_log`. The unsubscribe link and the admin's Unsubscribe do this at once, and the
+  job catches imports.
 - `listing_days` 0 hides every end date and renewal in the portal (plan P2.1, D8). Setting it
   above 0 brings them back with no code change.
 - An operator editing a breeder's profile, litter or puppy (plan P3.1) goes through the same
@@ -516,10 +531,10 @@ settings, terms and operators are not touched. The audit log and email log are k
       but have not been looked at
 - [ ] Listing terms text from Amber. It goes in on the admin's Terms screen, replacing the
       REPLACE THIS draft, and Publish shows it on `/terms` and in the profile submit card
-- [ ] Amber's review of the draft privacy policy at `/privacy` (`portal/legal.js`), and the
-      Puppy Connection contact email address, which replaces the REPLACE THIS in it twice.
-      She also decides how long the activity record and payment records are kept after an
-      account closes
+- [ ] Amber's confirmation of the privacy policy at `/privacy` (`portal/legal.js`), written on
+      2026-10-24 to Alex's retention decisions with info@puppy-connection.com as the contact
+      address. When she confirms, remove the "Waiting for Amber's confirmation" banner and turn
+      the legal-staging-test check to its absence (launch workplan D1)
 - [ ] Publishing on the production site Worker (launch checklist L16). Staging has published
       through the deploy hook since 2026-10-06
 - [ ] The imported Wix photos copied into R2 with `wix-import.mjs --upload-to` before the
@@ -530,6 +545,6 @@ settings, terms and operators are not touched. The audit log and email log are k
       listing down while it is open (today it is recorded and shown, and the listing stays up),
       whether a breeder who has not accepted new listing terms may still pay to list (today they
       may), and her own breed list and guide text on the Breeds screen
-- [ ] How long the daily view and click counts are kept. Nothing prunes `puppy_stats` today,
-      and it is small (one row per listed puppy per day it is viewed). A question for Amber
-      with the other retention questions
+- [x] How long the daily view and click counts are kept. They are kept, because they hold nothing
+      about a visitor (Alex, 2026-10-24, launch workplan D1). Only a closed account's own puppy
+      counts go, with its puppies

@@ -921,7 +921,18 @@
     housekeeping: ['Housekeeping', 'Every morning. Clears used sign-in links, ended sessions and stale checkout holds.'],
     backup: ['Backup', 'Every morning. Saves every table to the photo bucket and keeps 90 days.'],
     reconcile: ['Checkout check', 'Every 15 minutes. Closes abandoned checkouts and publishes any paid listing that is not live.'],
+    videos: ['Video check', 'Every 15 minutes. Finishes puppy videos once they are ready to play.'],
+    photos: ['Photo check', 'Every 15 minutes. Checks new puppy photos that are still waiting for the quality check.'],
+    publish: ['Publish', 'Every 15 minutes. Updates the site once changes have waited a minute.', 'auto'],
+    build: ['Site build', 'Every 15 minutes. Checks that the last site build finished.', 'auto'],
+    campaigns: ['Mailing list', 'Every 15 minutes. Sends the next batch of any email to the mailing list.'],
+    alerts: ['Held alerts', 'Every 15 minutes. Sends alerts that were held back once their hour is up.', 'auto'],
+    inactivity: ['Photo reminders', 'Every morning. Emails breeders whose listings need a new photo, and takes listings off the site on the photo schedule.'],
+    links: ['Breeder link check', 'Every morning. Checks each puppy\'s link and each breeder\'s website, and lists the ones that fail.'],
   };
+  // A job the cron records that this table does not name yet still shows, under its own name,
+  // rather than stopping the whole screen (site review, 2026-10-23).
+  function jobLabel(job) { return JOB_LABELS[job] || [job, 'Runs on its own schedule.']; }
   function jobSummary(job, r) {
     if (!r) return '';
     if (job === 'expiry') return r.off ? 'Off, because listings do not expire' : plural(r.warned || 0, 'warning') + ' sent, ' + plural(r.expired || 0, 'listing') + ' expired';
@@ -952,9 +963,11 @@
         '<section class="card"><h2>Scheduled jobs</h2><p class="muted small">These run on their own. Run now does the same thing straight away, which is handy when showing how expiry works.</p>' +
         '<div class="table-wrap"><table class="list"><thead><tr><th>Job</th><th class="hide-sm">Last run</th><th>Result</th><th class="act"></th></tr></thead><tbody>' +
         r[2].map(function (j) {
-          return '<tr><td><b>' + esc(JOB_LABELS[j.job][0]) + '</b><span class="sub">' + esc(JOB_LABELS[j.job][1]) + '</span></td><td class="hide-sm when">' + (j.last_run_at ? esc(when(j.last_run_at)) : '<span class="muted">Not yet</span>') + '</td>' +
+          var L = jobLabel(j.job);
+          // Publish, the build check and held alerts are run by the portal's cron alone, so they get no Run now (lib/jobs.js).
+          return '<tr><td><b>' + esc(L[0]) + '</b><span class="sub">' + esc(L[1]) + '</span></td><td class="hide-sm when">' + (j.last_run_at ? esc(when(j.last_run_at)) : '<span class="muted">Not yet</span>') + '</td>' +
             '<td>' + (j.last_error ? '<span class="pill pill-alert">Failed</span><span class="sub">' + esc(j.last_error) + '</span>' : j.last_result ? '<span class="small">' + esc(jobSummary(j.job, j.last_result)) + '</span>' : '') + '</td>' +
-            '<td class="act"><button class="btn btn-sm" data-run="' + esc(j.job) + '">Run now</button></td></tr>';
+            '<td class="act">' + (L[2] === 'auto' || !JOB_LABELS[j.job] ? '' : '<button class="btn btn-sm" data-run="' + esc(j.job) + '">Run now</button>') + '</td></tr>';
         }).join('') + '</tbody></table></div></section>');
       $('#publish-now').addEventListener('click', function () {
         var b = $('#publish-now'); b.disabled = true; b.textContent = 'Publishing';
@@ -964,7 +977,7 @@
       $$('[data-run]').forEach(function (b) {
         b.addEventListener('click', function () {
           b.disabled = true; b.textContent = 'Running';
-          api('POST', '/api/jobs/' + b.dataset.run + '/run', {}).then(function (res) { toast(JOB_LABELS[res.job][0] + ': ' + jobSummary(res.job, res)); publishScreen(); })
+          api('POST', '/api/jobs/' + b.dataset.run + '/run', {}).then(function (res) { var sum = jobSummary(res.job, res); toast(jobLabel(res.job)[0] + (sum ? ': ' + sum : ' finished')); publishScreen(); })
             .catch(function (err) { toast(err.message); publishScreen(); });
         });
       });

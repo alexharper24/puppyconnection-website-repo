@@ -1382,7 +1382,7 @@
     var fee = money(me.fee_cents);
     var photos = me.min_photos === 1 ? 'at least one photo' : 'at least ' + me.min_photos + ' photos';
     var lasts = me.listing_days > 0 ? 'Each payment lists a puppy for ' + me.listing_days + ' days, and you can renew it near the end date.'
-      : 'You pay once, and the listing stays up until you remove the puppy. There is nothing to renew.';
+      : 'You pay once, and the listing stays up with no end date while you add a new photo of the puppy at least every four weeks. There is nothing to renew.';
     function q(title, body) { return '<section class="card help"><h2>' + esc(title) + '</h2>' + body + '</section>'; }
     shell(head('Help', 'Short answers to the questions breeders ask most.') +
       q('How do I get approved?', '<p>Fill in your profile with your business name, a phone or email buyers can use, and your town and state. Then name one reference who can confirm you are a real breeder, such as your veterinarian, another respected breeder, an AKC representative or a board member of your local animal welfare council. Accept the listing terms and submit. Puppy Connection looks over every new breeder once before they can list, and emails you when your account is approved. After that your listings go live without waiting.</p><p>Until then you can still edit your profile, and the menu shows only what you can use.</p>') +

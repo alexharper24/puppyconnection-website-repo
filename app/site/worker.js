@@ -67,7 +67,8 @@ async function asset(request, env, url) {
 
 async function media(env, id, card, share) {
   const photo = await env.DB.prepare(
-    'SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND p.puppy_id IN (SELECT id FROM public_puppies)',
+    // The one puppy, by key, as in lib/media.js serveMedia, rather than the whole view per photo.
+    'SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND EXISTS (SELECT 1 FROM public_puppies pp WHERE pp.id = p.puppy_id)',
   ).bind(id).first();
   if (!photo?.r2_key) return new Response('Not found.', { status: 404 });
   // The card copy is the small one the portal makes at upload. Older photos have none and

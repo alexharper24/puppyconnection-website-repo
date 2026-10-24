@@ -25,7 +25,9 @@ export const BRAND = { logo: 'logo_key', kennel: 'kennel_key' };
 export async function serveMedia(env, id, { card = false, share = false } = {}) {
   const photo = await env.DB.prepare(
     // A photo the quality check sent back or is holding is never public (migrations/0018).
-    "SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND p.puppy_id IN (SELECT id FROM public_puppies) AND (p.quality IS NULL OR p.quality = 'pass')",
+    // EXISTS on the one puppy lets D1 look it up by key, 4 rows read, where "puppy_id IN (SELECT id
+    // FROM public_puppies)" built the whole view for every photo, 853 rows (measured 2026-10-24, B13).
+    "SELECT p.r2_key, p.content_type FROM photos p WHERE p.id = ? AND EXISTS (SELECT 1 FROM public_puppies pp WHERE pp.id = p.puppy_id) AND (p.quality IS NULL OR p.quality = 'pass')",
   ).bind(id).first();
   if (!photo?.r2_key) return null;
   const k = photo.r2_key;

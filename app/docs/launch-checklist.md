@@ -130,9 +130,10 @@ CAUTION: A domain can have one SPF record only. Merge a new include into the exi
 - [ ] Set `EMAIL_MODE` to `resend` on the production portal and admin.
 - [ ] Set `EMAIL_FROM` to the sending address on the real domain.
 - [ ] Set the secret `RESEND_API_KEY` on the production portal and admin.
+- [ ] Set the secret `TOTP_KEY` on the production portal, a random value of its own, and keep a copy where Alex keeps secrets, because authenticators set up under it stop working without it (launch workplan A26).
 - [ ] Remove `EMAIL_ALLOWLIST`, so mail goes to every breeder.
 - [ ] Set `OPS_EXTRA` to the addresses that get job alerts.
-- [ ] Ask for a sign-in link and confirm it arrives outside the spam folder.
+- [ ] Ask for a password link with Forgot password, and send one invitation from the admin, and confirm both arrive outside the spam folder.
 
 ## L5 Access on the admin
 
@@ -310,7 +311,7 @@ Each step was run once on a copy of the staging export, never on staging itself.
 
 Use this procedure for the launch rehearsal and for a real recovery. For a mistake less than 30 days old, D1 Time Travel (`wrangler d1 time-travel restore`) is the first choice, and the nightly backup is the second copy. Run the commands from `app/`, with `W` for the wrangler command in the README.
 
-The backup holds every table except sign-in links, sessions, the test mailbox, the link check results and the alert record (`login_tokens`, `sessions`, `dev_mailbox`, `dev_mailbox_owners`, `sim_sessions`, `link_checks`, `alert_state`). After a restore every breeder signs in again and the link check starts over. Kennel members and the mailing list (`breeder_members`, `subscribers`, `campaigns`, `campaign_sends`) were added on 2026-10-20, so a backup from before then does not hold them. Use the D1 export or Time Travel for those.
+The backup holds every table except sign-in links, sessions, the test mailbox, the link check results and the alert record (`login_tokens`, `auth_tokens`, `signin_failures`, `sessions`, `dev_mailbox`, `dev_mailbox_owners`, `sim_sessions`, `link_checks`, `alert_state`). After a restore every breeder signs in again with the password they had, and the link check starts over. Passwords, authenticators and recovery codes (`credentials`, `recovery_codes`) were added on 2026-10-24, and an authenticator restored onto a portal needs the same `TOTP_KEY` secret it was set up under. Kennel members and the mailing list (`breeder_members`, `subscribers`, `campaigns`, `campaign_sends`) were added on 2026-10-20, so a backup from before then does not hold them. Use the D1 export or Time Travel for those.
 
 WARNING: A restore into the live database would overwrite current data. Always restore into a new, empty database. The script refuses a database that already has breeders.
 

@@ -52,7 +52,7 @@ export async function unsubscribeToken(env, token) {
     // Only what keeps the address from being emailed again stays. The daily retention job removes
     // the rest, such as the send records and the list emails in the email log (lib/retention.js).
     const t = now();
-    await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ?, name = NULL, import_batch = NULL, created_at = ? WHERE id = ?").bind(t, t, row.id).run();
+    await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ?, name = NULL, source = NULL, import_batch = NULL, created_at = ? WHERE id = ?").bind(t, t, row.id).run();
   }
   return row;
 }

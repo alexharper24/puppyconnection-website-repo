@@ -667,7 +667,8 @@ CREATE TABLE IF NOT EXISTS subscribers (
   id               TEXT PRIMARY KEY,
   email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
   name             TEXT,
-  source           TEXT NOT NULL CHECK (source IN ('site','import','admin')),
+  -- Empty once an address unsubscribes (migrations/0060, lib/retention.js).
+  source           TEXT CHECK (source IS NULL OR source IN ('site','import','admin')),
   status           TEXT NOT NULL DEFAULT 'subscribed' CHECK (status IN ('subscribed','unsubscribed','contact')),
   unsub_token      TEXT NOT NULL UNIQUE,
   created_at       TEXT NOT NULL,

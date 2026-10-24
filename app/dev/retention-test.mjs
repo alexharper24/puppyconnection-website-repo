@@ -202,16 +202,16 @@ async function main() {
 
   // Mailing list
   const gone = await db.prepare("SELECT * FROM subscribers WHERE id = 'sub-gone'").first();
-  check('an unsubscribed address keeps its address, state, date and unsubscribe link, and loses its name, import batch and join date',
+  check('an unsubscribed address keeps its address, state, date and unsubscribe link, and loses its name, how and when it joined, and its import batch',
     gone.email === 'gone@family.test' && gone.status === 'unsubscribed' && gone.unsubscribed_at && gone.unsub_token === 'tok-gone'
-      && gone.name === null && gone.import_batch === null && gone.created_at === gone.unsubscribed_at, JSON.stringify(gone));
+      && gone.name === null && gone.source === null && gone.import_batch === null && gone.created_at === gone.unsubscribed_at, JSON.stringify(gone));
   const goneSends = (await db.prepare("SELECT campaign_id FROM campaign_sends WHERE subscriber_id = 'sub-gone' ORDER BY campaign_id").all()).results.map((x) => x.campaign_id).join(',');
   const goneLog = (await db.prepare("SELECT template FROM email_log WHERE to_addr = 'gone@family.test' ORDER BY id").all()).results.map((x) => x.template).join(',');
   check("its record of finished list emails and their email log lines go, and a send still in progress keeps its row so the totals add up",
     goneSends === 'camp-2' && goneLog === 'signin', JSON.stringify({ goneSends, goneLog }));
   const here = await db.prepare("SELECT * FROM subscribers WHERE id = 'sub-here'").first();
   check('a subscribed address is untouched, with its sends and log lines',
-    here.name === 'Here Family' && (await db.prepare("SELECT COUNT(*) AS n FROM campaign_sends WHERE subscriber_id = 'sub-here'").first()).n === 2
+    here.name === 'Here Family' && here.source === 'site' && (await db.prepare("SELECT COUNT(*) AS n FROM campaign_sends WHERE subscriber_id = 'sub-here'").first()).n === 2
       && (await db.prepare("SELECT COUNT(*) AS n FROM email_log WHERE to_addr = 'here@family.test'").first()).n === 1);
 
   // The closed account

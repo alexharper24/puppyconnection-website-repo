@@ -8,10 +8,9 @@
 //   page and search    puppy_stats and breed_searches are kept, because they hold nothing about a
 //   counts             visitor. Nothing here touches them, except the counts of a closed account's
 //                      own puppies, which go with those puppies
-//   unsubscribed       the address, its state, the date, its unsubscribe link and how it joined (a
-//                      required column) stay, so it is never emailed again. The name, the import
-//                      batch, the join date, the per-address send rows of finished emails and the
-//                      list emails in the email log go
+//   unsubscribed       the address, its state, the date and its unsubscribe link stay, so it is
+//                      never emailed again. The name, how and when it joined, the import batch,
+//                      its send rows for finished emails and its list emails in the email log go
 //   closed accounts    30 days after an operator marks the close request closed, the profile,
 //                      breeds raised, photos, videos, documents, litters, puppies, saved parents,
 //                      people on the account and every session go, with their files in R2 and
@@ -124,7 +123,7 @@ async function prunePayments(env, cut) {
 async function tidyUnsubscribed(env) {
   const lim = LIMITS.unsubBatch;
   const tidy = `SELECT id FROM subscribers WHERE status = 'unsubscribed'
-     AND (name IS NOT NULL OR import_batch IS NOT NULL OR created_at IS NOT COALESCE(unsubscribed_at, created_at)) LIMIT ?`;
+     AND (name IS NOT NULL OR source IS NOT NULL OR import_batch IS NOT NULL OR created_at IS NOT COALESCE(unsubscribed_at, created_at)) LIMIT ?`;
   const sends = `SELECT cs.rowid FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id JOIN campaigns c ON c.id = cs.campaign_id
      WHERE s.status = 'unsubscribed' AND c.status = 'sent' LIMIT ?`;
   // to_addr first, so the comparison uses email_log_to (migrations/0060). Both columns hold the
@@ -134,7 +133,7 @@ async function tidyUnsubscribed(env) {
   const counts = { rows: await n(tidy), sends: await n(sends), log: await n(logs) };
   if (!counts.rows && !counts.sends && !counts.log) return { ...counts, batches: 0 };
   await env.DB.batch([
-    env.DB.prepare(`UPDATE subscribers SET name = NULL, import_batch = NULL, created_at = COALESCE(unsubscribed_at, created_at) WHERE id IN (${tidy})`).bind(lim),
+    env.DB.prepare(`UPDATE subscribers SET name = NULL, source = NULL, import_batch = NULL, created_at = COALESCE(unsubscribed_at, created_at) WHERE id IN (${tidy})`).bind(lim),
     env.DB.prepare(`DELETE FROM campaign_sends WHERE rowid IN (${sends})`).bind(lim),
     env.DB.prepare(`DELETE FROM email_log WHERE id IN (${logs})`).bind(lim),
     audit(env, 'retention.unsubscribed_tidied', 'subscriber', 'unsubscribed', counts),

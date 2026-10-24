@@ -44,15 +44,26 @@ const get = (url, headers = {}) => fetch(url, { headers, redirect: 'manual' });
   const priv = await get(`${PORTAL}/privacy`);
   const p = await priv.text();
   check('/privacy answers 200', priv.status === 200, String(priv.status));
-  check('/privacy is visibly marked as a draft for Amber', /class="draft-flag"><b>Draft for Amber's review/.test(p));
+  // Launch workplan D1. The policy is written to Alex's decisions of 2026-10-24 and waits for Amber to
+  // confirm it, so the banner stays and D1 stays open until she does. Then the banner comes out and
+  // this check turns to its absence.
+  check('/privacy says it is written and waiting for Amber to confirm it', /class="draft-flag"><b>Waiting for Amber's confirmation\./.test(p));
+  check('/privacy has no open decisions and no REPLACE THIS left', !/review-note|For Amber to decide|REPLACE THIS/.test(p));
   check('/privacy covers what the system does (photo details, Google name and email, Stripe, Cloudflare, Turnstile, email, 90-day backups, closing)',
     [/where the photo was taken/, /Google tells us your name and email address/, /never sees or stores your card number/, /Cloudflare<\/b> hosts/,
       /Turnstile/, /Resend or Cloudflare/, /deleted after 90 days/, /Closing your account/].every((rx) => rx.test(p)));
   check('/privacy covers the email list, the people on an account and staff access (added 2026-10-12)',
     [/<h2>Our email list<\/h2>/, /one click takes you off the list/, /each person you add to your account/, /cannot see the email list/].every((rx) => rx.test(p)));
-  check('/privacy invents no contact address, it shows the REPLACE THIS placeholder', /REPLACE THIS: the Puppy Connection contact email address/.test(p) && !/@puppy-connection\.com/.test(p));
+  check('/privacy gives the contact address Alex set, info@puppy-connection.com, for questions and closing',
+    (p.match(/<a href="mailto:info@puppy-connection\.com">info@puppy-connection\.com<\/a>/g) || []).length === 2);
+  check('/privacy states the retention rules of 2026-10-24: activity 2 years, payments 7 years, counts kept, unsubscribed address only, closed accounts within 30 days',
+    [/activity record is kept for 2 years/, /Payment records are kept for 7 years/, /breed search counts are kept, because they hold nothing about any visitor/,
+      /only so it is never emailed again\. We remove your name/, /Within 30 days of your account being closed, we remove your profile, photos, videos, documents, listings, saved moms and dads, the people on your account and every sign-in session/,
+      /payment records and the activity record are kept for the periods above/].every((rx) => rx.test(p)));
+  check('/privacy describes the launch additions: breed search counting, listing reports, the photo check and puppy videos',
+    [/search for a breed on the browse page/, /<h2>Reporting a listing<\/h2>/, /automated check, run on Cloudflare's AI service/, /Cloudflare Stream/].every((rx) => rx.test(p)));
   check('/privacy is kept out of search engines', /<meta name="robots" content="noindex,nofollow">/.test(p) && /noindex/.test(priv.headers.get('x-robots-tag') || ''));
-  check('/privacy carries no em dash', !/—/.test(p));
+  check('/privacy carries no em or en dash', !/[—–]/.test(p));
   const terms = await get(`${PORTAL}/terms`);
   const t = await terms.text();
   check('/terms answers 200, marked as waiting on Amber, with the REPLACE THIS placeholder and the version on file',

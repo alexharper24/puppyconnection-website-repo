@@ -1015,7 +1015,7 @@ async function unsubscribeAdmin(req, env, ctx, id, who) {
   requireSameOrigin(req);
   // Only what keeps the address from being emailed again stays (lib/retention.js).
   const t = now();
-  const r = await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ?, name = NULL, import_batch = NULL, created_at = ? WHERE id = ? AND status IN ('subscribed', 'contact')").bind(t, t, id).run();
+  const r = await env.DB.prepare("UPDATE subscribers SET status = 'unsubscribed', unsubscribed_at = ?, name = NULL, source = NULL, import_batch = NULL, created_at = ? WHERE id = ? AND status IN ('subscribed', 'contact')").bind(t, t, id).run();
   if (r.meta.changes !== 1) throw notFound();
   await auditStmt(env, 'operator', who.email, 'subscriber.unsubscribe', 'subscriber', id, null, null).run();
   return json({ ok: true });

@@ -3,7 +3,7 @@
 //
 // The privacy policy is written from what this code actually does. When the code changes what
 // it collects, keeps or shares, change this page in the same commit. Where to look:
-//   sign-in links and sessions   portal/worker.js, lib/jobs.js housekeeping (a day, a week)
+//   passwords and sessions       lib/accounts.js, portal/worker.js, lib/jobs.js housekeeping (a day, a week)
 //   photo metadata stripped      lib/images.js, and portal.js shrink() in the browser
 //   Google                       lib/google.js, scope "openid email profile", name and email kept
 //   payments                     lib/payments.js, Stripe Checkout, no card data reaches us
@@ -44,7 +44,7 @@ export function privacyPage() {
 
 <h2>What we keep when a breeder signs up</h2>
 <ul>
-<li>Your sign-in email address. We use it to send your sign-in codes and links and notices about your account. It is never shown on the site.</li>
+<li>Your sign-in email address. We use it to confirm your account, send password links and invitations, and send notices about your account. It is never shown on the site.</li>
 <li>The business name you give when you sign up.</li>
 <li>The profile you fill in, meaning your business name, the phone and email buyers can use, your website, your town and state, and the words about your kennel. A contact name is optional and stays private to Puppy Connection.</li>
 <li>The email address, and the name if you give one, of each person you add to your account to help manage it.</li>
@@ -65,8 +65,9 @@ export function privacyPage() {
 <p>Photos taken on a phone can carry hidden details, such as where the photo was taken and what camera took it. The portal takes those details out of every photo you upload before it is saved, so they never reach the public site. Photos are also resized in your browser before they upload.</p>
 
 <h2>Signing in</h2>
-<p>You can sign in with a code and link we email to you, or with your Google account. If you use Google, Google tells us your name and email address. We use those to find or start your account, and we keep nothing else from your Google account.</p>
-<p>When you ask for a sign-in code, we note the internet address the request came from, to stop misuse. Used and expired codes and links are deleted after a day, and ended sign-in sessions after a week.</p>
+<p>You sign in with your email address and a password, or with your Google account. We never store your password itself, only a scrambled form of it that cannot be turned back into the password. If you add an authenticator app, we keep the key it shares with your phone, locked with a separate key, and your recovery codes in scrambled form only. If you use Google, Google tells us your name and email address. We use those to find or start your account, and we keep nothing else from your Google account.</p>
+<p>When a password or authenticator code is entered wrongly, or a password link is asked for, we note the internet address the request came from, to stop misuse. Those notes, and used and expired links, are deleted after a day, and ended sign-in sessions after a week.</p>
+<p>If you turn on Puppy Connection access on your Account screen, the Puppy Connection team can open your portal to manage your listings for you. Every change they make is recorded under their own name, and turning access off ends their session straight away.</p>
 <p>The portal sets one cookie to keep you signed in, and a short-lived one while a Google sign-in is in progress. It uses no advertising or tracking cookies.</p>
 
 <h2>Payments</h2>
@@ -80,7 +81,7 @@ export function privacyPage() {
 <li><b>Cloudflare</b> hosts the site, the portal, the database and the photos. Its Turnstile check on the sign-up form helps keep out automated sign-ups.</li>
 <li><b>Stripe</b> takes listing payments.</li>
 <li><b>Google</b> handles sign-in for breeders who choose to sign in with Google.</li>
-<li><b>An email service</b> (Resend or Cloudflare) sends sign-in codes, account notices and our emails to the list.</li>
+<li><b>An email service</b> (Resend or Cloudflare) sends account confirmations, password links, invitations, account notices and our emails to the list.</li>
 </ul>
 <p>We do not sell your information, and we do not share it with anyone else except where the law requires it.</p>
 

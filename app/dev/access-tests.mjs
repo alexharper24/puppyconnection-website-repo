@@ -103,6 +103,8 @@ async function main() {
     brandKennel: ['GET', `/brand/${C.id}/kennel`, null],
     // Workplan A3. A video upload address on B's puppy, and B's video checked and removed.
     removeMember: ['DELETE', `/api/account/members/${bMember}`, null],
+    // Launch workplan A25. Handing B's main email to the person on B's kennel.
+    makeMain: ['POST', `/api/account/members/${bMember}/main`, { keep_old: true }],
     startVideo: ['POST', `/api/puppies/${B.draft}/videos`, {}],
     checkVideo: ['POST', `/api/videos/${B.video}/check`, {}],
     deleteVideo: ['DELETE', `/api/videos/${B.video}`, null],
@@ -216,19 +218,24 @@ async function main() {
   check(8, 'Amber marks B\'s puppy placed and it still belongs to B', edit.status === 200 && row.breeder_id === B.id && row.availability === 'placed', JSON.stringify([edit.status, edit.data, row && row.availability]));
   check(8, 'the change is in the audit log under Amber', after.audit.some((a) => a.actor_type === 'operator' && a.action === 'puppy.update' && a.entity_id === B.paid));
 
-  // 9. Sign-in links: once, 15 minutes, no enumeration
+  // 9. Emailed links (launch workplan A26, password links in place of sign-in links): once, an
+  // hour, no enumeration. Sign-in itself is a password, so the link no longer signs anyone in.
   const fresh = new Client(PORTAL);
-  const known = await fresh.post('/auth/start', { email: A.email });
-  const unknown = await fresh.post('/auth/start', { email: `nobody-${Date.now()}@breeders.test` });
+  const known = await fresh.post('/auth/forgot', { email: A.email });
+  const unknown = await fresh.post('/auth/forgot', { email: `nobody-${Date.now()}@breeders.test` });
   check(9, 'a registered and an unregistered address get byte-identical answers',
     known.status === unknown.status && JSON.stringify(known.data) === JSON.stringify(unknown.data));
+  const signupKnown = await fresh.post('/auth/signup', { email: A.email });
+  const signupNew = await fresh.post('/auth/signup', { email: `nobody-${Date.now()}@breeders.test` });
+  check(9, 'sign-up answers the same for an address that already has an account',
+    signupKnown.status === signupNew.status && JSON.stringify(signupKnown.data) === JSON.stringify(signupNew.data));
   const mail = (await fresh.get(`/dev/mail.json?to=${encodeURIComponent(A.email)}`)).data[0];
   const tok = new URL(mail.link).searchParams.get('t');
-  sql(`UPDATE login_tokens SET expires_at = '2020-01-01T00:00:00Z' WHERE used_at IS NULL AND email = '${A.email}'`);
-  const late = await fresh.req('POST', '/auth/verify', form({ t: tok }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  sql(`UPDATE auth_tokens SET expires_at = '2020-01-01T00:00:00Z' WHERE used_at IS NULL AND email = '${A.email}'`);
+  const late = await fresh.req('POST', '/auth/set-password', form({ t: tok, password: 'a long enough password', confirm: 'a long enough password' }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
   check(9, 'an expired link is refused', late.status === 400);
-  for (let i = 0; i < 6; i += 1) await fresh.post('/auth/start', { email: B.email });
-  const count = sql(`SELECT COUNT(*) AS n FROM login_tokens WHERE email = '${B.email}' AND created_at > strftime('%Y-%m-%dT%H:%M:%SZ','now','-1 hour')`);
+  for (let i = 0; i < 6; i += 1) await fresh.post('/auth/forgot', { email: B.email });
+  const count = sql(`SELECT COUNT(*) AS n FROM auth_tokens WHERE email = '${B.email}' AND purpose IN ('reset','verify') AND created_at > strftime('%Y-%m-%dT%H:%M:%SZ','now','-1 hour')`);
   const n = Number((count.out.match(/"n":\s*(\d+)/) || [])[1]);
   check(9, 'no more than five links an hour are issued to one address', n <= 5, `issued ${n}`);
 

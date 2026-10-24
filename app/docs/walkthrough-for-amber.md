@@ -42,19 +42,23 @@ handle anything that needs a person, such as a refund or a question about a list
 Open the portal at https://portal.puppyconnection.workers.dev. You see the **Breeder portal**
 sign-in page with the Puppy Connection logo.
 
-There are two ways in, and neither needs a password.
+There are two ways in.
 
 - **Continue with Google.** The breeder picks their Google account and they are in. On a
   computer already signed in to Google, a small box may offer the account before they press
   anything.
-- **Use your email.** The breeder types their email and, the first time, their business name,
-  then presses **Email me a sign-in link**. The page changes to **Check your email**. The email
-  holds a six-digit code and a link. They type the code into the box on that page, or open the
-  link, and they are signed in. Each code works once and only for 15 minutes.
+- **Email and password.** The breeder types their email and password and presses **Sign in**.
+  If they have set up an authenticator app, the next page asks for the six numbers it shows.
+
+A new breeder presses **Create an account**, types their email and business name, and gets an
+email with a link. The link opens a page where they choose a password, and then they are signed
+in. A breeder who already lists with us but has never had a password presses **Forgot password**,
+and the email that comes back sets their first one. The sign-in page says this in plain words.
+Emailed sign-in codes are no longer used.
 
 On staging, real email is not switched on yet (**Waiting** on Alex). Instead the **Check your
-email** page has a link to the **portal mailbox**, and the code is waiting there. Each browser
-only sees the mail it asked for. There is also a short "I am not a robot" check on the sign-in
+email** page has a link to the **portal mailbox**, and the link is waiting there. Each browser
+only sees the mail it asked for. There is also a short "I am not a robot" check on the sign-up
 page, which is normal.
 
 Once they are in, a new breeder lands on the **Overview** with a box called **Getting listed**.
@@ -220,15 +224,29 @@ Everything below is in the admin menu on the left.
 ## To see a made-up breeder's portal
 
 On staging you can sign in to the portal as any of the three made-up breeders. Use
-buttercup@breeders.test, thistledown@breeders.test or maplebrook@breeders.test, press **Email me a
-sign-in link**, and open the **portal mailbox** link on the next page to find the code. Pressing
-**Reset demo data** afterwards puts them back as they were.
+buttercup@breeders.test, thistledown@breeders.test or maplebrook@breeders.test, press **Forgot
+password**, open the **portal mailbox** link on the next page, and open the link there to choose a
+password. Pressing **Reset demo data** afterwards puts them back as they were.
+
+## Managing a breeder's account for them
+
+A breeder's **Account** screen has **Puppy Connection access**. While it is on, the breeder's page
+in the admin shows **Manage as this breeder**, which opens the real portal as that kennel for
+eight hours. A banner across the top names the kennel and you, with **End** to finish, and every
+change is recorded as yours, acting for that kennel. Turning access off ends your session at once.
+For the breeders you already manage, press **Record existing management arrangement** on their
+page in the admin instead of asking them to turn it on.
+
+The same page lists everyone who signs in to the kennel. **Send invitation** emails a link that
+works once for 7 days and lets the person choose a password. **Make main contact** hands the
+kennel's main email to another person, and **Reset authenticator** helps someone who has lost
+their phone.
 
 ## Still waiting on a decision or an account
 
 | What | Waiting on |
 | --- | --- |
-| Real email, so codes and notices arrive in real inboxes | Alex, choosing where staging sends email from |
+| Real email, so password links, invitations and notices arrive in real inboxes | Alex, choosing where staging sends email from |
 | Real card payments through Stripe, first in test mode and then your own account | Alex for the test account, then you for your Stripe account |
 | The second step on your phone when you sign in to the admin | Each operator, the first time they sign in |
 | The listing terms in your own words | Amber |

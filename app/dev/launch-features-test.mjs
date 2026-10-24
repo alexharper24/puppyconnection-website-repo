@@ -12,7 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Client } from './e2e.mjs';
+import { Client, mailLink, usePasswordLink, signIn } from './e2e.mjs';
 import { build } from '../build/generate.mjs';
 import { fetchData } from '../build/fetch-data.mjs';
 
@@ -53,10 +53,8 @@ async function breeder(tag, approve = true) {
   const stamp = `${tag}-${Date.now().toString(36)}`;
   const email = `launch-${stamp}@breeders.test`;
   const c = new Client(PORTAL);
-  await call(c, 'POST', '/auth/start', { email, business_name: `Launch Kennel ${stamp}` });
-  const mail = await c.get(`/dev/mail.json?to=${encodeURIComponent(email)}`);
-  const token = new URL(mail.data[0].link).searchParams.get('t');
-  await c.req('POST', '/auth/verify', new URLSearchParams({ t: token }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  await call(c, 'POST', '/auth/signup', { email, business_name: `Launch Kennel ${stamp}` });
+  await usePasswordLink(c, await mailLink(email));
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Launch Kennel ${stamp}`, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
   await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
@@ -423,10 +421,7 @@ async function inactivity() {
   clock(y, 30);
   await run();
   check('A12 an imported breeder who has never signed in is left out', row(y).inactive_stage === null);
-  const again = new Client(PORTAL);
-  await call(again, 'POST', '/auth/start', { email: A.email });
-  const tok = new URL((await again.get(`/dev/mail.json?to=${encodeURIComponent(A.email)}`)).data[0].link).searchParams.get('t');
-  await again.req('POST', '/auth/verify', new URLSearchParams({ t: tok }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  await signIn(A.email);
   const first = sql(`SELECT first_signin_at FROM breeders WHERE id = '${A.id}'`)[0].first_signin_at;
   await run();
   check('A12 signing in starts their clock, so an old listing is not emailed at once', !!first && row(y).inactive_stage === null, String(first));
@@ -443,9 +438,8 @@ async function reference() {
   const stamp = `ref-${Date.now().toString(36)}`;
   const email = `launch-${stamp}@breeders.test`;
   const c = new Client(PORTAL);
-  await call(c, 'POST', '/auth/start', { email, business_name: `Launch Kennel ${stamp}` });
-  const t = new URL((await c.get(`/dev/mail.json?to=${encodeURIComponent(email)}`)).data[0].link).searchParams.get('t');
-  await c.req('POST', '/auth/verify', new URLSearchParams({ t }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  await call(c, 'POST', '/auth/signup', { email, business_name: `Launch Kennel ${stamp}` });
+  await usePasswordLink(c, await mailLink(email));
   let me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Launch Kennel ${stamp}`, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
   const submit = (reference) => c.post('/api/profile/submit', { accept_terms: true, ...(reference ? { reference } : {}) });

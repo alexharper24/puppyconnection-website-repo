@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS breeders (
   legacy               INTEGER NOT NULL DEFAULT 0,
   -- The first sign-in, which starts the inactivity clock for an imported breeder (migrations/0020).
   first_signin_at      TEXT,
-  -- Launch workplan A24 (migrations/0054). Whether Puppy Connection may open the portal as this
+  -- Launch workplan A24 (migrations/0055). Whether Puppy Connection may open the portal as this
   -- kennel, and who last set it, when and how ('breeder', 'existing_arrangement' or 'operator').
   manage_access        INTEGER NOT NULL DEFAULT 0,
   manage_access_by     TEXT,
@@ -123,7 +123,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   -- The address this session signed in with (migrations/0010_kennel_members.sql). NULL on
   -- older sessions, which count as the breeder's own address.
   email        TEXT COLLATE NOCASE,
-  -- Launch workplan A24 (migrations/0054). The operator who opened this session through the admin's
+  -- Launch workplan A24 (migrations/0055). The operator who opened this session through the admin's
   -- Manage as this breeder. NULL on every breeder's own session.
   operator_email TEXT COLLATE NOCASE
 );
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS breeder_members (
 );
 CREATE INDEX IF NOT EXISTS breeder_members_breeder ON breeder_members(breeder_id);
 
--- Launch workplan A24 to A26 (migrations/0054).
+-- Launch workplan A24 to A26 (migrations/0055).
 -- A26. Each sign-in address's password and authenticator, keyed by the address so they follow the
 -- person when Make main contact moves them. password_hash is "pbkdf2-sha256$<iterations>$<salt>$<hash>".
 -- totp_secret is "v1:<iv>:<ciphertext>" under the TOTP_KEY Worker secret, or "plain:<base32>"

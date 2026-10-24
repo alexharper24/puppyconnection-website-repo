@@ -80,11 +80,11 @@ if (STAGING) {
   check('staging says nothing about a test version, but keeps the mailbox while EMAIL_MODE is log',
     cfg.notices === false && cfg.mailbox === true && cfg.email_mode === 'log' && cfg.payments_mode === 'sim', JSON.stringify(cfg));
   const email = `staging-${Date.now().toString(36)}@breeders.test`;
-  const start = await fetch(`${STAGING}/auth/start`, { method: 'POST', headers: { origin: STAGING, 'content-type': 'application/json' }, body: JSON.stringify({ email, business_name: 'Staging Check Kennel' }) });
+  const start = await fetch(`${STAGING}/auth/signup`, { method: 'POST', headers: { origin: STAGING, 'content-type': 'application/json' }, body: JSON.stringify({ email, business_name: 'Staging Check Kennel' }) });
   const box = (start.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).find((c) => c.startsWith('pc_mailbox='));
   check('staging ties a sign-up to this browser for the mailbox', start.status === 200 && !!box, String(start.status));
   const mine = await (await get(`${STAGING}/dev/mail.json`, { cookie: box })).json();
-  check('this browser sees its own sign-in link', mine.length >= 1 && mine.every((m) => m.to_addr === email) && !!mine[0].link, JSON.stringify(mine).slice(0, 200));
+  check('this browser sees its own confirmation link', mine.length >= 1 && mine.every((m) => m.to_addr === email) && !!mine[0].link, JSON.stringify(mine).slice(0, 200));
   const other = await (await get(`${STAGING}/dev/mail.json?to=${encodeURIComponent(email)}`)).json();
   check('another browser cannot read it, even by asking for the address', Array.isArray(other) && other.length === 0, JSON.stringify(other).slice(0, 200));
   const mailPage = await (await get(`${STAGING}/dev/mail`, { cookie: box })).text();

@@ -1,4 +1,4 @@
-// Breeder accounts (launch workplan A24 to A26, migrations/0054). Shared by the portal and the
+// Breeder accounts (launch workplan A24 to A26, migrations/0055). Shared by the portal and the
 // admin, so both check people, passwords, invitations and the authenticator the same way.
 //
 // A person is one sign-in address on one kennel: the kennel's main email (breeders.email) or one

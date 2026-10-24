@@ -141,7 +141,7 @@ const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'breeder_references', 'pe
   'checklist_signers', 'checklist_areas', 'checklist_items', 'checklist_parts', 'checklist_comments',
   // Added 2026-10-21 (workplan A19 and A20, migrations/0050). Saved moms and dads, and documents.
   'parent_dogs', 'documents',
-  // Added 2026-10-24 (launch workplan A26, migrations/0054). Passwords as PBKDF2 hashes, the
+  // Added 2026-10-24 (launch workplan A26, migrations/0055). Passwords as PBKDF2 hashes, the
   // authenticator secret (sealed under TOTP_KEY once that secret is set) and hashed recovery codes,
   // so a restore does not make every breeder set a new password. One-time links are left out.
   'credentials', 'recovery_codes'];

@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { Client } from './e2e.mjs';
+import { Client, mailLink, usePasswordLink, signIn } from './e2e.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
@@ -53,10 +53,8 @@ async function breeder(tag, approve) {
   const stamp = `${tag}-${Date.now().toString(36)}`;
   const email = `feat-${stamp}@breeders.test`;
   const c = new Client(PORTAL);
-  await call(c, 'POST', '/auth/start', { email, business_name: `Feature Kennel ${stamp}` });
-  const mail = await c.get(`/dev/mail.json?to=${encodeURIComponent(email)}`);
-  const token = new URL(mail.data[0].link).searchParams.get('t');
-  await c.req('POST', '/auth/verify', new URLSearchParams({ t: token }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  await call(c, 'POST', '/auth/signup', { email, business_name: `Feature Kennel ${stamp}` });
+  await usePasswordLink(c, await mailLink(email));
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Feature Kennel ${stamp}`, public_phone: '555-0102', city: 'Goshen', state: 'IN' });
   await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
@@ -93,10 +91,9 @@ async function main() {
     check('the same address cannot be added twice', (await A.c.post('/api/account/members', { email: mEmail })).status === 400);
     check("another breeder's sign-in address cannot be added", (await A.c.post('/api/account/members', { email: B.email })).status === 400);
     check('the main address cannot be added as an extra person', (await A.c.post('/api/account/members', { email: A.email })).status === 400);
+    // Launch workplan A26. The added person's email carries a link that sets their password.
     const M = new Client(PORTAL);
-    await call(M, 'POST', '/auth/start', { email: mEmail });
-    const mail = (await M.get(`/dev/mail.json?to=${encodeURIComponent(mEmail)}`)).data.find((x) => /sign-in link/.test(x.subject));
-    await M.req('POST', '/auth/verify', new URLSearchParams({ t: new URL(mail.link).searchParams.get('t') }), { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+    await usePasswordLink(M, await mailLink(mEmail, /You can now sign in/));
     const mMe = (await M.get('/api/me')).data;
     check('the added person signs in to the same kennel, not a new account', mMe && mMe.id === A.id, JSON.stringify(mMe).slice(0, 160));
     const acct = (await M.get('/api/account')).data;
@@ -283,7 +280,7 @@ async function main() {
   check('P2.7 and it leaves the Asked to close list', !(await admin.get('/api/breeders?status=closing')).data.some((x) => x.id === A.id));
   check('P2.7 handling a request that is not there is a 404', (await admin.post(`/api/breeders/${B.id}/close-request/resolve`, {})).status === 404);
   check('P2.7 a pending breeder can ask too', (await C.c.post('/api/account/close', {})).status === 200);
-  const audit = sql(`SELECT action FROM audit_log WHERE entity_id = '${A.id}' AND action LIKE 'account.%' ORDER BY id`).map((x) => x.action).join();
+  const audit = sql(`SELECT action FROM audit_log WHERE entity_id = '${A.id}' AND action LIKE 'account.close%' ORDER BY id`).map((x) => x.action).join();
   check('P2.7 each step is in the activity record', audit === 'account.close_request,account.close_withdrawn,account.close_request,account.close_handled', audit);
 
   // ---------------------------------------------------------------- a paused breeder

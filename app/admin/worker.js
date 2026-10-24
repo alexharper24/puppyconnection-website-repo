@@ -1321,7 +1321,8 @@ async function adminOrderPhotos(req, env, ctx, puppyId, who) {
 // Amber marks up, hs-proposals/puppyconnection/staff-permissions.html). This is an allow list,
 // so a route added later is owner-only until someone decides staff should have it.
 const STAFF_ALLOWED = [
-  ['GET', /^\/api\/(whoami|stats|attention|listings|breeds|site|email-log|audit)$/],
+  // The email log is owner-only (Alex, 2026-10-24), because list emails name the people on the mailing list.
+  ['GET', /^\/api\/(whoami|stats|attention|listings|breeds|site|audit)$/],
   ['GET', /^\/api\/breeders(\/[\w-]+)?$/],
   ['GET', /^\/(media|brand)\//],
   ['GET', /^\/dev\/mail$/],

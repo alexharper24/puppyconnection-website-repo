@@ -421,10 +421,10 @@ async function features() {
     try {
       const who = (await admin.get('/api/whoami')).data;
       check('whoami says the role, so the menu can hide what staff cannot use', who.role === 'staff');
-      const blocked = [['GET', '/api/campaigns'], ['GET', '/api/subscribers'], ['GET', '/api/people'], ['GET', '/api/settings'], ['GET', '/api/reports'], ['POST', '/api/breeds'], ['PUT', '/api/terms/draft'], ['POST', `/api/breeders/${owners.length ? 'x' : 'x'}/approve`]];
+      const blocked = [['GET', '/api/campaigns'], ['GET', '/api/subscribers'], ['GET', '/api/people'], ['GET', '/api/settings'], ['GET', '/api/reports'], ['POST', '/api/breeds'], ['PUT', '/api/terms/draft'], ['POST', `/api/breeders/${owners.length ? 'x' : 'x'}/approve`], ['GET', '/api/email-log']];
       const codes = [];
       for (const [m, path] of blocked) codes.push((await admin.req(m, path, m === 'GET' ? undefined : {})).status);
-      check('staff are refused money, approvals, settings, breeds, terms, the mailing list and sign-ins', codes.every((c) => c === 403), codes.join(','));
+      check('staff are refused money, approvals, settings, breeds, terms, the mailing list, the email log and sign-ins', codes.every((c) => c === 403), codes.join(','));
       const listing = (await admin.get('/api/listings')).data;
       check('staff can read listings and breeders', Array.isArray(listing.rows || listing) && (await admin.get('/api/breeders')).status === 200);
       const pupId = sql("SELECT p.id FROM puppies p WHERE p.publication_state != 'archived' AND (SELECT COUNT(*) FROM photos ph WHERE ph.puppy_id = p.id) BETWEEN 1 AND 10 LIMIT 1")[0].id;
@@ -440,6 +440,7 @@ async function features() {
       sql("UPDATE people SET role = 'owner' WHERE email = 'amber@puppyconnection.test'");
     }
     check('the owner role is back', (await admin.get('/api/whoami')).data.role === 'owner');
+    check('an owner still reads the email log (staff are refused it, Alex 2026-10-24)', (await admin.get('/api/email-log')).status === 200);
   }
 
   // ---------------------------------------------------------------- put the placeholder terms back

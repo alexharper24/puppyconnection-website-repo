@@ -104,7 +104,7 @@
     ];
     // Staff see only what they can use (admin/worker.js STAFF_ALLOWED). The server enforces it.
     if (state.who.role !== 'owner') {
-      var STAFF = { '': 1, reported: 1, 'photo-review': 1, breeders: 1, listings: 1, publish: 1, email: 1, activity: 1 };
+      var STAFF = { '': 1, reported: 1, 'photo-review': 1, breeders: 1, listings: 1, publish: 1, activity: 1 };
       groups = groups.map(function (g) { return [g[0], g[1].filter(function (n) { return STAFF[n[0]]; })]; }).filter(function (g) { return g[1].length; });
     }
     var waiting = s.unpublished_changes || 0;

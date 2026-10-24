@@ -253,7 +253,7 @@ the routes it guards, so the suite is known to catch the failure it exists for.
 | Email | `EMAIL_MODE=log` writes to the local mailbox | Set `EMAIL_MODE=resend`, the `RESEND_API_KEY` secret and `EMAIL_FROM`, after the domain's SPF and DKIM records are in |
 | Payments | `PAYMENTS_MODE=sim` uses a practice checkout page served by the portal | Set `PAYMENTS_MODE=stripe`, `STRIPE_MODE`, `STRIPE_API_VERSION`, `STRIPE_PRICE_ID`, and the `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET` secrets. Staging runs `PAYMENTS_MODE=stripe` in test mode with sandbox keys, tested end to end by Alex on 2026-10-17. Live mode waits on Amber's Stripe account |
 | Bot check on sign-up | Skipped on localhost when no key is set | Set `TURNSTILE_SITE_KEY` and the `TURNSTILE_SECRET` secret |
-| Operator sign-in and roles | `DEV_IDENTITY`, on localhost only. Each operator in `people` is an owner or staff. Staff manage listings, photos, holds, notes and publishing, and only owners handle approvals, money, settings, breeds, terms, the mailing list and people (`STAFF_ALLOWED` in `admin/worker.js`) | Create the Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Until then a deployed admin answers 403 everywhere, which is the safe state |
+| Operator sign-in and roles | `DEV_IDENTITY`, on localhost only. Each operator in `people` is an owner or staff. Staff manage listings, photos, holds, notes and publishing, and only owners handle approvals, money, settings, breeds, terms, the mailing list, the email log (Alex, 2026-10-24) and people (`STAFF_ALLOWED` in `admin/worker.js`) | Create the Access application and set `ACCESS_TEAM_DOMAIN` and `ACCESS_AUD`. Until then a deployed admin answers 403 everywhere, which is the safe state |
 | Publishing | Real on staging since 2026-10-06. The staging portal and admin run `PUBLISH_MODE` hook with `PUBLISH_HOOK_URL` set, so a publish starts a Workers Builds build of the site repository and the staging site serves the generated pages | The same hook on the production site Worker (launch checklist L16) |
 | Puppy videos (workplan A3) | `STREAM_MODE=sim` keeps each file in R2 under `videos/` and plays it from the portal at `/dev/stream` | Subscribe to Stream on the Puppy Connection account, set the `STREAM_API_TOKEN` secret (Stream Edit) on the portal and the admin, then `STREAM_MODE=stream` and `STREAM_CUSTOMER_CODE` in `wrangler.hosted.jsonc`. Until then staging shows no video upload |
 | Scheduled jobs | Built (plan P4.2), with the publish on the */15 trigger since P4.4 | Nothing, beyond real email for their alerts |
@@ -348,12 +348,13 @@ settings, terms and operators are not touched. The audit log and email log are k
   operators. Nothing is deleted then. The admin follows up and marks the account closed, and 30
   days later the daily retention job (`lib/retention.js`, migration 0060, launch workplan D1)
   removes the profile, breeds raised, photos, videos, documents, litters, puppies with their page
-  counts, saved parents, people on the account and every session, with their R2 files and Stream
-  videos. It keeps the breeders row (suspended, with the reason), the payment records with each
-  puppy's name in `checkout_items.puppy_name`, the activity record, the reference, operator notes,
-  listing reports and the close request, which records `removed_at`. The breeder leaves the site at
+  counts, saved parents, people on the account, the reference and every session, with their R2
+  files and Stream videos. It keeps the breeders row (suspended, with the reason), the payment
+  records with each puppy's name in `checkout_items.puppy_name`, the activity record, operator
+  notes, listing reports and the close request, which records `removed_at`. The breeder leaves the site at
   the next publish. At most two accounts and five Stream deletes a run, and the rest wait a day.
-- The same job keeps the privacy policy's other periods. Activity older than 2 years and payment
+- The same job keeps the privacy policy's other periods. Activity, operator notes and listing
+  reports older than 2 years (Alex, 2026-10-24, whoever they are about) and payment
   records older than 7 years (checkouts with their items, payments, disputes and Stripe events) are
   deleted in capped batches, each batch with its own audit row. Page and breed search counts are
   kept. An unsubscribed address keeps only its email, state, date and unsubscribe link, and loses

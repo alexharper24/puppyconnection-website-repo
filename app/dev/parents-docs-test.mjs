@@ -77,7 +77,7 @@ async function makeBreeder(tag) {
   const { c } = await signUp(email, `Kennel ${stamp}`);
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Kennel ${stamp}`, public_phone: '555-0101', city: 'Elkhart', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  await c.post('/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   await admin.post(`/api/breeders/${me.id}/approve`, {});
   return { c, id: me.id, email };
 }

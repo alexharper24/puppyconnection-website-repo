@@ -121,7 +121,7 @@ async function main() {
   let r = await c.put('/api/profile', { version: me.data.profile.version, business_name: `E2E Kennel ${stamp}`, public_phone: '555-0100',
     city: 'Goshen', state: 'IN', website_url: 'https://e2e-kennel.test', description: 'A simulated kennel.' });
   check('the profile saves', r.status === 200, JSON.stringify(r.data));
-  r = await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  r = await c.post('/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   check('the profile submits for approval', r.status === 200 && !!r.data.profile_submitted_at, JSON.stringify(r.data));
   // Amber's mail is read from the admin's own mailbox, which the portal does not show.
   const amberMail = await admin.get('/dev/mail');

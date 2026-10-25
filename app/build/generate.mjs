@@ -695,7 +695,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       <div class="breeder-box" id="dBreeder">
         <div class="eyebrow">Raised by</div>
         <h2 class="breeder-name">${esc(b ? b.name : 'Breeder to be confirmed')}</h2>
-        <p class="breeder-note">Puppy Connection lists this puppy but does not sell puppies. Health records and guarantees are agreed directly between you and the breeder.</p>
+        <p class="breeder-note seller-statement">Puppy Connection does not sell puppies. This puppy is sold by its breeder, and the sale is agreed between you and the breeder.</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         ${b ? `<p style="margin:.9rem 0 0"><a href="${pageFor.breeder(b.slug)}">See all puppies from ${esc(b.name)}</a></p>` : ''}
         ${b ? `<p class="small" style="margin:.6rem 0 0"><a href="${esc(`${portal}/report?puppy=${encodeURIComponent(p.slug)}`)}" rel="nofollow">Report this listing</a></p>` : ''}

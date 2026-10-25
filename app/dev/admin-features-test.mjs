@@ -104,7 +104,7 @@ async function breeder(tag, approve, name) {
   await usePasswordLink(c, await mailLink(email));
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: business, public_phone: '555-0103', city: 'Nappanee', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  await c.post('/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   if (approve) await admin.post(`/api/breeders/${me.id}/approve`, {});
   return { c, id: me.id, email, name: business };
 }
@@ -242,6 +242,31 @@ async function features() {
   check('P3.4 the terms screen counts who is on the current version', t1.accepted >= 1 && t1.waiting >= 1 && t1.versions.some((v) => v.version === v1), JSON.stringify([t1.accepted, t1.waiting]));
   const D = await breeder('d', false);
   check('P3.4 a new sign-up accepts the current version when they submit', (await D.c.get('/api/me')).data.terms.needs_accept === false && (await detail(D.id)).breeder.terms_version === v1);
+
+  // ---------------------------------------------------------------- A6 seller confirmation
+  check('A6 a submitted sign-up stores the date they confirmed they are the seller', !!(await detail(D.id)).breeder.seller_confirmed_at &&
+    (await D.c.get('/api/me')).data.terms.seller_confirmed === true);
+  const S = await breeder('s', false);
+  const eMe = (await S.c.get('/api/me')).data;
+  sql(`UPDATE breeders SET profile_submitted_at = NULL, seller_confirmed_at = NULL WHERE id = '${eMe.id}'`);
+  const noBox = await S.c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  check('A6 submitting without the seller box is refused and stores nothing', noBox.status === 400 && /seller/.test(noBox.data.error) &&
+    !(await detail(S.id)).breeder.profile_submitted_at && !(await detail(S.id)).breeder.seller_confirmed_at, JSON.stringify(noBox.data));
+  // A breeder from before the box, on the current terms, is asked once through the terms banner.
+  sql(`UPDATE breeders SET seller_confirmed_at = NULL WHERE id = '${A.id}'`);
+  meA = (await A.c.get('/api/me')).data;
+  check('A6 a breeder on the current terms with no confirmation is asked through the same banner', meA.terms.needs_accept === true && meA.terms.accepted_version === v1 && meA.terms.seller_confirmed === false);
+  const refused = await A.c.post('/api/terms/accept', { version: v1 });
+  check('A6 accepting the terms without ticking the box is refused', refused.status === 400 && /seller/.test(refused.data.error) && !(await detail(A.id)).breeder.seller_confirmed_at);
+  const confirmed = await A.c.post('/api/terms/accept', { version: v1, confirm_seller: true });
+  const aRow = (await detail(A.id)).breeder;
+  check('A6 ticking it stores the date, clears the banner, and is audited', confirmed.status === 200 && confirmed.data.terms.needs_accept === false && !!aRow.seller_confirmed_at &&
+    sql(`SELECT after_json FROM audit_log WHERE entity_id = '${A.id}' AND action = 'terms.accept' ORDER BY id DESC LIMIT 1`).some((a) => JSON.parse(a.after_json).seller_confirmed_at === aRow.seller_confirmed_at));
+  const firstDate = aRow.seller_confirmed_at;
+  await A.c.post('/api/terms/accept', { version: v1, confirm_seller: true });
+  check('A6 the box is ticked once, so a second acceptance keeps the first date', (await detail(A.id)).breeder.seller_confirmed_at === firstDate);
+  const adminJs = await (await fetch(`${ADMIN}/admin.js`)).text();
+  check('A6 the admin breeder drawer shows the date the breeder confirmed', adminJs.includes("row('Confirmed seller'"));
 
   // ---------------------------------------------------------------- P3.8 refunds and disputes
   const before = await pupOf(A, a1.id);

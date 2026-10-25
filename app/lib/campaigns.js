@@ -84,7 +84,7 @@ async function deliver(env, messages) {
     const res = await fetch('https://api.resend.com/emails/batch', {
       method: 'POST',
       headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify(messages.map((m) => ({ from: env.EMAIL_FROM, to: [m.to], subject: m.subject, text: m.text, headers: m.headers }))),
+      body: JSON.stringify(messages.map((m) => ({ from: env.EMAIL_FROM, to: [m.to], subject: m.subject, text: m.text, headers: m.headers, ...(env.EMAIL_REPLY_TO ? { reply_to: env.EMAIL_REPLY_TO } : {}) }))),
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) return messages.map(() => ({ ok: false, error: `refused ${res.status}` }));

@@ -55,7 +55,13 @@
     "GITHUB_BRANCH": "main",
     "PUBLISH_DIR": "",
     "DEV_MODE": "staging",
-    "EMAIL_MODE": "log",
+    // Real email through Resend on Puppy Connection's verified domain (workplan B3 and B7, Alex
+    // 2026-10-24). RESEND_API_KEY is a secret Alex set. On staging only the allowlisted addresses
+    // receive mail, list sends included, and /dev/mail is gone while EMAIL_MODE is resend.
+    "EMAIL_MODE": "resend",
+    "EMAIL_FROM": "Puppy Connection <notices@puppy-connection.com>",
+    "EMAIL_REPLY_TO": "info@puppy-connection.com",
+    "EMAIL_ALLOWLIST": "alex24harper@gmail.com,info@puppy-connection.com,luke.blakeslee@gmail.com",
     // Stripe sandbox (plan P7.4, 2026-10-06). Product "Puppy listing", one-time $14.99 price, and
     // the webhook puppy-connection-staging at /stripe/webhook on API version 2026-08-26.dahlia
     // with the seven events in docs/launch-checklist.md L1. STRIPE_SECRET_KEY (sandbox sk_test)

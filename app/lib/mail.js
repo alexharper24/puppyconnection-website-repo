@@ -4,7 +4,8 @@
 //                  to dev_mailbox so /dev/mail can show it, and printed to the console.
 // EMAIL_MODE=resend  real delivery through Resend's API, bolted in later. It needs the
 //                  RESEND_API_KEY secret and a verified sending domain, and on staging it
-//                  sends only to addresses listed in EMAIL_ALLOWLIST.
+//                  sends only to addresses listed in EMAIL_ALLOWLIST. EMAIL_REPLY_TO, when set,
+//                  is where replies go (info@puppy-connection.com, Alex 2026-10-24).
 // Anything else refuses to send, so a misconfigured Worker cannot mail anyone by accident.
 
 import { now } from './util.js';
@@ -211,7 +212,7 @@ export async function sendMail(env, to, template, data) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject: msg.subject, text: msg.text }),
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject: msg.subject, text: msg.text, ...(env.EMAIL_REPLY_TO ? { reply_to: env.EMAIL_REPLY_TO } : {}) }),
     });
     const body = await res.json().catch(() => ({}));
     await logSend(env, to, template, body.id || null, res.ok ? 'sent' : `failed-${res.status}`);

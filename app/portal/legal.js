@@ -43,7 +43,8 @@ export function privacyPage() {
 <p>Puppy Connection is a listing service for family breeders. Breeders list their puppies with us, and families find them and contact the breeder directly. This page explains what we keep about breeders, about people on our email list and about visitors to the site, what shows publicly, who helps us run the service and how long we keep each thing.</p>
 
 <h2>Visitors to the site</h2>
-<p>You can browse every breed, breeder and puppy without an account, and the site asks you for nothing. It sets no cookies and uses no advertising or tracking tools.</p>
+<p>You can browse every breed, breeder and puppy without an account, and the site asks you for nothing. It uses no advertising tools.</p>
+<p>The site uses Google Analytics to see how visitors find it and which pages they use. Google Analytics sets cookies in your browser and sends Google the pages you open, how you reached the site, your browser and device, and your approximate location. Puppy Connection sees only totals and reports from it, never who a visitor is.</p>
 <p>The site counts how many times each puppy's page is opened, and how many times a visitor follows a link from it to the breeder's website, phone or email. It keeps only those numbers for each puppy for each day, and shows them to that puppy's breeder. It keeps nothing about the visitor.</p>
 <p>When you search for a breed on the browse page, the site adds one to a count for that breed for that day. Puppy Connection uses these counts to see which breeds families look for. Only the number is kept, and nothing about who searched.</p>
 <p>When you contact a breeder, you do it directly with the details on the breeder's page, so that conversation does not pass through Puppy Connection. Each breeder handles what you send them under their own practices.</p>
@@ -100,8 +101,8 @@ export function privacyPage() {
 <ul>
 <li><b>Cloudflare</b> hosts the site, the portal, the database, the photos and documents, and the puppy videos. Its AI service runs the photo check, and its Turnstile check on the sign-up and report forms helps keep out automated use.</li>
 <li><b>Stripe</b> takes listing payments.</li>
-<li><b>Google</b> handles sign-in for breeders who choose to sign in with Google.</li>
-<li><b>An email service</b> (Resend or Cloudflare) sends account confirmations, password links, invitations, account notices and our emails to the list.</li>
+<li><b>Google</b> handles sign-in for breeders who choose to sign in with Google, and Google Analytics counts visits to the site.</li>
+<li><b>Resend</b> sends account confirmations, password links, invitations, account notices and our emails to the list.</li>
 </ul>
 <p>We do not sell your information, and we do not share it with anyone else except where the law requires it.</p>
 

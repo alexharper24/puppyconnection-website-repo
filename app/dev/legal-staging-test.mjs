@@ -51,7 +51,7 @@ const get = (url, headers = {}) => fetch(url, { headers, redirect: 'manual' });
   check('/privacy has no open decisions and no REPLACE THIS left', !/review-note|For Amber to decide|REPLACE THIS/.test(p));
   check('/privacy covers what the system does (photo details, Google name and email, Stripe, Cloudflare, Turnstile, email, 90-day backups, closing)',
     [/where the photo was taken/, /Google tells us your name and email address/, /never sees or stores your card number/, /Cloudflare<\/b> hosts/,
-      /Turnstile/, /Resend or Cloudflare/, /deleted after 90 days/, /Closing your account/].every((rx) => rx.test(p)));
+      /Turnstile/, /<b>Resend<\/b> sends/, /Google Analytics/, /deleted after 90 days/, /Closing your account/].every((rx) => rx.test(p)));
   check('/privacy covers the email list, the people on an account and staff access (added 2026-10-12)',
     [/<h2>Our email list<\/h2>/, /one click takes you off the list/, /each person you add to your account/, /cannot see the email list/].every((rx) => rx.test(p)));
   check('/privacy gives the contact address Alex set, info@puppy-connection.com, for questions and closing',

@@ -1003,3 +1003,18 @@
     set(false);
   });
 })();
+// Google Analytics 4 (workplan B11, Alex 2026-10-24), the property Puppy Connection in Alex's
+// account. It loads only on the live domain, so staging and local copies never count a visit.
+(function () {
+  var host = location.hostname.replace(/^www\./, '');
+  if (host !== 'puppy-connection.com') return;
+  var id = 'G-0EKJRGCX9T';
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function () { window.dataLayer.push(arguments); };
+  window.gtag('js', new Date());
+  window.gtag('config', id);
+  var s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
+  document.head.appendChild(s);
+})();

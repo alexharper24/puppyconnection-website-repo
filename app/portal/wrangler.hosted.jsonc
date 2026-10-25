@@ -64,7 +64,7 @@
     // Workplan B9 (Amber, 2026-10-25). New breeders waiting for approval and listing reports go here
     // instead of to the operators in people. Failure alerts stay with the owners. Unset, the old rule.
     "NOTICE_TO": "info@puppy-connection.com",
-    "EMAIL_ALLOWLIST": "alex24harper@gmail.com,info@puppy-connection.com,luke.blakeslee@gmail.com",
+    "EMAIL_ALLOWLIST": "alex24harper@gmail.com,alex24harper+invite@gmail.com,info@puppy-connection.com,luke.blakeslee@gmail.com",
     // Stripe sandbox (plan P7.4, 2026-10-06). Product "Puppy listing", one-time $14.99 price, and
     // the webhook puppy-connection-staging at /stripe/webhook on API version 2026-08-26.dahlia
     // with the seven events in docs/launch-checklist.md L1. STRIPE_SECRET_KEY (sandbox sk_test)

@@ -7,8 +7,13 @@
 //                  sends only to addresses listed in EMAIL_ALLOWLIST. EMAIL_REPLY_TO, when set,
 //                  is where replies go (info@puppy-connection.com, Alex 2026-10-24).
 // Anything else refuses to send, so a misconfigured Worker cannot mail anyone by accident.
+//
+// Every email goes out with two parts, the plain text below as `text` and the branded HTML from
+// lib/email-html.js as `html` (Alex 2026-10-25). The local mailbox keeps the text only, because
+// dev_mailbox has no column for HTML. dev/email-samples/ holds rendered copies to open.
 
 import { now } from './util.js';
+import { templateHtml } from './email-html.js';
 
 const SITE = 'Puppy Connection';
 
@@ -189,6 +194,8 @@ export async function sendMail(env, to, template, data) {
   const make = TEMPLATES[template];
   if (!make) throw new Error(`Unknown email template ${template}`);
   const msg = make(data);
+  // The branded HTML part (lib/email-html.js), built from the text part, which goes out unchanged.
+  const html = templateHtml(env, template, msg, data);
   const mode = env.EMAIL_MODE;
 
   if (mode === 'log') {
@@ -212,7 +219,7 @@ export async function sendMail(env, to, template, data) {
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject: msg.subject, text: msg.text, ...(env.EMAIL_REPLY_TO ? { reply_to: env.EMAIL_REPLY_TO } : {}) }),
+      body: JSON.stringify({ from: env.EMAIL_FROM, to: [to], subject: msg.subject, text: msg.text, html, ...(env.EMAIL_REPLY_TO ? { reply_to: env.EMAIL_REPLY_TO } : {}) }),
     });
     const body = await res.json().catch(() => ({}));
     await logSend(env, to, template, body.id || null, res.ok ? 'sent' : `failed-${res.status}`);

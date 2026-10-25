@@ -77,7 +77,8 @@
     // this account and Alex sets the STREAM_API_TOKEN secret (a token with Stream Edit). Then set
     // STREAM_MODE to "stream" and STREAM_CUSTOMER_CODE to the <code> in the account's
     // customer-<code>.cloudflarestream.com, and redeploy the portal and the admin.
-    "STREAM_MODE": "stream",
+    // Video is held for now (Alex, 2026-10-25). Set this back to "stream" to switch it on; the key and customer code stay.
+    "STREAM_MODE": "off",
     "STREAM_CUSTOMER_CODE": "ui4bftd2nmemqgdc",
     "STREAM_ACCOUNT_ID": "4f6e9dc25ab751960763628b06e6c108",
     "PHOTO_CHECK_MODE": "ai"

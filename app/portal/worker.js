@@ -16,7 +16,7 @@ import {
   BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
   PUPPY_EDIT_COLS, puppySet, puppyValues, referenceFields, referenceStmt, loadReference, REFERENCE_ROLES,
 } from '../lib/store.js';
-import { sendMail, alertOps, alertOnce, failTest } from '../lib/mail.js';
+import { sendMail, noticeTo, alertOps, alertOnce, failTest } from '../lib/mail.js';
 import { siteBreederSlug } from '../lib/export.js';
 import { breederStats } from '../lib/stats.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
@@ -308,7 +308,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=19"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=20"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
@@ -679,10 +679,11 @@ async function submitProfile(request, env, ctx) {
     auditStmt(env, ...who(breeder), 'profile.submit', 'breeder', breeder.id, null, { terms_version: s.termsVersion }),
   ]);
   if (first) {
-    const { results } = await env.DB.prepare('SELECT email FROM people').all();
+    // Workplan B9. NOTICE_TO (info@puppy-connection.com) when set, otherwise every operator as before.
+    const to = await noticeTo(env, 'SELECT email FROM people');
     const adminUrl = `${env.ADMIN_ORIGIN || ''}/#/approvals/${breeder.id}`;
-    for (const r of results) {
-      ctx.waitUntil(sendMail(env, r.email, 'profile_submitted', { business: breeder.business_name, adminUrl }).catch((e) => console.error(e)));
+    for (const addr of to) {
+      ctx.waitUntil(sendMail(env, addr, 'profile_submitted', { business: breeder.business_name, adminUrl }).catch((e) => console.error(e)));
     }
   }
   return me(request, env);

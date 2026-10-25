@@ -37,6 +37,9 @@
     "EMAIL_MODE": "resend",
     "EMAIL_FROM": "Puppy Connection <notices@puppy-connection.com>",
     "EMAIL_REPLY_TO": "info@puppy-connection.com",
+    // Workplan B9 (Amber, 2026-10-25). New breeders waiting for approval and listing reports go here
+    // instead of to the operators in people. Failure alerts stay with the owners. Unset, the old rule.
+    "NOTICE_TO": "info@puppy-connection.com",
     "EMAIL_ALLOWLIST": "alex24harper@gmail.com,info@puppy-connection.com,luke.blakeslee@gmail.com",
     // Stripe sandbox, the same as the portal. The admin needs STRIPE_SECRET_KEY for refunds.
     "PAYMENTS_MODE": "stripe",

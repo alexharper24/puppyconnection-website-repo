@@ -141,8 +141,33 @@ async function body() {
     sql(batchBefore == null ? "DELETE FROM settings WHERE key = 'link_batch'" : `UPDATE settings SET value = '${batchBefore}' WHERE key = 'link_batch'`);
   }
 
+  // Launch workplan D1 (lib/retention.js). The full rules are in retention-test.mjs on Node. This runs
+  // the job once on the local D1 and the local R2 bucket through Run now, with their foreign keys.
+  {
+    const B = `jobs-closed-${Date.now().toString(36)}`, t = iso(Date.now()), closed = iso(Date.now() - 31 * 86400000);
+    sql(`INSERT INTO breeders (id, email, status, created_at, updated_at) VALUES ('${B}', '${B}@breeders.test', 'approved', '${t}', '${t}');
+      INSERT INTO breeder_profiles (breeder_id, business_name, slug, updated_at) VALUES ('${B}', 'Closed Jobs Kennel', '${B}', '${t}');
+      INSERT INTO litters (id, breeder_id, breed_id, created_at, updated_at) VALUES ('${B}-l', '${B}', 'breed-havanese', '${t}', '${t}');
+      INSERT INTO puppies (id, breeder_id, litter_id, slug, name, payment_state, publication_state, created_at, updated_at) VALUES ('${B}-p', '${B}', '${B}-l', '${B}-p', 'Closed Pup', 'paid', 'published', '${t}', '${t}');
+      INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, position, created_at) VALUES ('${B}-ph', '${B}', '${B}-p', 'uploads/${B}/${B}-ph.jpg', 'image/jpeg', 0, '${t}');
+      INSERT INTO checkouts (id, breeder_id, status, price_id, quantity, unit_amount_cents, amount_total_cents, created_at) VALUES ('${B}-co', '${B}', 'paid', 'p', 1, 1499, 1499, '${t}');
+      INSERT INTO checkout_items (checkout_id, puppy_id, breeder_id) VALUES ('${B}-co', '${B}-p', '${B}');
+      INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at) VALUES ('${B}-s', '${B}', '${t}', '${t}', '${t}');
+      INSERT INTO account_requests (id, breeder_id, kind, created_at, resolved_at, resolved_by) VALUES ('${B}-ar', '${B}', 'close', '${closed}', '${closed}', 'amber@puppyconnection.test');`);
+    const r2Args = (verb, ...rest) => [WRANGLER, 'r2', 'object', verb, `puppyconnection-files/uploads/${B}/${B}-ph.jpg`, ...rest, '--local', '--persist-to', path.join(APP, '.state'), '--config', path.join(APP, 'portal/wrangler.jsonc')];
+    execFileSync(process.execPath, r2Args('put', '--file', path.join(APP, 'dev/fixtures/gps-test.jpg'), '--content-type', 'image/jpeg'), { cwd: APP, stdio: 'ignore' });
+    const run = await req(ADMIN, 'POST', '/api/jobs/retention/run', {});
+    const left = sql(`SELECT (SELECT COUNT(*) FROM breeder_profiles WHERE breeder_id = '${B}') + (SELECT COUNT(*) FROM puppies WHERE breeder_id = '${B}')
+      + (SELECT COUNT(*) FROM litters WHERE breeder_id = '${B}') + (SELECT COUNT(*) FROM photos WHERE breeder_id = '${B}') + (SELECT COUNT(*) FROM sessions WHERE breeder_id = '${B}') AS n,
+      (SELECT puppy_name FROM checkout_items WHERE checkout_id = '${B}-co') AS kept, (SELECT removed_at FROM account_requests WHERE id = '${B}-ar') AS removed`)[0];
+    let fileGone = false;
+    try { execFileSync(process.execPath, r2Args('get', '--pipe'), { cwd: APP, stdio: ['ignore', 'pipe', 'pipe'] }); } catch { fileGone = true; }
+    check('Run now retention removes a closed account on the local D1 and its photo from the local bucket, and keeps its payment with the puppy name',
+      run.status === 200 && run.data.ok && left.n === 0 && left.kept === 'Closed Pup' && !!left.removed && fileGone, JSON.stringify({ run: run.data, left, fileGone }));
+  }
+
   const jobs = (await req(ADMIN, 'GET', '/api/jobs')).data;
-  check('the admin shows a last run for all nine jobs, sending to the mailing list, the video and photo checks and the inactivity schedule included', jobs.length === 9 && jobs.some((j) => j.job === 'campaigns') && jobs.some((j) => j.job === 'videos') && jobs.some((j) => j.job === 'photos') && jobs.some((j) => j.job === 'inactivity') && jobs.every((j) => j.last_run_at && !j.last_error), JSON.stringify(jobs));
+  check('the admin shows a last run for all ten jobs, sending to the mailing list, the video and photo checks, the inactivity schedule and retention included', jobs.length === 10 && jobs.some((j) => j.job === 'retention') && jobs.some((j) => j.job === 'campaigns') && jobs.some((j) => j.job === 'videos') && jobs.some((j) => j.job === 'photos') && jobs.some((j) => j.job === 'inactivity') && jobs.every((j) => j.last_run_at && !j.last_error), JSON.stringify(jobs));
   check('an unknown job is refused', (await req(ADMIN, 'POST', '/api/jobs/nothing/run', {})).status === 404);
   check('Run now refuses a request from another site', (await fetch(`${ADMIN}/api/jobs/expiry/run`, { method: 'POST', headers: { origin: 'https://evil.example', 'content-type': 'application/json' }, body: '{}' })).status === 403);
 

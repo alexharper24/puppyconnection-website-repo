@@ -79,8 +79,9 @@ CREATE TABLE IF NOT EXISTS puppy_stats (
   PRIMARY KEY (puppy_id, day)
 );
 
--- Plan P2.7. A breeder asking Puppy Connection to close their account. Nothing is deleted
--- here; an operator sees the request and marks it handled.
+-- Plan P2.7. A breeder asking Puppy Connection to close their account. An operator sees the
+-- request and marks it closed (resolved_at). Thirty days later the daily retention job removes the
+-- account's information (lib/retention.js, migrations/0060) and records the day in removed_at.
 CREATE TABLE IF NOT EXISTS account_requests (
   id          TEXT PRIMARY KEY,
   breeder_id  TEXT NOT NULL REFERENCES breeders(id),
@@ -89,7 +90,8 @@ CREATE TABLE IF NOT EXISTS account_requests (
   created_at  TEXT NOT NULL,
   withdrawn_at TEXT,
   resolved_at TEXT,
-  resolved_by TEXT
+  resolved_by TEXT,
+  removed_at  TEXT
 );
 CREATE INDEX IF NOT EXISTS account_requests_breeder ON account_requests(breeder_id, created_at);
 
@@ -234,6 +236,8 @@ CREATE TABLE IF NOT EXISTS operator_notes (
   created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS operator_notes_breeder ON operator_notes(breeder_id, created_at);
+-- The retention job deletes notes older than 2 years by this (migrations/0060).
+CREATE INDEX IF NOT EXISTS operator_notes_created ON operator_notes(created_at);
 
 -- Plan P3.4. The listing terms text, one row per published version plus the working draft
 -- (version 'draft', never published). settings.terms_version names the current version, and a
@@ -476,6 +480,8 @@ CREATE TABLE IF NOT EXISTS listing_reports (
 );
 CREATE INDEX IF NOT EXISTS listing_reports_status ON listing_reports(status, created_at);
 CREATE INDEX IF NOT EXISTS listing_reports_breeder ON listing_reports(breeder_id);
+-- The retention job deletes reports older than 2 years by this (migrations/0060).
+CREATE INDEX IF NOT EXISTS listing_reports_created ON listing_reports(created_at);
 
 CREATE TABLE IF NOT EXISTS checkouts (
   id                       TEXT PRIMARY KEY,
@@ -497,14 +503,17 @@ CREATE TABLE IF NOT EXISTS checkouts (
   UNIQUE (id, breeder_id)
 );
 CREATE INDEX IF NOT EXISTS checkouts_breeder ON checkouts(breeder_id, created_at);
+CREATE INDEX IF NOT EXISTS checkouts_created ON checkouts(created_at);
 
+-- A payment record outlives the listing it paid for (migrations/0060), so there is no reference to
+-- puppies, and puppy_name keeps which puppy it was once a closed account's puppies are removed.
 CREATE TABLE IF NOT EXISTS checkout_items (
   checkout_id TEXT NOT NULL,
   puppy_id    TEXT NOT NULL,
   breeder_id  TEXT NOT NULL,
+  puppy_name  TEXT,
   PRIMARY KEY (checkout_id, puppy_id),
-  FOREIGN KEY (checkout_id, breeder_id) REFERENCES checkouts (id, breeder_id),
-  FOREIGN KEY (puppy_id, breeder_id)    REFERENCES puppies (id, breeder_id)
+  FOREIGN KEY (checkout_id, breeder_id) REFERENCES checkouts (id, breeder_id)
 );
 
 CREATE TABLE IF NOT EXISTS puppy_holds (
@@ -533,6 +542,7 @@ CREATE TABLE IF NOT EXISTS stripe_events (
   processed_at TEXT,
   result       TEXT
 );
+CREATE INDEX IF NOT EXISTS stripe_events_received ON stripe_events(received_at);
 
 CREATE TABLE IF NOT EXISTS settings (
   key   TEXT PRIMARY KEY,
@@ -580,6 +590,8 @@ CREATE TABLE IF NOT EXISTS audit_log (
   after_json  TEXT
 );
 CREATE INDEX IF NOT EXISTS audit_entity ON audit_log(entity, entity_id);
+-- The retention job finds activity older than two years by this (migrations/0060).
+CREATE INDEX IF NOT EXISTS audit_log_at ON audit_log(at);
 
 CREATE TABLE IF NOT EXISTS email_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -589,6 +601,7 @@ CREATE TABLE IF NOT EXISTS email_log (
   provider_id TEXT,
   status      TEXT NOT NULL
 );
+CREATE INDEX IF NOT EXISTS email_log_to ON email_log(to_addr);
 
 -- LOCAL SIMULATION ONLY. Mail bodies (which hold sign-in links) are kept only while
 -- EMAIL_MODE is "log", so a developer can open them at /dev/mail. Production never writes
@@ -726,7 +739,8 @@ CREATE TABLE IF NOT EXISTS subscribers (
   id               TEXT PRIMARY KEY,
   email            TEXT NOT NULL UNIQUE COLLATE NOCASE,
   name             TEXT,
-  source           TEXT NOT NULL CHECK (source IN ('site','import','admin')),
+  -- Empty once an address unsubscribes (migrations/0060, lib/retention.js).
+  source           TEXT CHECK (source IS NULL OR source IN ('site','import','admin')),
   status           TEXT NOT NULL DEFAULT 'subscribed' CHECK (status IN ('subscribed','unsubscribed','contact')),
   unsub_token      TEXT NOT NULL UNIQUE,
   created_at       TEXT NOT NULL,

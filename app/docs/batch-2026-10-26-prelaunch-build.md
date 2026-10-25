@@ -4,6 +4,7 @@ started: 2026-10-25
 asked_by: Alex
 ask: "Pre-launch build work in a fresh session: the checklist in step, the seller statement, real-world tests on staging and the Google Analytics click events"
 branch: feature/prelaunch-build-2026-10-26
+pr: "https://github.com/alexharper24/puppyconnection-website-repo/pull/15, open, waiting on Alex's merge approval"
 rules:
   - "Back up staging D1 and confirm Downloaded before every hosted migration"
   - "Merge and deploy the portal and admin to staging only from main, after Alex approves the merge in chat"

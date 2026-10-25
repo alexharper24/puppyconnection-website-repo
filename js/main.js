@@ -1017,4 +1017,26 @@
   s.async = true;
   s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
   document.head.appendChild(s);
+
+  // Clicks to a breeder's website, phone and email from puppy and breeder pages (workplan B11),
+  // so the property can show a breeder what a listing produced. The site's own count of these
+  // clicks (the beacon in js/pages.js) carries on beside it unchanged.
+  var page = document.querySelector('main#detail, main#profile');
+  if (!page) return;
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('.contact-list a, .profile-actions a, .puppy-out');
+    if (!a) return;
+    var href = a.getAttribute('href') || '';
+    var kind = /^tel:/i.test(href) ? 'phone' : /^mailto:/i.test(href) ? 'email'
+      : /^https?:/i.test(href) && !/facebook\.com/i.test(href) ? 'website' : null;
+    if (!kind) return;
+    var name = document.querySelector(page.id === 'detail' ? '#dBreeder .breeder-name' : '#profile h1');
+    window.gtag('event', 'breeder_' + kind + '_click', {
+      breeder_name: name ? name.textContent.trim() : '',
+      puppy: page.getAttribute('data-puppy') || '',
+      page_type: page.id === 'detail' ? 'puppy' : 'breeder',
+      link_url: kind === 'website' ? href : '',
+      transport_type: 'beacon'
+    });
+  }, true);
 })();

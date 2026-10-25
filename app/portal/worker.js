@@ -16,7 +16,7 @@ import {
   BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
   PUPPY_EDIT_COLS, puppySet, puppyValues, referenceFields, referenceStmt, loadReference, REFERENCE_ROLES,
 } from '../lib/store.js';
-import { sendMail, noticeTo, alertOps, alertOnce, failTest } from '../lib/mail.js';
+import { sendMail, noticeTo, noticeOps, alertOps, alertOnce, failTest } from '../lib/mail.js';
 import { siteBreederSlug } from '../lib/export.js';
 import { breederStats } from '../lib/stats.js';
 import { scheduled as runScheduled } from '../lib/jobs.js';
@@ -1011,7 +1011,7 @@ async function askToClose(request, env, ctx) {
     env.DB.prepare("INSERT INTO account_requests (id, breeder_id, kind, reason, created_at) VALUES (?, ?, 'close', ?, ?)").bind(id, breeder.id, reason, now()),
     auditStmt(env, ...who(breeder), 'account.close_request', 'breeder', breeder.id, null, { request: id }),
   ]);
-  ctx.waitUntil(alertOps(env, `${breeder.business_name || breeder.email} asked to close their account`,
+  ctx.waitUntil(noticeOps(env, `${breeder.business_name || breeder.email} asked to close their account`,
     `${breeder.business_name || breeder.email} asked Puppy Connection to close their breeder account.${reason ? `\n\nTheir reason: ${reason}` : ''}\n\nNothing has been removed. Open the breeder in the admin to follow up:\n${env.ADMIN_ORIGIN || ''}/#/breeders?status=closing`)
     .catch((e) => console.error(e)));
   return account(request, env);

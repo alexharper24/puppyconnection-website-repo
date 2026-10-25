@@ -254,6 +254,17 @@ export async function alertOps(env, title, detail) {
   }
 }
 
+/**
+ * A notice about one breeder that someone should act on, such as a request to close an account.
+ * It goes to NOTICE_TO (info@, Alex 2026-10-25) and to the owners when that is unset, in the
+ * alert's plain layout.
+ */
+export async function noticeOps(env, title, detail) {
+  for (const addr of await noticeTo(env, "SELECT email FROM people WHERE role = 'owner'")) {
+    try { await sendMail(env, addr, 'ops_alert', { title, detail }); } catch (e) { console.error('notice failed', e); }
+  }
+}
+
 // Failure alerts (launch workplan B10). A failure that repeats, such as a job that fails every
 // fifteen minutes, sends at most one alert of its kind an hour. The ones held back are counted in
 // alert_state (migrations/0040) and sent as one summary by flushHeldAlerts once the hour is up,

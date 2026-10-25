@@ -165,9 +165,11 @@ export async function inactivityJob(env, { portalOrigin = env.PORTAL_ORIGIN || '
 const p0 = (g) => g.rows.reduce((a, b) => (b.anchor < a.anchor ? b : a));
 
 /** Puppies the schedule took off the site, for the generator's forwards to the breed page. */
+// An archived listing forwards the same way, so an old link to a puppy taken down by hand lands on
+// its breed page rather than a missing page (Alex, 2026-10-25).
 export async function gonePuppies(env) {
   return (await env.DB.prepare(
     `SELECT p.slug, p.legacy_slug, br.slug AS breed FROM puppies p JOIN litters l ON l.id = p.litter_id JOIN breeds br ON br.id = l.breed_id
-      WHERE p.inactive_stage IN ('offline','removed') AND p.publication_state = 'expired' ORDER BY p.slug`,
+      WHERE (p.inactive_stage IN ('offline','removed') AND p.publication_state = 'expired') OR p.publication_state = 'archived' ORDER BY p.slug`,
   ).all()).results;
 }

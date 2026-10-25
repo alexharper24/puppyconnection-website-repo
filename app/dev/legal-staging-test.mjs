@@ -109,7 +109,7 @@ const get = (url, headers = {}) => fetch(url, { headers, redirect: 'manual' });
   // Launch workplan D1. The policy is written to Alex's decisions of 2026-10-24 and waits for Amber to
   // confirm it, so the banner stays and D1 stays open until she does. Then the banner comes out and
   // this check turns to its absence.
-  check('/privacy says it is written and waiting for Amber to confirm it', /class="draft-flag"><b>Waiting for Amber's confirmation\./.test(p));
+  check('/privacy is confirmed (Amber, 2026-10-25): no draft banner, and the children section says 18', !/draft-flag/.test(p) && /Confirmed by Puppy Connection/.test(p) && /anyone under 18/.test(p));
   check('/privacy has no open decisions and no REPLACE THIS left', !/review-note|For Amber to decide|REPLACE THIS/.test(p));
   check('/privacy covers what the system does (photo details, Google name and email, Stripe, Cloudflare, Turnstile, email, 90-day backups, closing)',
     [/where the photo was taken/, /Google tells us your name and email address/, /never sees or stores your card number/, /Cloudflare<\/b> hosts/,

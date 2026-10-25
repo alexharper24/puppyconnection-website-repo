@@ -30,16 +30,15 @@
 
 import { esc } from '../lib/util.js';
 
-const WRITTEN = 'October 24, 2026';
 
 // Alex, 2026-10-24. Amber confirms the address with the rest of the policy.
 const CONTACT_EMAIL = 'info@puppy-connection.com';
 const CONTACT = `<a href="mailto:${CONTACT_EMAIL}">${CONTACT_EMAIL}</a>`;
 
 export function privacyPage() {
-  return `<p class="draft-flag"><b>Waiting for Amber's confirmation.</b> This privacy policy was written on ${WRITTEN} from what the breeder portal and the Puppy Connection site actually do. It takes effect once Amber has confirmed it.</p>
-<div class="legal">
+  return `<div class="legal">
 <h1>Privacy policy</h1>
+<p class="small muted">Confirmed by Puppy Connection on October 25, 2026.</p>
 <p>Puppy Connection is a listing service for family breeders. Breeders list their puppies with us, and families find them and contact the breeder directly. This page explains what we keep about breeders, about people on our email list and about visitors to the site, what shows publicly, who helps us run the service and how long we keep each thing.</p>
 
 <h2>Visitors to the site</h2>
@@ -123,7 +122,7 @@ export function privacyPage() {
 <p>Within 30 days of your account being closed, we remove your profile, photos, videos, documents, listings, saved moms and dads, the people on your account, the reference you named and every sign-in session, including the stored files. Your breeder page and puppies leave the public site when it next updates. Your payment records and the activity record are kept for the periods above, together with your sign-in email address, which they belong to. Listing reports about your listings and Puppy Connection's notes about your account are kept for their 2 years too.</p>
 
 <h2>Children</h2>
-<p>Puppy Connection is meant for adults buying or selling puppies. We do not knowingly collect information from children under 13.</p>
+<p>Puppy Connection is meant for adults buying or selling puppies. A breeder account is for people 18 or older, and we do not knowingly collect information from anyone under 18.</p>
 
 <h2>Questions</h2>
 <p>Write to ${CONTACT} with any question about this policy or the information we keep about you, or to ask us to correct or delete it.</p>

@@ -57,7 +57,7 @@ open:
   # G4 Launch (site-launch skill)
   - {id: g4-noindex-off, gate: G4, blocked_on: claude, item: "noindex removed from every page and robots.txt open"}
   - {id: g4-dns-https, gate: G4, blocked_on: alex, item: "Apex and www both load over HTTPS without a certificate error, one redirecting to the other"}
-  - {id: g4-search-consoles, gate: G4, blocked_on: alex, item: "Google Search Console and Bing Webmaster Tools verified with the sitemap submitted"}
+  - {id: g4-search-consoles, gate: G4, blocked_on: alex, item: "Search Console is verified and owned by Alex (2026-10-25), so what remains is Bing and submitting the new sitemap at cutover. Google Search Console and Bing Webmaster Tools verified with the sitemap submitted"}
   - {id: g4-legacy-check, gate: G4, blocked_on: claude, item: "A sample of legacy URLs fetched after cutover and each lands on the right page"}
   - {id: g4-analytics, gate: G4, blocked_on: alex, item: "Cookieless visit count running, plus outbound clicks to breeder sites, so the owner can show a breeder what a listing produced"}
   # G5 Grow
@@ -80,7 +80,6 @@ open:
   - {id: pc-scope-doc, gate: G1, blocked_on: claude, item: "A document for Amber showing what the site, portal and admin include today, so she can say what to change or add"}
   # From the 2026-10-10 seo-run plan, hs-seo-data/puppyconnection/2026-10-10/proposal.md
   - {id: P5, task_id: g1-old-site, gate: G1, severity: medium, blocked_on: alex, item: "/privacy-policy now answers 301 to the portal privacy page (2026-10-12), redrafted 2026-10-12 to cover the email list, kennel members and staff access, with Amber's four decisions in hs-proposals/puppyconnection/privacy-and-content.pdf (contact email, retention, what closing removes, the under-13 line); legal wording from Alex and Amber, as the mailing list sign-up now collects email addresses"}
-  - {id: P10, task_id: g1-old-site, gate: G1, severity: low, blocked_on: client, item: "Ask Amber for Search Console access to puppy-connection.com and whether a Business Profile exists, before cutover"}
   - {id: P11, task_id: seo-run-tooling, gate: G1, severity: low, blocked_on: alex, item: "Set site true for puppyconnection-website-repo in hs-project-index/projects.json so audit.py finds it, or have seo-run pass the generated site path"}
   # From Amber's requirements document, 2026-10-16 (gap review and pricing in hs-proposals, never here)
   - {id: pc-req-payments, gate: G2, blocked_on: alex, item: "Amber's document asks for Braintree with PayPal, the Wix copy-site plan. The build uses Stripe Checkout. Decide with Amber whether PayPal is needed before any payments work"}
@@ -91,6 +90,7 @@ open:
   - {id: pc-req-buyer-accounts, gate: G2, blocked_on: client, item: "Family accounts with favorites, alerts and email preferences, excluded from the build as quoted. Amber ranks it priority 5, at launch if practical or straight after"}
   - {id: pc-launch-workplan, gate: G4, blocked_on: alex, item: "Every launch item (finish-at-launch work and the launch additions) is tracked in app/docs/launch-workplan.md with six session groups and their kickoff prompts (2026-10-17). Close this when every item there is closed. Status now lives in the launch checklist in the admin (2026-10-19), exported to app/docs/launch-checklist-status.md"}
 closed:
+  - {id: P10, closed: 2026-10-25, evidence: "Checked in Alex's Chrome: he is the verified owner of the Search Console domain property puppy-connection.com, and Puppy Connection is a verified profile in his Business Profile Manager, so nothing is needed from Amber. Workplan E6 closed"}
   - {id: pc-d1-read-limit, closed: 2026-10-25, evidence: "Each photo check reads 4 rows instead of 853 (commit 7fb0e24) and Workers Paid is active on Puppy Connection's account, so the daily read limit no longer applies. Edge caching of /media left for now by Alex (2026-10-24). Workplan B13 closed and checklist migration 0062 (batch-2026-10-26-prelaunch-build)"}
   - {id: pc-parents, closed: 2026-10-21, evidence: "Saved moms and dads built as launch workplan A19 and on staging: each parent saved once, picked on a litter, and shown on every puppy page, with per-breed health tests from the OFA CHIC lists (app/docs/health-test-sources.md)"}
   - {id: pc-req-fields, closed: 2026-10-21, evidence: "Every part built: the puppy fields as workplan A3 (2026-10-17), the saved sire and dam with health testing and pedigree as A19, and document uploads marked public or private as A20 (2026-10-21), all on staging"}

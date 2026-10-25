@@ -378,9 +378,11 @@ function areaSeedChecks() {
     ['A24', 'A25', 'A26'].every((r) => byRef(r) && byRef(r).area === 'build' && byRef(r).section === 'launch' && live(r).length === 2));
   const e6 = byRef('E6');
   const oldPart = db.prepare("SELECT * FROM checklist_parts WHERE id = 'cl-024-2'").get();
-  check("Search Console access is its own item waiting on Amber, and her old part on the Search Console item is archived and kept",
-    e6.title === 'Search Console access for Alex' && e6.status === 'waiting' && e6.waiting_owner === 'Amber' && e6.created_by === 'Claude' &&
-    oldPart && oldPart.archived_at && byRef('E4').waiting_on === 'Search Console access for Alex, under Access to grant');
+  // Migration 0062 closed it once Alex was found to own the property already (2026-10-25), and
+  // the Search Console item now waits on the site opening to Google.
+  check("Search Console access is its own item, closed by 0062, and her old part on the Search Console item is archived and kept",
+    e6.title === 'Search Console access for Alex' && e6.status === 'done' && !e6.waiting_owner && e6.created_by === 'Claude' &&
+    oldPart && oldPart.archived_at && byRef('E4').waiting_on === 'the site opening to Google');
   const areaAudits = db.prepare("SELECT entity_id, COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND json_extract(after_json, '$.area') IS NOT NULL AND at != '2026-10-24T22:30:00Z' GROUP BY entity_id").all();
   check(`each item's area is audited once as Claude, and running the migration again adds nothing (${areaAudits.length} items)`,
     areaAudits.length === items.filter((i) => i.area && !['2026-10-24T22:30:00Z', '2026-10-24T23:50:00Z'].includes(i.created_at)).length && areaAudits.every((a) => a.n === 1) &&
@@ -453,13 +455,13 @@ function areaViewChecks() {
   check(`Asks for Amber lists every open part she owns once, grouped by area in order (${flat.length} asks in ${asks.length} groups)`,
     openAmberParts.every((p) => flat.filter((a) => a.partId === p.id).length === 1) &&
     asks.map((g) => g.label).join('|') === groups.filter((g) => asks.some((a) => a.label === g.label)).map((g) => g.label).join('|') && asks[0].label === 'Domain and email');
-  check('migration 0045 stops the Search Console item naming Amber, so Asks for Amber asks for Search Console access once, audited once',
-    !flat.some((a) => a.text === 'Search Console, Bing and the Business Profile') && flat.filter((a) => /Search Console/.test(a.text)).length === 1 &&
+  check('migration 0045 stops the Search Console item naming Amber, and once 0062 closes her access part Asks for Amber has no Search Console ask, audited once',
+    !flat.some((a) => a.text === 'Search Console, Bing and the Business Profile') && !flat.some((a) => /Search Console/.test(a.text)) &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = 'cl-024' AND at = '2026-10-20T17:00:00Z'").get().n === 1);
   check('it adds an item waiting on her with no part of hers, such as the listing terms, and leaves out done and archived parts',
     AR.asksFor([{ id: 'x', section: 'launch', area: 'content', title: 'Listing terms', status: 'waiting', waiting_owner: 'Amber', owner: 'Alex', parts: [] }], areas, 'Amber').flatMap((g) => g.asks).some((a) => a.text === 'Listing terms' && !a.partId) && !flat.some((a) => a.partId === 'cl-024-2') &&
     !flat.some((a) => a.partId && db.prepare('SELECT done_at FROM checklist_parts WHERE id = ?').get(a.partId).done_at) &&
-    flat.some((a) => a.partId === 'cl-081-1'));
+    !flat.some((a) => a.partId === 'cl-081-1'));
   const text = AR.asksText(asks, 'Amber', new Date('2026-10-20T12:00:00'));
   const lines = text.trim().split('\n');
   check('Copy as text gives a plain list headed by the date, each area a heading and each ask a dash line',

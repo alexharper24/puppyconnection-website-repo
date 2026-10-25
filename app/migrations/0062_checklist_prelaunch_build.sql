@@ -2,7 +2,8 @@
 -- 2026-10-26-prelaunch-build). The listing terms are published, Let's Chat and the About, Reviews
 -- and Contact pages are on the staging site, the build parts of managing a breeder's account,
 -- invitations and password sign-in are on staging, the Analytics property exists and its tag is on
--- the site, Workers Paid carries the database read limit, and puppy video is held by Alex. The real
+-- the site, Workers Paid carries the database read limit, Alex already owns Search Console and the
+-- Business Profile, and puppy video is held by Alex. The real
 -- invitation, the staging sign-in check and the notices on production stay open for their tests.
 -- Back up D1 first and confirm the export printed "Downloaded". Re-running changes nothing, because
 -- every write is guarded.
@@ -28,6 +29,14 @@ INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_
   SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.part.tick', 'checklist_item', 'cl-087', NULL, json_object('part', 'cl-087-1', 'done', 1, 'as', 'Alex')
    WHERE EXISTS (SELECT 1 FROM checklist_parts WHERE id = 'cl-087-1' AND done_at IS NULL);
 UPDATE checklist_parts SET done_at = '2026-10-25T20:00:00Z', done_by = 'Alex' WHERE id = 'cl-087-1' AND done_at IS NULL;
+INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
+  SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.part.tick', 'checklist_item', 'cl-081', NULL, json_object('part', 'cl-081-1', 'done', 1, 'as', 'Alex')
+   WHERE EXISTS (SELECT 1 FROM checklist_parts WHERE id = 'cl-081-1' AND done_at IS NULL);
+UPDATE checklist_parts SET done_at = '2026-10-25T20:00:00Z', done_by = 'Alex' WHERE id = 'cl-081-1' AND done_at IS NULL;
+INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
+  SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.part.tick', 'checklist_item', 'cl-081', NULL, json_object('part', 'cl-081-2', 'done', 1, 'as', 'Alex')
+   WHERE EXISTS (SELECT 1 FROM checklist_parts WHERE id = 'cl-081-2' AND done_at IS NULL);
+UPDATE checklist_parts SET done_at = '2026-10-25T20:00:00Z', done_by = 'Alex' WHERE id = 'cl-081-2' AND done_at IS NULL;
 
 -- Items whose wait has moved.
 INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
@@ -36,6 +45,12 @@ INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_
     FROM checklist_items WHERE id = 'cl-078' AND updated_at < '2026-10-25T20:00:00Z';
 UPDATE checklist_items SET status = 'in_progress', waiting_on = NULL, waiting_owner = NULL, updated_at = '2026-10-25T20:00:00Z', version = version + 1
  WHERE id = 'cl-078' AND updated_at < '2026-10-25T20:00:00Z';
+INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
+  SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.edit', 'checklist_item', id, json_object('status', status, 'waiting_on', waiting_on, 'waiting_owner', waiting_owner),
+         json_object('status', 'waiting', 'waiting_on', 'the site opening to Google', 'waiting_owner', 'Alex', 'as', 'Claude', 'why', 'what was done on 2026-10-24 and 25, checked on staging')
+    FROM checklist_items WHERE id = 'cl-024' AND updated_at < '2026-10-25T20:00:00Z';
+UPDATE checklist_items SET status = 'waiting', waiting_on = 'the site opening to Google', waiting_owner = 'Alex', updated_at = '2026-10-25T20:00:00Z', version = version + 1
+ WHERE id = 'cl-024' AND updated_at < '2026-10-25T20:00:00Z';
 INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
   SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.edit', 'checklist_item', id, json_object('status', status, 'waiting_on', waiting_on, 'waiting_owner', waiting_owner),
          json_object('status', 'waiting', 'waiting_on', 'Alex, who is holding puppy video for now', 'waiting_owner', 'Alex', 'as', 'Claude', 'why', 'what was done on 2026-10-24 and 25, checked on staging')
@@ -68,6 +83,12 @@ INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_
     FROM checklist_items WHERE id = 'cl-084' AND updated_at < '2026-10-25T20:00:00Z';
 UPDATE checklist_items SET status = 'done', waiting_on = NULL, waiting_owner = NULL, done_at = '2026-10-25T20:00:00Z', done_by = 'Claude', updated_at = '2026-10-25T20:00:00Z', version = version + 1
  WHERE id = 'cl-084' AND updated_at < '2026-10-25T20:00:00Z';
+INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
+  SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.edit', 'checklist_item', id, json_object('status', status, 'waiting_on', waiting_on, 'waiting_owner', waiting_owner, 'done_at', done_at),
+         json_object('status', 'done', 'waiting_on', NULL, 'waiting_owner', NULL, 'done_at', '2026-10-25T20:00:00Z', 'done_by', 'Claude', 'as', 'Claude', 'why', 'what was done on 2026-10-24 and 25, checked on staging')
+    FROM checklist_items WHERE id = 'cl-081' AND updated_at < '2026-10-25T20:00:00Z';
+UPDATE checklist_items SET status = 'done', waiting_on = NULL, waiting_owner = NULL, done_at = '2026-10-25T20:00:00Z', done_by = 'Claude', updated_at = '2026-10-25T20:00:00Z', version = version + 1
+ WHERE id = 'cl-081' AND updated_at < '2026-10-25T20:00:00Z';
 
 -- What closed each one, as a comment on the item.
 INSERT OR IGNORE INTO checklist_comments (id, item_id, author, author_email, body, created_at)
@@ -106,3 +127,15 @@ INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_
   SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.comment', 'checklist_item', 'cl-080', NULL, json_object('comment', 'cl-080-cp1', 'as', 'Claude')
    WHERE EXISTS (SELECT 1 FROM checklist_comments WHERE id = 'cl-080-cp1')
      AND NOT EXISTS (SELECT 1 FROM audit_log a WHERE a.entity_id = 'cl-080' AND a.action = 'checklist.comment' AND a.after_json LIKE '%' || 'cl-080-cp1' || '%');
+INSERT OR IGNORE INTO checklist_comments (id, item_id, author, author_email, body, created_at)
+  SELECT 'cl-081-cp1', id, 'Claude', 'claude', 'Checked in Search Console on 2026-10-25: the domain property puppy-connection.com lists Alex as its verified owner, so Amber has nothing to grant.', '2026-10-25T20:00:00Z' FROM checklist_items WHERE id = 'cl-081';
+INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
+  SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.comment', 'checklist_item', 'cl-081', NULL, json_object('comment', 'cl-081-cp1', 'as', 'Claude')
+   WHERE EXISTS (SELECT 1 FROM checklist_comments WHERE id = 'cl-081-cp1')
+     AND NOT EXISTS (SELECT 1 FROM audit_log a WHERE a.entity_id = 'cl-081' AND a.action = 'checklist.comment' AND a.after_json LIKE '%' || 'cl-081-cp1' || '%');
+INSERT OR IGNORE INTO checklist_comments (id, item_id, author, author_email, body, created_at)
+  SELECT 'cl-024-cp1', id, 'Claude', 'claude', 'Checked on 2026-10-25: Alex owns the Search Console domain property and Puppy Connection is a verified profile in his Business Profile Manager. The sitemap and the website link on the profile change at cutover.', '2026-10-25T20:00:00Z' FROM checklist_items WHERE id = 'cl-024';
+INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)
+  SELECT '2026-10-25T20:00:00Z', 'system', 'claude', 'checklist.comment', 'checklist_item', 'cl-024', NULL, json_object('comment', 'cl-024-cp1', 'as', 'Claude')
+   WHERE EXISTS (SELECT 1 FROM checklist_comments WHERE id = 'cl-024-cp1')
+     AND NOT EXISTS (SELECT 1 FROM audit_log a WHERE a.entity_id = 'cl-024' AND a.action = 'checklist.comment' AND a.after_json LIKE '%' || 'cl-024-cp1' || '%');

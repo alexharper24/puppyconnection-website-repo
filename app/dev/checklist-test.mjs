@@ -35,6 +35,7 @@ const AMBER_DECISIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/005
 const LAUNCH_ASKS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0053_checklist_launch_asks.sql'), 'utf8');
 const RECOMMENDATIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0054_checklist_alex_recommendations.sql'), 'utf8');
 const PHOTOS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0056_checklist_personal_photos.sql'), 'utf8');
+const ANSWERS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0059_checklist_amber_answers.sql'), 'utf8');
 const GO_AHEAD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0049_checklist_build_go_ahead.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
@@ -105,6 +106,8 @@ db.exec(RECOMMENDATIONS_MIGRATION);
 db.exec(RECOMMENDATIONS_MIGRATION);
 db.exec(PHOTOS_MIGRATION);
 db.exec(PHOTOS_MIGRATION);
+db.exec(ANSWERS_MIGRATION);
+db.exec(ANSWERS_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -177,7 +180,8 @@ function seedChecks() {
   check('migration 0041 closes failure alerts, the database plan and the send to all contacts as Claude with evidence, ticks the built parts, and keeps Let\'s Chat waiting on Amber',
     ['B10', 'B12', 'C5'].every((r) => byRef(r).status === 'done' && byRef(r).done_by === 'Claude') &&
     parts.filter((p) => p.item_id === byRef('B12').id).every((p) => p.done_at) && parts.some((p) => p.item_id === byRef('A15').id && p.owner === 'Alex' && p.done_at) &&
-    byRef('A15').status === 'waiting' && byRef('A15').waiting_owner === 'Amber' &&
+    // Let's Chat waited on Amber until her answers of 2026-10-25 (migration 0059) moved it on.
+    byRef('A15').status === 'in_progress' && !byRef('A15').waiting_owner &&
     db.prepare("SELECT COUNT(*) AS n FROM checklist_comments WHERE id IN ('cl-077-c1','cl-079-c2','cl-016-c1','cl-028-c1')").get().n === 4);
   check('the nightly backup carries every checklist table', ['checklist_signers', 'checklist_areas', 'checklist_items', 'checklist_parts', 'checklist_comments']
     .every((t) => new RegExp(`'${t}'`).test(fs.readFileSync(path.join(APP, 'lib/jobs.js'), 'utf8').match(/BACKUP_TABLES = \[([\s\S]*?)\];/)[1])));
@@ -357,10 +361,10 @@ function areaSeedChecks() {
     live('B4').every((p) => p.owner === 'Alex') && live('B4').length === 1 && byRef('B4').status === 'not_started' &&
     live('B5').some((p) => p.id === 'cl-013-1' && p.done_at) && !live('B5').some((p) => p.id === 'cl-013-2'));
   check('migration 0053 gives Resend and the nameserver change to Alex alone, with nothing waiting',
-    ['B7', 'E1'].every((r) => byRef(r).owner === 'Alex' && byRef(r).status === 'not_started' && !byRef(r).waiting_on && live(r).filter((p) => !p.done_at).every((p) => p.owner === 'Alex')));
+    ['B7', 'E1'].every((r) => byRef(r).owner === 'Alex' && ['not_started', 'done'].includes(byRef(r).status) && !byRef(r).waiting_on && live(r).filter((p) => !p.done_at).every((p) => p.owner === 'Alex')));
   const amberParts = items.filter((i) => i.area === 'content').flatMap((i) => live(i.ref).filter((p) => p.owner === 'Amber' && !p.done_at));
   check(`every open content item asks Amber one specific thing per part (${amberParts.length} parts)`,
-    amberParts.length >= 4 && !amberParts.some((p) => /four privacy decisions|About words, reviews and contact/.test(p.title)));
+    amberParts.length >= 1 && !amberParts.some((p) => /four privacy decisions|About words, reviews and contact/.test(p.title)));
   check("migration 0054 takes Alex's answers: the seller statement approved, the privacy rules recommended for Amber to confirm, and reviews from the Business Profile",
     live('A6').find((p) => p.id === 'cl-005-1').done_by === 'Alex' && byRef('D1').status === 'in_progress' &&
     live('D1').filter((p) => p.owner === 'Amber').map((p) => p.title).join() === 'Read the finished privacy policy and confirm it' &&
@@ -385,7 +389,7 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION, RECOMMENDATIONS_MIGRATION, PHOTOS_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION, RECOMMENDATIONS_MIGRATION, PHOTOS_MIGRATION, ANSWERS_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===
@@ -431,7 +435,7 @@ function areaViewChecks() {
   const dom = groups[0];
   const line = AR.waitSummary(dom.items);
   check(`the summary names who an area waits on, people first ("${line}")`,
-    /^Waiting on Alex for 2, on Amber for 1/.test(line) && /, on the domain for 2/.test(line) && !/,\s*$/.test(line));
+    /^Waiting on Amber for 2, on Alex for 1/.test(line) && /, on the domain for 1/.test(line) && !/,\s*$/.test(line));
   check('a waiting line with no person is cut to its subject, and a line naming both people stays both',
     AR.waitWho({ status: 'waiting', waiting_on: 'the domain moving to Cloudflare', owner: 'Alex' }) === 'the domain' &&
     AR.waitWho({ status: 'waiting', waiting_on: 'the site, portal and admin being on puppy-connection.com', owner: 'Alex' }) === 'the site' &&

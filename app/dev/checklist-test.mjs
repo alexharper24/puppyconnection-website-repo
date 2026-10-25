@@ -36,6 +36,7 @@ const LAUNCH_ASKS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0053_ch
 const RECOMMENDATIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0054_checklist_alex_recommendations.sql'), 'utf8');
 const PHOTOS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0056_checklist_personal_photos.sql'), 'utf8');
 const ANSWERS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0059_checklist_amber_answers.sql'), 'utf8');
+const PRELAUNCH_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0062_checklist_prelaunch_build.sql'), 'utf8');
 const GO_AHEAD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0049_checklist_build_go_ahead.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
@@ -108,6 +109,8 @@ db.exec(PHOTOS_MIGRATION);
 db.exec(PHOTOS_MIGRATION);
 db.exec(ANSWERS_MIGRATION);
 db.exec(ANSWERS_MIGRATION);
+db.exec(PRELAUNCH_MIGRATION);
+db.exec(PRELAUNCH_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -153,7 +156,8 @@ function seedChecks() {
   const ga4 = items.find((i) => i.ref === 'B11');
   const ga4Parts = parts.filter((p) => p.item_id === ga4.id);
   check('migration 0037 makes the analytics item Google Analytics 4, waiting on Amber, with her one part and four for Alex, once',
-    ga4.title === 'Google Analytics 4 on the new site' && ga4.status === 'waiting' &&
+    // Migration 0062 moved it on once Alex had made the property (2026-10-24).
+    ga4.title === 'Google Analytics 4 on the new site' && ga4.status === 'in_progress' &&
     ga4Parts.map((p) => p.owner).join() === 'Amber,Alex,Alex,Alex,Alex' &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND action = 'checklist.edit' AND after_json LIKE '%chose Google Analytics 4%'").get(ga4.id).n === 1);
   const prod = items.find((i) => i.ref === 'B12');
@@ -175,13 +179,14 @@ function seedChecks() {
     parts.some((p) => p.item_id === video.id && /Stream/.test(p.title)) && !parts.some((p) => p.item_id === byRef('A3').id && /Stream/.test(p.title)));
   check('migration 0039 makes the invitation item a build item for Alex, points analytics at Alex and archives the access part for Amber, and names the three notices',
     byRef('C5').title === 'Let a mailing list send go to all contacts' && byRef('C5').owner === 'Alex' &&
-    byRef('B11').waiting_owner === 'Alex' && parts.some((p) => p.item_id === byRef('B11').id && p.owner === 'Amber' && p.archived_at) &&
+    db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = ? AND after_json LIKE '%\"waiting_owner\":\"Alex\"%'").get(byRef('B11').id).n >= 1 && parts.some((p) => p.item_id === byRef('B11').id && p.owner === 'Amber' && p.archived_at) &&
     /^Three notices/.test(byRef('B9').description));
   check('migration 0041 closes failure alerts, the database plan and the send to all contacts as Claude with evidence, ticks the built parts, and keeps Let\'s Chat waiting on Amber',
     ['B10', 'B12', 'C5'].every((r) => byRef(r).status === 'done' && byRef(r).done_by === 'Claude') &&
     parts.filter((p) => p.item_id === byRef('B12').id).every((p) => p.done_at) && parts.some((p) => p.item_id === byRef('A15').id && p.owner === 'Alex' && p.done_at) &&
-    // Let's Chat waited on Amber until her answers of 2026-10-25 (migration 0059) moved it on.
-    byRef('A15').status === 'in_progress' && !byRef('A15').waiting_owner &&
+    // Let's Chat waited on Amber until her answers of 2026-10-25 (migration 0059) moved it on,
+    // and migration 0062 closed it once the staging site showed her details.
+    byRef('A15').status === 'done' && !byRef('A15').waiting_owner &&
     db.prepare("SELECT COUNT(*) AS n FROM checklist_comments WHERE id IN ('cl-077-c1','cl-079-c2','cl-016-c1','cl-028-c1')").get().n === 4);
   check('the nightly backup carries every checklist table', ['checklist_signers', 'checklist_areas', 'checklist_items', 'checklist_parts', 'checklist_comments']
     .every((t) => new RegExp(`'${t}'`).test(fs.readFileSync(path.join(APP, 'lib/jobs.js'), 'utf8').match(/BACKUP_TABLES = \[([\s\S]*?)\];/)[1])));
@@ -373,9 +378,11 @@ function areaSeedChecks() {
     ['A24', 'A25', 'A26'].every((r) => byRef(r) && byRef(r).area === 'build' && byRef(r).section === 'launch' && live(r).length === 2));
   const e6 = byRef('E6');
   const oldPart = db.prepare("SELECT * FROM checklist_parts WHERE id = 'cl-024-2'").get();
-  check("Search Console access is its own item waiting on Amber, and her old part on the Search Console item is archived and kept",
-    e6.title === 'Search Console access for Alex' && e6.status === 'waiting' && e6.waiting_owner === 'Amber' && e6.created_by === 'Claude' &&
-    oldPart && oldPart.archived_at && byRef('E4').waiting_on === 'Search Console access for Alex, under Access to grant');
+  // Migration 0062 closed it once Alex was found to own the property already (2026-10-25), and
+  // the Search Console item now waits on the site opening to Google.
+  check("Search Console access is its own item, closed by 0062, and her old part on the Search Console item is archived and kept",
+    e6.title === 'Search Console access for Alex' && e6.status === 'done' && !e6.waiting_owner && e6.created_by === 'Claude' &&
+    oldPart && oldPart.archived_at && byRef('E4').waiting_on === 'the site opening to Google');
   const areaAudits = db.prepare("SELECT entity_id, COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND json_extract(after_json, '$.area') IS NOT NULL AND at != '2026-10-24T22:30:00Z' GROUP BY entity_id").all();
   check(`each item's area is audited once as Claude, and running the migration again adds nothing (${areaAudits.length} items)`,
     areaAudits.length === items.filter((i) => i.area && !['2026-10-24T22:30:00Z', '2026-10-24T23:50:00Z'].includes(i.created_at)).length && areaAudits.every((a) => a.n === 1) &&
@@ -389,7 +396,7 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION, RECOMMENDATIONS_MIGRATION, PHOTOS_MIGRATION, ANSWERS_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION, RECOMMENDATIONS_MIGRATION, PHOTOS_MIGRATION, ANSWERS_MIGRATION, PRELAUNCH_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===
@@ -448,13 +455,13 @@ function areaViewChecks() {
   check(`Asks for Amber lists every open part she owns once, grouped by area in order (${flat.length} asks in ${asks.length} groups)`,
     openAmberParts.every((p) => flat.filter((a) => a.partId === p.id).length === 1) &&
     asks.map((g) => g.label).join('|') === groups.filter((g) => asks.some((a) => a.label === g.label)).map((g) => g.label).join('|') && asks[0].label === 'Domain and email');
-  check('migration 0045 stops the Search Console item naming Amber, so Asks for Amber asks for Search Console access once, audited once',
-    !flat.some((a) => a.text === 'Search Console, Bing and the Business Profile') && flat.filter((a) => /Search Console/.test(a.text)).length === 1 &&
+  check('migration 0045 stops the Search Console item naming Amber, and once 0062 closes her access part Asks for Amber has no Search Console ask, audited once',
+    !flat.some((a) => a.text === 'Search Console, Bing and the Business Profile') && !flat.some((a) => /Search Console/.test(a.text)) &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE entity_id = 'cl-024' AND at = '2026-10-20T17:00:00Z'").get().n === 1);
   check('it adds an item waiting on her with no part of hers, such as the listing terms, and leaves out done and archived parts',
     AR.asksFor([{ id: 'x', section: 'launch', area: 'content', title: 'Listing terms', status: 'waiting', waiting_owner: 'Amber', owner: 'Alex', parts: [] }], areas, 'Amber').flatMap((g) => g.asks).some((a) => a.text === 'Listing terms' && !a.partId) && !flat.some((a) => a.partId === 'cl-024-2') &&
     !flat.some((a) => a.partId && db.prepare('SELECT done_at FROM checklist_parts WHERE id = ?').get(a.partId).done_at) &&
-    flat.some((a) => a.partId === 'cl-081-1'));
+    !flat.some((a) => a.partId === 'cl-081-1'));
   const text = AR.asksText(asks, 'Amber', new Date('2026-10-20T12:00:00'));
   const lines = text.trim().split('\n');
   check('Copy as text gives a plain list headed by the date, each area a heading and each ask a dash line',

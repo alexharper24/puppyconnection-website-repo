@@ -373,9 +373,10 @@ export async function currentTerms(env) {
 
 /**
  * Whether a breeder should be asked to accept the current terms. Anyone who has submitted a
- * profile accepted a version then, so a newer one is asked for on their next visit. It never
+ * profile accepted a version then, so a newer one is asked for on their next visit. A breeder who
+ * has not yet confirmed they are the seller (workplan A6) is asked the same way, once. It never
  * blocks viewing anything.
  */
 export function termsNeedAccept(breeder, version) {
-  return !!breeder.profile_submitted_at && breeder.status !== 'declined' && breeder.terms_version !== version;
+  return !!breeder.profile_submitted_at && breeder.status !== 'declined' && (breeder.terms_version !== version || !breeder.seller_confirmed_at);
 }

@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS breeders (
   profile_submitted_at TEXT,
   terms_version        TEXT,
   terms_accepted_at    TEXT,
+  -- Workplan A6. When the breeder ticked the box confirming they are the seller, once, with the terms.
+  seller_confirmed_at  TEXT,
   decided_at           TEXT,
   decided_by           TEXT,
   status_reason        TEXT,

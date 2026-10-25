@@ -62,7 +62,7 @@ async function body() {
   await req(PORTAL, 'POST', '/auth/set-password', new URLSearchParams({ t: new URL(mail[0].link).searchParams.get('t'), password: 'correct horse battery staple', confirm: 'correct horse battery staple' }));
   let me = (await req(PORTAL, 'GET', '/api/me')).data;
   await req(PORTAL, 'PUT', '/api/profile', { version: me.profile.version, business_name: 'Jobs Test Kennel', public_phone: '555-0100', city: 'Goshen', state: 'IN', description: 'A test kennel.' });
-  await req(PORTAL, 'POST', '/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  await req(PORTAL, 'POST', '/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   await req(ADMIN, 'POST', `/api/breeders/${me.id}/approve`, {});
   const litter = (await req(PORTAL, 'POST', '/api/litters', { breed_id: 'breed-havanese', born_on: '2026-09-01', ready_on: '2026-10-27' })).data;
   const jpg = { type: 'image/jpeg', bytes: new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures/gps-test.jpg'))) };

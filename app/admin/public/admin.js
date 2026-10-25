@@ -422,6 +422,8 @@
         row('Public email', esc(b.public_email)) + row('Where', esc([b.city, b.state].filter(Boolean).join(', '))) +
         row('Website', b.website_url ? '<a href="' + esc(b.website_url) + '" target="_blank" rel="noopener">' + esc(b.website_url) + '</a>' : '') +
         row('Joined', esc(day(b.created_at))) + row('Submitted', esc(day(b.profile_submitted_at))) + row('Terms', termsLine) +
+        // Workplan A6. The date the breeder confirmed they are the seller, ticked once with the terms.
+        row('Confirmed seller', b.profile_submitted_at ? (b.seller_confirmed_at ? esc(day(b.seller_confirmed_at)) : '<span class="pill pill-warn">Not yet</span>') : '') +
         row('Decided', b.decided_at ? esc(day(b.decided_at)) + ' by ' + esc(b.decided_by) : '') +
         row('Facebook', x.facebook_url ? '<a href="' + esc(x.facebook_url) + '" target="_blank" rel="noopener">' + esc(x.facebook_url) + '</a>' : '') +
         row('Breeds raised', esc(x.breeds.map(function (r) { return r.name; }).join(', '))) + '</tbody></table>' +

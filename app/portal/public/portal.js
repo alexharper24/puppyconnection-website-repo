@@ -285,8 +285,12 @@
       (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
       // Plan P3.4. New listing terms were published since this breeder accepted. Everything
       // stays open, and the banner stays until they accept.
-      (me.terms && me.terms.needs_accept ? '<div class="notice terms-banner" id="terms-banner"><p><b>The listing terms have changed.</b> Puppy Connection published a new version' +
-        (me.terms.published_at ? ' on ' + esc(day(me.terms.published_at)) : '') + '. Please read it and accept it.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and accept</button></div>' : '') +
+      // Workplan A6. A breeder on the current terms who has not yet confirmed they are the seller
+      // gets the same banner and drawer, asking only for that.
+      (me.terms && me.terms.needs_accept ? (me.terms.accepted_version === me.terms.version
+        ? '<div class="notice terms-banner" id="terms-banner"><p><b>Please confirm you are the seller.</b> Puppy Connection does not sell puppies, so each breeder confirms once that they sell the puppies they list.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and confirm</button></div>'
+        : '<div class="notice terms-banner" id="terms-banner"><p><b>The listing terms have changed.</b> Puppy Connection published a new version' +
+        (me.terms.published_at ? ' on ' + esc(day(me.terms.published_at)) : '') + '. Please read it and accept it.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and accept</button></div>') : '') +
       operatorBanner() + nudgeBanner() + photoBanner() + inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';
     $('#signout').addEventListener('click', endSession);
     var oe = $('#operator-end'); if (oe) oe.addEventListener('click', endSession);
@@ -373,17 +377,28 @@
       return out.join('');
     }).join('');
   }
+  // Workplan A6 (Amber and Alex, 2026-10-24). The box a breeder ticks once, with the listing terms.
+  function sellerBox() {
+    return '<label class="check" for="confirm-seller"><input type="checkbox" id="confirm-seller" name="confirm_seller"> I am the seller of every puppy I list. Puppy Connection does not sell puppies, and each sale is agreed between me and the buyer.</label>';
+  }
   function termsDrawer() {
     var t = state.me.terms;
-    openDrawer('Listing terms', '<p class="muted small">Version ' + esc(t.version) + (t.published_at ? ', published ' + esc(day(t.published_at)) : '') + '.</p>' +
+    var onlySeller = t.accepted_version === t.version;
+    openDrawer('Listing terms', '<p class="muted small">Version ' + esc(t.version) + (t.published_at ? ', published ' + esc(day(t.published_at)) : '') + (onlySeller ? ', which you accepted' : '') + '.</p>' +
       '<div class="terms-preview">' + termsParas(t.body) + '</div>' +
-      '<form id="terms-accept"><div class="btn-row"><button class="btn btn-gold" type="submit">I accept these terms</button><button class="btn btn-quiet" type="button" data-later>Not now</button></div></form>',
+      '<form id="terms-accept" novalidate>' + (t.seller_confirmed ? '' : sellerBox()) +
+      '<div class="btn-row"><button class="btn btn-gold" type="submit">' + (onlySeller ? 'Confirm' : 'I accept these terms') + '</button><button class="btn btn-quiet" type="button" data-later>Not now</button></div></form>',
     function (d) {
       $('[data-later]', d).addEventListener('click', closeDrawer);
       var f = $('#terms-accept', d);
       f.addEventListener('submit', function (e) {
         e.preventDefault();
-        api('POST', '/api/terms/accept', { version: t.version }).then(function (me2) { state.me = me2; closeDrawer(); toast('Thank you. The new terms are accepted.'); render(); })
+        var body = { version: t.version };
+        if (!t.seller_confirmed) {
+          if (!formData(f).confirm_seller) return showError(f, new Error('Tick the box to confirm you are the seller of the puppies you list.'));
+          body.confirm_seller = true;
+        }
+        api('POST', '/api/terms/accept', body).then(function (me2) { state.me = me2; closeDrawer(); toast(onlySeller ? 'Thank you. That is confirmed.' : 'Thank you. The new terms are accepted.'); render(); })
           .catch(function (err) { showError(f, err); });
       });
     });
@@ -487,6 +502,7 @@
         '<div class="terms-preview">' + termsParas(me.terms ? me.terms.body : '') + '</div>' +
         '<p class="hint">Version ' + esc(me.terms_version) + '. <a href="/terms" target="_blank" rel="noopener">Open the listing terms page</a>.</p>' +
         '<label class="check" for="accept-terms"><input type="checkbox" id="accept-terms" name="accept_terms"> I have read and accept the <a href="/terms" target="_blank" rel="noopener">listing terms</a>.</label>' +
+        (me.seller_confirmed_at ? '' : sellerBox()) +
         '<div class="btn-row"><button class="btn btn-gold" type="submit">Submit for approval</button></div></form>';
     } else if (me.status === 'pending') {
       html += '<p class="notice">Submitted ' + esc(day(me.profile_submitted_at)) + '. Puppy Connection will email you when it is approved.</p>' +
@@ -506,7 +522,8 @@
       e.preventDefault();
       var d = formData(sf);
       if (!d.accept_terms) return showError(sf, new Error('Tick the box to accept the listing terms.'));
-      api('POST', '/api/profile/submit', { accept_terms: true, reference: referenceBody(d) }).then(function (me2) { state.me = me2; toast('Submitted for approval'); location.hash = '#/'; })
+      if (!me.seller_confirmed_at && !d.confirm_seller) return showError(sf, new Error('Tick the box to confirm you are the seller of the puppies you list.'));
+      api('POST', '/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: referenceBody(d) }).then(function (me2) { state.me = me2; toast('Submitted for approval'); location.hash = '#/'; })
         .catch(function (err) { showError(sf, err); });
     });
     var rf = $('#reference');

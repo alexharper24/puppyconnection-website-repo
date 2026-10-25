@@ -52,7 +52,7 @@ export function demoData(nowMs = Date.now()) {
 
   // 2. Waiting for approval. Profile submitted and the current terms accepted.
   rows.breeders.push({ id: 'demo-thistledown', email: 'thistledown@breeders.test', status: 'pending', email_verified_at: ago(3),
-    profile_submitted_at: ago(2), terms_version: '@current', terms_accepted_at: ago(2), created_at: ago(3), updated_at: ago(2) });
+    profile_submitted_at: ago(2), terms_version: '@current', terms_accepted_at: ago(2), seller_confirmed_at: ago(2), created_at: ago(3), updated_at: ago(2) });
   rows.breeder_profiles.push({ breeder_id: 'demo-thistledown', business_name: 'Thistledown Pups', contact_name: 'Jordan Example',
     public_phone: '(260) 555-0142', public_email: 'hello@thistledownpups.example', city: 'Berne', state: 'IN',
     description: 'A made-up breeder for the Puppy Connection demo. We raise Cavalier King Charles Spaniels in our home, and every puppy grows up around children and a friendly old cat.',
@@ -64,7 +64,7 @@ export function demoData(nowMs = Date.now()) {
   // 3. Approved, with two litters.
   const mb = 'demo-maplebrook';
   rows.breeders.push({ id: mb, email: 'maplebrook@breeders.test', status: 'approved', email_verified_at: ago(40),
-    profile_submitted_at: ago(39), terms_version: '@current', terms_accepted_at: ago(39), decided_at: ago(38), decided_by: 'demo',
+    profile_submitted_at: ago(39), terms_version: '@current', terms_accepted_at: ago(39), seller_confirmed_at: ago(39), decided_at: ago(38), decided_by: 'demo',
     created_at: ago(40), updated_at: ago(38) });
   image('logo', `brand/${mb}/logo-demo.png`);
   image('kennel', `brand/${mb}/kennel-demo.png`);

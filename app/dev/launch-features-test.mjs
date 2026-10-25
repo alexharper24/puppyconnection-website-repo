@@ -58,7 +58,7 @@ async function breeder(tag, approve = true) {
   await usePasswordLink(c, await mailLink(email));
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Launch Kennel ${stamp}`, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
-  await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  await c.post('/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   if (approve) await admin.post(`/api/breeders/${me.id}/approve`, {});
   return { c, id: me.id, email, name: `Launch Kennel ${stamp}` };
 }
@@ -443,7 +443,7 @@ async function reference() {
   await usePasswordLink(c, await mailLink(email));
   let me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: `Launch Kennel ${stamp}`, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
-  const submit = (reference) => c.post('/api/profile/submit', { accept_terms: true, ...(reference ? { reference } : {}) });
+  const submit = (reference) => c.post('/api/profile/submit', { accept_terms: true, confirm_seller: true, ...(reference ? { reference } : {}) });
   let r = await submit();
   check('A13 sign-up cannot be submitted without a reference', r.status === 400 && /reference/i.test(r.data.error) && !(await c.get('/api/me')).data.profile_submitted_at, JSON.stringify(r.data));
   r = await submit({ name: 'Pat Example', role: 'mayor', contact: 'pat@example.com' });
@@ -632,7 +632,7 @@ async function notices() {
   await usePasswordLink(c, await mailLink(email));
   const me = (await c.get('/api/me')).data;
   await c.put('/api/profile', { version: me.profile.version, business_name: name, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
-  const r = await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  const r = await c.post('/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   const subj = new RegExp(`^New breeder waiting for approval: ${name}$`);
   check('B9 with NOTICE_TO a new sign-up emails info@puppy-connection.com and no operator', r.status === 200 && (await box('info@puppy-connection.com', subj)).length === 1
     && (await box('amber@puppyconnection.test', subj)).length === 0, JSON.stringify(sql(`SELECT to_addr FROM email_log WHERE template = 'profile_submitted' ORDER BY id DESC LIMIT 3`)));

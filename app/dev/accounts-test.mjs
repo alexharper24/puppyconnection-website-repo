@@ -232,7 +232,7 @@ async function main() {
   // ---------------------------------------------------------------- Manage as this breeder
   const D = await breeder('d');
   await D.c.put('/api/profile', { version: (await D.c.get('/api/me')).data.profile.version, business_name: `Accounts Kennel d ${stamp}`, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
-  await D.c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  await D.c.post('/api/profile/submit', { accept_terms: true, confirm_seller: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
   await admin.post(`/api/breeders/${D.id}/approve`, {});
   const refused = await admin.post(`/api/breeders/${D.id}/manage`, {});
   check('with access off the admin refuses Manage as this breeder', refused.status === 403);

@@ -567,7 +567,7 @@ async function signOutAll(request, env) {
 function publicBreeder(b, s) {
   return {
     id: b.id, email: b.email, status: b.status, profile_submitted_at: b.profile_submitted_at,
-    terms_accepted_at: b.terms_accepted_at,
+    terms_accepted_at: b.terms_accepted_at, seller_confirmed_at: b.seller_confirmed_at || null,
     profile: {
       business_name: b.business_name, slug: b.slug, contact_name: b.contact_name, public_phone: b.public_phone,
       public_email: b.public_email, website_url: b.website_url, city: b.city, state: b.state,
@@ -609,7 +609,7 @@ async function me(request, env) {
   // Plan P3.4. The current listing terms, and whether this breeder has accepted that version.
   const terms = await currentTerms(env);
   out.terms = { version: terms.version, body: terms.body, published_at: terms.published_at, accepted_version: breeder.terms_version || null,
-    needs_accept: termsNeedAccept(breeder, terms.version) };
+    needs_accept: termsNeedAccept(breeder, terms.version), seller_confirmed: !!breeder.seller_confirmed_at };
   out.site_origin = siteOrigin(env) || null;
   // Workplan A13. The reference a breeder names before approval, shown back to them while pending.
   out.reference_roles = REFERENCE_ROLES;
@@ -638,8 +638,12 @@ async function saveProfile(request, env, ctx) {
 
 /**
  * Plan P3.4. Accept the current listing terms, after Puppy Connection publishes a new version.
- * Nothing is blocked while a breeder has not, so this only records the acceptance.
+ * Nothing is blocked while a breeder has not, so this only records the acceptance. A breeder who
+ * has not confirmed they are the seller (workplan A6) ticks that box here too, and only once.
  */
+// Workplan A6. The box a breeder ticks once, with the listing terms (Amber and Alex, 2026-10-24).
+const SELLER_UNTICKED = 'Tick the box to confirm you are the seller of the puppies you list.';
+
 async function acceptTerms(request, env) {
   requireSameOrigin(request);
   const { breeder } = await needOwnSession(request, env);
@@ -647,10 +651,13 @@ async function acceptTerms(request, env) {
   const terms = await currentTerms(env);
   if (body.version !== terms.version) throw new HttpError(409, 'The listing terms changed again. Reload to read the latest version.');
   if (!breeder.profile_submitted_at) throw bad('Accept the terms when you submit your profile.');
+  if (!breeder.seller_confirmed_at && body.confirm_seller !== true) throw bad(SELLER_UNTICKED);
   const t = now();
   await env.DB.batch([
-    env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, updated_at = ? WHERE id = ?').bind(terms.version, t, t, breeder.id),
-    auditStmt(env, ...who(breeder), 'terms.accept', 'breeder', breeder.id, { terms_version: breeder.terms_version || null }, { terms_version: terms.version }),
+    env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, seller_confirmed_at = COALESCE(seller_confirmed_at, ?), updated_at = ? WHERE id = ?')
+      .bind(terms.version, t, t, t, breeder.id),
+    auditStmt(env, ...who(breeder), 'terms.accept', 'breeder', breeder.id, { terms_version: breeder.terms_version || null, seller_confirmed_at: breeder.seller_confirmed_at || null },
+      { terms_version: terms.version, seller_confirmed_at: breeder.seller_confirmed_at || t }),
   ]);
   return me(request, env);
 }
@@ -661,6 +668,7 @@ async function submitProfile(request, env, ctx) {
   if (breeder.status !== 'pending') throw bad('Only a pending account can be submitted.');
   const body = await readJson(request);
   if (body.accept_terms !== true) throw bad('Please accept the listing terms first.');
+  if (!breeder.seller_confirmed_at && body.confirm_seller !== true) throw bad(SELLER_UNTICKED);
   const missing = [];
   if (!breeder.business_name) missing.push('business name');
   if (!breeder.public_phone && !breeder.public_email) missing.push('a public phone or email');
@@ -674,9 +682,9 @@ async function submitProfile(request, env, ctx) {
   await env.DB.batch([
     referenceStmt(env, breeder.id, ref),
     auditStmt(env, ...who(breeder), 'reference.save', 'breeder', breeder.id, null, { role: ref.role }),
-    env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, profile_submitted_at = COALESCE(profile_submitted_at, ?), updated_at = ? WHERE id = ?')
-      .bind(s.termsVersion, t, t, t, breeder.id),
-    auditStmt(env, ...who(breeder), 'profile.submit', 'breeder', breeder.id, null, { terms_version: s.termsVersion }),
+    env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, seller_confirmed_at = COALESCE(seller_confirmed_at, ?), profile_submitted_at = COALESCE(profile_submitted_at, ?), updated_at = ? WHERE id = ?')
+      .bind(s.termsVersion, t, t, t, t, breeder.id),
+    auditStmt(env, ...who(breeder), 'profile.submit', 'breeder', breeder.id, null, { terms_version: s.termsVersion, seller_confirmed_at: breeder.seller_confirmed_at || t }),
   ]);
   if (first) {
     // Workplan B9. NOTICE_TO (info@puppy-connection.com) when set, otherwise every operator as before.

@@ -59,7 +59,8 @@ export function fileList() {
 const sha256 = (b) => createHash('sha256').update(b).digest('hex');
 // Text files go across with LF endings, whatever this checkout has, so a sync from Windows and one
 // from anywhere else write the same bytes.
-const TEXT = /\.(md|js|mjs|jsonc?|sh|py|html|css|txt|svg)$|^\.gitignore$/;
+// .tsv joined on 2026-10-25, after a sync from a Windows checkout wrote legacy-pages.tsv with CRLF.
+const TEXT = /\.(md|js|mjs|jsonc?|sh|py|html|css|txt|svg|tsv)$|^\.gitignore$/;
 function read(file) {
   const b = fs.readFileSync(file);
   return TEXT.test(path.basename(file)) ? Buffer.from(b.toString('utf8').replace(/\r\n/g, '\n')) : b;

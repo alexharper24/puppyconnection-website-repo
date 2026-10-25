@@ -2,7 +2,7 @@
 //
 //   node app/dev/e2e.mjs
 //
-// Signs up a new breeder, opens the sign-in link from the local mailbox, fills and submits
+// Signs up a new breeder, confirms the address and sets a password from the local mailbox, fills and submits
 // the profile, has Amber approve it, adds a litter, two puppies and a photo carrying GPS
 // metadata, pays for both through the simulated Stripe page, and checks they are public and
 // in the site export. It then pays for a third puppy with the webhook "lost", to prove the
@@ -54,15 +54,46 @@ export class Client {
   put(p, b) { return this.req('PUT', p, b); }
 }
 
-export async function signUp(email, business) {
-  const c = new Client(PORTAL);
-  const start = await c.post('/auth/start', { email, business_name: business });
-  const mail = await c.get(`/dev/mail.json?to=${encodeURIComponent(email)}`);
-  const link = mail.data[0]?.link;
+// Launch workplan A26. Sign-up confirms the address by an emailed link, and that link opens the
+// page that sets the password and signs in. Every suite that needs a new breeder uses this.
+export const TEST_PASSWORD = 'correct horse battery staple';
+const FORM = { headers: { 'content-type': 'application/x-www-form-urlencoded' } };
+
+/** The newest emailed link for an address, from the local mailbox. */
+export async function mailLink(email, subject = /./) {
+  const mail = await new Client(PORTAL).get(`/dev/mail.json?to=${encodeURIComponent(email)}`);
+  const m = (Array.isArray(mail.data) ? mail.data : []).find((x) => subject.test(x.subject) && x.link);
+  return m ? m.link : null;
+}
+
+/** Set the password from a set-password link, in client c, which then holds the session. */
+export async function usePasswordLink(c, link, password = TEST_PASSWORD, extra = {}) {
   const token = link && new URL(link).searchParams.get('t');
-  const verify = await c.req('POST', '/auth/verify', new URLSearchParams({ t: token || '' }),
-    { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
-  return { c, start, link, token, verify };
+  return c.req('POST', '/auth/set-password', new URLSearchParams({ t: token || '', password, confirm: password, ...extra }), FORM);
+}
+
+/** Sign in with a password, in a fresh client. */
+export async function signIn(email, password = TEST_PASSWORD) {
+  const c = new Client(PORTAL);
+  const r = await c.post('/auth/password', { email, password });
+  return { c, r };
+}
+
+export async function signUp(email, business, { password = TEST_PASSWORD } = {}) {
+  const c = new Client(PORTAL);
+  let start;
+  for (let i = 0; i < 3; i += 1) {
+    start = await c.post('/auth/signup', { email, business_name: business });
+    if (start.status !== 429) break;
+    console.log('      (sign-up rate limited, waiting a minute)');
+    await new Promise((r) => setTimeout(r, 62000));
+  }
+  const link = await mailLink(email, /Confirm your email|password/);
+  const token = link && new URL(link).searchParams.get('t');
+  // A mail scanner opening the link first: the page shows, and the link still works afterwards.
+  const page = token ? await new Client(PORTAL).get(`/auth/set-password?t=${encodeURIComponent(token)}`) : null;
+  const verify = await usePasswordLink(c, link, password);
+  return { c, start, link, token, page, verify, password };
 }
 
 async function main() {
@@ -71,15 +102,15 @@ async function main() {
   const admin = new Client(ADMIN);
 
   // Sign up and sign in
-  const { c, start, link, token, verify } = await signUp(email, `E2E Kennel ${stamp}`);
-  check('sign-up answers with the neutral message', start.status === 200 && /sign-in code and link/.test(start.data.message));
-  check('a sign-in link reached the local mailbox', !!link, JSON.stringify(start.data));
-  const scanner = await new Client(PORTAL).get(`/auth/verify?t=${encodeURIComponent(token)}`);
-  check('opening the link with GET changes nothing (mail scanners)', scanner.status === 200 && /Sign in/.test(scanner.data));
-  check('pressing Sign in starts a session', verify.status === 303 && !!c.cookie, `status ${verify.status}`);
-  const reuse = await new Client(PORTAL).req('POST', '/auth/verify', new URLSearchParams({ t: token }),
-    { headers: { 'content-type': 'application/x-www-form-urlencoded' } });
+  const { c, start, link, page, verify } = await signUp(email, `E2E Kennel ${stamp}`);
+  check('sign-up answers with the neutral message', start.status === 200 && /confirm the address/.test(start.data.message), JSON.stringify(start.data));
+  check('a confirmation link reached the local mailbox', !!link, JSON.stringify(start.data));
+  check('opening the link with GET changes nothing (mail scanners)', page && page.status === 200 && /Choose your password/.test(page.data));
+  check('choosing a password starts a session', verify.status === 303 && !!c.cookie, `status ${verify.status}`);
+  const reuse = await usePasswordLink(new Client(PORTAL), link);
   check('the same link cannot be used twice', reuse.status === 400);
+  const byPassword = await signIn(email);
+  check('the new breeder signs in with the password', byPassword.r.status === 200 && !!byPassword.c.cookie, JSON.stringify(byPassword.r.data));
 
   let me = await c.get('/api/me');
   check('the new account is pending', me.data.status === 'pending');

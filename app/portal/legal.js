@@ -4,7 +4,7 @@
 //
 // The privacy policy is written from what this code actually does. When the code changes what
 // it collects, keeps or shares, change this page in the same commit. Where to look:
-//   sign-in links and sessions   portal/worker.js, lib/jobs.js housekeeping (a day, a week)
+//   passwords and sessions       lib/accounts.js, portal/worker.js, lib/jobs.js housekeeping (a day, a week)
 //   photo metadata stripped      lib/images.js, and portal.js shrink() in the browser
 //   photo quality check          lib/photocheck.js, Workers AI, the result kept on the photo row
 //   puppy videos                 lib/stream.js, Cloudflare Stream
@@ -60,7 +60,7 @@ export function privacyPage() {
 
 <h2>What we keep when a breeder signs up</h2>
 <ul>
-<li>Your sign-in email address. We use it to sign you in and to send you notices about your account. It is never shown on the site.</li>
+<li>Your sign-in email address. We use it to confirm your account, send password links and invitations, and send notices about your account. It is never shown on the site.</li>
 <li>The business name you give when you sign up.</li>
 <li>The profile you fill in, meaning your business name, the phone and email buyers can use, your website, your town and state, and the words about your kennel. A contact name is optional and stays private to Puppy Connection.</li>
 <li>The email address, and the name if you give one, of each person you add to your account to help manage it.</li>
@@ -85,8 +85,9 @@ export function privacyPage() {
 <p>Puppy videos go straight from your browser to Cloudflare Stream, which stores them and plays them on the puppy's page.</p>
 
 <h2>Signing in</h2>
-<p>You sign in with your email address, or with your Google account. If you use Google, Google tells us your name and email address. We use those to find or start your account, and we keep nothing else from your Google account.</p>
-<p>When you sign up or sign in with your email address, we note the internet address the request came from, to stop misuse. Sign-in records are deleted a day after they are used or expire, and ended sign-in sessions after a week.</p>
+<p>You sign in with your email address and a password, or with your Google account. We never store your password itself, only a scrambled form of it that cannot be turned back into the password. If you add an authenticator app, we keep the key it shares with your phone, locked with a separate key, and your recovery codes in scrambled form only. If you use Google, Google tells us your name and email address. We use those to find or start your account, and we keep nothing else from your Google account.</p>
+<p>When a password or authenticator code is entered wrongly, or a password link is asked for, we note the internet address the request came from, to stop misuse. Those notes, and used and expired links, are deleted after a day, and ended sign-in sessions after a week.</p>
+<p>If you turn on Puppy Connection access on your Account screen, the Puppy Connection team can open your portal to manage your listings for you. Every change they make is recorded under their own name, and turning access off ends their session straight away.</p>
 <p>The portal sets one cookie to keep you signed in, and a short-lived one while a Google sign-in is in progress. It uses no advertising or tracking cookies.</p>
 
 <h2>Payments</h2>
@@ -100,7 +101,7 @@ export function privacyPage() {
 <li><b>Cloudflare</b> hosts the site, the portal, the database, the photos and documents, and the puppy videos. Its AI service runs the photo check, and its Turnstile check on the sign-up and report forms helps keep out automated use.</li>
 <li><b>Stripe</b> takes listing payments.</li>
 <li><b>Google</b> handles sign-in for breeders who choose to sign in with Google.</li>
-<li><b>An email service</b> (Resend or Cloudflare) sends account emails, notices and our emails to the list.</li>
+<li><b>An email service</b> (Resend or Cloudflare) sends account confirmations, password links, invitations, account notices and our emails to the list.</li>
 </ul>
 <p>We do not sell your information, and we do not share it with anyone else except where the law requires it.</p>
 

@@ -38,17 +38,23 @@ import {
   healthCatalog,
 } from '../lib/parents.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
+import {
+  personFor, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
+  spendAuthToken, peekAuthToken, sendInvitation, hashPassword, checkPassword, passwordProblem, useSecondFactor, failureState,
+  failureStmt, sealSecret, openSecret, base32, otpauthUri, matchTotp, newRecoveryCodes, accessStmts, ACCESS_HOW, MAX_MEMBERS,
+  RESET_MINUTES, VERIFY_HOURS, MFA_MINUTES, OPERATOR_SESSION_HOURS, INVITE_DAYS,
+} from '../lib/accounts.js';
 
-// Plan P6.3. A session lasts 60 days from its last renewal. Using it more than a day into
+/// Plan P6.3. A session lasts 60 days from its last renewal. Using it more than a day into
 // its current window pushes the end out to 60 days from now and refreshes the cookie, so an
 // active breeder stays signed in and an idle one is signed out after 60 days.
 const SESSION_DAYS = 60;
-const TOKEN_MINUTES = 15;
+// Launch workplan A26. Emails (sign-up confirmations and password resets) one address gets an hour.
 const LINKS_PER_HOUR = 5;
-// Plan P6.2. Wrong codes allowed per emailed code before it is spent, and per address in a day.
+// Wrong authenticator codes allowed on one sign-in or one set-password link before it is spent.
 const CODE_TRIES = 5;
-const CODE_TRIES_PER_DAY = 20;
 const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ipOf = (request) => request.headers.get('cf-connecting-ip') || 'local';
 
 // ------------------------------------------------------------------ sessions
 
@@ -56,6 +62,11 @@ const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // response by the router (fetch, below) unless the handler set the session cookie itself.
 const RENEWED = new WeakMap();
 
+/**
+ * The signed-in kennel, or null. breeder.actor is who the audit log names for a write made in this
+ * session: the breeder's own address, or, in a session an operator opened through the admin's
+ * Manage as this breeder (workplan A24), "<operator> acting for <business>" as an operator.
+ */
 async function currentSession(request, env) {
   const token = parseCookies(request)[sessionCookieName(request)];
   if (!token) return null;
@@ -65,6 +76,15 @@ async function currentSession(request, env) {
   if (!s || s.revoked_at || s.expires_at <= t) return null;
   const breeder = await loadBreeder(env, s.breeder_id);
   if (!breeder) return null;
+  if (s.operator_email) {
+    // An operator's session lasts while the breeder's access stays on and the operator is still one.
+    // Turning access off also revokes it (lib/accounts.js accessStmts), so this is the second lock.
+    if (!breeder.manage_access) return null;
+    const person = await env.DB.prepare('SELECT name FROM people WHERE email = ?').bind(s.operator_email).first();
+    if (!person) return null;
+    breeder.actor = ['operator', `${s.operator_email} acting for ${breeder.business_name || breeder.email}`];
+    return { hash, breeder, email: breeder.email, operator: { email: s.operator_email, name: person.name, until: s.expires_at } };
+  }
   if (s.expires_at < addDays(t, SESSION_DAYS - 1)) {
     const r = await env.DB.prepare('UPDATE sessions SET expires_at = ?, last_seen_at = ? WHERE token_hash = ? AND revoked_at IS NULL')
       .bind(addDays(t, SESSION_DAYS), t, hash).run();
@@ -72,8 +92,12 @@ async function currentSession(request, env) {
   } else if (s.last_seen_at < addMinutes(t, -5)) {
     await env.DB.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').bind(t, hash).run();
   }
-  return { hash, breeder, email: s.email || breeder.email };
+  breeder.actor = ['breeder', breeder.email];
+  return { hash, breeder, email: s.email || breeder.email, operator: null };
 }
+
+/** Who the audit log names for a write, [actor_type, actor]. */
+const who = (breeder) => breeder.actor || ['breeder', breeder.email];
 
 async function needSession(request, env) {
   const s = await currentSession(request, env);
@@ -81,9 +105,28 @@ async function needSession(request, env) {
   return s;
 }
 
-async function startSession(request, env, breederId, email = null) {
+/**
+ * A session the breeder opened themselves. Passwords, the authenticator, Puppy Connection access,
+ * the people on the kennel and closing the account are the breeder's own, so an operator session
+ * cannot change them (workplan A24). The admin has its own screens for people and access.
+ */
+async function needOwnSession(request, env) {
+  const s = await needSession(request, env);
+  if (s.operator) throw forbidden('Only the breeder can change this, signed in as themselves. Use the admin for people and access.');
+  return s;
+}
+
+async function startSession(request, env, breederId, email = null, { operator = null } = {}) {
   const token = randomToken();
   const t = now();
+  if (operator) {
+    // Workplan A24. Hours, not 60 days, never renewed, and it neither counts as the breeder's
+    // first sign-in nor starts an imported breeder's inactivity clock.
+    const hours = OPERATOR_SESSION_HOURS;
+    await env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at, email, operator_email) VALUES (?, ?, ?, ?, ?, NULL, ?)')
+      .bind(await sha256hex(token), breederId, t, addMinutes(t, hours * 60), t, operator).run();
+    return setCookie(request, sessionCookieName(request), token, hours * 3600);
+  }
   await env.DB.batch([
     env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at, email) VALUES (?, ?, ?, ?, ?, ?)')
       .bind(await sha256hex(token), breederId, t, addDays(t, SESSION_DAYS), t, email),
@@ -93,7 +136,7 @@ async function startSession(request, env, breederId, email = null) {
   return setCookie(request, sessionCookieName(request), token, SESSION_DAYS * 86400);
 }
 
-// ------------------------------------------------------------------ sign-in links (spec 6.1, 6.2)
+// ------------------------------------------------------------------ sign-in (launch workplan A26)
 
 async function verifyTurnstile(request, env, token, action = 'auth') {
   if (!env.TURNSTILE_SECRET) {
@@ -113,116 +156,147 @@ async function verifyTurnstile(request, env, token, action = 'auth') {
   }
 }
 
-async function authStart(request, env, ctx) {
-  const body = await readJson(request);
-  const email = String(body.email || '').trim().toLowerCase();
+async function limit(env, key, message = 'Too many requests. Please wait a minute and try again.') {
+  if (!env.AUTH_LIMITER) return;
+  const { success } = await env.AUTH_LIMITER.limit({ key });
+  if (!success) throw new HttpError(429, message);
+}
+
+/** Test only: tie an address to this browser, so the test mailbox shows its mail to this browser alone. */
+async function claimMailbox(request, env, email, res) {
+  if (env.EMAIL_MODE !== 'log' || !isLocal(request, env)) return;
+  let box = parseCookies(request).pc_mailbox;
+  if (!box || !/^[\w-]{40,50}$/.test(box)) box = randomToken();
+  await env.DB.prepare('INSERT OR IGNORE INTO dev_mailbox_owners (token, email, created_at) VALUES (?, ?, ?)').bind(box, email, now()).run();
+  res.headers.append('set-cookie', setCookie(request, 'pc_mailbox', box, 30 * 86400));
+}
+
+const readEmail = (v) => {
+  const email = String(v || '').trim().toLowerCase();
   if (!EMAIL_RX.test(email) || email.length > 200) throw bad('Enter a valid email address.');
-  await verifyTurnstile(request, env, body.turnstile_token);
+  return email;
+};
 
-  const ip = request.headers.get('cf-connecting-ip') || 'local';
-  if (env.AUTH_LIMITER) {
-    const { success } = await env.AUTH_LIMITER.limit({ key: `ip:${ip}` });
-    if (!success) throw new HttpError(429, 'Too many requests. Please wait a minute and try again.');
-  }
-  const neutral = { ok: true, message: 'We sent a sign-in code and link to that address. Type the code below, or open the link. Each works once and stops working after 15 minutes.' };
-  // Plan P6.2. This browser's sign-in cookie. The emailed code only works alongside it, so a
-  // code read over someone's shoulder is no use in another browser.
-  let binder = parseCookies(request)[signinCookieName(request)];
-  if (!binder || !/^[\w-]{40,50}$/.test(binder)) binder = randomToken();
-  const res = json(neutral, 200, { 'set-cookie': setCookie(request, signinCookieName(request), binder, TOKEN_MINUTES * 60) });
-  const t = now();
-  const recent = await env.DB.prepare('SELECT COUNT(*) AS n FROM login_tokens WHERE email = ? AND created_at > ?')
-    .bind(email, addMinutes(t, -60)).first();
-  if (recent.n >= LINKS_PER_HOUR) return res;   // same answer, no new link (test 9)
-
-  const existing = await env.DB.prepare('SELECT id FROM breeders WHERE email = ?').bind(email).first()
-    || await env.DB.prepare('SELECT breeder_id AS id FROM breeder_members WHERE email = ?').bind(email).first();
-  const token = randomToken();
-  const code = randomCode();
-  const purpose = existing ? 'signin' : 'signup';
-  await env.DB.prepare(
-    `INSERT INTO login_tokens (token_hash, email, breeder_id, purpose, signup_name, ip, created_at, expires_at, code_hash, browser_hash)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(await sha256hex(token), email, existing?.id || null, purpose, clean(body.business_name, 120), ip, t, addMinutes(t, TOKEN_MINUTES),
-    await sha256hex(`${binder}:${code}`), await sha256hex(binder)).run();
-  const link = `${new URL(request.url).origin}/auth/verify?t=${encodeURIComponent(token)}`;
-  ctx.waitUntil(sendMail(env, email, 'signin_link', { link, code, purpose }).catch((e) => console.error('sign-in mail failed', e)));
-  if (env.EMAIL_MODE === 'log' && isLocal(request, env)) {
-    // Test only: tie this address to this browser, so the mailbox can show it to them alone.
-    let box = parseCookies(request).pc_mailbox;
-    if (!box || !/^[\w-]{40,50}$/.test(box)) box = randomToken();
-    await env.DB.prepare('INSERT OR IGNORE INTO dev_mailbox_owners (token, email, created_at) VALUES (?, ?, ?)').bind(box, email, t).run();
-    res.headers.append('set-cookie', setCookie(request, 'pc_mailbox', box, 30 * 86400));
-  }
-  return res;
+/** At most LINKS_PER_HOUR sign-up and reset emails to one address an hour, answered the same way. */
+async function tooManyLinks(env, email) {
+  const r = await env.DB.prepare("SELECT COUNT(*) AS n FROM auth_tokens WHERE email = ? AND purpose IN ('verify','reset') AND created_at > ?")
+    .bind(email, addMinutes(now(), -60)).first();
+  return r.n >= LINKS_PER_HOUR;
 }
 
-function signinCookieName(request) {
-  return new URL(request.url).protocol === 'https:' ? '__Host-pc_signin' : 'pc_signin';
-}
-
-/** Six digits, every value equally likely. */
-function randomCode() {
-  const limit = 4294967296 - (4294967296 % 1000000);
-  for (;;) {
-    const n = crypto.getRandomValues(new Uint32Array(1))[0];
-    if (n < limit) return String(n % 1000000).padStart(6, '0');
-  }
+async function emailLink(request, env, ctx, { email, purpose, breederId = null, signupName = null, minutes, template }) {
+  const { token, stmts } = await newAuthToken(env, { purpose, email, breederId, signupName, ip: ipOf(request), minutes });
+  await env.DB.batch(stmts);
+  const link = `${new URL(request.url).origin}/auth/set-password?t=${encodeURIComponent(token)}`;
+  ctx.waitUntil(sendMail(env, email, template, { link }).catch((e) => console.error(`${template} mail failed`, e)));
 }
 
 /**
- * Plan P6.2. Sign in with the emailed code, in the browser that asked for it. The code is
- * checked only against this browser's live sign-in rows. A wrong code counts against every
- * one of them, and a row is spent (code and link together) after CODE_TRIES wrong codes. An
- * address also stops taking codes for a day after CODE_TRIES_PER_DAY wrong ones, which caps
- * guessing by someone who keeps asking for new codes, while its emailed links keep working.
+ * Sign-up. A new address gets a link that proves it is theirs and opens the page that sets the
+ * password, and the account is made only when that page is used, so nobody can claim an address
+ * they cannot read. An address that already signs in gets a password link instead. The answer is
+ * the same either way, so the form never says whether an address has an account.
  */
-async function authCode(request, env) {
+async function authSignup(request, env, ctx) {
+  const body = await readJson(request);
+  const email = readEmail(body.email);
+  await verifyTurnstile(request, env, body.turnstile_token);
+  await limit(env, `signup:${ipOf(request)}`);
+  const res = json({ ok: true, message: 'Check your email. We sent a link to confirm the address and choose your password. It works once and stops working after 24 hours.' });
+  if (!(await tooManyLinks(env, email))) {
+    const person = await personFor(env, email);
+    if (person) await emailLink(request, env, ctx, { email, purpose: 'reset', breederId: person.breeder_id, minutes: RESET_MINUTES, template: 'password_reset' });
+    else await emailLink(request, env, ctx, { email, purpose: 'verify', signupName: clean(body.business_name, 120), minutes: VERIFY_HOURS * 60, template: 'signup_verify' });
+  }
+  await claimMailbox(request, env, email, res);
+  return res;
+}
+
+/** Forgot password, and the way an existing breeder with no password sets their first one. */
+async function authForgot(request, env, ctx) {
   requireSameOrigin(request);
   const body = await readJson(request);
-  const code = String(body.code || '').replace(/\D/g, '');
-  if (!/^\d{6}$/.test(code)) throw bad('The code is the six numbers in the email.');
-  if (env.AUTH_LIMITER) {
-    const { success } = await env.AUTH_LIMITER.limit({ key: `code:${request.headers.get('cf-connecting-ip') || 'local'}` });
-    if (!success) throw new HttpError(429, 'Too many tries. Please wait a minute and try again.');
+  const email = readEmail(body.email);
+  await limit(env, `forgot:${ipOf(request)}`);
+  const res = json({ ok: true, message: 'If that address signs in to Puppy Connection, we sent it a link to set a password. The link works once and stops working after 1 hour.' });
+  if (!(await tooManyLinks(env, email))) {
+    const person = await personFor(env, email);
+    if (person) await emailLink(request, env, ctx, { email, purpose: 'reset', breederId: person.breeder_id, minutes: RESET_MINUTES, template: 'password_reset' });
   }
-  const binder = parseCookies(request)[signinCookieName(request)];
-  const gone = 'That code has expired, or it was asked for in a different browser. Ask for a new one, or open the link in the email.';
-  if (!binder || !/^[\w-]{40,50}$/.test(binder)) throw bad(gone);
-  const browser = await sha256hex(binder);
-  const t = now();
-  let { results: live } = await env.DB.prepare(
-    'SELECT token_hash, email, code_hash, code_tries FROM login_tokens WHERE browser_hash = ? AND used_at IS NULL AND expires_at > ? AND code_hash IS NOT NULL',
-  ).bind(browser, t).all();
-  if (!live.length) throw bad(gone);
-  const emails = [...new Set(live.map((r) => r.email.toLowerCase()))];
-  const { results: tries } = await env.DB.prepare(
-    `SELECT lower(email) AS email, SUM(code_tries) AS n FROM login_tokens
-      WHERE lower(email) IN (${emails.map(() => '?').join(',')}) AND created_at > ? GROUP BY lower(email)`,
-  ).bind(...emails, addDays(t, -1)).all();
-  const capped = new Set(tries.filter((r) => r.n >= CODE_TRIES_PER_DAY).map((r) => r.email));
-  live = live.filter((r) => !capped.has(r.email.toLowerCase()));
-  if (!live.length) throw new HttpError(429, 'Too many wrong codes have been tried for this address today. Open the link in the email instead.');
-  const tooMany = 'That was too many wrong codes, so this code and its link no longer work. Please ask for a new one.';
-
-  const want = await sha256hex(`${binder}:${code}`);
-  const hit = live.find((r) => timingSafeEqual(r.code_hash, want));
-  if (!hit) {
-    await env.DB.prepare(
-      `UPDATE login_tokens SET code_tries = code_tries + 1, used_at = CASE WHEN code_tries + 1 >= ? THEN ? ELSE used_at END
-        WHERE browser_hash = ? AND used_at IS NULL AND expires_at > ? AND code_hash IS NOT NULL`,
-    ).bind(CODE_TRIES, t, browser, t).run();
-    if (live.every((r) => r.code_tries + 1 >= CODE_TRIES)) throw new HttpError(429, tooMany);
-    throw bad('That code is not right. Check the email and try again.');
-  }
-  const used = await env.DB.prepare('UPDATE login_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?')
-    .bind(t, hit.token_hash, t).run();
-  if (used.meta.changes !== 1) throw bad(gone);
-  const tok = await env.DB.prepare('SELECT * FROM login_tokens WHERE token_hash = ?').bind(hit.token_hash).first();
-  const breederId = await breederForVerifiedEmail(env, tok.email, { businessName: tok.signup_name, method: 'code' });
-  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId, tok.email) });
-  res.headers.append('set-cookie', setCookie(request, signinCookieName(request), '', 0));
+  await claimMailbox(request, env, email, res);
   return res;
+}
+
+/** A wrong password or code: counted for the address and the network address. */
+async function lockedOut(env, email, ip) {
+  const f = await failureState(env, email, ip);
+  return f.email || f.ip;
+}
+const LOCKED = 'Too many wrong tries. Wait 15 minutes and try again, or use Forgot password to set a new password.';
+
+/**
+ * Sign in with an email and password. With an authenticator set up, a right password returns a
+ * five-minute ticket and the code is asked for next (authTotp). An address with no password, or
+ * none at all, still costs one hash, so the answer takes as long either way.
+ */
+async function authPassword(request, env) {
+  requireSameOrigin(request);
+  const body = await readJson(request);
+  const email = readEmail(body.email);
+  const ip = ipOf(request);
+  if (await lockedOut(env, email, ip)) throw new HttpError(429, LOCKED);
+  const person = await personFor(env, email);
+  const cred = person ? await credentialFor(env, email) : null;
+  const r = await checkPassword(env, String(body.password || '').slice(0, 200), cred && cred.password_hash);
+  if (!person || !r.ok) {
+    await failureStmt(env, email, ip, 'password').run();
+    throw bad('That email and password do not match. If you have never set a password, use Forgot password and we will email you a link to set one.');
+  }
+  const stmts = [];
+  if (r.rehash) stmts.push(env.DB.prepare('UPDATE credentials SET password_hash = ?, updated_at = ? WHERE email = ?').bind(await hashPassword(env, String(body.password)), now(), email));
+  if (cred.totp_enabled_at) {
+    const { token, stmts: mint } = await newAuthToken(env, { purpose: 'mfa', email, breederId: person.breeder_id, ip, minutes: MFA_MINUTES });
+    await env.DB.batch([...stmts, ...mint]);
+    return json({ need_code: true, ticket: token });
+  }
+  if (stmts.length) await env.DB.batch(stmts);
+  const breederId = await breederForVerifiedEmail(env, email, { method: 'password' });
+  return json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId, email) });
+}
+
+/** The second step: the authenticator code, or one recovery code, for a ticket from authPassword. */
+async function authTotp(request, env) {
+  requireSameOrigin(request);
+  const body = await readJson(request);
+  const gone = 'That sign-in took too long. Enter your email and password again.';
+  const row = await peekAuthToken(env, body.ticket, ['mfa']);
+  if (!row) throw bad(gone);
+  const ip = ipOf(request);
+  if (await lockedOut(env, row.email, ip)) throw new HttpError(429, LOCKED);
+  const person = await personFor(env, row.email);
+  const cred = await credentialFor(env, row.email);
+  if (!person || person.breeder_id !== row.breeder_id || !cred || !cred.totp_enabled_at) throw bad(gone);
+  const used = await useSecondFactor(env, cred, body.code);
+  if (!used.ok) {
+    await env.DB.batch([
+      failureStmt(env, row.email, ip, 'code'),
+      env.DB.prepare('UPDATE auth_tokens SET tries = tries + 1, used_at = CASE WHEN tries + 1 >= ? THEN ? ELSE used_at END WHERE token_hash = ?').bind(CODE_TRIES, now(), row.token_hash),
+    ]);
+    if (row.tries + 1 >= CODE_TRIES) throw new HttpError(429, 'That was too many wrong codes. Enter your email and password again.');
+    throw bad('That code is not right. Use the six numbers your authenticator app shows now, or one of your recovery codes.');
+  }
+  if (!(await spendAuthToken(env, body.ticket, ['mfa']))) throw bad(gone);
+  const breederId = await breederForVerifiedEmail(env, row.email, { method: used.how === 'recovery' ? 'recovery_code' : 'authenticator' });
+  const left = used.how === 'recovery'
+    ? (await env.DB.prepare('SELECT COUNT(*) AS n FROM recovery_codes WHERE email = ? AND used_at IS NULL').bind(row.email).first()).n : null;
+  return json({ ok: true, recovery_left: left }, 200, { 'set-cookie': await startSession(request, env, breederId, row.email) });
+}
+
+// Emailed sign-in codes and links are switched off (A26). An old link or a cached page gets a plain answer.
+const NO_EMAIL_SIGNIN = 'Emailed sign-in codes and links are no longer used. Sign in with your password or with Google. If you have not set a password yet, use Forgot password on the sign-in page.';
+const emailSigninGone = () => json({ error: NO_EMAIL_SIGNIN }, 410);
+function oldLinkPage() {
+  return html(page('Sign in', `<h1>Sign-in links are no longer used</h1><p>${esc(NO_EMAIL_SIGNIN)}</p><p><a class="btn btn-primary" href="/">Go to sign in</a></p>`), 410);
 }
 
 /** A plain server-rendered page. wide is for reading pages such as the privacy policy. */
@@ -234,43 +308,130 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=17"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=19"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
 
-/** GET changes nothing, because mail scanners open links first (spec 6.2). */
-function authVerifyPage(request) {
-  const t = new URL(request.url).searchParams.get('t') || '';
-  return html(page('Sign in', `<h1>Sign in to the breeder portal</h1>
-<p>Press the button to finish signing in on this device.</p>
-<form method="post" action="/auth/verify"><input type="hidden" name="t" value="${esc(t)}">
-<button class="btn btn-primary" type="submit">Sign in</button></form>`));
+// ------------------------------------------------------------------ set a password (A25, A26)
+
+const SET_PURPOSES = ['invite', 'reset', 'verify'];
+
+function linkGonePage() {
+  return html(page('Link expired', `<h1>That link has expired</h1>
+<p>Each link works once. An invitation lasts 7 days, a new account link 24 hours and a password link 1 hour. On the <a href="/">sign-in page</a>, use Forgot password for a new one, or ask whoever invited you to send the invitation again.</p>`), 400);
 }
 
-async function authVerify(request, env) {
+async function setPasswordContext(env, row) {
+  if (row.purpose === 'verify') return { heading: 'Choose your password', intro: 'Your email address is confirmed. Choose a password to finish creating your breeder account.' };
+  const b = row.breeder_id ? await loadBreeder(env, row.breeder_id) : null;
+  const name = (b && b.business_name) || 'your kennel';
+  if (row.purpose === 'invite') return { heading: `Manage ${name} on Puppy Connection`, intro: `Choose a password to sign in to ${name} in the breeder portal.` };
+  return { heading: 'Choose a new password', intro: `This sets the password you use to sign in to ${name}.` };
+}
+
+function passwordForm({ t, email, heading, intro, needCode, error }) {
+  return html(page('Choose a password', `<h1>${esc(heading)}</h1><p>${esc(intro)}</p>
+${error ? `<p class="error" role="alert">${esc(error)}</p>` : ''}
+<form method="post" action="/auth/set-password" class="set-password"><input type="hidden" name="t" value="${esc(t)}">
+<input type="email" name="username" value="${esc(email)}" autocomplete="username" readonly hidden>
+<p class="muted small">Signing in as <b>${esc(email)}</b></p>
+<div class="field"><label for="pw1">New password</label><input id="pw1" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></div>
+<div class="field"><label for="pw2">The same password again</label><input id="pw2" name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></div>
+<p class="hint">At least 10 characters. A few words together is easy to remember and hard to guess.</p>
+${needCode ? '<div class="field"><label for="code">Code from your authenticator app</label><input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required><p class="hint">Lost your phone? Type one of your recovery codes instead.</p></div>' : ''}
+<button class="btn btn-primary" type="submit">Save password and sign in</button></form>`), error ? 400 : 200);
+}
+
+/** GET changes nothing, because mail scanners open links first. */
+async function setPasswordPage(request, env) {
+  const t = new URL(request.url).searchParams.get('t') || '';
+  const row = await peekAuthToken(env, t, SET_PURPOSES);
+  if (!row) return linkGonePage();
+  const cred = row.purpose === 'verify' ? null : await credentialFor(env, row.email);
+  return passwordForm({ t, email: row.email, ...(await setPasswordContext(env, row)), needCode: !!(cred && cred.totp_enabled_at) });
+}
+
+/**
+ * Set the password from an invitation, a password link or a new account's confirmation link, and
+ * sign in. With an authenticator set up the code is asked for too, so an email account alone
+ * cannot take over a kennel. The link is spent only once everything on the page is right.
+ */
+async function setPassword(request, env) {
   requireSameOrigin(request);
   const form = await request.formData();
-  const token = String(form.get('t') || '');
-  const hash = await sha256hex(token);
-  const t = now();
-  const used = await env.DB.prepare('UPDATE login_tokens SET used_at = ? WHERE token_hash = ? AND used_at IS NULL AND expires_at > ?')
-    .bind(t, hash, t).run();
-  if (used.meta.changes !== 1) {
-    return html(page('Link expired', `<h1>That link has expired</h1>
-<p>Sign-in links work once and last 15 minutes. <a href="/">Ask for a new one</a>.</p>`), 400);
+  const t = String(form.get('t') || '');
+  const row = await peekAuthToken(env, t, SET_PURPOSES);
+  if (!row) return linkGonePage();
+  const person = await personFor(env, row.email);
+  // An invitation or reset is for one kennel. If the address has since come off it, the link is dead.
+  if (row.purpose !== 'verify' && (!person || person.breeder_id !== row.breeder_id)) return linkGonePage();
+  const cred = person ? await credentialFor(env, row.email) : null;
+  const needCode = !!(cred && cred.totp_enabled_at);
+  const again = async (error) => passwordForm({ t, email: row.email, ...(await setPasswordContext(env, row)), needCode, error });
+  const password = String(form.get('password') || '');
+  const problem = passwordProblem(password);
+  if (problem) return again(problem);
+  if (password !== String(form.get('confirm') || '')) return again('The two passwords are not the same. Type the same password in both boxes.');
+  if (needCode) {
+    const ip = ipOf(request);
+    if (await lockedOut(env, row.email, ip)) return again(LOCKED);
+    const used = await useSecondFactor(env, cred, form.get('code'));
+    if (!used.ok) {
+      await env.DB.batch([
+        failureStmt(env, row.email, ip, 'code'),
+        env.DB.prepare('UPDATE auth_tokens SET tries = tries + 1, used_at = CASE WHEN tries + 1 >= ? THEN ? ELSE used_at END WHERE token_hash = ?').bind(CODE_TRIES, now(), row.token_hash),
+      ]);
+      if (row.tries + 1 >= CODE_TRIES) return linkGonePage();
+      return again('That code is not right. Use the six numbers your authenticator app shows now, or one of your recovery codes.');
+    }
   }
-  const tok = await env.DB.prepare('SELECT * FROM login_tokens WHERE token_hash = ?').bind(hash).first();
-  const breederId = await breederForVerifiedEmail(env, tok.email, { businessName: tok.signup_name, method: 'email' });
-  const cookie = await startSession(request, env, breederId, tok.email);
+  if (!(await spendAuthToken(env, t, SET_PURPOSES))) return linkGonePage();
+  const breederId = await breederForVerifiedEmail(env, row.email, { businessName: row.signup_name || '', method: `password_${row.purpose}` });
+  const tnow = now();
+  const stmts = [
+    env.DB.prepare(
+      `INSERT INTO credentials (email, breeder_id, password_hash, password_set_at, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(email) DO UPDATE SET breeder_id = excluded.breeder_id, password_hash = excluded.password_hash, password_set_at = excluded.password_set_at, updated_at = excluded.updated_at`,
+    ).bind(row.email, breederId, await hashPassword(env, password), tnow, tnow),
+    auditStmt(env, 'breeder', row.email, 'account.password_set', 'breeder', breederId, null, { email: row.email, via: row.purpose }),
+  ];
+  // A reset ends this person's other sessions, in case the password was reset because someone else had it.
+  if (row.purpose === 'reset') {
+    const main = person && person.main;
+    stmts.push(env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL AND operator_email IS NULL AND (email = ?${main ? ' OR email IS NULL' : ''})`)
+      .bind(tnow, breederId, row.email));
+  }
+  await env.DB.batch(stmts);
+  return redirect('/', 303, { 'set-cookie': await startSession(request, env, breederId, row.email) });
+}
+
+// ------------------------------------------------------------------ Manage as this breeder (A24)
+
+/**
+ * The admin mints a two-minute, one-time hand-over (admin/worker.js manageAs) for an operator
+ * Cloudflare Access has identified, and sends their browser here. Only its SHA-256 is in D1, which
+ * the two Workers share. The portal spends it once, checks again that the breeder's access is on
+ * and that the operator is still in people, and opens an eight-hour session marked as theirs.
+ */
+async function authHandoff(request, env) {
+  const t = new URL(request.url).searchParams.get('t') || '';
+  const row = await spendAuthToken(env, t, ['handoff']);
+  const refuse = (title, text, status) => html(page(title, `<h1>${esc(title)}</h1><p>${esc(text)}</p>`), status);
+  if (!row || !row.operator_email) return refuse('That link has expired', 'Open the breeder in the admin again and press Manage as this breeder. The link works once, for two minutes.', 400);
+  const breeder = await loadBreeder(env, row.breeder_id);
+  if (!breeder || !breeder.manage_access) return refuse('Puppy Connection access is off', 'This breeder has not turned on Puppy Connection access, so the portal cannot be opened for them.', 403);
+  if (!(await env.DB.prepare('SELECT 1 AS x FROM people WHERE email = ?').bind(row.operator_email).first())) return refuse('Not allowed', 'That address is no longer an operator.', 403);
+  const cookie = await startSession(request, env, breeder.id, null, { operator: row.operator_email });
+  await auditStmt(env, 'operator', row.operator_email, 'operator.session_start', 'breeder', breeder.id, null, { hours: OPERATOR_SESSION_HOURS }).run();
   return redirect('/', 303, { 'set-cookie': cookie });
 }
 
 /**
- * The account for an email address that has just been proven, by an emailed link or by
- * Google. An existing breeder is signed in whatever their status, because approval and
+ * The account for an email address that has just been proven, by a password, an emailed link or
+ * by Google. An existing breeder is signed in whatever their status, because approval and
  * suspension are enforced on every request after this. A new address becomes a pending
- * breeder, exactly as a first emailed sign-in does.
+ * breeder.
  */
 async function breederForVerifiedEmail(env, email, { businessName = '', contactName = null, method }) {
   const t = now();
@@ -380,17 +541,23 @@ async function oneTapSignIn(request, env) {
 async function signOut(request, env) {
   requireSameOrigin(request);
   const s = await currentSession(request, env);
-  if (s) await env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE token_hash = ?').bind(now(), s.hash).run();
-  return json({ ok: true }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
+  if (s) {
+    await env.DB.batch([
+      env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE token_hash = ?').bind(now(), s.hash),
+      // Workplan A24. End, on the banner of an operator's session, is recorded as theirs.
+      ...(s.operator ? [auditStmt(env, 'operator', s.operator.email, 'operator.session_end', 'breeder', s.breeder.id, null, null)] : []),
+    ]);
+  }
+  return json({ ok: true, back: s && s.operator && env.ADMIN_ORIGIN ? `${env.ADMIN_ORIGIN}/#/breeders/${encodeURIComponent(s.breeder.id)}` : null }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
 }
 
 /** Sign out of every device, this one included (plan P6.3; P2.7 gives it a screen). */
 async function signOutAll(request, env) {
   requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
+  const { breeder } = await needOwnSession(request, env);
   const r = await env.DB.batch([
     env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL').bind(now(), breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'breeder.signout_all', 'breeder', breeder.id, null, null),
+    auditStmt(env, ...who(breeder), 'breeder.signout_all', 'breeder', breeder.id, null, null),
   ]);
   return json({ ok: true, ended: r[0].meta.changes }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
 }
@@ -419,9 +586,16 @@ async function isPublicBreeder(env, breederId) {
 }
 
 async function me(request, env) {
-  const { breeder } = await needSession(request, env);
+  const sess = await needSession(request, env);
+  const { breeder } = sess;
   const s = await settings(env);
   const out = publicBreeder(breeder, s);
+  // Workplan A24. An operator's session carries a banner naming the kennel and the operator.
+  out.operator = sess.operator;
+  // Workplan A26. Recommend an authenticator to a person who has none, until they say Not now.
+  const cred = sess.operator ? null : await credentialFor(env, sess.email);
+  out.signed_in_as = sess.operator ? null : sess.email;
+  out.authenticator_nudge = !sess.operator && !(cred && (cred.totp_enabled_at || cred.totp_nudge_dismissed_at));
   out.payments_mode = env.PAYMENTS_MODE || 'off';
   out.test_notices = showTestNotices(env);
   out.mailbox = env.EMAIL_MODE === 'log' && isLocal(request, env);
@@ -453,12 +627,12 @@ async function saveProfile(request, env, ctx) {
   const f = profileFields(body);
   const stmts = [
     profileStmt(env, breeder.id, f, body.version),
-    auditStmt(env, 'breeder', breeder.email, 'profile.update', 'breeder', breeder.id, profileBefore(breeder), f),
+    auditStmt(env, ...who(breeder), 'profile.update', 'breeder', breeder.id, profileBefore(breeder), f),
   ];
   if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
   const res = await env.DB.batch(stmts);
   checkVersion(res[0], 'profile');
-  noticeContactChange(env, ctx, breeder, f, 'breeder');
+  noticeContactChange(env, ctx, breeder, f, who(breeder)[0]);
   return me(request, env);
 }
 
@@ -468,7 +642,7 @@ async function saveProfile(request, env, ctx) {
  */
 async function acceptTerms(request, env) {
   requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
+  const { breeder } = await needOwnSession(request, env);
   const body = await readJson(request);
   const terms = await currentTerms(env);
   if (body.version !== terms.version) throw new HttpError(409, 'The listing terms changed again. Reload to read the latest version.');
@@ -476,14 +650,14 @@ async function acceptTerms(request, env) {
   const t = now();
   await env.DB.batch([
     env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, updated_at = ? WHERE id = ?').bind(terms.version, t, t, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'terms.accept', 'breeder', breeder.id, { terms_version: breeder.terms_version || null }, { terms_version: terms.version }),
+    auditStmt(env, ...who(breeder), 'terms.accept', 'breeder', breeder.id, { terms_version: breeder.terms_version || null }, { terms_version: terms.version }),
   ]);
   return me(request, env);
 }
 
 async function submitProfile(request, env, ctx) {
   requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
+  const { breeder } = await needOwnSession(request, env);
   if (breeder.status !== 'pending') throw bad('Only a pending account can be submitted.');
   const body = await readJson(request);
   if (body.accept_terms !== true) throw bad('Please accept the listing terms first.');
@@ -499,10 +673,10 @@ async function submitProfile(request, env, ctx) {
   const first = !breeder.profile_submitted_at;
   await env.DB.batch([
     referenceStmt(env, breeder.id, ref),
-    auditStmt(env, 'breeder', breeder.email, 'reference.save', 'breeder', breeder.id, null, { role: ref.role }),
+    auditStmt(env, ...who(breeder), 'reference.save', 'breeder', breeder.id, null, { role: ref.role }),
     env.DB.prepare('UPDATE breeders SET terms_version = ?, terms_accepted_at = ?, profile_submitted_at = COALESCE(profile_submitted_at, ?), updated_at = ? WHERE id = ?')
       .bind(s.termsVersion, t, t, t, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'profile.submit', 'breeder', breeder.id, null, { terms_version: s.termsVersion }),
+    auditStmt(env, ...who(breeder), 'profile.submit', 'breeder', breeder.id, null, { terms_version: s.termsVersion }),
   ]);
   if (first) {
     const { results } = await env.DB.prepare('SELECT email FROM people').all();
@@ -525,7 +699,7 @@ async function saveReference(request, env) {
   const ref = referenceFields(await readJson(request));
   await env.DB.batch([
     referenceStmt(env, breeder.id, ref),
-    auditStmt(env, 'breeder', breeder.email, 'reference.save', 'breeder', breeder.id, null, { role: ref.role }),
+    auditStmt(env, ...who(breeder), 'reference.save', 'breeder', breeder.id, null, { role: ref.role }),
   ]);
   return me(request, env);
 }
@@ -555,14 +729,14 @@ async function saveExtras(request, env, ctx) {
     env.DB.prepare('UPDATE breeder_profiles SET facebook_url = ?, updated_at = ? WHERE breeder_id = ?').bind(facebook, t, breeder.id),
     env.DB.prepare('DELETE FROM breeder_breeds WHERE breeder_id = ?').bind(breeder.id),
     ...ids.map((id) => env.DB.prepare('INSERT INTO breeder_breeds (breeder_id, breed_id) VALUES (?, ?)').bind(breeder.id, id)),
-    auditStmt(env, 'breeder', breeder.email, 'profile.extras', 'breeder', breeder.id, before, { facebook_url: facebook, breeds: ids }),
+    auditStmt(env, ...who(breeder), 'profile.extras', 'breeder', breeder.id, before, { facebook_url: facebook, breeds: ids }),
   ];
   if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
   // A changed Facebook page is a public contact link, so it gets the same notice as P6.6.
   if (breeder.profile_submitted_at && (breeder.facebook_url || null) !== facebook) {
     ctx.waitUntil(sendMail(env, breeder.email, 'contact_changed', {
-      business: breeder.business_name, by: 'breeder', portalUrl: env.PORTAL_ORIGIN || '',
+      business: breeder.business_name, by: who(breeder)[0], portalUrl: env.PORTAL_ORIGIN || '',
       changes: [{ field: 'facebook_url', label: 'Facebook page', from: breeder.facebook_url || null, to: facebook }],
     }).catch((e) => console.error('contact change notice failed', e)));
   }
@@ -583,7 +757,7 @@ async function uploadBrand(request, env, ctx, kind) {
   const old = breeder[col];
   const stmts = [
     env.DB.prepare(`UPDATE breeder_profiles SET ${col} = ?, updated_at = ? WHERE breeder_id = ?`).bind(key, now(), breeder.id),
-    auditStmt(env, 'breeder', breeder.email, `profile.${kind}.add`, 'breeder', breeder.id, old ? { key: old } : null, { key, bytes: img.bytes.length }),
+    auditStmt(env, ...who(breeder), `profile.${kind}.add`, 'breeder', breeder.id, old ? { key: old } : null, { key, bytes: img.bytes.length }),
   ];
   if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -612,7 +786,7 @@ async function removeBrand(request, env, ctx, kind) {
   if (!old) return json({ ok: true });
   const stmts = [
     env.DB.prepare(`UPDATE breeder_profiles SET ${col} = NULL, updated_at = ? WHERE breeder_id = ?`).bind(now(), breeder.id),
-    auditStmt(env, 'breeder', breeder.email, `profile.${kind}.remove`, 'breeder', breeder.id, { key: old }, null),
+    auditStmt(env, ...who(breeder), `profile.${kind}.remove`, 'breeder', breeder.id, { key: old }, null),
   ];
   if (breeder.status === 'approved') stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -633,7 +807,7 @@ async function brandImage(request, env, kind, breederId) {
 const brandLogo = (r, e, c, id) => brandImage(r, e, 'logo', id);
 const brandKennel = (r, e, c, id) => brandImage(r, e, 'kennel', id);
 
-// ------------------------------------------------------------------ account (plan P2.7)
+/// ------------------------------------------------------------------ account (plan P2.7)
 
 const openRequest = (env, breederId) => env.DB.prepare(
   `SELECT id, kind, reason, created_at FROM account_requests
@@ -641,76 +815,200 @@ const openRequest = (env, breederId) => env.DB.prepare(
 ).bind(breederId).first();
 
 async function account(request, env) {
-  const { breeder, email } = await needSession(request, env);
-  const sessions = await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE breeder_id = ? AND revoked_at IS NULL AND expires_at > ?')
+  const s = await needSession(request, env);
+  const { breeder, email } = s;
+  const sessions = await env.DB.prepare('SELECT COUNT(*) AS n FROM sessions WHERE breeder_id = ? AND revoked_at IS NULL AND expires_at > ? AND operator_email IS NULL')
     .bind(breeder.id, now()).first();
+  const people = await kennelPeople(env, breeder.id);
+  // Workplan A26. This person's own password and authenticator. An operator session sees neither.
+  let security = null;
+  if (!s.operator) {
+    const cred = await credentialFor(env, email);
+    const left = cred && cred.totp_enabled_at
+      ? (await env.DB.prepare('SELECT COUNT(*) AS n FROM recovery_codes WHERE email = ? AND used_at IS NULL').bind(email.toLowerCase()).first()).n : 0;
+    security = { password_set: !!(cred && cred.password_set_at), password_set_at: cred ? cred.password_set_at : null,
+      authenticator: !!(cred && cred.totp_enabled_at), authenticator_since: cred ? cred.totp_enabled_at : null, recovery_left: left };
+  }
   return json({ email: breeder.email, signed_in_as: email, created_at: breeder.created_at, sessions: sessions.n,
-    members: await kennelMembers(env, breeder.id), max_members: MAX_MEMBERS, close_request: await openRequest(env, breeder.id) });
+    members: people.filter((p) => !p.main).map((p) => ({ id: p.member_id, email: p.email, name: p.name, added_at: p.added_at, joined_at: p.joined_at,
+      invited_at: p.invited_at, invite_open_until: p.invite_open_until, password_set: p.password_set })),
+    max_members: MAX_MEMBERS, close_request: await openRequest(env, breeder.id),
+    is_main: !s.operator && email.toLowerCase() === String(breeder.email).toLowerCase(),
+    operator: s.operator, security,
+    // Workplan A24. Whether Puppy Connection may open the portal as this kennel.
+    access: { on: !!breeder.manage_access, by: breeder.manage_access_by, at: breeder.manage_access_at, how: breeder.manage_access_how } });
 }
 
 // ------------------------------------------------------------------ people in the kennel
 
 // Amber, 2026-10-10: a kennel run by a couple or a family wants a sign-in for each person. Each
-// extra person signs in with their own address and has the same access as the first.
-const MAX_MEMBERS = 5;
-const kennelMembers = async (env, breederId) => (await env.DB.prepare(
-  'SELECT id, email, name, added_by, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at',
-).bind(breederId).all()).results;
+// extra person signs in with their own address and has the same access as the first. Since
+// workplan A26 they get an invitation link that sets their password (lib/accounts.js).
 
-/** Add a person who can sign in to this kennel with their own address, and email them. */
+/** Add a person who can sign in to this kennel with their own address, and email them their link. */
 async function addMember(request, env, ctx) {
   requireSameOrigin(request);
-  const { breeder, email: by } = await needSession(request, env);
+  const { breeder, email: by } = await needOwnSession(request, env);
   const body = await readJson(request);
-  const email = String(body.email || '').trim().toLowerCase();
-  const name = clean(body.name, 120);
-  if (!EMAIL_RX.test(email) || email.length > 200) throw bad('Enter a valid email address.');
-  if (email === String(breeder.email).toLowerCase()) throw bad('That address already signs in to this kennel.');
-  const taken = await env.DB.prepare('SELECT breeder_id FROM breeder_members WHERE email = ?').bind(email).first();
-  if (taken) throw bad(taken.breeder_id === breeder.id ? 'That person can already sign in.' : 'That address is already used by another kennel on Puppy Connection.');
-  if (await env.DB.prepare('SELECT 1 AS x FROM breeders WHERE email = ?').bind(email).first()) {
-    throw bad('That address already has its own breeder account. Use a different address, or contact Puppy Connection.');
-  }
-  const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM breeder_members WHERE breeder_id = ?').bind(breeder.id).first();
-  if (n >= MAX_MEMBERS) throw bad(`A kennel can have up to ${MAX_MEMBERS} extra people. Remove someone first.`);
-  const id = ulid();
-  await env.DB.batch([
-    env.DB.prepare('INSERT INTO breeder_members (id, breeder_id, email, name, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?)').bind(id, breeder.id, email, name, by, now()),
-    auditStmt(env, 'breeder', by, 'member.add', 'breeder', breeder.id, null, { member: id, email }),
-  ]);
-  ctx.waitUntil(sendMail(env, email, 'member_added', { business: breeder.business_name || 'a kennel', by, portalUrl: new URL(request.url).origin })
+  const email = await checkNewPerson(env, breeder, body.email);
+  const { stmts } = addPersonStmts(env, breeder.id, email, body.name, by, who(breeder));
+  await env.DB.batch(stmts);
+  ctx.waitUntil(sendInvitation(env, { breeder, email, by, actor: who(breeder), portalOrigin: new URL(request.url).origin, template: 'member_added' })
     .catch((e) => console.error('member mail failed', e)));
   return account(request, env);
 }
 
-/** Remove a person from the kennel and end their sessions. Their past changes stay in the log. */
+/** Remove a person from the kennel. Their sessions end at once and their links stop working. Their past changes stay in the log. */
 async function removeMember(request, env, ctx, id) {
   requireSameOrigin(request);
-  const { breeder, email: by } = await needSession(request, env);
+  const { breeder, email: by } = await needOwnSession(request, env);
   const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(id, breeder.id).first();
   if (!m) throw notFound();
-  await env.DB.batch([
-    env.DB.prepare('DELETE FROM breeder_members WHERE id = ?').bind(m.id),
-    env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND email = ? AND revoked_at IS NULL').bind(now(), breeder.id, m.email),
-    auditStmt(env, 'breeder', by, 'member.remove', 'breeder', breeder.id, { member: m.id, email: m.email }, null),
-  ]);
+  await env.DB.batch(removePersonStmts(env, breeder.id, m, who(breeder)));
   if (String(by).toLowerCase() === m.email.toLowerCase()) {
     return json({ ok: true, signed_out: true }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
   }
   return account(request, env);
 }
 
-/** Ask Puppy Connection to close the account. This records the request and deletes nothing. */
+/**
+ * Workplan A25. The main contact hands the kennel's main email to another person on it. The old
+ * main address stays on as an extra person, or comes off with its sessions ended.
+ */
+async function makeMain(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const s = await needOwnSession(request, env);
+  const { breeder, email } = s;
+  if (email.toLowerCase() !== String(breeder.email).toLowerCase()) throw forbidden('Only the main contact can hand the main email to someone else.');
+  const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(id, breeder.id).first();
+  if (!m) throw notFound();
+  const keepOld = (await readJson(request)).keep_old !== false;
+  await env.DB.batch(makeMainStmts(env, breeder, m, { keepOld, addedBy: email, actor: who(breeder) }));
+  if (!keepOld) return json({ ok: true, signed_out: true }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
+  return account(request, env);
+}
+
+// ------------------------------------------------------------------ Puppy Connection access (A24)
+
+async function setAccess(request, env) {
+  requireSameOrigin(request);
+  const { breeder, email } = await needOwnSession(request, env);
+  const on = (await readJson(request)).on === true;
+  if (on !== !!breeder.manage_access) {
+    await env.DB.batch(accessStmts(env, breeder.id, on, { by: email, how: ACCESS_HOW.breeder, actor: who(breeder), before: breeder.manage_access }));
+  }
+  return account(request, env);
+}
+
+// ------------------------------------------------------------------ password and authenticator (A26)
+
+const upsertCred = (env, email, breederId) => env.DB.prepare(
+  `INSERT INTO credentials (email, breeder_id, updated_at) VALUES (?, ?, ?) ON CONFLICT(email) DO NOTHING`,
+).bind(email.toLowerCase(), breederId, now());
+
+/** Change the password, or set a first one for someone who signs in with Google. */
+async function changePassword(request, env) {
+  requireSameOrigin(request);
+  const s = await needOwnSession(request, env);
+  const email = s.email.toLowerCase();
+  const body = await readJson(request);
+  const cred = await credentialFor(env, email);
+  if (cred && cred.password_hash) {
+    const ip = ipOf(request);
+    if (await lockedOut(env, email, ip)) throw new HttpError(429, LOCKED);
+    const r = await checkPassword(env, String(body.current || '').slice(0, 200), cred.password_hash);
+    if (!r.ok) { await failureStmt(env, email, ip, 'password').run(); throw bad('Your current password is not right.'); }
+  }
+  const problem = passwordProblem(body.password);
+  if (problem) throw bad(problem);
+  const t = now();
+  await env.DB.batch([
+    upsertCred(env, email, s.breeder.id),
+    env.DB.prepare('UPDATE credentials SET password_hash = ?, password_set_at = ?, updated_at = ? WHERE email = ?').bind(await hashPassword(env, String(body.password)), t, t, email),
+    // Every other session of this person ends, and this one carries on.
+    env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND token_hash != ? AND revoked_at IS NULL AND operator_email IS NULL AND (email = ?${email === String(s.breeder.email).toLowerCase() ? ' OR email IS NULL' : ''})`)
+      .bind(t, s.breeder.id, s.hash, email),
+    auditStmt(env, 'breeder', email, 'account.password_change', 'breeder', s.breeder.id, null, { email }),
+  ]);
+  return account(request, env);
+}
+
+/** Start setting up an authenticator app. The secret waits in totp_pending until one code confirms it. */
+async function authenticatorStart(request, env) {
+  requireSameOrigin(request);
+  const s = await needOwnSession(request, env);
+  const email = s.email.toLowerCase();
+  const secret = crypto.getRandomValues(new Uint8Array(20));
+  await env.DB.batch([
+    upsertCred(env, email, s.breeder.id),
+    env.DB.prepare('UPDATE credentials SET totp_pending = ?, updated_at = ? WHERE email = ?').bind(await sealSecret(env, secret), now(), email),
+  ]);
+  const b32 = base32(secret);
+  return json({ secret: b32.replace(/(.{4})/g, '$1 ').trim(), uri: otpauthUri(b32, email) });
+}
+
+/** Confirm the app with one code, turn the authenticator on and hand back ten recovery codes, once. */
+async function authenticatorConfirm(request, env) {
+  requireSameOrigin(request);
+  const s = await needOwnSession(request, env);
+  const email = s.email.toLowerCase();
+  const cred = await credentialFor(env, email);
+  if (!cred || !cred.totp_pending) throw bad('Start setting up the authenticator first.');
+  const step = await matchTotp(await openSecret(env, cred.totp_pending), (await readJson(request)).code, -1);
+  if (step == null) throw bad('That code is not right. Check the app shows Puppy Connection and type the six numbers it shows now.');
+  const { codes, hashes } = await newRecoveryCodes();
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare('UPDATE credentials SET totp_secret = totp_pending, totp_pending = NULL, totp_enabled_at = ?, totp_last_step = ?, updated_at = ? WHERE email = ?').bind(t, step, t, email),
+    env.DB.prepare('DELETE FROM recovery_codes WHERE email = ?').bind(email),
+    ...hashes.map((h) => env.DB.prepare('INSERT INTO recovery_codes (id, email, code_hash, created_at) VALUES (?, ?, ?, ?)').bind(ulid(), email, h, t)),
+    auditStmt(env, 'breeder', email, 'account.authenticator_on', 'breeder', s.breeder.id, null, { email }),
+  ]);
+  return json({ ok: true, recovery_codes: codes });
+}
+
+/** Turn the authenticator off, with a code from it or a recovery code. */
+async function authenticatorOff(request, env) {
+  requireSameOrigin(request);
+  const s = await needOwnSession(request, env);
+  const email = s.email.toLowerCase();
+  const cred = await credentialFor(env, email);
+  if (!cred || !cred.totp_enabled_at) return account(request, env);
+  const ip = ipOf(request);
+  if (await lockedOut(env, email, ip)) throw new HttpError(429, LOCKED);
+  const used = await useSecondFactor(env, cred, (await readJson(request)).code);
+  if (!used.ok) { await failureStmt(env, email, ip, 'code').run(); throw bad('That code is not right. Use the six numbers your authenticator app shows now, or a recovery code.'); }
+  await env.DB.batch([
+    env.DB.prepare('UPDATE credentials SET totp_secret = NULL, totp_pending = NULL, totp_enabled_at = NULL, totp_last_step = NULL, updated_at = ? WHERE email = ?').bind(now(), email),
+    env.DB.prepare('DELETE FROM recovery_codes WHERE email = ?').bind(email),
+    auditStmt(env, 'breeder', email, 'account.authenticator_off', 'breeder', s.breeder.id, null, { email }),
+  ]);
+  return account(request, env);
+}
+
+/** Not now, on the recommendation to set up an authenticator. It does not come back for this person. */
+async function authenticatorDismiss(request, env) {
+  requireSameOrigin(request);
+  const s = await needOwnSession(request, env);
+  const email = s.email.toLowerCase();
+  await env.DB.batch([
+    upsertCred(env, email, s.breeder.id),
+    env.DB.prepare('UPDATE credentials SET totp_nudge_dismissed_at = ?, updated_at = ? WHERE email = ?').bind(now(), now(), email),
+  ]);
+  return json({ ok: true });
+}
+
+/** Ask to close the account. This records the request and deletes nothing. */
 async function askToClose(request, env, ctx) {
   requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
+  const { breeder } = await needOwnSession(request, env);
   if (await openRequest(env, breeder.id)) throw bad('You have already asked to close your account. Puppy Connection will be in touch.');
   const body = await readJson(request);
   const reason = clean(body.reason, 1000);
   const id = ulid();
   await env.DB.batch([
     env.DB.prepare("INSERT INTO account_requests (id, breeder_id, kind, reason, created_at) VALUES (?, ?, 'close', ?, ?)").bind(id, breeder.id, reason, now()),
-    auditStmt(env, 'breeder', breeder.email, 'account.close_request', 'breeder', breeder.id, null, { request: id }),
+    auditStmt(env, ...who(breeder), 'account.close_request', 'breeder', breeder.id, null, { request: id }),
   ]);
   ctx.waitUntil(alertOps(env, `${breeder.business_name || breeder.email} asked to close their account`,
     `${breeder.business_name || breeder.email} asked Puppy Connection to close their breeder account.${reason ? `\n\nTheir reason: ${reason}` : ''}\n\nNothing has been removed. Open the breeder in the admin to follow up:\n${env.ADMIN_ORIGIN || ''}/#/breeders?status=closing`)
@@ -720,12 +1018,12 @@ async function askToClose(request, env, ctx) {
 
 async function withdrawClose(request, env) {
   requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
+  const { breeder } = await needOwnSession(request, env);
   const open = await openRequest(env, breeder.id);
   if (!open) throw bad('There is no request to close your account.');
   await env.DB.batch([
     env.DB.prepare('UPDATE account_requests SET withdrawn_at = ? WHERE id = ? AND breeder_id = ?').bind(now(), open.id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'account.close_withdrawn', 'breeder', breeder.id, { request: open.id }, null),
+    auditStmt(env, ...who(breeder), 'account.close_withdrawn', 'breeder', breeder.id, { request: open.id }, null),
   ]);
   return account(request, env);
 }
@@ -761,7 +1059,7 @@ async function createLitter(request, env) {
       `INSERT INTO litters (id, breeder_id, breed_id, born_on, ready_on, mom_weight_lb, dad_weight_lb, description, mom_id, dad_id, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(id, breeder.id, f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, f.mom_id, f.dad_id, t, t),
-    auditStmt(env, 'breeder', breeder.email, 'litter.create', 'litter', id, null, f),
+    auditStmt(env, ...who(breeder), 'litter.create', 'litter', id, null, f),
   ]);
   return json({ id }, 201);
 }
@@ -783,7 +1081,7 @@ async function updateLitter(request, env, ctx, id) {
       `UPDATE litters SET breed_id = ?, born_on = ?, ready_on = ?, mom_weight_lb = ?, dad_weight_lb = ?, description = ?, mom_id = ?, dad_id = ?,
          updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ? AND version = ?`,
     ).bind(f.breed_id, f.born_on, f.ready_on, f.mom_weight_lb, f.dad_weight_lb, f.description, f.mom_id, f.dad_id, now(), id, breeder.id, Number(body.version)),
-    auditStmt(env, 'breeder', breeder.email, 'litter.update', 'litter', id, before, f),
+    auditStmt(env, ...who(breeder), 'litter.update', 'litter', id, before, f),
   ];
   if (await hasPublic(env, 'litter_id = ?', id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'litter');
@@ -799,7 +1097,7 @@ async function archiveLitter(request, env, ctx, id) {
   const stmts = [
     env.DB.prepare('UPDATE litters SET archived_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(t, t, id, breeder.id),
     env.DB.prepare("UPDATE puppies SET publication_state = 'archived', updated_at = ?, version = version + 1 WHERE litter_id = ? AND breeder_id = ?").bind(t, id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'litter.archive', 'litter', id, null, null),
+    auditStmt(env, ...who(breeder), 'litter.archive', 'litter', id, null, null),
   ];
   if (await hasPublic(env, 'litter_id = ?', id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -823,7 +1121,7 @@ async function createPuppy(request, env) {
       `INSERT INTO puppies (id, breeder_id, litter_id, slug, ${PUPPY_EDIT_COLS.join(', ')}, created_at, updated_at)
        VALUES (?, ?, ?, ?, ${PUPPY_EDIT_COLS.map(() => '?').join(', ')}, ?, ?)`,
     ).bind(id, breeder.id, litter.id, slug, ...puppyValues(f), t, t),
-    auditStmt(env, 'breeder', breeder.email, 'puppy.create', 'puppy', id, null, f),
+    auditStmt(env, ...who(breeder), 'puppy.create', 'puppy', id, null, f),
   ]);
   return json({ id }, 201);
 }
@@ -874,7 +1172,7 @@ async function addPuppies(request, env, ctx, litterId) {
       ).bind(id, breeder.id, litter.id, newPuppySlug(name, breed.name, id), name, sex, shared.color, shared.price_cents, shared.deposit_cents, t, t));
     }
   }
-  stmts.push(auditStmt(env, 'breeder', breeder.email, 'puppy.create_many', 'litter', litter.id, null, { ids, ...shared }));
+  stmts.push(auditStmt(env, ...who(breeder), 'puppy.create_many', 'litter', litter.id, null, { ids, ...shared }));
   await env.DB.batch(stmts);
   return json({ ids }, 201);
 }
@@ -902,7 +1200,7 @@ async function duplicatePuppy(request, env, ctx, id) {
     ).bind(newId, breeder.id, litter.id, newPuppySlug(name, breed.name, newId), name, src.sex, src.color, src.coat, src.price_cents, src.deposit_cents,
       src.description, src.breeder_url, src.includes_json, src.hypoallergenic, src.registry, src.health_notes, src.vaccinations,
       src.deworming, src.disclosures, src.deposit_url, t, t),
-    auditStmt(env, 'breeder', breeder.email, 'puppy.duplicate', 'puppy', newId, null, { from: src.id }),
+    auditStmt(env, ...who(breeder), 'puppy.duplicate', 'puppy', newId, null, { from: src.id }),
   ]);
   return json({ id: newId }, 201);
 }
@@ -920,7 +1218,7 @@ async function setAvailability(request, env, ctx, id) {
   const stmts = [
     env.DB.prepare('UPDATE puppies SET availability = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ? AND version = ?')
       .bind(availability, now(), id, breeder.id, Number(body.version)),
-    auditStmt(env, 'breeder', breeder.email, 'puppy.availability', 'puppy', id, { availability: before.availability }, { availability }),
+    auditStmt(env, ...who(breeder), 'puppy.availability', 'puppy', id, { availability: before.availability }, { availability }),
   ];
   if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'puppy');
@@ -941,7 +1239,7 @@ async function updatePuppy(request, env, ctx, id) {
       `UPDATE puppies SET ${puppySet()}, updated_at = ?, version = version + 1
        WHERE id = ? AND breeder_id = ? AND version = ?`,
     ).bind(...puppyValues(f), now(), id, breeder.id, Number(body.version)),
-    auditStmt(env, 'breeder', breeder.email, 'puppy.update', 'puppy', id, before, f),
+    auditStmt(env, ...who(breeder), 'puppy.update', 'puppy', id, before, f),
   ];
   if (await hasPublic(env, 'id = ?', id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'puppy');
@@ -957,7 +1255,7 @@ async function archivePuppy(request, env, ctx, id) {
   const stmts = [
     env.DB.prepare("UPDATE puppies SET publication_state = 'archived', updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?")
       .bind(now(), id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'puppy.archive', 'puppy', id, null, null),
+    auditStmt(env, ...who(breeder), 'puppy.archive', 'puppy', id, null, null),
   ];
   if (wasPublic) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -990,11 +1288,11 @@ async function uploadPhoto(request, env, ctx, puppyId) {
       `INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, width, height, created_at, quality)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, img.size ? img.size.w : null, img.size ? img.size.h : null, now(), quality),
-    auditStmt(env, 'breeder', breeder.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, stripped: raw.length - img.bytes.length }),
+    auditStmt(env, ...who(breeder), 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, stripped: raw.length - img.bytes.length }),
   ];
   // Workplan A12. With the check off a new photo counts at once. Otherwise it counts when it passes
   // (lib/photocheck.js), so a photo that is sent back keeps nothing on the site.
-  if (!quality) stmts.push(...await photoPassedStmts(env, puppyId, now(), { type: 'breeder', email: breeder.email }));
+  if (!quality) stmts.push(...await photoPassedStmts(env, puppyId, now(), { type: who(breeder)[0], email: who(breeder)[1] }));
   if (await hasPublic(env, 'id = ?', puppyId)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
   return json({ id, url: `/media/${id}`, stripped_bytes: raw.length - img.bytes.length }, 201);
@@ -1007,7 +1305,7 @@ async function deletePhoto(request, env, ctx, id) {
   const photo = await owned(env, 'photo', id, breeder.id);
   const stmts = [
     env.DB.prepare('DELETE FROM photos WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'photo.remove', 'puppy', photo.puppy_id, { photo: id }, null),
+    auditStmt(env, ...who(breeder), 'photo.remove', 'puppy', photo.puppy_id, { photo: id }, null),
   ];
   if (await hasPublic(env, 'id = ?', photo.puppy_id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -1095,7 +1393,7 @@ async function startVideo(request, env, ctx, puppyId) {
   await env.DB.batch([
     env.DB.prepare('INSERT INTO puppy_videos (id, breeder_id, puppy_id, stream_uid, status, position, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
       .bind(id, breeder.id, puppyId, up.uid, 'uploading', have.last + 1, now()),
-    auditStmt(env, 'breeder', breeder.email, 'video.add', 'puppy', puppyId, null, { video: id }),
+    auditStmt(env, ...who(breeder), 'video.add', 'puppy', puppyId, null, { video: id }),
   ]);
   return json({ id, upload_url: up.uploadURL, max_bytes: MAX_UPLOAD_BYTES, max_seconds: s.videoMaxSeconds }, 201);
 }
@@ -1116,7 +1414,7 @@ async function deleteVideo(request, env, ctx, id) {
   await removeVideo(env, row.stream_uid);
   const stmts = [
     env.DB.prepare('DELETE FROM puppy_videos WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'video.remove', 'puppy', row.puppy_id, { video: id }, null),
+    auditStmt(env, ...who(breeder), 'video.remove', 'puppy', row.puppy_id, { video: id }, null),
   ];
   if (row.status === 'ready' && await hasPublic(env, 'id = ?', row.puppy_id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -1169,7 +1467,7 @@ async function createParent(request, env) {
       `INSERT INTO parent_dogs (id, breeder_id, ${PARENT_EDIT_COLS.join(', ')}, created_at, updated_at)
        VALUES (?, ?, ${PARENT_EDIT_COLS.map(() => '?').join(', ')}, ?, ?)`,
     ).bind(id, breeder.id, ...PARENT_EDIT_COLS.map((c) => f[c] ?? null), t, t),
-    auditStmt(env, 'breeder', breeder.email, 'parent.create', 'parent', id, null, f),
+    auditStmt(env, ...who(breeder), 'parent.create', 'parent', id, null, f),
   ]);
   return json({ id }, 201);
 }
@@ -1190,7 +1488,7 @@ async function updateParent(request, env, ctx, id) {
       `UPDATE parent_dogs SET ${PARENT_EDIT_COLS.map((c) => `${c} = ?`).join(', ')}, updated_at = ?, version = version + 1
        WHERE id = ? AND breeder_id = ? AND version = ?`,
     ).bind(...PARENT_EDIT_COLS.map((c) => f[c] ?? null), now(), id, breeder.id, Number(body.version)),
-    auditStmt(env, 'breeder', breeder.email, 'parent.update', 'parent', id, before, f),
+    auditStmt(env, ...who(breeder), 'parent.update', 'parent', id, before, f),
   ];
   if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
   checkVersion((await env.DB.batch(stmts))[0], 'mom or dad');
@@ -1206,7 +1504,7 @@ async function archiveParent(request, env, ctx, id) {
   const off = (await readJson(request)).archived !== false;
   await env.DB.batch([
     env.DB.prepare('UPDATE parent_dogs SET archived_at = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(off ? now() : null, now(), id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, off ? 'parent.archive' : 'parent.restore', 'parent', id, null, null),
+    auditStmt(env, ...who(breeder), off ? 'parent.archive' : 'parent.restore', 'parent', id, null, null),
   ]);
   return json({ ok: true });
 }
@@ -1225,7 +1523,7 @@ async function uploadParentPhoto(request, env, ctx, id) {
   await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
   const stmts = [
     env.DB.prepare('UPDATE parent_dogs SET photo_key = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(key, now(), id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'parent.photo', 'parent', id, null, { bytes: img.bytes.length }),
+    auditStmt(env, ...who(breeder), 'parent.photo', 'parent', id, null, { bytes: img.bytes.length }),
   ];
   if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -1253,7 +1551,7 @@ async function removeParentPhoto(request, env, ctx, id) {
   if (!p.photo_key) return json({ ok: true });
   const stmts = [
     env.DB.prepare('UPDATE parent_dogs SET photo_key = NULL, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(now(), id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'parent.photo.remove', 'parent', id, null, null),
+    auditStmt(env, ...who(breeder), 'parent.photo.remove', 'parent', id, null, null),
   ];
   if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -1285,7 +1583,7 @@ async function addDocument(request, env, breeder, { puppyId = null, parentId = n
   const { row, stmt } = await storeDocument(env, {
     breederId: breeder.id, puppyId, parentId, raw: new Uint8Array(await request.arrayBuffer()), params: url.searchParams, fileName: url.searchParams.get('name'),
   });
-  const stmts = [stmt, auditStmt(env, 'breeder', breeder.email, 'document.add', puppyId ? 'puppy' : 'parent', puppyId || parentId, null,
+  const stmts = [stmt, auditStmt(env, ...who(breeder), 'document.add', puppyId ? 'puppy' : 'parent', puppyId || parentId, null,
     { document: row.id, kind: row.kind, visibility: row.visibility, bytes: row.bytes })];
   if (row.visibility === 'public' && await docOnSite(env, row)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -1325,7 +1623,7 @@ async function updateDocument(request, env, ctx, id) {
   const stmts = [
     env.DB.prepare('UPDATE documents SET kind = ?, title = ?, visibility = ?, r2_key = ?, updated_at = ? WHERE id = ? AND breeder_id = ?')
       .bind(kind, title, visibility, key, now(), id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'document.update', doc.puppy_id ? 'puppy' : 'parent', doc.puppy_id || doc.parent_id,
+    auditStmt(env, ...who(breeder), 'document.update', doc.puppy_id ? 'puppy' : 'parent', doc.puppy_id || doc.parent_id,
       { document: id, kind: doc.kind, title: doc.title, visibility: doc.visibility }, { document: id, kind, title, visibility }),
   ];
   if ((visibility === 'public' || doc.visibility === 'public') && await docOnSite(env, doc)) stmts.push(dirtyStmt(env));
@@ -1341,7 +1639,7 @@ async function deleteDocument(request, env, ctx, id) {
   const doc = await owned(env, 'document', id, breeder.id);
   const stmts = [
     env.DB.prepare('DELETE FROM documents WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
-    auditStmt(env, 'breeder', breeder.email, 'document.remove', doc.puppy_id ? 'puppy' : 'parent', doc.puppy_id || doc.parent_id, { document: id, title: doc.title }, null),
+    auditStmt(env, ...who(breeder), 'document.remove', doc.puppy_id ? 'puppy' : 'parent', doc.puppy_id || doc.parent_id, { document: id, title: doc.title }, null),
   ];
   if (doc.visibility === 'public' && await docOnSite(env, doc)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
@@ -1683,10 +1981,18 @@ async function unsubscribe(request, env) {
 // ------------------------------------------------------------------ router
 
 const ROUTES = [
-  ['POST', /^\/auth\/start$/, authStart],
-  ['GET', /^\/auth\/verify$/, (r) => authVerifyPage(r)],
-  ['POST', /^\/auth\/verify$/, authVerify],
-  ['POST', /^\/auth\/code$/, authCode],
+  // Launch workplan A26. Emailed sign-in codes and links are off, and these answer so.
+  ['POST', /^\/auth\/start$/, emailSigninGone],
+  ['POST', /^\/auth\/code$/, emailSigninGone],
+  ['GET', /^\/auth\/verify$/, oldLinkPage],
+  ['POST', /^\/auth\/verify$/, oldLinkPage],
+  ['POST', /^\/auth\/signup$/, authSignup],
+  ['POST', /^\/auth\/forgot$/, authForgot],
+  ['POST', /^\/auth\/password$/, authPassword],
+  ['POST', /^\/auth\/totp$/, authTotp],
+  ['GET', /^\/auth\/set-password$/, setPasswordPage],
+  ['POST', /^\/auth\/set-password$/, setPassword],
+  ['GET', /^\/auth\/handoff$/, authHandoff],
   ['POST', /^\/auth\/signout$/, signOut],
   ['POST', /^\/auth\/signout-all$/, signOutAll],
   ['GET', /^\/auth\/google$/, googleStart],
@@ -1717,6 +2023,13 @@ const ROUTES = [
   ['POST', /^\/api\/account\/members$/, addMember],
   ['DELETE', /^\/api\/account\/members\/([\w-]+)$/, removeMember],
   ['POST', /^\/api\/account\/close\/withdraw$/, withdrawClose],
+  ['POST', /^\/api\/account\/members\/([\w-]+)\/main$/, makeMain],
+  ['PUT', /^\/api\/account\/access$/, setAccess],
+  ['PUT', /^\/api\/account\/password$/, changePassword],
+  ['POST', /^\/api\/account\/authenticator$/, authenticatorStart],
+  ['POST', /^\/api\/account\/authenticator\/confirm$/, authenticatorConfirm],
+  ['POST', /^\/api\/account\/authenticator\/off$/, authenticatorOff],
+  ['POST', /^\/api\/account\/authenticator\/dismiss$/, authenticatorDismiss],
   ['GET', /^\/api\/stats$/, myStats],
   ['GET', /^\/api\/breeds$/, (r, e) => listBreeds(e)],
   ['GET', /^\/api\/listings$/, listings],

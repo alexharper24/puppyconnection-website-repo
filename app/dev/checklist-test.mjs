@@ -34,12 +34,13 @@ const AMBER_NOTES_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0048_ch
 const AMBER_DECISIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0051_checklist_amber_decisions.sql'), 'utf8');
 const LAUNCH_ASKS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0053_checklist_launch_asks.sql'), 'utf8');
 const RECOMMENDATIONS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0054_checklist_alex_recommendations.sql'), 'utf8');
+const PHOTOS_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0056_checklist_personal_photos.sql'), 'utf8');
 const GO_AHEAD_MIGRATION = fs.readFileSync(path.join(APP, 'migrations/0049_checklist_build_go_ahead.sql'), 'utf8');
 // schema.sql already has the area column, so the ALTER runs only on the database from before it (part 3).
 const AREAS_NO_ALTER = AREAS_MIGRATION.replace(/^ALTER TABLE checklist_items ADD COLUMN area[^\n]*\n/m, '');
 const DAY_ONE = 6;
 // The day-one items from migration 0036, the Puppy video item from 0039, and Search Console access from 0044.
-const ADDED = DAY_ONE + 4 + 3; // + search by distance and PayPal back as later Gate 1 items (0048), + the three build items of 2026-10-24 (0053)
+const ADDED = DAY_ONE + 4 + 3 + 1; // + search by distance and PayPal back as later Gate 1 items (0048), + the three build items of 2026-10-24 (0053)
 
 let fails = 0, passes = 0;
 function check(label, ok, detail) {
@@ -102,6 +103,8 @@ db.exec(LAUNCH_ASKS_MIGRATION);
 db.exec(LAUNCH_ASKS_MIGRATION);
 db.exec(RECOMMENDATIONS_MIGRATION);
 db.exec(RECOMMENDATIONS_MIGRATION);
+db.exec(PHOTOS_MIGRATION);
+db.exec(PHOTOS_MIGRATION);
 db.exec(MIGRATION);
 const now = () => new Date().toISOString();
 for (const [email, name, role] of [['alex24harper@gmail.com', 'Alex', 'owner'], ['luke.blakeslee@gmail.com', 'Amber and Luke Blakeslee', 'owner'], ['helper@puppyconnection.test', 'Helper', 'staff']]) {
@@ -322,7 +325,7 @@ const BRIEF = {
   'domain-email': ['E1', 'E2', 'B7', 'B8', 'B3', 'B9'],
   payments: ['B2', 'F3'],
   access: ['B4', 'B5'],
-  content: ['A18', 'A6', 'A15', 'D1', 'A4', 'A5', 'D2', 'D4'],
+  content: ['A18', 'A6', 'A15', 'D1', 'A4', 'A5', 'D2', 'D4', 'D7'],
   listings: ['C1', 'C2', 'F2'],
   search: ['E3', 'B11', 'C4', 'E5'],
   readiness: ['F1'],
@@ -371,7 +374,7 @@ function areaSeedChecks() {
     oldPart && oldPart.archived_at && byRef('E4').waiting_on === 'Search Console access for Alex, under Access to grant');
   const areaAudits = db.prepare("SELECT entity_id, COUNT(*) AS n FROM audit_log WHERE action = 'checklist.edit' AND actor = 'claude' AND json_extract(after_json, '$.area') IS NOT NULL AND at != '2026-10-24T22:30:00Z' GROUP BY entity_id").all();
   check(`each item's area is audited once as Claude, and running the migration again adds nothing (${areaAudits.length} items)`,
-    areaAudits.length === items.filter((i) => i.area && i.created_at !== '2026-10-24T22:30:00Z').length && areaAudits.every((a) => a.n === 1) &&
+    areaAudits.length === items.filter((i) => i.area && !['2026-10-24T22:30:00Z', '2026-10-24T23:50:00Z'].includes(i.created_at)).length && areaAudits.every((a) => a.n === 1) &&
     db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'checklist.part.add' AND entity_id IN ('cl-012','cl-013','cl-081')").get().n === 8);
   const wp = workplanItems(fs.readFileSync(path.join(APP, 'docs/launch-workplan.md'), 'utf8'));
   check('the workplan gives every item an area except the one that moved to Gate 1', wp.filter((w) => !w.area).map((w) => w.id).join() === 'A16');
@@ -382,7 +385,7 @@ function areaSeedChecks() {
   old.exec(fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8')
     .replace(/CREATE TABLE IF NOT EXISTS checklist_areas \([\s\S]*?\);\r?\n/, '').replace(/,\r?\n\s*area\s+TEXT REFERENCES checklist_areas\(id\)/, ''));
   const hadArea = old.prepare("SELECT COUNT(*) AS n FROM pragma_table_info('checklist_items') WHERE name = 'area'").get().n;
-  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION, RECOMMENDATIONS_MIGRATION]) old.exec(m);
+  for (const m of [MIGRATION, OWNERS_MIGRATION, DAY_ONE_MIGRATION, GA4_MIGRATION, DB_MIGRATION, CALLS_MIGRATION, BUILD_MIGRATION, AREAS_MIGRATION, WAIT_MIGRATION, AMBER_NOTES_MIGRATION, GO_AHEAD_MIGRATION, AMBER_DECISIONS_MIGRATION, LAUNCH_ASKS_MIGRATION, RECOMMENDATIONS_MIGRATION, PHOTOS_MIGRATION]) old.exec(m);
   let again = '';
   try { old.exec(AREAS_MIGRATION); } catch (e) { again = e.message; }
   const same = old.prepare('SELECT id, area FROM checklist_items ORDER BY id').all().map((r) => `${r.id}:${r.area}`).join() ===

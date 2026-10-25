@@ -13,7 +13,7 @@ import { APP, localD1File } from './node-env.mjs';
 import { restore, readBackup, query } from '../ops/restore-backup.mjs';
 
 const ADMIN = process.env.ADMIN || 'http://localhost:8788';
-const WRANGLER = path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
+const WRANGLER = process.env.WRANGLER_JS || path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-restore-'));
 let fails = 0;
 function check(name, ok, detail) { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && detail ? `\n      ${detail}` : ''}`); if (!ok) fails += 1; }

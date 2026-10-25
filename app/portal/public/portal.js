@@ -101,58 +101,106 @@
   });
 
   // ------------------------------------------------------------ sign in
-  function renderSignIn(sent) {
+  /* Launch workplan A26. A password, with an authenticator app if the person set one up, or Google.
+     Email carries only new-account confirmations, invitations and password links, never a way in.
+     mode is signin, code (the authenticator step, with its ticket), forgot, signup or sent. */
+  var GOOGLE_SVG = '<svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.4-4 6.8-10 6.8-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.7-2.9-.7-4.6s.3-3.2.7-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
+  function renderSignIn(mode, extra) {
+    mode = mode || 'signin'; extra = extra || {};
     document.body.className = 'plain';
     var c = state.config || {};
-    app.innerHTML = (c.site_origin ? '<a class="plain-site" href="' + esc(c.site_origin) + '/">Visit site</a>' : '') + '<main class="plain-card"><div class="plain-mark"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></div>' +
-      (sent ? '<h1>Check your email</h1><p>' + esc(sent) + '</p>' +
-        // Plan P6.2. The code is typed here, in the tab that asked, so a phone never has to switch to the email's own browser.
-        '<form id="codeform" novalidate><div class="field"><label for="code">Sign-in code</label>' +
-        '<input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9 ]*" maxlength="7" required class="code-input"></div>' +
+    var mailbox = c.mailbox ? (c.notices ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find the link.</p>'
+      : '<p class="muted small">Email delivery is not switched on yet, so the link is waiting in the <a href="/dev/mail">portal mailbox</a>.</p>') : '';
+    var body;
+    if (mode === 'sent') {
+      body = '<h1>Check your email</h1><p>' + esc(extra.message) + '</p>' + mailbox + '<p class="muted small"><a href="/" data-mode="signin">Back to sign in</a></p>';
+    } else if (mode === 'code') {
+      body = '<h1>Enter your code</h1><p>Open your authenticator app and type the six numbers it shows for Puppy Connection.</p>' +
+        '<form id="codeform" novalidate><div class="field"><label for="code">Authenticator code</label>' +
+        '<input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required class="code-input"></div>' +
         '<button class="btn btn-primary" type="submit">Sign in</button></form>' +
-        // The mailbox follows EMAIL_MODE alone (plan P7.3). Staging keeps it, without the test-version wording, until real email is on.
-        (c.mailbox ? (c.notices ? '<p class="sim-flag">This is the test version, so nothing is really emailed. <a href="/dev/mail">Open the test mailbox</a> to find your code and link.</p>'
-          : '<p class="muted small">Email delivery is not switched on yet, so your code and link are waiting in the <a href="/dev/mail">portal mailbox</a>.</p>') : '') +
-        '<p class="muted small">Wrong address? <a href="/" data-restart>Start again</a>.</p>'
-      : '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection. There is no password to remember.</p>' +
-        (/google=failed/.test(location.search) ? '<p class="notice notice-alert">Google sign-in did not go through. Please try again, or use your email below.</p>' : '') +
-        (c.google ? '<div id="gsi-button" class="gsi-button" aria-live="polite"></div><a class="btn btn-google" id="google-redirect" href="/auth/google"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.6l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.6c0-1.6-.1-3.1-.4-4.6H24v9h12.4c-.5 2.9-2.2 5.3-4.6 6.9l7.5 5.8c4.4-4 6.8-10 6.8-17.1z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.7-2.9-.7-4.6s.3-3.2.7-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>Continue with Google</a>' +
-          '<p class="or"><span>or use your email</span></p>' : '<p>Enter your email and we will send you a link to sign in.</p>') +
-        '<form id="signin" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>' +
-        '<div class="field"><label for="bn">Business name <span class="muted">(new breeders)</span></label><input id="bn" name="business_name" type="text" autocomplete="organization"></div>' +
+        '<p class="muted small">Lost your phone? Type one of your recovery codes in the same box. Each one works once. If you have none left, contact Puppy Connection to reset your authenticator.</p>' +
+        '<p class="muted small"><a href="/" data-mode="signin">Start again</a></p>';
+    } else if (mode === 'forgot') {
+      body = '<h1>Set a password</h1><p>Enter the email address you sign in with. We will email you a link to set a new password. If you list with us already but have never had a password, this sets your first one.</p>' +
+        '<form id="forgot" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required value="' + esc(extra.email || '') + '"></div>' +
+        '<button class="btn btn-primary" type="submit">Email me a link</button></form>' +
+        '<p class="muted small"><a href="/" data-mode="signin">Back to sign in</a></p>';
+    } else if (mode === 'signup') {
+      body = '<h1>List with Puppy Connection</h1><p>Enter your email and business name. We will email you a link to confirm the address, and then you choose your password.</p>' +
+        '<form id="signup" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required value="' + esc(extra.email || '') + '"></div>' +
+        '<div class="field"><label for="bn">Business name</label><input id="bn" name="business_name" type="text" autocomplete="organization"></div>' +
         (c.turnstile_site_key ? '<div class="field"><div class="cf-turnstile" data-sitekey="' + esc(c.turnstile_site_key) + '" data-action="auth"></div></div>' : '') +
-        '<button class="btn btn-primary" type="submit">Email me a sign-in link</button></form>' +
-        (c.local && c.notices ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '')) +
+        '<button class="btn btn-primary" type="submit">Create my account</button></form>' +
+        '<p class="muted small">Already listed with us? <a href="/" data-mode="signin">Sign in</a>.</p>';
+    } else {
+      body = '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection.</p>' +
+        (/google=failed/.test(location.search) ? '<p class="notice notice-alert">Google sign-in did not go through. Please try again, or use your email and password below.</p>' : '') +
+        (c.google ? '<div id="gsi-button" class="gsi-button" aria-live="polite"></div><a class="btn btn-google" id="google-redirect" href="/auth/google">' + GOOGLE_SVG + 'Continue with Google</a>' +
+          '<p class="or"><span>or use your email and password</span></p>' : '') +
+        '<form id="signin" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" required></div>' +
+        '<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>' +
+        '<button class="btn btn-primary" type="submit">Sign in</button></form>' +
+        '<p class="small"><a href="/" data-mode="forgot">Forgot password?</a></p>' +
+        '<p class="notice small">Already list with us but never set a password? Use <a href="/" data-mode="forgot">Forgot password</a> and we will email you a link to set one. Signing in with an emailed code has stopped.</p>' +
+        '<p class="small">New to Puppy Connection? <a href="/" data-mode="signup">Create an account</a></p>' +
+        (c.local && c.notices ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '');
+    }
+    app.innerHTML = (c.site_origin ? '<a class="plain-site" href="' + esc(c.site_origin) + '/">Visit site</a>' : '') +
+      '<main class="plain-card"><div class="plain-mark"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></div>' + body +
       '</main><footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer>';
-    var r = $('[data-restart]'); if (r) r.addEventListener('click', function (e) { e.preventDefault(); renderSignIn(); });
+    $$('[data-mode]').forEach(function (a) {
+      a.addEventListener('click', function (e) { e.preventDefault(); var em = $('#email'); renderSignIn(a.dataset.mode, { email: em ? em.value : '' }); });
+    });
+    var signedIn = function () { location.hash = '#/'; location.reload(); };
     var cf = $('#codeform');
     if (cf) {
       $('#code', cf).focus();
       cf.addEventListener('submit', function (e) {
         e.preventDefault();
-        var code = ($('#code', cf).value || '').replace(/\D/g, '');
-        if (code.length !== 6) return showError(cf, new Error('The code is the six numbers in the email.'));
         var b = $('button[type=submit]', cf); b.disabled = true;
-        api('POST', '/auth/code', { code: code })
-          .then(function () { location.hash = '#/'; location.reload(); })
+        api('POST', '/auth/totp', { ticket: extra.ticket, code: $('#code', cf).value })
+          .then(function (r) {
+            if (r && r.recovery_left != null) { try { sessionStorage.setItem('pc-recovery-left', String(r.recovery_left)); } catch (x) { /* storage off */ } }
+            signedIn();
+          })
           .catch(function (err) { b.disabled = false; showError(cf, err); });
       });
     }
-    if (c.google && !sent) startGoogle();
-    if (c.turnstile_site_key && !window.turnstile) {
+    if (c.google && mode === 'signin') startGoogle();
+    if (mode === 'signup' && c.turnstile_site_key && !window.turnstile) {
       var s = document.createElement('script'); s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js'; s.async = true; document.head.appendChild(s);
     }
     var f = $('#signin');
-    if (!f) return;
-    f.addEventListener('submit', function (e) {
+    if (f) f.addEventListener('submit', function (e) {
       e.preventDefault();
       var d = formData(f);
-      var tok = $('[name="cf-turnstile-response"]', f);
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email || '')) return showError(f, new Error('Enter a valid email address.'));
+      if (!d.password) return showError(f, new Error('Enter your password.'));
       var btn = $('button[type=submit]', f); btn.disabled = true;
-      api('POST', '/auth/start', { email: d.email, business_name: d.business_name, turnstile_token: tok ? tok.value : '' })
-        .then(function (r) { renderSignIn(r.message); })
+      api('POST', '/auth/password', { email: d.email, password: d.password })
+        .then(function (r) { if (r && r.need_code) renderSignIn('code', { ticket: r.ticket }); else signedIn(); })
         .catch(function (err) { btn.disabled = false; showError(f, err); });
+    });
+    var fg = $('#forgot');
+    if (fg) fg.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var d = formData(fg);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email || '')) return showError(fg, new Error('Enter a valid email address.'));
+      var btn = $('button[type=submit]', fg); btn.disabled = true;
+      api('POST', '/auth/forgot', { email: d.email }).then(function (r) { renderSignIn('sent', { message: r.message }); })
+        .catch(function (err) { btn.disabled = false; showError(fg, err); });
+    });
+    var su = $('#signup');
+    if (su) su.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var d = formData(su);
+      var tok = $('[name="cf-turnstile-response"]', su);
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.email || '')) return showError(su, new Error('Enter a valid email address.'));
+      var btn = $('button[type=submit]', su); btn.disabled = true;
+      api('POST', '/auth/signup', { email: d.email, business_name: d.business_name, turnstile_token: tok ? tok.value : '' })
+        .then(function (r) { renderSignIn('sent', { message: r.message }); })
+        .catch(function (err) { btn.disabled = false; showError(su, err); });
     });
   }
 
@@ -239,12 +287,42 @@
       // stays open, and the banner stays until they accept.
       (me.terms && me.terms.needs_accept ? '<div class="notice terms-banner" id="terms-banner"><p><b>The listing terms have changed.</b> Puppy Connection published a new version' +
         (me.terms.published_at ? ' on ' + esc(day(me.terms.published_at)) : '') + '. Please read it and accept it.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and accept</button></div>' : '') +
-      photoBanner() + inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';
-    $('#signout').addEventListener('click', function () {
-      api('POST', '/auth/signout', {}).then(function () { state.me = null; location.hash = '#/'; render(); });
+      operatorBanner() + nudgeBanner() + photoBanner() + inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';
+    $('#signout').addEventListener('click', endSession);
+    var oe = $('#operator-end'); if (oe) oe.addEventListener('click', endSession);
+    var tl = $('#totp-later');
+    if (tl) tl.addEventListener('click', function () {
+      api('POST', '/api/account/authenticator/dismiss', {}).then(function () { state.me.authenticator_nudge = false; var n = $('#totp-nudge'); if (n) n.remove(); });
     });
+    var left = null; try { left = sessionStorage.getItem('pc-recovery-left'); sessionStorage.removeItem('pc-recovery-left'); } catch (x) { left = null; }
+    if (left != null) toast('You signed in with a recovery code. You have ' + left + ' left.');
     var tr = $('#terms-read');
     if (tr) tr.addEventListener('click', termsDrawer);
+  }
+
+  /* Workplan A24. An operator's session says so on every screen, with the kennel, the operator and
+     End, which ends the session and goes back to the admin. */
+  function operatorBanner() {
+    var o = state.me.operator;
+    if (!o) return '';
+    return '<div class="notice operator-banner" id="operator-banner" role="status"><p><b>Managing ' + esc(state.me.profile.business_name || state.me.email) +
+      ' for Puppy Connection.</b> Signed in as ' + esc(o.email) + '. Every change here is recorded as yours, acting for this kennel.</p>' +
+      '<button class="btn btn-sm" type="button" id="operator-end">End</button></div>';
+  }
+  function endSession() {
+    var o = state.me && state.me.operator;
+    api('POST', '/auth/signout', {}).then(function (r) {
+      state.me = null;
+      if (o && r && r.back) { location.href = r.back; return; }
+      location.hash = '#/'; render();
+    });
+  }
+  /* Workplan A26. Recommended, never required. Not now hides it for good, and the Account screen
+     always has the set-up. */
+  function nudgeBanner() {
+    if (!state.me.authenticator_nudge || state.route.split('?')[0] === 'account') return '';
+    return '<div class="notice" id="totp-nudge"><p><b>Add an authenticator app to your sign-in.</b> It asks for a six-digit code from your phone after your password, so a stolen password alone cannot open your kennel.</p>' +
+      '<div class="btn-row"><a class="btn btn-sm btn-gold" href="#/account">Set it up</a><button class="btn btn-sm btn-quiet" type="button" id="totp-later">Not now</button></div></div>';
   }
 
   /* Workplan A12 and A14. Every listing that needs a new photo, and by when, at the top of each
@@ -1310,50 +1388,171 @@
     });
   }
 
-  // ------------------------------------------------------------ account (plan P2.7)
+  // ------------------------------------------------------------ account (plan P2.7, launch workplan A24 to A26)
+  function personLine(m) {
+    if (m.joined_at) return 'Signed in first on ' + esc(day(m.joined_at));
+    if (m.invite_open_until) return 'Invited, link open until ' + esc(day(m.invite_open_until));
+    return 'Added on ' + esc(day(m.added_at)) + ', not signed in yet';
+  }
+
+  /* The QR code is drawn by the vendored MIT generator (/qrcode.js), loaded only when it is needed. */
+  function withQr(fn) {
+    if (window.qrcode) return fn();
+    var s = document.createElement('script'); s.src = '/qrcode.js?v=1'; s.onload = fn; s.onerror = fn; document.head.appendChild(s);
+  }
+  function qrSvg(text) {
+    if (!window.qrcode) return '';
+    var q = window.qrcode(0, 'M'); q.addData(text); q.make();
+    return q.createSvgTag({ cellSize: 4, margin: 4, scalable: true, alt: 'QR code to scan with your authenticator app' });
+  }
+
+  function authenticatorDrawer() {
+    api('POST', '/api/account/authenticator', {}).then(function (t) {
+      withQr(function () {
+        openDrawer('Set up an authenticator app',
+          '<ol class="setup-steps"><li>Open an authenticator app on your phone, such as Google Authenticator, Microsoft Authenticator or 1Password.</li>' +
+          '<li>Add an account and scan this code.</li></ol>' +
+          '<div class="qr-box">' + qrSvg(t.uri) + '</div>' +
+          '<p class="small">Cannot scan it? Type this key into the app instead, as a time-based key:</p><p class="secret-key"><code>' + esc(t.secret) + '</code></p>' +
+          '<form id="totp-confirm" novalidate><div class="field"><label for="totp-code">The six numbers the app shows now</label>' +
+          '<input id="totp-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required class="code-input"></div>' +
+          '<div class="btn-row"><button class="btn btn-primary" type="submit">Turn on</button></div></form>',
+        function (d) {
+          var f = $('#totp-confirm', d);
+          f.addEventListener('submit', function (e) {
+            e.preventDefault();
+            api('POST', '/api/account/authenticator/confirm', { code: $('#totp-code', d).value }).then(function (r) {
+              $('.drawer-body', d).innerHTML = '<p><b>Your authenticator is on.</b> From now on, signing in asks for the six numbers from the app after your password.</p>' +
+                '<p>Keep these recovery codes somewhere safe, away from your phone, such as printed in a drawer. If you lose your phone, each one signs you in once. This is the only time they are shown.</p>' +
+                '<ul class="recovery-codes">' + r.recovery_codes.map(function (x) { return '<li><code>' + esc(x) + '</code></li>'; }).join('') + '</ul>' +
+                '<div class="btn-row"><button class="btn btn-primary" type="button" id="codes-saved">I have saved these</button></div>';
+              $('#codes-saved', d).addEventListener('click', function () { closeDrawer(); refreshMe().then(accountScreen); });
+            }).catch(function (err) { showError(f, err); });
+          });
+        });
+      });
+    }).catch(function (err) { toast(err.message); });
+  }
+
+  function makeMainDrawer(m, A) {
+    openDrawer('Make main contact',
+      '<p><b>' + esc(m.name || m.email) + '</b> becomes the main contact for your kennel. Puppy Connection emails account notices to the main contact.</p>' +
+      '<form id="main-form"><fieldset class="field"><legend>What happens to ' + esc(A.email) + '</legend>' +
+      '<label class="check"><input type="radio" name="old" value="keep" checked> Keep it as a person who can sign in</label>' +
+      '<label class="check"><input type="radio" name="old" value="remove"> Remove it, and sign it out everywhere</label></fieldset>' +
+      '<div class="btn-row"><button class="btn btn-primary" type="submit">Make main contact</button></div></form>',
+    function (d) {
+      var f = $('#main-form', d);
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var keep = $('input[name=old]:checked', d).value === 'keep';
+        api('POST', '/api/account/members/' + m.id + '/main', { keep_old: keep }).then(function (r) {
+          closeDrawer();
+          if (r && r.signed_out) { state.me = null; location.hash = '#/'; render(); toast('The main contact changed and you are signed out'); return; }
+          toast('Main contact changed'); refreshMe().then(accountScreen);
+        }).catch(function (err) { showError(f, err); });
+      });
+    });
+  }
+
+  function refreshMe() { return api('GET', '/api/me').then(function (me) { state.me = me; }); }
+
   function accountScreen() {
     api('GET', '/api/account').then(function (A) {
-      var req = A.close_request;
+      var req = A.close_request, op = A.operator, S = A.security || {}, acc = A.access || {};
+      var howAccess = acc.how === 'existing_arrangement' ? 'recorded by Puppy Connection from the arrangement you already had' : acc.how === 'breeder' ? 'by ' + esc(acc.by) : 'by Puppy Connection';
       shell(head('Account', 'How you sign in, and the choices you have about your account.') +
-        '<section class="card"><h2>Signing in</h2><table class="kv"><tbody><tr><td>Sign-in email</td><td><b>' + esc(A.email) + '</b></td></tr>' +
+        (op ? '<p class="notice">You are managing this kennel as Puppy Connection. Passwords, the authenticator, access, the people on the account and closing it are the breeder\'s own, so they cannot be changed here. Use the admin for people and access.</p>' : '') +
+        '<section class="card"><h2>Signing in</h2><table class="kv"><tbody><tr><td>Main contact email</td><td><b>' + esc(A.email) + '</b></td></tr>' +
         '<tr><td>Signed in on</td><td>' + plural(A.sessions, 'device or browser', 'devices or browsers') + '</td></tr>' +
-        (A.signed_in_as && A.signed_in_as.toLowerCase() !== A.email.toLowerCase() ? '<tr><td>You signed in as</td><td><b>' + esc(A.signed_in_as) + '</b></td></tr>' : '') + '</tbody></table>' +
-        '<p class="small muted">This address is private. To sign in with a different one, ask Puppy Connection to change it for you.</p></section>' +
+        (!op && A.signed_in_as && A.signed_in_as.toLowerCase() !== A.email.toLowerCase() ? '<tr><td>You signed in as</td><td><b>' + esc(A.signed_in_as) + '</b></td></tr>' : '') + '</tbody></table>' +
+        '<p class="small muted">This address is private. To change it, the main contact can make another person on the kennel the main contact, or Puppy Connection can change it for you.</p></section>' +
+        (op ? '' :
+          '<section class="card" id="password-card"><h2>Password</h2>' +
+          (S.password_set ? '<p>You set your password on ' + esc(day(S.password_set_at)) + '. Changing it signs you out on your other devices.</p>' : '<p>You have not set a password. Set one here to sign in with your email and password as well as with Google.</p>') +
+          '<form id="pw-form" class="pw-form" novalidate><input type="email" name="username" value="' + esc(A.signed_in_as || A.email) + '" autocomplete="username" hidden readonly>' +
+          (S.password_set ? '<div class="field"><label for="pw-cur">Current password</label><input id="pw-cur" name="current" type="password" autocomplete="current-password" required></div>' : '') +
+          '<div class="field"><label for="pw-new">New password</label><input id="pw-new" name="password" type="password" autocomplete="new-password" minlength="10" required></div>' +
+          '<div class="field"><label for="pw-again">The same password again</label><input id="pw-again" name="confirm" type="password" autocomplete="new-password" minlength="10" required></div>' +
+          '<p class="hint">At least 10 characters. A few words together is easy to remember and hard to guess.</p>' +
+          '<button class="btn btn-primary" type="submit">' + (S.password_set ? 'Change password' : 'Set password') + '</button></form></section>' +
+          '<section class="card" id="totp-card"><h2>Authenticator app <span class="muted small">(recommended)</span></h2>' +
+          (S.authenticator
+            ? '<p><span class="pill pill-ok">On</span> since ' + esc(day(S.authenticator_since)) + '. Signing in with your password also asks for the six numbers from the app. You have ' + plural(S.recovery_left, 'recovery code') + ' left.</p>' +
+              (S.recovery_left <= 3 ? '<p class="notice small">You are running low on recovery codes. Turn the authenticator off and on again to get ten new ones.</p>' : '') +
+              '<form id="totp-off" class="btn-row" novalidate><label class="sr" for="off-code">Code from the app or a recovery code</label><input id="off-code" name="code" type="text" autocomplete="one-time-code" placeholder="Code from the app" style="flex:1 1 160px">' +
+              '<button class="btn btn-danger" type="submit">Turn off</button></form>'
+            : '<p>An authenticator app on your phone adds a six-digit code to your password, so a stolen or guessed password alone cannot open your kennel. It takes about a minute to set up, and you get recovery codes in case you lose your phone.</p>' +
+              '<div class="btn-row"><button class="btn btn-gold" id="totp-start" type="button">Set up an authenticator app</button></div>') + '</section>' +
+          '<section class="card" id="access-card"><h2>Puppy Connection access</h2>' +
+          '<p>Turn this on to let the Puppy Connection team open your portal and manage your profile, litters, puppies and photos for you. Every change they make is recorded under their own name, and they cannot see or change your password or authenticator. Turn it off at any time and any Puppy Connection session on your account ends straight away.</p>' +
+          '<label class="check access-toggle"><input type="checkbox" id="access-on"' + (acc.on ? ' checked' : '') + '> Let Puppy Connection manage my account</label>' +
+          (acc.at ? '<p class="small muted">' + (acc.on ? 'On' : 'Off') + ' since ' + esc(day(acc.at)) + ', ' + howAccess + '.</p>' : '') + '</section>') +
         '<section class="card" id="members-card"><h2>People who can sign in</h2>' +
-        '<p>Add the people who help run your kennel. Each one signs in with their own email address and can do everything you can here.</p>' +
-        '<ul class="member-list"><li><div><b>' + esc(A.email) + '</b><div class="small muted">Main sign-in address</div></div></li>' +
+        '<p>Add the people who help run your kennel. Each one signs in with their own email address and password, and can do everything you can here.</p>' +
+        '<ul class="member-list"><li><div><b>' + esc(A.email) + '</b><div class="small muted">Main contact</div></div></li>' +
         (A.members || []).map(function (m) {
           return '<li><div><b>' + esc(m.name || m.email) + '</b>' + (m.name ? ' <span class="muted">' + esc(m.email) + '</span>' : '') +
-            '<div class="small muted">' + (m.joined_at ? 'Signed in first on ' + esc(day(m.joined_at)) : 'Added on ' + esc(day(m.added_at)) + ', not signed in yet') + '</div></div>' +
-            '<button class="btn btn-sm btn-danger" type="button" data-remove-member="' + esc(m.id) + '" data-email="' + esc(m.email) + '">Remove</button></li>';
+            '<div class="small muted">' + personLine(m) + '</div></div>' +
+            (op ? '' : '<div class="btn-row">' + (A.is_main ? '<button class="btn btn-sm" type="button" data-make-main="' + esc(m.id) + '">Make main contact</button>' : '') +
+              '<button class="btn btn-sm btn-danger" type="button" data-remove-member="' + esc(m.id) + '" data-email="' + esc(m.email) + '">Remove</button></div>') + '</li>';
         }).join('') + '</ul>' +
-        ((A.members || []).length < (A.max_members || 5)
+        (op ? '' : (A.members || []).length < (A.max_members || 5)
           ? '<form id="member-form" class="member-form" novalidate><div class="field"><label for="member-name">Name</label><input id="member-name" name="name" type="text" autocomplete="off" maxlength="120"></div>' +
             '<div class="field"><label for="member-email">Email address</label><input id="member-email" name="email" type="email" autocomplete="off" maxlength="200" required></div>' +
-            '<button class="btn btn-primary" type="submit">Add person</button></form><p class="small muted">We email them to say they can sign in.</p>'
+            '<button class="btn btn-primary" type="submit">Add person</button></form><p class="small muted">We email them a link to choose their password. It works once and lasts 7 days.</p>'
           : '<p class="small muted">A kennel can have up to ' + (A.max_members || 5) + ' extra people. Remove someone to add another.</p>') + '</section>' +
-        '<section class="card"><h2>Sign out of every device</h2><p>If a phone or computer was shared or lost, this signs everyone in your kennel out everywhere at once, including here. Each person can sign straight back in with their email.</p>' +
-        '<div class="btn-row"><button class="btn" id="signout-all">Sign out of every device</button></div></section>' +
-        '<section class="card" id="close-card"><h2>Close your account</h2>' + (req
-          ? '<p class="notice">You asked Puppy Connection to close your account on ' + esc(day(req.created_at)) + '. They will be in touch before anything is removed.</p>' +
-            '<div class="btn-row"><button class="btn" id="withdraw-close">I changed my mind</button></div>'
-          : '<p>If you no longer want to list with Puppy Connection, ask here. Nothing is removed straight away. Puppy Connection will contact you to confirm and to sort out any listings you still have.</p>' +
-            '<p class="small muted">Once your account is closed, your profile, photos, videos, documents, listings, saved moms and dads, the people on your account and your sign-ins are removed within 30 days. Records of your payments and of changes to your account are kept for the times the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a> gives.</p>' +
-            '<form id="close-form" novalidate><div class="field"><label for="close-reason">Anything you would like to tell us <span class="muted">(optional)</span></label><textarea id="close-reason" name="reason" style="min-height:80px"></textarea></div>' +
-            '<button class="btn btn-danger" type="submit">Ask to close my account</button></form>') + '</section>' +
+        (op ? '' :
+          '<section class="card"><h2>Sign out of every device</h2><p>If a phone or computer was shared or lost, this signs everyone in your kennel out everywhere at once, including here and any Puppy Connection session. Each person can sign straight back in with their password.</p>' +
+          '<div class="btn-row"><button class="btn" id="signout-all">Sign out of every device</button></div></section>' +
+          '<section class="card" id="close-card"><h2>Close your account</h2>' + (req
+            ? '<p class="notice">You asked Puppy Connection to close your account on ' + esc(day(req.created_at)) + '. They will be in touch before anything is removed.</p>' +
+              '<div class="btn-row"><button class="btn" id="withdraw-close">I changed my mind</button></div>'
+            : '<p>If you no longer want to list with Puppy Connection, ask here. Nothing is removed straight away. Puppy Connection will contact you to confirm and to sort out any listings you still have.</p>' +
+              '<p class="small muted">Once your account is closed, your profile, photos, videos, documents, listings, saved moms and dads, the people on your account and your sign-ins are removed within 30 days. Records of your payments and of changes to your account are kept for the times the <a href="/privacy" target="_blank" rel="noopener">privacy policy</a> gives.</p>' +
+              '<form id="close-form" novalidate><div class="field"><label for="close-reason">Anything you would like to tell us <span class="muted">(optional)</span></label><textarea id="close-reason" name="reason" style="min-height:80px"></textarea></div>' +
+              '<button class="btn btn-danger" type="submit">Ask to close my account</button></form>') + '</section>') +
         '<section class="card"><h2>Your information</h2><p>Read how Puppy Connection uses and protects what you give us.</p><div class="btn-row"><a class="btn" href="/privacy" target="_blank" rel="noopener">Privacy policy</a><a class="btn" href="/terms" target="_blank" rel="noopener">Listing terms</a></div></section>', true);
-      $('#signout-all').addEventListener('click', function () {
+      var soa = $('#signout-all');
+      if (soa) soa.addEventListener('click', function () {
         if (!confirm('Sign out of every device, including this one?')) return;
         api('POST', '/auth/signout-all', {}).then(function () { state.me = null; location.hash = '#/'; render(); toast('Signed out everywhere'); });
+      });
+      var pf = $('#pw-form');
+      if (pf) pf.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var d = formData(pf);
+        if (d.password !== d.confirm) return showError(pf, new Error('The two passwords are not the same. Type the same password in both boxes.'));
+        api('PUT', '/api/account/password', { current: d.current, password: d.password }).then(function () { toast('Password saved'); accountScreen(); })
+          .catch(function (err) { showError(pf, err); });
+      });
+      var ts = $('#totp-start');
+      if (ts) ts.addEventListener('click', authenticatorDrawer);
+      var toff = $('#totp-off');
+      if (toff) toff.addEventListener('submit', function (e) {
+        e.preventDefault();
+        if (!confirm('Turn off the authenticator? Your recovery codes stop working too.')) return;
+        api('POST', '/api/account/authenticator/off', { code: $('#off-code').value }).then(function () { toast('Authenticator turned off'); accountScreen(); })
+          .catch(function (err) { showError(toff, err); });
+      });
+      var ao = $('#access-on');
+      if (ao) ao.addEventListener('change', function () {
+        var on = ao.checked;
+        if (!on && !confirm('Turn off Puppy Connection access? Any Puppy Connection session on your account ends straight away.')) { ao.checked = true; return; }
+        api('PUT', '/api/account/access', { on: on }).then(function () { toast(on ? 'Puppy Connection access is on' : 'Puppy Connection access is off'); accountScreen(); })
+          .catch(function (err) { ao.checked = !on; showError($('#access-card'), err); });
       });
       var mf = $('#member-form');
       if (mf) mf.addEventListener('submit', function (e) {
         e.preventDefault();
         api('POST', '/api/account/members', { name: $('#member-name').value, email: $('#member-email').value })
-          .then(function () { toast('Person added'); accountScreen(); })
+          .then(function () { toast('Person added and invited'); accountScreen(); })
           .catch(function (err) { showError(mf, err); });
       });
-      document.querySelectorAll('[data-remove-member]').forEach(function (b) {
+      $$('[data-make-main]').forEach(function (b) {
+        b.addEventListener('click', function () { makeMainDrawer((A.members || []).filter(function (m) { return m.id === b.dataset.makeMain; })[0], A); });
+      });
+      $$('[data-remove-member]').forEach(function (b) {
         b.addEventListener('click', function () {
           if (!confirm('Remove ' + b.getAttribute('data-email') + '? They will be signed out and can no longer sign in to your kennel.')) return;
           api('DELETE', '/api/account/members/' + b.getAttribute('data-remove-member')).then(function (r) {
@@ -1395,7 +1594,8 @@
       q('What happens when a puppy goes home?', '<p>Mark it placed, either from the list or in the puppy\'s own page in the portal. It stays on the site marked as placed, so buyers can still see the litter and know that puppy is spoken for. You can mark it available again if plans change.</p><p>If you would rather take a puppy off the site entirely, open it and choose Remove puppy.</p>') +
       q('What makes a good photo?', '<p>' + esc(PHOTO_STANDARD) + '</p><p>Clear daylight photos of one puppy at a time work best, and the first photo is the one buyers see first. A puppy can have up to ' + me.max_photos + ' photos.</p><p>The portal makes each photo smaller before it uploads, so large phone photos are fine, and it removes the hidden location and camera details phones add.</p>' +
         '<p>Photos need to be at least 1,000 pixels across. Each one is checked that the puppy can be seen clearly, and if it cannot, for example because the puppy is far away, turned around or blurred, the portal says what is wrong so you can upload a better one.</p>') +
-      q('How do I sign in?', '<p>There is no password. Enter your email and we send you a six-digit code and a link. Type the code on the sign-in screen, or open the link, and you are in.' + (c.google ? ' You can also choose Continue with Google.' : '') + '</p>' +
+      q('How do I sign in?', '<p>Sign in with your email address and password' + (c.google ? ', or choose Continue with Google' : '') + '. If you have never set a password, or have forgotten it, press Forgot password on the sign-in screen and we email you a link to set one. The link works once and lasts an hour.</p>' +
+        '<p>We recommend adding an authenticator app on the Account screen. Signing in then also asks for a six-digit code from your phone, and you get recovery codes in case you lose the phone. If you lose the phone and the codes, Puppy Connection can reset it for you.</p>' +
         '<p>You stay signed in on that device for 60 days, and each time you use the portal the 60 days start again. If you lose a phone or used a shared computer, use Sign out of every device on the Account screen.</p>') +
       q('Who can see what?', '<p>Buyers see your business name, the phone and email you give for them, your website, your town and state, and the words about your kennel. Your sign-in email and contact name stay private. The <a href="/privacy" target="_blank" rel="noopener">privacy policy</a> has the details.</p>'), true);
   }

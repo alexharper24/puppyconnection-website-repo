@@ -36,3 +36,10 @@ STREAM_MODE=sim
 # passes every photo unless a test sends x-sim-photo-check. Set ai to use real Workers AI, which
 # also needs "ai": { "binding": "AI" } in wrangler.jsonc and is charged per photo.
 PHOTO_CHECK_MODE=sim
+
+# Launch workplan A26 (lib/accounts.js). TOTP_KEY seals each authenticator secret with AES-GCM. This
+# value is for the local simulation only. A deployed portal gets its own random value as a Worker
+# secret, never this one, and without it secrets are stored unsealed and marked plain.
+TOTP_KEY=local-only-totp-key-not-a-secret
+# PBKDF2 iterations for each new password, 10000 to 100000 (the Workers maximum and the default).
+PASSWORD_ITERATIONS=100000

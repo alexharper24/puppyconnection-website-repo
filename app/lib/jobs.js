@@ -93,8 +93,12 @@ async function housekeeping(env) {
     env.DB.prepare('DELETE FROM sessions WHERE (expires_at < ? OR revoked_at IS NOT NULL) AND COALESCE(revoked_at, expires_at) < ?').bind(t, weekAgo),
     env.DB.prepare('DELETE FROM puppy_holds WHERE expires_at < ?').bind(iso(Date.now() - 3600000)),
     env.DB.prepare('DELETE FROM dev_mailbox WHERE sent_at < ?').bind(iso(Date.now() - 14 * DAY)),
+    // Launch workplan A24 to A26. Spent and expired invitation, reset and hand-over links, and
+    // wrong-password counts once they no longer count toward a limit.
+    env.DB.prepare('DELETE FROM auth_tokens WHERE (used_at IS NOT NULL OR expires_at < ?) AND created_at < ?').bind(t, dayAgo),
+    env.DB.prepare('DELETE FROM signin_failures WHERE at < ?').bind(dayAgo),
   ]);
-  const [tokens, sessions, holds, mail] = r.map((x) => x.meta.changes);
+  const [tokens, sessions, holds, mail, links, failures] = r.map((x) => x.meta.changes);
   // Workplan A8. A puppy adopted adopted_index_days ago today leaves the sitemap at the next
   // build, so the site is marked to publish even though nothing else changed.
   const days = Number((await env.DB.prepare("SELECT value FROM settings WHERE key = 'adopted_index_days'").first())?.value ?? 30);
@@ -102,7 +106,7 @@ async function housekeeping(env) {
     "SELECT COUNT(*) AS n FROM public_puppies WHERE availability = 'placed' AND placed_at <= ? AND placed_at > ?",
   ).bind(iso(Date.now() - days * DAY), iso(Date.now() - (days + 1) * DAY)).first();
   if (crossed) await dirtyStmt(env).run();
-  return { tokens, sessions, holds, test_mail: mail, adopted_unlisted: crossed };
+  return { tokens, sessions, holds, test_mail: mail, links, failures, adopted_unlisted: crossed };
 }
 
 // Spec 8.6. A checkout still open past its expiry is closed and its puppies released. A
@@ -138,7 +142,11 @@ const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'breeder_references', 'pe
   // their parts and comments.
   'checklist_signers', 'checklist_areas', 'checklist_items', 'checklist_parts', 'checklist_comments',
   // Added 2026-10-21 (workplan A19 and A20, migrations/0050). Saved moms and dads, and documents.
-  'parent_dogs', 'documents'];
+  'parent_dogs', 'documents',
+  // Added 2026-10-24 (launch workplan A26, migrations/0055). Passwords as PBKDF2 hashes, the
+  // authenticator secret (sealed under TOTP_KEY once that secret is set) and hashed recovery codes,
+  // so a restore does not make every breeder set a new password. One-time links are left out.
+  'credentials', 'recovery_codes'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;

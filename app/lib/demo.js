@@ -177,6 +177,11 @@ export function wipeStatements(env) {
     `DELETE FROM listing_reports WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM breeder_members WHERE breeder_id ${NOT_SEED}`,
     `DELETE FROM breeder_references WHERE breeder_id ${NOT_SEED}`,
+    // migrations/0055. Passwords, authenticators and one-time links of the breeders that go.
+    `DELETE FROM recovery_codes WHERE email IN (SELECT email FROM credentials WHERE breeder_id ${NOT_SEED})`,
+    `DELETE FROM credentials WHERE breeder_id ${NOT_SEED}`,
+    'DELETE FROM auth_tokens',
+    'DELETE FROM signin_failures',
     'DELETE FROM sessions',
     'DELETE FROM login_tokens',
     'DELETE FROM dev_mailbox',

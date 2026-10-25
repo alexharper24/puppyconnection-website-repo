@@ -2,8 +2,8 @@
 
 The working guts of the multi-breeder listing site, built to the implementation spec
 (`hs-proposals/puppyconnection/puppyconnection-implementation-spec.md`, private) and
-running locally as a simulation. A breeder can sign up, sign in by emailed link, complete
-a profile and submit it. Amber can then approve, decline or suspend them, the approved
+running locally as a simulation. A breeder can sign up, confirm the address by emailed link and choose a password,
+complete a profile and submit it. Amber can then approve, decline or suspend them, the approved
 breeder can add litters, puppies and photos and pay to list, and the paid listing appears
 on a local copy of the public site.
 
@@ -36,7 +36,7 @@ node puppyconnection-website-repo/app/dev/preview.mjs && python -m http.server 8
 | Address | What it is |
 |---|---|
 | http://localhost:8787 | The breeder portal |
-| http://localhost:8787/dev/mail | The local mailbox, where sign-in links and every other email land |
+| http://localhost:8787/dev/mail | The local mailbox, where account confirmations, password links, invitations and every other email land |
 | http://localhost:8788 | Amber's operator screens, signed in as `amber@puppyconnection.test` |
 | http://localhost:8789 | The public site as it would look with what the database says is public |
 
@@ -68,9 +68,10 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
   while `PAYMENTS_MODE` is `sim`. Setting real email (D9) or Stripe test keys (F1) removes
   each one with no code change. `hosted-open` and `hosted-access` still work and still show
   the notices, for a copy that should say it is a test. `lib/util.js` lists every mode.
-- **The portal has no password**, so sign-up is tested the way a breeder meets it. The test
-  mailbox shows each browser only the mail for addresses that browser signed up with, and a
-  practice checkout opens only for the breeder who started it. `dev/open-portal-check.mjs`
+- **The portal has no test password in front of it**, so sign-up is tested the way a breeder
+  meets it. The test mailbox shows each browser only the mail for addresses that browser signed up
+  with or asked a password link for, and a practice checkout opens only for the breeder who
+  started it. `dev/open-portal-check.mjs`
   proves both against the live copy, and `dev/legal-staging-test.mjs` proves them against a
   local portal started with `--var DEV_MODE:staging`.
 - **The admin signs in with Cloudflare Access**, an emailed one-time code, through the
@@ -125,8 +126,10 @@ directly.
 
 `docs/walkthrough-for-amber.md` is the same journey written for Amber, with the staging addresses.
 
-1. At the portal, enter any `@breeders.test` address and a business name.
-2. Open the local mailbox and type the six-digit code into the portal tab, or press **Open the link**, then **Sign in**.
+1. At the portal, press **Create an account** and enter any `@breeders.test` address and a business name.
+2. Open the local mailbox, press **Open the link**, choose a password and press **Save password and sign in**.
+   Afterwards sign in with the email and password. A seed breeder has no password, so use
+   **Forgot password** for one, the same way an existing breeder sets their first.
 3. Fill in the profile, tick the terms, and submit.
 4. In the operator screens, open **Approvals**, pick the breeder and approve.
 5. Back in the portal, add a litter, add a puppy, and add at least one photo.
@@ -200,7 +203,8 @@ upload has no display or share copy, because the portal already drew it at 1600 
 ```bash
 node app/dev/e2e.mjs            # the whole journey, 41 checks
 node app/dev/access-tests.mjs   # the ten acceptance tests from build spec section 4
-node app/dev/signin-test.mjs    # the sign-in code, 60-day sessions, the contact change notice
+node app/dev/signin-test.mjs    # emailed codes stay off, 60-day sessions, the contact change notice
+node app/dev/accounts-test.mjs  # launch workplan A24 to A26: passwords and their limits, the authenticator and recovery codes, password links, invitations, Make main contact, removing a person, Manage as this breeder and its hand-over
 node app/dev/jobs-test.mjs      # the scheduled jobs
 node app/dev/retention-test.mjs # launch workplan D1 on Node, no server: activity 2 years, payments 7 years, counts kept, unsubscribed tidied, closed accounts removed at 30 days, the caps and the job's cost
 node app/dev/google-test.mjs    # Continue with Google, against a stand-in Google on 8799
@@ -302,13 +306,43 @@ settings, terms and operators are not touched. The audit log and email log are k
   Phone-width checks use a resized tab instead of the usual iframe (CLAUDE.md section 5).
 - `lib/images.js` strips EXIF, XMP and IPTC from every upload, because phone photos carry
   GPS and every photo is served to anyone who opens the site.
-- `GET /auth/verify` changes nothing and shows a button. Only the `POST` spends the link,
-  because mail scanners open every link first.
-- The six-digit sign-in code works only in the browser that asked for it. `/auth/start` sets a
-  15-minute HttpOnly cookie, and the stored hash covers that cookie and the code together, so a
-  code read over someone's shoulder is no use elsewhere. Five wrong codes spend that sign-in,
-  link included, and an address takes no codes for a day after 20 wrong ones (its links still
-  work). The link works in any browser, as it always has.
+- **Sign-in is a password, with an authenticator app recommended but not required, or Google**
+  (launch workplan A26, Alex 2026-10-24, `lib/accounts.js`, migrations/0055). Emailed sign-in codes
+  and links are off: `/auth/start` and `/auth/code` answer 410 and send nothing, and an old
+  `/auth/verify` link shows a page saying so. Email carries only a new breeder's confirmation link
+  (24 hours), password links from Forgot password (1 hour) and invitations (7 days), and each opens
+  `/auth/set-password`, which asks for the authenticator code too when one is set up. The account is
+  made only when that page is used, so nobody can claim an address they cannot read. An existing
+  breeder with no password uses Forgot password to set their first, and the sign-in page says so.
+- `GET /auth/set-password` changes nothing and shows the form. Only the `POST` spends the link,
+  because mail scanners open every link first. A newer link of the same kind spends the older one.
+- Passwords are PBKDF2-SHA256 through WebCrypto with a 16-byte salt each, stored as
+  `pbkdf2-sha256$<iterations>$<salt>$<hash>`. Workers caps PBKDF2 at 100,000 iterations, which is
+  the default. `PASSWORD_ITERATIONS` can set fewer (not below 10,000), and a sign-in with an older,
+  lower count rehashes at the current one. One hash at 100,000 measured about 13 ms in Node and about
+  50 to 122 ms in local workerd across four runs on 2026-10-24, so it does not fit Workers Free's 10 ms of CPU.
+- Wrong passwords and wrong authenticator codes are counted in `signin_failures`. Ten for one
+  address, or a hundred from one network address, in 15 minutes stop further tries until the
+  window passes. An address with no account still costs one hash, so the answer takes as long.
+- The authenticator is TOTP (RFC 6238, SHA-1, 6 digits, 30 seconds, one step of drift either
+  way), and a code's step is recorded so it cannot be used twice. Set-up confirms one code, then
+  shows ten recovery codes once, stored as SHA-256. The secret is sealed with AES-GCM under the
+  `TOTP_KEY` Worker secret, and without that secret it is stored as `plain:` and sealed the next
+  time it is used once the secret exists. The QR code is drawn by `portal/public/qrcode.js`
+  (qrcode-generator 1.4.4, MIT, vendored), loaded only while setting up. The admin's Reset
+  authenticator turns it off so the person sets it up again.
+- **Puppy Connection access** (workplan A24). A breeder turns it on or off on the Account screen,
+  and an owner records the arrangement that existed before launch with Record existing management
+  arrangement (Alex, 2026-10-24, no new consent). `breeders.manage_access` with who, when and how.
+  Manage as this breeder mints a two-minute, one-time hand-over in `auth_tokens` (SHA-256 only),
+  bound to the operator Access identified and the breeder. The portal spends it at
+  `/auth/handoff`, checks again that access is on and that the operator is in `people`, and opens
+  an eight-hour session with `sessions.operator_email`, never renewed, which neither sets
+  `first_signin_at` nor starts the inactivity clock. Every write in it is audited as
+  "<operator> acting for <business>" with actor type operator, and the portal shows a banner with
+  End. Passwords, the authenticator, access, people, sign out everywhere, terms and closing the
+  account answer 403 in it. Turning access off revokes every operator session at once. Checkout is
+  left as it is, because listing fees paid on a breeder's behalf are held for later.
 - Breeder sessions run 60 days from their last renewal. Any use more than a day into the window
   renews it and refreshes the cookie, so only an idle breeder is signed out.
 - A change to the public phone, public email or website, by the breeder or an operator, is
@@ -342,8 +376,12 @@ settings, terms and operators are not touched. The audit log and email log are k
   that only to the breeder and to operators. Each address carries `?v=` from the file name, so
   a replaced logo is fetched fresh.
 - A kennel can have up to five people (`breeder_members`, migration 0010). Each signs in with
-  their own address by code, link or Google and has the same access as the first person.
-  Removing someone ends only their sessions, and an address belongs to one kennel only.
+  their own address and password or Google and has the same access as the first person. The
+  breeder or an owner in the admin adds them with an invitation link, and the admin shows who is
+  invited and who has joined. Removing someone ends their sessions at once and removes their
+  password, authenticator and open links, and an address belongs to one kennel only. Make main
+  contact hands the main email to a person, from the main contact's Account screen or the admin,
+  and the old main address stays on as a person or comes off, which the operator chooses.
 - Asking to close an account (plan P2.7) records a request in `account_requests` and tells the
   operators. Nothing is deleted then. The admin follows up and marks the account closed, and 30
   days later the daily retention job (`lib/retention.js`, migration 0060, launch workplan D1)
@@ -502,6 +540,15 @@ settings, terms and operators are not touched. The audit log and email log are k
   cannot run in Amber's spreadsheet (`lib/csv.js`).
 
 ## Pending
+
+- [ ] Password hashing and the Workers CPU limit (launch workplan A26). One PBKDF2 hash at the
+      100,000 maximum measured about 13 ms in Node and 50 to 122 ms in local workerd across four runs (2026-10-24),
+      against Workers Free's 10 ms of CPU a request. Alex decides between Workers Paid for the portal,
+      or a lower `PASSWORD_ITERATIONS` until then, before password sign-in goes to staging
+- [ ] The `TOTP_KEY` secret on the staging and production portal, a random value Alex generates,
+      so authenticator secrets are sealed. Until it is set they are stored unsealed and marked plain
+- [ ] Record existing management arrangement for each of the nine breeders Amber manages today
+      (workplan A24). The data does not say which nine, so the migration turns none on
 
 - [ ] Puppy Connection's own phone number, email address and social links for the Let's Chat
       button on every site page (workplan A15). Each shows a visible REPLACE THIS until Amber sends

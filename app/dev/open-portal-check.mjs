@@ -1,4 +1,4 @@
-// Checks for the open test portal (DEV_MODE hosted-open), where there is no password:
+// Checks for the open test portal (DEV_MODE hosted-open), where the mailbox is open to every browser:
 // one browser must not see another's mail, or open another breeder's practice checkout.
 //
 //   PORTAL=https://portal.puppyconnection.workers.dev node app/dev/open-portal-check.mjs
@@ -14,10 +14,10 @@ const alice = new Client(PORTAL);
 const bob = new Client(PORTAL);
 const aEmail = `e2e-open-a-${stamp}@breeders.test`;
 
-check('the portal opens with no password', (await bob.get('/')).status === 200);
-await alice.post('/auth/start', { email: aEmail, business_name: 'Open check A' });
+check('the portal opens with no test password in front of it', (await bob.get('/')).status === 200);
+await alice.post('/auth/signup', { email: aEmail, business_name: 'Open check A' });
 const aMail = (await alice.get('/dev/mail.json')).data;
-check("the sign-up browser sees its own sign-in link", Array.isArray(aMail) && aMail.some((m) => m.to_addr === aEmail && m.link));
+check("the sign-up browser sees its own confirmation link", Array.isArray(aMail) && aMail.some((m) => m.to_addr === aEmail && m.link));
 const bMail = (await bob.get('/dev/mail.json')).data;
 check("a different browser sees none of it", Array.isArray(bMail) && !bMail.some((m) => m.to_addr === aEmail), JSON.stringify(bMail).slice(0, 120));
 const bAsk = (await bob.get(`/dev/mail.json?to=${encodeURIComponent(aEmail)}`)).data;

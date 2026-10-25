@@ -426,6 +426,7 @@
         row('Facebook', x.facebook_url ? '<a href="' + esc(x.facebook_url) + '" target="_blank" rel="noopener">' + esc(x.facebook_url) + '</a>' : '') +
         row('Breeds raised', esc(x.breeds.map(function (r) { return r.name; }).join(', '))) + '</tbody></table>' +
         '<div class="btn-row" style="margin-top:-.4rem"><button class="btn btn-sm" id="edit-profile">Edit profile for them</button></div>' +
+        accessSection(data) + peopleSection(data) +
         (x.logo_url || x.kennel_url ? '<div class="brand-pics">' + (x.logo_url ? '<figure><img src="' + esc(x.logo_url) + '&size=card" alt="' + esc(b.business_name) + ' logo"><figcaption>Logo</figcaption></figure>' : '') +
           (x.kennel_url ? '<figure><img src="' + esc(x.kennel_url) + '&size=card" alt="' + esc(b.business_name) + ' kennel photo"><figcaption>Kennel photo</figcaption></figure>' : '') + '</div>' : '') +
         (b.description ? '<div class="card"><h3 style="margin-top:0">About</h3>' + String(b.description).split(/\n\s*\n/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div>' : '') +
@@ -458,7 +459,7 @@
           return '<div class="pay-row"><span>' + esc(day(c.created_at)) + '</span><span>' + plural(c.quantity, 'listing') + ', ' + esc(money(c.amount_total_cents)) + '</span><span class="pill">' + esc(c.status) + '</span></div>';
         }).join('') : '<p class="muted small">None yet.</p>') +
         '<h3>Change sign-in email</h3><form id="email-form" class="btn-row" style="margin:0"><input type="email" name="email" aria-label="Sign-in email" value="' + esc(b.email) + '" style="flex:1 1 220px"><button class="btn btn-sm" type="submit">Change</button></form>' +
-        '<p class="hint">Changing it signs the breeder out everywhere.</p>' +
+        '<p class="hint">Changing it signs the breeder out everywhere. The new address then needs an invitation, from Who signs in above, to set its password. To hand the kennel to a person already on it, use Make main contact.</p>' +
         '<h3>Activity</h3>' + (data.audit.length ? data.audit.slice(0, 20).map(function (a) {
           return '<div class="small" style="padding:.3rem 0;border-top:1px solid var(--line)">' + esc(when(a.at)) + ', ' + esc(a.action) + ' <span class="muted">by ' + esc(a.actor) + '</span></div>';
         }).join('') : '<p class="muted small">Nothing yet.</p>'),
@@ -483,6 +484,7 @@
             }).catch(function (err) { showError(nf, err); });
           });
           $('#edit-profile', d).addEventListener('click', function () { profileEditor(data); });
+          wirePeople(d, data, function () { breederDrawer(id); });
           $$('[data-edit-litter]', d).forEach(function (btn) {
             btn.addEventListener('click', function () { litterEditor(data, litters.filter(function (l) { return l.id === btn.dataset.editLitter; })[0]); });
           });
@@ -493,6 +495,101 @@
             btn.addEventListener('click', function () { photoDrawer(data, pups.filter(function (p) { return p.id === btn.dataset.photosPuppy; })[0]); });
           });
         });
+    });
+  }
+
+  /* Launch workplan A24. Whether Puppy Connection may open the portal as this kennel, and the way in. */
+  function accessSection(data) {
+    var a = data.access || {}, b = data.breeder;
+    var how = a.how === 'existing_arrangement' ? 'recorded from the existing management arrangement' : a.how === 'breeder' ? 'set by the breeder' : 'turned off by Puppy Connection';
+    return '<h3>Puppy Connection access</h3><div id="access-box">' + (a.on
+      ? '<p><span class="pill pill-ok">On</span> <span class="small muted">since ' + esc(day(a.at)) + ', ' + esc(how) + (a.by ? ' (' + esc(a.by) + ')' : '') + '.</span></p>' +
+        '<p class="hint">Manage as this breeder opens the real portal as this kennel for eight hours, with a banner, and every change is recorded as yours acting for them.</p>' +
+        '<div class="btn-row"><button class="btn btn-sm btn-primary" type="button" id="manage-as">Manage as this breeder</button>' +
+        '<button class="btn btn-sm btn-quiet" type="button" data-access="off">Turn access off</button></div>'
+      : '<p><span class="pill">Off</span>' + (a.at ? ' <span class="small muted">since ' + esc(day(a.at)) + ', ' + esc(how) + '.</span>' : '') + '</p>' +
+        '<p class="hint">The breeder turns this on from their Account screen. For a breeder Puppy Connection already managed before launch, record that arrangement here instead, which needs no new consent (Alex, 2026-10-24).</p>' +
+        '<div class="btn-row"><button class="btn btn-sm" type="button" data-access="on">Record existing management arrangement</button></div>') + '</div>';
+  }
+
+  /* Launch workplan A25 and A26. Everyone who signs in to the kennel, their invitation and
+     authenticator, and the operator's controls for each. */
+  function peopleSection(data) {
+    var people = data.people || [];
+    var extra = people.filter(function (p) { return !p.main; }).length;
+    return '<h3>Who signs in</h3><ul class="member-list people-admin">' + people.map(function (p) {
+      var state = p.password_set ? 'Has a password' : p.invite_open_until ? 'Invited, link open until ' + day(p.invite_open_until) : p.joined_at ? 'Signed in before, no password yet' : p.invited_at ? 'Invitation expired or used' : 'Not invited yet';
+      return '<li data-person="' + esc(p.email) + '"><div class="meta"><b>' + esc(p.name || p.email) + '</b>' + (p.name ? ' <span class="muted small">' + esc(p.email) + '</span>' : '') +
+        (p.main ? ' <span class="pill">Main contact</span>' : '') +
+        '<div class="small muted">' + esc(state) + (p.joined_at ? ', joined ' + esc(day(p.joined_at)) : '') + (p.authenticator ? ', authenticator on' : '') + '</div></div>' +
+        '<div class="btn-row"><button class="btn btn-sm" type="button" data-invite="' + esc(p.email) + '">' + (p.invited_at ? 'Send invitation again' : 'Send invitation') + '</button>' +
+        (p.main ? '' : '<button class="btn btn-sm" type="button" data-main="' + esc(p.member_id) + '">Make main contact</button>') +
+        (p.authenticator ? '<button class="btn btn-sm" type="button" data-reset-auth="' + esc(p.email) + '">Reset authenticator</button>' : '') +
+        (p.main ? '' : '<button class="btn btn-sm btn-danger" type="button" data-remove-person="' + esc(p.member_id) + '">Remove</button>') + '</div></li>';
+    }).join('') + '</ul><div id="main-choice"></div>' +
+      (extra < 5 ? '<form id="person-form" class="member-form" novalidate><div class="field"><label for="pp-name">Name</label><input id="pp-name" type="text" maxlength="120" autocomplete="off"></div>' +
+        '<div class="field"><label for="pp-email">Email address</label><input id="pp-email" type="email" maxlength="200" autocomplete="off" required></div>' +
+        '<button class="btn btn-sm btn-primary" type="submit">Add and invite</button></form>' +
+        '<p class="hint">An invitation is a link that works once for 7 days and lands the person on the page that sets their password. Sending again stops the earlier link working.</p>'
+        : '<p class="hint">This kennel has the most extra people it can have, five. Remove someone to add another.</p>');
+  }
+
+  function wirePeople(d, data, again) {
+    var b = data.breeder;
+    var fail = function (err) { toast(err.message); };
+    var mg = $('#manage-as', d);
+    if (mg) mg.addEventListener('click', function () {
+      mg.disabled = true;
+      api('POST', '/api/breeders/' + b.id + '/manage', {}).then(function (r) { window.open(r.url, '_blank', 'noopener'); mg.disabled = false; })
+        .catch(function (err) { mg.disabled = false; fail(err); });
+    });
+    $$('[data-access]', d).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var on = btn.dataset.access === 'on';
+        if (!confirm(on ? 'Record that Puppy Connection already manages ' + (b.business_name || b.email) + '? This turns access on.' : 'Turn Puppy Connection access off for ' + (b.business_name || b.email) + '? Any open Puppy Connection session on their account ends at once.')) return;
+        api('PUT', '/api/breeders/' + b.id + '/access', { on: on }).then(function () { toast(on ? 'Access recorded' : 'Access turned off'); again(); }).catch(fail);
+      });
+    });
+    $$('[data-invite]', d).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        btn.disabled = true;
+        api('POST', '/api/breeders/' + b.id + '/people/invite', { email: btn.dataset.invite }).then(function () { toast('Invitation sent'); again(); })
+          .catch(function (err) { btn.disabled = false; fail(err); });
+      });
+    });
+    $$('[data-reset-auth]', d).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Reset the authenticator for ' + btn.dataset.resetAuth + '? It turns off, their recovery codes stop working, and they can set it up again after signing in with their password.')) return;
+        api('POST', '/api/breeders/' + b.id + '/people/reset-authenticator', { email: btn.dataset.resetAuth }).then(function () { toast('Authenticator reset'); again(); }).catch(fail);
+      });
+    });
+    $$('[data-remove-person]', d).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!confirm('Remove this person? They are signed out at once and can no longer sign in to this kennel.')) return;
+        api('DELETE', '/api/breeders/' + b.id + '/people/' + btn.dataset.removePerson).then(function () { toast('Person removed'); again(); }).catch(fail);
+      });
+    });
+    $$('[data-main]', d).forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var box = $('#main-choice', d);
+        box.innerHTML = '<form class="card" id="main-form"><fieldset class="field"><legend>What happens to ' + esc(b.email) + ', the current main email</legend>' +
+          '<label class="check"><input type="radio" name="old" value="keep" checked> Keep it as a person who can sign in</label>' +
+          '<label class="check"><input type="radio" name="old" value="remove"> Remove it, and sign it out everywhere</label></fieldset>' +
+          '<div class="btn-row"><button class="btn btn-sm btn-primary" type="submit">Make main contact</button><button class="btn btn-sm btn-quiet" type="button" data-cancel>Cancel</button></div></form>';
+        $('[data-cancel]', box).addEventListener('click', function () { box.innerHTML = ''; });
+        $('#main-form', box).addEventListener('submit', function (e) {
+          e.preventDefault();
+          api('POST', '/api/breeders/' + b.id + '/people/main', { member_id: btn.dataset.main, old: $('input[name=old]:checked', box).value })
+            .then(function () { toast('Main contact changed'); again(); }).catch(function (err) { showError($('#main-form', box), err); });
+        });
+        box.scrollIntoView({ block: 'nearest' });
+      });
+    });
+    var pf = $('#person-form', d);
+    if (pf) pf.addEventListener('submit', function (e) {
+      e.preventDefault();
+      api('POST', '/api/breeders/' + b.id + '/people', { name: $('#pp-name', d).value, email: $('#pp-email', d).value })
+        .then(function () { toast('Person added and invited'); again(); }).catch(function (err) { showError(pf, err); });
     });
   }
 
@@ -1057,7 +1154,7 @@
 
   // ------------------------------------------------------------ email log (plan P3.6)
   var TEMPLATE_NAMES = {
-    signin_link: 'Sign-in code and link', contact_changed: 'Contact details changed', profile_submitted: 'New breeder to approve', approved: 'Approved',
+    signin_link: 'Sign-in code and link (retired)', signup_verify: 'New account confirmation', password_reset: 'Password link', invitation: 'Invitation', member_added: 'Added to a kennel', contact_changed: 'Contact details changed', profile_submitted: 'New breeder to approve', approved: 'Approved',
     declined: 'Not approved', suspended: 'Paused', reinstated: 'Active again', listings_live: 'Listings live', expiring_soon: 'Listings ending soon',
     expired: 'Listings ended', listing_refunded: 'Payment refunded', ops_alert: 'Alert to operators',
   };

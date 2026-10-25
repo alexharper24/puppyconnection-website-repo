@@ -99,16 +99,16 @@ async function part2(k) {
     const again = await signIn(g, { email: email.toUpperCase(), name: 'Pat Example' });
     check('signing in with Google again reaches the same account', again.me?.id === first.me?.id, `${again.me?.id} vs ${first.me?.id}`);
 
-    // an account made by an emailed link is reached by Google with the same address
+    // an account made by email sign-up and a password is reached by Google with the same address
     const linkEmail = `link-${Date.now().toString(36)}@example.com`;
-    await fetch(`${PORTAL}/auth/start`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json' }, body: JSON.stringify({ email: linkEmail, business_name: 'Link Kennel' }) });
+    await fetch(`${PORTAL}/auth/signup`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json' }, body: JSON.stringify({ email: linkEmail, business_name: 'Link Kennel' }) });
     const mail = await (await fetch(`${PORTAL}/dev/mail.json?to=${encodeURIComponent(linkEmail)}`)).json();
     const t = new URL(mail[0].link).searchParams.get('t');
-    const v = await fetch(`${PORTAL}/auth/verify`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ t }), redirect: 'manual' });
+    const v = await fetch(`${PORTAL}/auth/set-password`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ t, password: 'correct horse battery staple', confirm: 'correct horse battery staple' }), redirect: 'manual' });
     const linkSession = (v.headers.get('set-cookie') || '').split(';')[0];
     const linkMe = await (await fetch(`${PORTAL}/api/me`, { headers: { cookie: linkSession } })).json();
     const viaGoogle = await signIn(g, { email: linkEmail });
-    check('Google reaches the account an emailed link created', viaGoogle.me?.id === linkMe.id && viaGoogle.me?.profile?.business_name === 'Link Kennel', JSON.stringify(viaGoogle.me));
+    check('Google reaches the account a password sign-up created', viaGoogle.me?.id === linkMe.id && viaGoogle.me?.profile?.business_name === 'Link Kennel', JSON.stringify(viaGoogle.me));
 
     const forged = await signIn(g, { email: `forged-${Date.now()}@example.com` }, { state: 'not-the-state' });
     check('a callback whose state does not match this browser is refused', forged.back.headers.get('location') === '/?google=failed' && !forged.me);

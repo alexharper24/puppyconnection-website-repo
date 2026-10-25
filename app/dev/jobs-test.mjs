@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
-const WRANGLER = path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
+const WRANGLER = process.env.WRANGLER_JS || path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
 const PORTAL = process.env.PORTAL || 'http://localhost:8787', ADMIN = process.env.ADMIN || 'http://localhost:8788';
 let fails = 0;
 function check(name, ok, detail) { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && detail ? `\n      ${detail}` : ''}`); if (!ok) fails += 1; }
@@ -51,15 +51,15 @@ async function main() {
 async function body() {
   const email = `jobs-${Date.now().toString(36)}@breeders.test`;
   // Sign-up is rate limited per minute, so after the other suites this may need one wait.
-  let started = await req(PORTAL, 'POST', '/auth/start', { email, business_name: 'Jobs Test Kennel' });
+  let started = await req(PORTAL, 'POST', '/auth/signup', { email, business_name: 'Jobs Test Kennel' });
   if (started.status === 429) {
     console.log('sign-up rate limited, waiting a minute');
     await new Promise((r) => setTimeout(r, 65000));
-    started = await req(PORTAL, 'POST', '/auth/start', { email, business_name: 'Jobs Test Kennel' });
+    started = await req(PORTAL, 'POST', '/auth/signup', { email, business_name: 'Jobs Test Kennel' });
   }
   check('the test breeder can start signing up', started.status === 200, JSON.stringify(started.data));
   const mail = (await req(PORTAL, 'GET', `/dev/mail.json?to=${encodeURIComponent(email)}`)).data;
-  await req(PORTAL, 'POST', '/auth/verify', new URLSearchParams({ t: new URL(mail[0].link).searchParams.get('t') }));
+  await req(PORTAL, 'POST', '/auth/set-password', new URLSearchParams({ t: new URL(mail[0].link).searchParams.get('t'), password: 'correct horse battery staple', confirm: 'correct horse battery staple' }));
   let me = (await req(PORTAL, 'GET', '/api/me')).data;
   await req(PORTAL, 'PUT', '/api/profile', { version: me.profile.version, business_name: 'Jobs Test Kennel', public_phone: '555-0100', city: 'Goshen', state: 'IN', description: 'A test kennel.' });
   await req(PORTAL, 'POST', '/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });

@@ -3,7 +3,7 @@
 // breeder's record keeps that record's breeder_id and is written to the audit log (test 8).
 
 import {
-  now, addDays, slugify, clean, cents, HttpError, notFound, bad, json, readJson,
+  now, addDays, slugify, clean, cents, HttpError, notFound, forbidden, bad, json, readJson,
   requireSameOrigin, SECURITY_HEADERS, withHeaders, gate, showTestNotices, ulid,
 } from '../lib/util.js';
 import {
@@ -17,6 +17,10 @@ import { listReports, closeReport } from '../lib/reports.js';
 import { reasonText } from '../lib/photocheck.js';
 import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
+import {
+  kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, sendInvitation, resetAuthenticatorStmts,
+  accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES,
+} from '../lib/accounts.js';
 import { checkLitterParents, parentsFor, documentsFor } from '../lib/parents.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
 import { buildExport } from '../lib/export.js';
@@ -149,9 +153,13 @@ async function breederDetail(req, env, ctx, id) {
   const terms = await currentTerms(env);
   const breeds = (await env.DB.prepare('SELECT id, name FROM breeds ORDER BY name').all()).results;
   const members = (await env.DB.prepare('SELECT email, name, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(id).all()).results;
+  // Workplan A24 to A26. Everyone who signs in to the kennel with where their invitation and
+  // authenticator stand, and whether Puppy Connection may open the portal as them.
+  const people = await kennelPeople(env, id);
+  const access = { on: !!b.manage_access, by: b.manage_access_by, at: b.manage_access_at, how: b.manage_access_how };
   // Workplan A13. The reference they named before submitting, shown beside Approve.
   const reference = await loadReference(env, id);
-  return json({ breeder: b, litters, parents, checkouts, audit, extras, members, reference, close_request: closeRequest || null,
+  return json({ breeder: b, litters, parents, checkouts, audit, extras, members, people, access, portal: !!env.PORTAL_ORIGIN, reference, close_request: closeRequest || null,
     closed: closed ? { ...closed, remove_after: new Date(Date.parse(closed.resolved_at) + KEEP.closeDays * 86400000).toISOString().slice(0, 19) + 'Z' } : null, notes: await notesFor(env, id),
     terms: { current: terms.version, accepted: b.terms_version || null }, breeds, registries: (await settings(env)).registries });
 }
@@ -249,11 +257,18 @@ async function changeEmail(req, env, ctx, id, who) {
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addr)) throw bad('Enter a valid email address.');
   const b = await loadBreeder(env, id);
   if (!b) throw notFound();
+  if (addr === String(b.email).toLowerCase()) return breederDetail(req, env, ctx, id);
+  // Workplan A25. A person already on a kennel is moved with Make main contact instead.
+  if (await env.DB.prepare('SELECT 1 AS x FROM breeder_members WHERE email = ?').bind(addr).first()) {
+    throw bad('That address is a person on a kennel. To make them the main contact here, use Make main contact.');
+  }
   const t = now();
   try {
     await env.DB.batch([
       env.DB.prepare('UPDATE breeders SET email = ?, updated_at = ? WHERE id = ?').bind(addr, t, id),
       env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL').bind(t, id),
+      // The old address's links, password and authenticator go with it. The new one gets an invitation.
+      ...signInsEndStmts(env, id, b.email, { mainNull: true }),
       auditStmt(env, 'operator', who.email, 'breeder.email', 'breeder', id, { email: b.email }, { email: addr }),
     ]);
   } catch (e) {
@@ -261,6 +276,114 @@ async function changeEmail(req, env, ctx, id, who) {
     throw e;
   }
   return breederDetail(req, env, ctx, id);
+}
+
+// ------------------------------------------------------------------ people, access and Manage as this breeder (workplan A24 to A26)
+
+// Every route here is owner-only, because STAFF_ALLOWED does not name it. The rules for who can be
+// added are the portal's own (lib/accounts.js), so the two can never accept different things.
+
+const opActor = (who) => ['operator', who.email];
+
+async function breederOr404(env, id) {
+  const b = await loadBreeder(env, id);
+  if (!b) throw notFound();
+  return b;
+}
+
+/** The person on this kennel with this address, or a 400. */
+async function personOn(env, b, email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (e && e === String(b.email).toLowerCase()) return { email: e, main: true };
+  const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE breeder_id = ? AND email = ?').bind(b.id, e).first();
+  if (!m) throw bad('That address does not sign in to this kennel.');
+  return { email: m.email.toLowerCase(), main: false, id: m.id };
+}
+
+function needPortal(env) {
+  if (!env.PORTAL_ORIGIN) throw bad('PORTAL_ORIGIN is not set, so a link to the portal cannot be made.');
+  return env.PORTAL_ORIGIN;
+}
+
+/** Add a person to a kennel, with the portal's limits, and send them an invitation unless asked not to. */
+async function addPersonAdmin(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const b = await breederOr404(env, id);
+  const body = await readJson(req);
+  const email = await checkNewPerson(env, b, body.email);
+  await env.DB.batch(addPersonStmts(env, b.id, email, body.name, who.email, opActor(who)).stmts);
+  if (body.invite !== false) await sendInvitation(env, { breeder: b, email, by: 'Puppy Connection', actor: opActor(who), portalOrigin: needPortal(env) });
+  return breederDetail(req, env, ctx, id);
+}
+
+/** Remove a person. Their sessions end at once, and their links, password and authenticator go. */
+async function removePersonAdmin(req, env, ctx, id, who, memberId) {
+  requireSameOrigin(req);
+  const b = await breederOr404(env, id);
+  const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(memberId, b.id).first();
+  if (!m) throw notFound();
+  await env.DB.batch(removePersonStmts(env, b.id, m, opActor(who)));
+  return breederDetail(req, env, ctx, id);
+}
+
+/** Send, or send again, an invitation. A new one stops the earlier link working. */
+async function invitePerson(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const b = await breederOr404(env, id);
+  const p = await personOn(env, b, (await readJson(req)).email);
+  await sendInvitation(env, { breeder: b, email: p.email, by: 'Puppy Connection', actor: opActor(who), portalOrigin: needPortal(env) });
+  return breederDetail(req, env, ctx, id);
+}
+
+/** Make a person the main contact. The operator says whether the old main address stays on as a person. */
+async function makeMainAdmin(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const b = await breederOr404(env, id);
+  const body = await readJson(req);
+  if (!['keep', 'remove'].includes(body.old)) throw bad('Choose whether the current main email stays on as a person or is removed.');
+  const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(String(body.member_id || ''), b.id).first();
+  if (!m) throw bad('Choose one of the people on this kennel.');
+  await env.DB.batch(makeMainStmts(env, b, m, { keepOld: body.old === 'keep', addedBy: who.email, actor: opActor(who) }));
+  return breederDetail(req, env, ctx, id);
+}
+
+/** Turn a person's authenticator off so they set it up again, for example after losing a phone. */
+async function resetAuthenticator(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const b = await breederOr404(env, id);
+  const p = await personOn(env, b, (await readJson(req)).email);
+  await env.DB.batch(resetAuthenticatorStmts(env, b.id, p.email, opActor(who)));
+  return breederDetail(req, env, ctx, id);
+}
+
+/**
+ * Record the management arrangement that existed before launch, which turns access on with no new
+ * consent asked (Alex, 2026-10-24), or turn access off. Off ends every operator session at once.
+ */
+async function setAccessAdmin(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const b = await breederOr404(env, id);
+  const on = (await readJson(req)).on === true;
+  if (on !== !!b.manage_access) {
+    await env.DB.batch(accessStmts(env, b.id, on, { by: who.email, how: on ? ACCESS_HOW.existing : ACCESS_HOW.operator_off, actor: opActor(who), before: b.manage_access }));
+  }
+  return breederDetail(req, env, ctx, id);
+}
+
+/**
+ * Manage as this breeder. Mints a one-time hand-over that lasts two minutes, bound to the operator
+ * Access identified and to this breeder, and gives the portal address that spends it. Only its
+ * SHA-256 is stored, in the D1 both Workers share. The portal checks access again when it is spent.
+ */
+async function manageAs(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const b = await breederOr404(env, id);
+  if (!b.manage_access) throw forbidden('This breeder has not turned on Puppy Connection access, so the portal cannot be opened for them.');
+  const origin = needPortal(env);
+  const { token, stmts } = await newAuthToken(env, { purpose: 'handoff', breederId: b.id, operatorEmail: who.email, createdBy: who.email, minutes: HANDOFF_MINUTES });
+  stmts.push(auditStmt(env, 'operator', who.email, 'operator.handoff', 'breeder', b.id, null, null));
+  await env.DB.batch(stmts);
+  return json({ url: `${origin}/auth/handoff?t=${encodeURIComponent(token)}` });
 }
 
 /**
@@ -897,7 +1020,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=17"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=19"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
@@ -1393,6 +1516,13 @@ const ROUTES = [
   ['GET', /^\/api\/breeders\/([\w-]+)$/, breederDetail],
   ['POST', /^\/api\/breeders\/([\w-]+)\/(approve|decline|suspend|reinstate|reopen)$/, null],
   ['PUT', /^\/api\/breeders\/([\w-]+)\/email$/, changeEmail],
+  ['POST', /^\/api\/breeders\/([\w-]+)\/people$/, addPersonAdmin],
+  ['DELETE', /^\/api\/breeders\/([\w-]+)\/people\/([\w-]+)$/, (r, e, c, id, who, mid) => removePersonAdmin(r, e, c, id, who, mid)],
+  ['POST', /^\/api\/breeders\/([\w-]+)\/people\/invite$/, invitePerson],
+  ['POST', /^\/api\/breeders\/([\w-]+)\/people\/main$/, makeMainAdmin],
+  ['POST', /^\/api\/breeders\/([\w-]+)\/people\/reset-authenticator$/, resetAuthenticator],
+  ['PUT', /^\/api\/breeders\/([\w-]+)\/access$/, setAccessAdmin],
+  ['POST', /^\/api\/breeders\/([\w-]+)\/manage$/, manageAs],
   ['PUT', /^\/api\/breeders\/([\w-]+)\/profile$/, editProfile],
   ['POST', /^\/api\/breeders\/([\w-]+)\/notes$/, addNote],
   ['POST', /^\/api\/breeders\/([\w-]+)\/close-request\/resolve$/, resolveClose],

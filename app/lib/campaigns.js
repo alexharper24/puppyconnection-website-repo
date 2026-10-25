@@ -10,6 +10,7 @@
 
 import { now } from './util.js';
 import { unsubscribeUrl } from './subscribers.js';
+import { campaignHtml, emailLogoUrl } from './email-html.js';
 
 export const PER_REQUEST = 100;
 
@@ -40,16 +41,26 @@ export async function mailingAddress(env) {
   return r ? String(r.value).trim() : '';
 }
 
-/** The email one person receives. status is theirs on the list, which sets the reason line. */
-export function renderCampaign(c, { token, portalOrigin, address, status = 'subscribed' }) {
+// What a test copy says in its text part while no mailing address is set. The HTML part leaves the
+// address out instead, because Alex took the postal-address placeholder out of the design (2026-10-25).
+export const ADDRESS_NOT_SET = '(mailing address not set yet)';
+
+/**
+ * The email one person receives. status is theirs on the list, which sets the reason line. The
+ * text part is unchanged and the html part is design B (lib/email-html.js), with the author's own
+ * greeting shown as the opening line when the email starts with one.
+ */
+export function renderCampaign(c, { token, portalOrigin, address, status = 'subscribed', logoUrl }) {
   const unsub = unsubscribeUrl(portalOrigin, token);
   const body = String(c.body).replace(/\r\n/g, '\n').trim();
   const why = status === 'contact' ? "You're getting this because you have been in touch with Puppy Connection." : "You're getting this because you signed up for Puppy Connection emails.";
   const text = `${body}\n\n--\nPuppy Connection\n${address}\n\n${why} `
     + `To stop getting them, open this link:\n${unsub}\n`;
+  const html = campaignHtml({ subject: c.subject, body, address: address === ADDRESS_NOT_SET ? '' : address, why, unsub, logoUrl });
   return {
     subject: c.subject,
     text,
+    html,
     headers: { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
   };
 }
@@ -84,7 +95,7 @@ async function deliver(env, messages) {
     const res = await fetch('https://api.resend.com/emails/batch', {
       method: 'POST',
       headers: { authorization: `Bearer ${env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify(messages.map((m) => ({ from: env.EMAIL_FROM, to: [m.to], subject: m.subject, text: m.text, headers: m.headers, ...(env.EMAIL_REPLY_TO ? { reply_to: env.EMAIL_REPLY_TO } : {}) }))),
+      body: JSON.stringify(messages.map((m) => ({ from: env.EMAIL_FROM, to: [m.to], subject: m.subject, text: m.text, html: m.html, headers: m.headers, ...(env.EMAIL_REPLY_TO ? { reply_to: env.EMAIL_REPLY_TO } : {}) }))),
     });
     const out = await res.json().catch(() => ({}));
     if (!res.ok) return messages.map(() => ({ ok: false, error: `refused ${res.status}` }));
@@ -101,6 +112,7 @@ export async function runCampaigns(env, { batches = BATCHES } = {}) {
   const { results: sending } = await env.DB.prepare("SELECT * FROM campaigns WHERE status = 'sending' ORDER BY send_started_at").all();
   const address = await mailingAddress(env);
   const portalOrigin = env.PORTAL_ORIGIN || '';
+  const logoUrl = emailLogoUrl(env);
   const allow = (env.EMAIL_ALLOWLIST || '').split(',').map((s) => s.trim().toLowerCase()).filter(Boolean);
   const out = [];
   let left = batches;
@@ -118,7 +130,7 @@ export async function runCampaigns(env, { batches = BATCHES } = {}) {
       const may = AUDIENCES[audienceOf(c.audience)];
       const go = rows.filter((r) => may.includes(r.status) && (!allow.length || allow.includes(r.email.toLowerCase())));
       const skip = rows.filter((r) => !go.includes(r));
-      const results = go.length ? await deliver(env, go.map((r) => ({ to: r.email, ...renderCampaign(c, { token: r.unsub_token, portalOrigin, address, status: r.status }) }))) : [];
+      const results = go.length ? await deliver(env, go.map((r) => ({ to: r.email, ...renderCampaign(c, { token: r.unsub_token, portalOrigin, address, status: r.status, logoUrl }) }))) : [];
       const stmts = [
         ...go.map((r, i) => env.DB.prepare('UPDATE campaign_sends SET status = ?, provider_id = ?, error = ?, sent_at = ? WHERE campaign_id = ? AND subscriber_id = ?')
           .bind(results[i].ok ? 'sent' : 'failed', results[i].id || null, results[i].error || null, t, c.id, r.subscriber_id)),
@@ -142,7 +154,7 @@ export async function runCampaigns(env, { batches = BATCHES } = {}) {
 /** A test copy to one address, the operator's own, marked as a test in the subject. */
 export async function sendCampaignTest(env, c, to) {
   const address = await mailingAddress(env);
-  const msg = renderCampaign(c, { token: 'test-copy', portalOrigin: env.PORTAL_ORIGIN || '', address: address || '(mailing address not set yet)' });
+  const msg = renderCampaign(c, { token: 'test-copy', portalOrigin: env.PORTAL_ORIGIN || '', address: address || ADDRESS_NOT_SET, logoUrl: emailLogoUrl(env) });
   const [r] = await deliver(env, [{ to, ...msg, subject: `[Test] ${msg.subject}` }]);
   if (!r.ok) throw new Error('The email service refused the test copy.');
   return r;

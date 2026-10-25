@@ -135,7 +135,7 @@ export function privacyPage() {
 
 /**
  * The listing terms (plan P3.4). The text is the current version in terms_versions, written and
- * published from the admin's Terms screen as plain paragraphs. While it still holds a REPLACE
+ * published from the admin's Terms screen, and termsHtml below draws it. While it still holds a REPLACE
  * THIS placeholder the page says it is waiting on Amber's own words.
  */
 export function termsPage(terms) {
@@ -149,11 +149,50 @@ ${termsHtml(terms.body)}
 </div>`;
 }
 
-/** Plain paragraphs, blank-line separated, escaped. A REPLACE THIS paragraph is marked. */
+/**
+ * The terms text as HTML, escaped. Blocks are separated by blank lines and a REPLACE THIS block is
+ * marked. Inside a block a line starting "* " is a list item, a heading line (isTermsHeading) is a
+ * heading, and the other lines run together as one paragraph, broken where the text breaks. That
+ * is how Amber's terms of 2026-10-25 are written. portal/public/portal.js and
+ * admin/public/admin.js carry the same rule in termsParas.
+ */
 export function termsHtml(body) {
   return String(body || '').split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean).map((para) => {
     const m = /^REPLACE THIS:\s*([\s\S]*)$/.exec(para);
     if (m) return `<p class="replace-block"><b>REPLACE THIS:</b> ${esc(m[1])}</p>`;
-    return `<p>${esc(para).replace(/\n/g, '<br>')}</p>`;
+    const out = [];
+    let lines = [];
+    let items = [];
+    const flush = () => {
+      if (lines.length) out.push(`<p>${lines.join('<br>')}</p>`);
+      if (items.length) out.push(`<ul>${items.map((i) => `<li>${i}</li>`).join('')}</ul>`);
+      lines = [];
+      items = [];
+    };
+    for (const raw of para.split('\n')) {
+      const line = raw.trim();
+      if (!line) continue;
+      const li = /^\*\s+(.+)$/.exec(line);
+      if (li) {
+        if (lines.length) flush();
+        items.push(esc(li[1]));
+      } else if (isTermsHeading(line)) {
+        flush();
+        out.push(`<h2>${esc(line)}</h2>`);
+      } else {
+        if (items.length) flush();
+        lines.push(esc(line));
+      }
+    }
+    flush();
+    return out.join('\n');
   }).join('\n');
+}
+
+/**
+ * A heading in the terms text is a short line, 80 characters or fewer, with no closing
+ * punctuation, such as "2. Protecting Puppy Connection". A sentence ends in a full stop or a colon.
+ */
+export function isTermsHeading(line) {
+  return line.length <= 80 && !/[.,:;!?"')\]]$/.test(line);
 }

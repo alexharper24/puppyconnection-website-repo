@@ -11,7 +11,8 @@
 // real breeders, and checks the CSV downloads cannot carry a spreadsheet formula.
 //
 // The suite publishes listing terms to test them, then publishes Amber's placeholder again at
-// the end, so the terms page is back to its marked placeholder for the other suites.
+// the end, so the terms page is back to its marked placeholder for the other suites, and puts the
+// starting draft back.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -216,7 +217,7 @@ async function features() {
 
   // ---------------------------------------------------------------- P3.4 terms
   const t0 = (await admin.get('/api/terms')).data;
-  check('P3.4 the terms screen starts from the version on file, marked as a placeholder', !!t0.current.version && /REPLACE THIS/.test(t0.draft.body) && (await A.c.get('/api/me')).data.terms.needs_accept === false,
+  check('P3.4 the terms screen starts from the version on file, marked as a placeholder', !!t0.current.version && /REPLACE THIS/.test(t0.current.body) && (await A.c.get('/api/me')).data.terms.needs_accept === false,
     JSON.stringify(t0.current));
   // The starting draft carries Amber's photo standard (workplan A14), so it differs from the version
   // on file. Put the current text back in the draft to test the refusal.
@@ -446,6 +447,9 @@ async function features() {
   const back = await admin.post('/api/terms/publish', {});
   const tp = await (await fetch(`${PORTAL}/terms`)).text();
   check('P3.4 publishing the placeholder again puts the marked draft back on /terms', back.status === 200 && /Draft, waiting on Amber's own words/.test(tp) && /REPLACE THIS:<\/b> the listing terms/.test(tp));
+  // The draft the suite started from (Amber's terms since migration 0058) goes back too.
+  await admin.put('/api/terms/draft', { body: t0.draft.body });
+  check('P3.4 the starting draft is back', (await admin.get('/api/terms')).data.draft.body === t0.draft.body.trim());
 }
 
 await operatorOnly();

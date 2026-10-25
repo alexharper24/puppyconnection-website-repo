@@ -975,10 +975,26 @@
   }
 
   // ------------------------------------------------------------ listing terms (plan P3.4)
+  // The same rule as termsHtml in portal/legal.js, with headings, "* " lists and paragraphs.
   function termsParas(body) {
     return String(body || '').split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (para) {
       var m = /^REPLACE THIS:\s*([\s\S]*)$/.exec(para);
-      return m ? '<p class="replace-block"><b>REPLACE THIS:</b> ' + esc(m[1]) + '</p>' : '<p>' + esc(para).replace(/\n/g, '<br>') + '</p>';
+      if (m) return '<p class="replace-block"><b>REPLACE THIS:</b> ' + esc(m[1]) + '</p>';
+      var out = [], lines = [], items = [];
+      function flush() {
+        if (lines.length) out.push('<p>' + lines.join('<br>') + '</p>');
+        if (items.length) out.push('<ul>' + items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</ul>');
+        lines = []; items = [];
+      }
+      para.split('\n').forEach(function (raw) {
+        var line = raw.trim(), li = /^\*\s+(.+)$/.exec(line);
+        if (!line) return;
+        if (li) { if (lines.length) flush(); items.push(esc(li[1])); }
+        else if (line.length <= 80 && !/[.,:;!?"')\]]$/.test(line)) { flush(); out.push('<h2>' + esc(line) + '</h2>'); }
+        else { if (items.length) flush(); lines.push(esc(line)); }
+      });
+      flush();
+      return out.join('');
     }).join('');
   }
   function termsScreen() {
@@ -994,7 +1010,7 @@
       '<div class="cols"><form id="terms-form" class="card" novalidate><h2>Draft</h2>' +
         (placeholder ? '<p class="notice small"><b>Still a placeholder.</b> The draft holds Amber\'s REPLACE THIS marker. Replace it with her own words before launch.</p>' : '') +
         '<div class="field"><label for="terms-body">Terms text</label><textarea id="terms-body" class="terms-text" name="body">' + esc(t.draft.body) + '</textarea>' +
-        '<div class="hint">Plain paragraphs, with a blank line between them.' + (t.draft.updated_at ? ' Draft last saved ' + esc(when(t.draft.updated_at)) + ' by ' + esc(t.draft.updated_by) + '.' : '') + '</div></div>' +
+        '<div class="hint">A short line with no full stop at the end is a heading, a line starting with * and a space is a list item, and the other lines are paragraphs.' + (t.draft.updated_at ? ' Draft last saved ' + esc(when(t.draft.updated_at)) + ' by ' + esc(t.draft.updated_by) + '.' : '') + '</div></div>' +
         '<div class="btn-row"><button class="btn" type="submit">Save draft</button><button class="btn btn-gold" type="button" id="terms-publish">Publish as a new version</button></div></form>' +
       '<section class="card"><h2>What breeders see now</h2><div class="terms-preview">' + termsParas(t.current.body) + '</div>' +
         '<h3>Versions</h3>' + (t.versions.length ? t.versions.map(function (v) {

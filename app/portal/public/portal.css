@@ -343,6 +343,8 @@ a.rail-foot:hover b { text-decoration: underline; }
 .note { padding: .6rem 0; border-top: 1px solid var(--line); }
 .note p { margin: .2rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .terms-text { min-height: 320px; }
+.terms-preview h2 { font-size: 1rem; margin: 1rem 0 .3rem; }
+.terms-preview ul { padding-left: 1.2rem; margin: .3rem 0 .6rem; }
 .terms-preview { border: 1px solid var(--line); border-radius: var(--radius); padding: .8rem 1rem; background: #fff; max-height: 420px; overflow: auto; overflow-wrap: anywhere; }
 .terms-banner { display: flex; flex-wrap: wrap; gap: .6rem 1rem; align-items: center; justify-content: space-between; }
 .terms-banner p { margin: 0; }

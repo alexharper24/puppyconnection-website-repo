@@ -349,11 +349,28 @@
       }).join('') + '</ul></div>';
   }
 
-  /* The current listing terms as paragraphs. A REPLACE THIS paragraph is marked as a placeholder. */
+  /* The current listing terms, drawn by the same rule as termsHtml in portal/legal.js. Blank lines
+     separate blocks, a REPLACE THIS block is marked, "* " lines are a list and a short line with no
+     closing punctuation is a heading. */
   function termsParas(body) {
     return String(body || '').split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean).map(function (para) {
       var m = /^REPLACE THIS:\s*([\s\S]*)$/.exec(para);
-      return m ? '<p class="replace-block"><b>REPLACE THIS:</b> ' + esc(m[1]) + '</p>' : '<p>' + esc(para).replace(/\n/g, '<br>') + '</p>';
+      if (m) return '<p class="replace-block"><b>REPLACE THIS:</b> ' + esc(m[1]) + '</p>';
+      var out = [], lines = [], items = [];
+      function flush() {
+        if (lines.length) out.push('<p>' + lines.join('<br>') + '</p>');
+        if (items.length) out.push('<ul>' + items.map(function (i) { return '<li>' + i + '</li>'; }).join('') + '</ul>');
+        lines = []; items = [];
+      }
+      para.split('\n').forEach(function (raw) {
+        var line = raw.trim(), li = /^\*\s+(.+)$/.exec(line);
+        if (!line) return;
+        if (li) { if (lines.length) flush(); items.push(esc(li[1])); }
+        else if (line.length <= 80 && !/[.,:;!?"')\]]$/.test(line)) { flush(); out.push('<h2>' + esc(line) + '</h2>'); }
+        else { if (items.length) flush(); lines.push(esc(line)); }
+      });
+      flush();
+      return out.join('');
     }).join('');
   }
   function termsDrawer() {

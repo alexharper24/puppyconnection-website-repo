@@ -1,0 +1,387 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light only">
+<meta name="supported-color-schemes" content="light">
+<meta name="robots" content="noindex">
+<title>Email Design Options — Puppy Connection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;600;700&family=Barlow+Condensed:wght@600&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* Preview page only. Nothing here is sent. The three designs are built as real email HTML
+   (tables, inline styles, 600px wide) inside the iframes below, so each one can be lifted
+   into app/lib/mail.js once Alex and Amber choose. */
+:root{
+  color-scheme:light only;
+  --ink:#262626; --ink-soft:#414141; --muted:#6f6a60;
+  --gold:#f7d57f; --bronze:#bc9b5d; --olive:#7c6b40;
+  --paper:#fcfcfc; --paper-warm:#f5f2ea; --line:#e2ddd1; --line-strong:#cdc6b5;
+  --serif:'Playfair Display',Georgia,'Times New Roman',serif;
+  --sans:'Barlow',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --cond:'Barlow Condensed','Barlow',system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{--paper:#fcfcfc;--paper-warm:#f5f2ea;--ink:#262626;--line:#e2ddd1}
+  html,body{background:#fcfcfc;color:#262626}
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:17px;line-height:1.55}
+.wrap{max-width:1180px;margin-inline:auto;padding-inline:16px}
+header.top{background:var(--ink);color:#e6deca;padding:28px 0 26px}
+header.top h1{font-family:var(--serif);font-weight:600;font-size:clamp(1.6rem,4vw,2.3rem);margin:0 0 .4rem;color:#fff}
+header.top p{margin:0;max-width:70ch}
+.eyebrow{font-family:var(--cond);font-size:.82rem;letter-spacing:.18em;text-transform:uppercase;font-weight:600;color:var(--olive);margin:0 0 .5rem}
+header.top .eyebrow{color:var(--gold)}
+.controls{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;padding:16px 0;border-bottom:1px solid var(--line)}
+.controls label{display:inline-flex;gap:8px;align-items:center;font-weight:600;cursor:pointer}
+.controls input{width:20px;height:20px;accent-color:var(--olive)}
+.controls nav{display:flex;flex-wrap:wrap;gap:8px 18px}
+.controls nav a{color:var(--olive);font-weight:600}
+.note{max-width:70ch;color:var(--ink-soft)}
+section.dir{padding:40px 0 16px;border-bottom:1px solid var(--line-strong)}
+section.dir h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.4rem,3.4vw,1.9rem);margin:0 0 .5rem}
+.strengths{max-width:70ch;margin:0 0 1.2rem;color:var(--ink-soft)}
+.email-block{margin:28px 0 8px}
+.email-block h3{font-family:var(--cond);font-weight:600;font-size:1.05rem;letter-spacing:.1em;text-transform:uppercase;margin:0 0 4px}
+.email-block .subject{margin:0 0 12px;color:var(--ink-soft);overflow-wrap:anywhere}
+.frames{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.frame{max-width:100%;overflow-x:auto;border:1px solid var(--line-strong);border-radius:4px;background:#fff}
+.frame-cap{font-family:var(--cond);font-size:.85rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:6px 10px;border-bottom:1px solid var(--line);background:var(--paper-warm)}
+.frame iframe{display:block;border:0;height:600px}
+.frame.desk iframe{width:640px}
+.frame.phone iframe{width:375px}
+.contrast{padding:40px 0 56px}
+.contrast h2{font-family:var(--serif);font-weight:600;font-size:clamp(1.4rem,3.4vw,1.9rem);margin:0 0 .5rem}
+.table-wrap{max-width:100%;overflow-x:auto}
+table.pairs{border-collapse:collapse;width:100%;min-width:0;font-size:.95rem}
+table.pairs th,table.pairs td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+table.pairs th{font-family:var(--cond);letter-spacing:.08em;text-transform:uppercase;font-size:.85rem;color:var(--muted)}
+.sw{display:inline-block;padding:2px 8px;border-radius:4px;border:1px solid var(--line-strong);font-weight:600;white-space:nowrap}
+.pass{color:#3d6b4a;font-weight:700}
+.fail{color:#9c4b3c;font-weight:700}
+code{font-size:.92em}
+@media (max-width:640px){
+  table.pairs .where{display:none}
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">Preview only, nothing is sent</p>
+    <h1>Puppy Connection email designs</h1>
+    <p>Three design directions for the emails the site sends, each shown for a password reset, a breeder invitation and a mailing-list email, at desktop width and at phone width (375px). Pick one direction, or name the parts you like from each.</p>
+  </div>
+</header>
+<main class="wrap">
+  <div class="controls">
+    <label><input type="checkbox" id="imgoff"> Show with images turned off</label>
+    <nav aria-label="Directions"><a href="#dir-a">A. Clean and quiet</a><a href="#dir-b">B. Warm brand band</a><a href="#dir-c">C. Personal note</a><a href="#contrast">Contrast checks</a></nav>
+  </div>
+  <p class="note">The password and invitation wording is the current wording from the breeder portal, unchanged. The mailing-list email body is <strong>sample text</strong> announcing the new site. The business name "Sample Kennel" and every link token are samples too. In the real emails the logo loads from the live site by its full web address, and each email also goes out with its plain-text version as it does today.</p>
+
+  <section class="dir" id="dir-a">
+    <p class="eyebrow">Direction A</p>
+    <h2>Clean and quiet</h2>
+    <p class="strengths">A white card on a warm page with the dark logo at the top and one olive button, so the link is the only thing that stands out. It looks the same in every inbox and reads well with images off, because almost nothing depends on the logo.</p>
+    <div class="email-block" data-dir="A" data-kind="reset"></div>
+    <div class="email-block" data-dir="A" data-kind="invite"></div>
+    <div class="email-block" data-dir="A" data-kind="list"></div>
+  </section>
+
+  <section class="dir" id="dir-b">
+    <p class="eyebrow">Direction B</p>
+    <h2>Warm brand band</h2>
+    <p class="strengths">A charcoal band carries the white logo and a gold line, the same look as the site header, and the gold button matches the site's buttons. It is the most recognizable of the three, and the band and button keep their colors when images are off.</p>
+    <div class="email-block" data-dir="B" data-kind="reset"></div>
+    <div class="email-block" data-dir="B" data-kind="invite"></div>
+    <div class="email-block" data-dir="B" data-kind="list"></div>
+  </section>
+
+  <section class="dir" id="dir-c">
+    <p class="eyebrow">Direction C</p>
+    <h2>Personal note</h2>
+    <p class="strengths">A small logo, a short warm opening line and a signature from Amber and the team make each email read like a note from a person, which suits the mailing list and invitations best. The opening lines shown here are sample wording for Amber to rewrite in her own voice, and the automatic-message line stays in the footer of the portal emails.</p>
+    <div class="email-block" data-dir="C" data-kind="reset"></div>
+    <div class="email-block" data-dir="C" data-kind="invite"></div>
+    <div class="email-block" data-dir="C" data-kind="list"></div>
+  </section>
+
+  <section class="contrast" id="contrast">
+    <h2>Color contrast checks</h2>
+    <p class="note">Every text and background pair used in the three designs, measured against WCAG 2.1 AA. Normal text needs 4.5 to 1, and large text (24px, or 18.7px bold) needs 3 to 1. The ratios below are calculated by this page from the hex values, so they stay true if a color changes. The bronze rule in Direction C is decoration and carries no text.</p>
+    <div class="table-wrap"><table class="pairs" id="pairs"><thead><tr><th>Text</th><th>Background</th><th class="where">Where it is used</th><th>Ratio</th><th>AA</th></tr></thead><tbody></tbody></table></div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- content, taken from app/lib/mail.js and app/lib/campaigns.js ----------
+  var PORTAL = 'https://portal.puppyconnection.workers.dev';
+  var SITE_URL = 'https://www.puppy-connection.com/';
+  var LOGO_DARK = '../../img/brand/logo-charcoal-trim.png';   // 1600 x 838
+  var LOGO_WHITE = '../../img/brand/logo-white.png';          // 1851 x 897
+  var CONTACT = {
+    email: 'info@puppy-connection.com',
+    phone: '(574) 221-0326',
+    tel: '+15742210326',
+    facebook: 'https://www.facebook.com/puppyconnectionUSA',
+    instagram: 'https://www.instagram.com/puppy_connection_in/'
+  };
+
+  var EMAILS = {
+    reset: {
+      label: 'Password reset',
+      subject: 'Set your Puppy Connection password',
+      preheader: 'The link works once and stops working after 1 hour.',
+      heading: 'Set your Puppy Connection password',
+      opener: 'Hi there, here is the link you asked for.',
+      before: ['Here is the link to set a new password for the breeder portal. If you have never had a password, this sets your first one.'],
+      button: 'Set your password',
+      link: PORTAL + '/auth/set-password?t=sample-reset-token',
+      after: ['The link works once and stops working after 1 hour. If you did not ask for this, you can ignore it and your password stays as it is.'],
+      transactional: true
+    },
+    invite: {
+      label: 'Breeder invitation',
+      subject: 'You are invited to manage Sample Kennel on Puppy Connection',
+      preheader: 'Choose your password to sign in. The link works for 7 days.',
+      heading: 'You are invited to manage Sample Kennel',
+      opener: 'Hi, and welcome. We are so glad you are joining us.',
+      before: ['Puppy Connection has invited you to manage Sample Kennel in the breeder portal, where you can keep its profile, litters and puppies up to date.',
+               'Open this link to choose your password and sign in.'],
+      button: 'Choose your password',
+      link: PORTAL + '/auth/set-password?t=sample-invite-token',
+      after: ['The link works once and stops working after 7 days. After that you sign in with this email address and your password, or with Continue with Google if this address is a Google account.',
+              'If you were not expecting this, you can ignore it, or reply and let us know.'],
+      transactional: true
+    },
+    list: {
+      label: 'Mailing-list email (sample text)',
+      subject: 'Puppy Connection has a new website',
+      preheader: 'Take a look at the new Puppy Connection website.',
+      heading: 'Puppy Connection has a new website',
+      opener: 'Hi friends, we have some happy news to share.',
+      before: ['Sample text: Puppy Connection has a brand new website, and we would love for you to take a look.',
+               'You can browse puppies from the breeders we work with and get in touch with a breeder about a puppy you love.'],
+      button: 'Visit the new site',
+      link: SITE_URL,
+      after: ['Thank you for being part of the Puppy Connection family.'],
+      transactional: false,
+      unsub: PORTAL + '/unsubscribe?t=sample-unsubscribe-token',
+      why: "You're getting this because you signed up for Puppy Connection emails."
+    }
+  };
+
+  // ---------- shared email pieces ----------
+  var SERIF = "'Playfair Display',Georgia,'Times New Roman',serif";
+  var SANS = "'Barlow','Segoe UI',Helvetica,Arial,sans-serif";
+
+  function esc(s) { return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+
+  function head(title, bg) {
+    return '<!doctype html><html lang="en" xmlns="http://www.w3.org/1999/xhtml"><head>' +
+      '<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<meta name="x-apple-disable-message-reformatting"><meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light">' +
+      '<title>' + esc(title) + '</title>' +
+      '<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;700&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet">' +
+      '<style>body{margin:0;padding:0;background:' + bg + '}a{text-decoration:underline}' +
+      '@media only screen and (max-width:480px){.pad{padding-left:22px!important;padding-right:22px!important}.h1{font-size:25px!important;line-height:32px!important}.btn-t{width:100%!important}.btn-a{display:block!important;text-align:center!important}.outer{padding:0!important}}</style>' +
+      '</head><body style="margin:0;padding:0;background:' + bg + ';">';
+  }
+
+  function preheader(text) {
+    return '<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:' + 'transparent' + ';">' + esc(text) + '</div>';
+  }
+
+  // A padding-based bulletproof button. The color sits on the cell, so it shows with images off.
+  function button(text, href, bg, fg) {
+    return '<table role="presentation" class="btn-t" cellpadding="0" cellspacing="0" border="0" style="border-collapse:separate;margin:0;">' +
+      '<tr><td align="center" bgcolor="' + bg + '" style="background:' + bg + ';border-radius:4px;mso-padding-alt:17px 40px;">' +
+      '<a class="btn-a" href="' + esc(href) + '" style="display:inline-block;padding:17px 40px;font-family:' + SANS + ';font-size:18px;line-height:22px;font-weight:700;letter-spacing:0.04em;color:' + fg + ';text-decoration:none;border-radius:4px;">' + esc(text) + '</a>' +
+      '</td></tr></table>';
+  }
+
+  function para(text, color, extra) {
+    return '<p style="margin:0 0 18px;font-family:' + SANS + ';font-size:17px;line-height:27px;color:' + color + ';' + (extra || '') + '">' + esc(text) + '</p>';
+  }
+
+  function fallback(link, textColor, linkColor) {
+    return '<p style="margin:0 0 18px;font-family:' + SANS + ';font-size:14px;line-height:21px;color:' + textColor + ';">If the button does not work, copy this link into your browser:<br>' +
+      '<a href="' + esc(link) + '" style="color:' + linkColor + ';word-break:break-all;">' + esc(link) + '</a></p>';
+  }
+
+  function logo(src, w, h, alt, altColor, imagesOff) {
+    return '<img src="' + (imagesOff ? '' : src) + '" width="' + w + '" height="' + h + '" alt="' + esc(alt) + '" ' +
+      'style="display:block;border:0;outline:none;width:' + w + 'px;max-width:100%;height:auto;font-family:' + SERIF + ';font-size:24px;line-height:30px;font-weight:600;color:' + altColor + ';">';
+  }
+
+  // Contact lines for the footer. c = text color, l = link color.
+  function contactLines(c, l, align) {
+    var a = 'style="color:' + l + ';text-decoration:underline;"';
+    return '<p style="margin:0 0 6px;font-family:' + SANS + ';font-size:14px;line-height:21px;color:' + c + ';text-align:' + align + ';">' +
+      '<a href="mailto:' + CONTACT.email + '" ' + a + '>' + CONTACT.email + '</a> &nbsp;&middot;&nbsp; <a href="tel:' + CONTACT.tel + '" ' + a + '>' + CONTACT.phone + '</a></p>' +
+      '<p style="margin:0 0 12px;font-family:' + SANS + ';font-size:14px;line-height:21px;color:' + c + ';text-align:' + align + ';">' +
+      '<a href="' + CONTACT.facebook + '" ' + a + '>Facebook</a> &nbsp;&middot;&nbsp; <a href="' + CONTACT.instagram + '" ' + a + '>Instagram</a></p>';
+  }
+
+  // The footer differs by kind. Portal emails say they are automatic. The list email carries the
+  // mailing address (still to come), the reason line and the unsubscribe link from renderCampaign.
+  function footerText(e, c, l, align) {
+    var s = 'margin:0 0 6px;font-family:' + SANS + ';font-size:14px;line-height:21px;color:' + c + ';text-align:' + align + ';';
+    var out = '<p style="' + s + 'font-weight:700;">Puppy Connection</p>';
+    if (e.transactional) {
+      out += '<p style="' + s + 'margin-bottom:12px;">This is an automatic message from the breeder portal.</p>';
+      out += contactLines(c, l, align);
+    } else {
+      out += '<p style="' + s + 'margin-bottom:12px;"><span style="display:inline-block;padding:2px 8px;background:#fdf0c8;color:#7a2e1f;border:1px dashed #7a2e1f;border-radius:4px;font-weight:700;">Postal address to come</span></p>';
+      out += contactLines(c, l, align);
+      out += '<p style="' + s + 'margin-bottom:0;">' + esc(e.why) + ' To stop getting them, <a href="' + esc(e.unsub) + '" style="color:' + l + ';text-decoration:underline;">unsubscribe here</a>.</p>';
+    }
+    return out;
+  }
+
+  // ---------- Direction A: clean and quiet ----------
+  function dirA(e, off) {
+    var page = '#f5f2ea', card = '#ffffff', ink = '#262626', body = '#414141', muted = '#6f6a60', accent = '#7c6b40';
+    var h = head(e.subject, page) + preheader(e.preheader) +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="' + page + '" style="background:' + page + ';"><tr><td class="outer" align="center" style="padding:32px 12px;">' +
+      '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">' +
+      '<tr><td bgcolor="' + card + '" style="background:' + card + ';border:1px solid #e2ddd1;border-radius:4px;">' +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">' +
+      '<tr><td class="pad" align="center" style="padding:40px 48px 8px;">' + logo(LOGO_DARK, 180, 94, 'Puppy Connection', ink, off) + '</td></tr>' +
+      '<tr><td class="pad" style="padding:28px 48px 8px;">' +
+      '<h1 class="h1" style="margin:0 0 20px;font-family:' + SERIF + ';font-size:28px;line-height:36px;font-weight:600;color:' + ink + ';">' + esc(e.heading) + '</h1>' +
+      e.before.map(function (t) { return para(t, body); }).join('') +
+      '</td></tr>' +
+      '<tr><td class="pad" style="padding:8px 48px 26px;">' + button(e.button, e.link, accent, '#ffffff') + '</td></tr>' +
+      '<tr><td class="pad" style="padding:0 48px 16px;">' + e.after.map(function (t) { return para(t, body); }).join('') + fallback(e.link, muted, accent) + '</td></tr>' +
+      '<tr><td class="pad" style="padding:0 48px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e2ddd1;font-size:0;line-height:0;height:1px;">&nbsp;</td></tr></table></td></tr>' +
+      '<tr><td class="pad" style="padding:22px 48px 36px;">' + footerText(e, muted, accent, 'left') + '</td></tr>' +
+      '</table></td></tr></table></td></tr></table></body></html>';
+    return h;
+  }
+
+  // ---------- Direction B: warm brand band ----------
+  function dirB(e, off) {
+    var band = '#262626', gold = '#f7d57f', cream = '#f5f2ea', ink = '#262626', body = '#414141', muted = '#6f6a60', olive = '#7c6b40', creamText = '#e6deca';
+    var h = head(e.subject, band) + preheader(e.preheader) +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="' + band + '" style="background:' + band + ';"><tr><td class="outer" align="center" style="padding:0;">' +
+      '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">' +
+      '<tr><td align="center" bgcolor="' + band + '" style="background:' + band + ';padding:30px 24px 26px;">' + logo(LOGO_WHITE, 200, 97, 'Puppy Connection', '#ffffff', off) +
+      '<p style="margin:12px 0 0;font-family:' + SERIF + ';font-style:italic;font-size:15px;line-height:22px;color:' + creamText + ';">Connecting responsible breeders with loving families</p></td></tr>' +
+      '<tr><td bgcolor="' + gold + '" style="background:' + gold + ';height:4px;font-size:0;line-height:0;">&nbsp;</td></tr>' +
+      '<tr><td bgcolor="' + cream + '" class="pad" style="background:' + cream + ';padding:40px 48px 8px;">' +
+      '<h1 class="h1" style="margin:0 0 20px;font-family:' + SERIF + ';font-size:28px;line-height:36px;font-weight:600;color:' + ink + ';">' + esc(e.heading) + '</h1>' +
+      e.before.map(function (t) { return para(t, body); }).join('') +
+      '</td></tr>' +
+      '<tr><td bgcolor="' + cream + '" class="pad" style="background:' + cream + ';padding:8px 48px 26px;">' + button(e.button, e.link, gold, ink) + '</td></tr>' +
+      '<tr><td bgcolor="' + cream + '" class="pad" style="background:' + cream + ';padding:0 48px 30px;">' + e.after.map(function (t) { return para(t, body); }).join('') + fallback(e.link, muted, olive) + '</td></tr>' +
+      '<tr><td bgcolor="' + band + '" class="pad" style="background:' + band + ';padding:28px 48px 32px;">' + footerText(e, creamText, gold, 'center') + '</td></tr>' +
+      '</table></td></tr></table></body></html>';
+    return h;
+  }
+
+  // ---------- Direction C: personal note ----------
+  function dirC(e, off) {
+    var page = '#fcfcfc', ink = '#262626', body = '#414141', muted = '#6f6a60', olive = '#7c6b40', bronze = '#bc9b5d';
+    var h = head(e.subject, page) + preheader(e.preheader) +
+      '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="' + page + '" style="background:' + page + ';"><tr><td class="outer" align="center" style="padding:24px 12px;">' +
+      '<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="width:100%;max-width:600px;">' +
+      '<tr><td class="pad" align="left" style="padding:24px 40px 18px;">' + logo(LOGO_DARK, 112, 59, 'Puppy Connection', ink, off) + '</td></tr>' +
+      '<tr><td class="pad" style="padding:0 40px;"><table role="presentation" width="64" cellpadding="0" cellspacing="0" border="0"><tr><td bgcolor="' + bronze + '" style="background:' + bronze + ';height:3px;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>' +
+      '<tr><td class="pad" style="padding:26px 40px 4px;">' +
+      '<p class="h1" style="margin:0 0 18px;font-family:' + SERIF + ';font-style:italic;font-size:24px;line-height:32px;color:' + ink + ';">' + esc(e.opener) + '</p>' +
+      e.before.map(function (t) { return para(t, body); }).join('') +
+      '</td></tr>' +
+      '<tr><td class="pad" style="padding:8px 40px 26px;">' + button(e.button, e.link, ink, '#ffffff') + '</td></tr>' +
+      '<tr><td class="pad" style="padding:0 40px 8px;">' + e.after.map(function (t) { return para(t, body); }).join('') +
+      '<p style="margin:6px 0 24px;font-family:' + SERIF + ';font-style:italic;font-size:19px;line-height:27px;color:' + ink + ';">Amber and the Puppy Connection team</p>' +
+      fallback(e.link, muted, olive) + '</td></tr>' +
+      '<tr><td class="pad" style="padding:0 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #e2ddd1;font-size:0;line-height:0;height:1px;">&nbsp;</td></tr></table></td></tr>' +
+      '<tr><td class="pad" style="padding:20px 40px 32px;">' + footerText(e, muted, olive, 'left') + '</td></tr>' +
+      '</table></td></tr></table></body></html>';
+    return h;
+  }
+
+  var BUILD = { A: dirA, B: dirB, C: dirC };
+
+  // ---------- render the preview frames ----------
+  function fit(frame) {
+    try {
+      var d = frame.contentDocument;
+      if (d && d.documentElement) frame.style.height = Math.ceil(d.documentElement.scrollHeight) + 'px';
+    } catch (err) { /* same origin srcdoc, so this should not happen */ }
+  }
+
+  function renderAll() {
+    var off = document.getElementById('imgoff').checked;
+    var blocks = document.querySelectorAll('.email-block');
+    Array.prototype.forEach.call(blocks, function (b) {
+      var e = EMAILS[b.getAttribute('data-kind')];
+      var html = BUILD[b.getAttribute('data-dir')](e, off);
+      if (!b.firstChild) {
+        b.innerHTML = '<h3></h3><p class="subject"></p><div class="frames">' +
+          '<div class="frame desk"><div class="frame-cap">Desktop, 600px email</div><iframe></iframe></div>' +
+          '<div class="frame phone"><div class="frame-cap">Phone, 375px</div><iframe></iframe></div></div>';
+        b.querySelector('h3').textContent = e.label;
+        b.querySelector('.subject').textContent = 'Subject: ' + e.subject;
+      }
+      Array.prototype.forEach.call(b.querySelectorAll('iframe'), function (f) {
+        f.title = 'Direction ' + b.getAttribute('data-dir') + ', ' + e.label + ', ' + (f.closest('.phone') ? 'phone' : 'desktop');
+        f.onload = function () { fit(f); setTimeout(function () { fit(f); }, 400); };
+        f.srcdoc = html;
+      });
+    });
+  }
+
+  // ---------- contrast table ----------
+  var PAIRS = [
+    ['#262626', '#ffffff', 'A heading and logo alt text on the white card'],
+    ['#414141', '#ffffff', 'A body text'],
+    ['#6f6a60', '#ffffff', 'A footer and fallback-link line'],
+    ['#7c6b40', '#ffffff', 'A links on the white card'],
+    ['#ffffff', '#7c6b40', 'A button text on the olive button'],
+    ['#262626', '#f5f2ea', 'B heading on the cream body'],
+    ['#414141', '#f5f2ea', 'B body text'],
+    ['#6f6a60', '#f5f2ea', 'B fallback-link line'],
+    ['#7c6b40', '#f5f2ea', 'B fallback link'],
+    ['#262626', '#f7d57f', 'B button text on the gold button'],
+    ['#ffffff', '#262626', 'B logo alt text with images off on the charcoal band, and C button text'],
+    ['#e6deca', '#262626', 'B tagline and footer text on charcoal'],
+    ['#f7d57f', '#262626', 'B footer links on charcoal'],
+    ['#262626', '#fcfcfc', 'C opening line, signature and logo alt text'],
+    ['#414141', '#fcfcfc', 'C body text'],
+    ['#6f6a60', '#fcfcfc', 'C footer and fallback-link line'],
+    ['#7c6b40', '#fcfcfc', 'C links'],
+    ['#7a2e1f', '#fdf0c8', 'All three, the "Postal address to come" placeholder']
+  ];
+
+  function lum(hex) {
+    var c = [1, 3, 5].map(function (i) { var v = parseInt(hex.substr(i, 2), 16) / 255; return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+    return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+  }
+  function ratio(a, b) { var x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); }
+
+  var tb = document.querySelector('#pairs tbody');
+  PAIRS.forEach(function (p) {
+    var r = ratio(p[0], p[1]);
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td><span class="sw" style="color:' + p[0] + ';background:' + p[1] + '">' + p[0] + '</span></td>' +
+      '<td><code>' + p[1] + '</code></td><td class="where">' + esc(p[2]) + '</td>' +
+      '<td>' + r.toFixed(2) + ' to 1</td><td class="' + (r >= 4.5 ? 'pass">Pass' : 'fail">Fail') + '</td>';
+    tb.appendChild(tr);
+  });
+
+  document.getElementById('imgoff').addEventListener('change', renderAll);
+  renderAll();
+})();
+</script>
+</body>
+</html>

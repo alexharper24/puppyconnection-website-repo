@@ -15,7 +15,7 @@
 
 const SITE = 'Puppy Connection';
 const TAGLINE = 'Connecting responsible breeders with loving families';
-const SIGNATURE = 'Amber and the Puppy Connection team';
+const SIGNATURE = 'The Puppy Connection team';
 const AUTOMATIC = 'This is an automatic message from the breeder portal.';
 // The signOff() lib/mail.js appends to every text part. The HTML shows it in the footer instead.
 const TEXT_SIGNOFF = `\n\n${SITE}\n${AUTOMATIC}`;

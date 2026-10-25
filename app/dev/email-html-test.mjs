@@ -61,7 +61,9 @@ const DATA = {
 // The text parts as origin/main has them, from a copy of its lib/mail.js.
 async function mainTemplates() {
   const src = execFileSync('git', ['show', `${BASE}:app/lib/mail.js`], { cwd: APP }).toString()
-    .replace("from './util.js'", `from '${pathToFileURL(path.join(APP, 'lib/util.js')).href}'`);
+    .replace("from './util.js'", `from '${pathToFileURL(path.join(APP, 'lib/util.js')).href}'`)
+    // Since the HTML layout merged, main's mail.js imports it too, so point that at this copy's file.
+    .replace("from './email-html.js'", `from '${pathToFileURL(path.join(APP, 'lib/email-html.js')).href}'`);
   const tmp = path.join(os.tmpdir(), `pc-mail-main-${process.pid}.mjs`);
   fs.writeFileSync(tmp, src);
   try { return (await import(pathToFileURL(tmp).href)).TEMPLATES; } finally { fs.rmSync(tmp, { force: true }); }
@@ -70,7 +72,7 @@ async function mainTemplates() {
 const DASHES = /[–—]/;
 const NO_PLACEHOLDER = (h) => !/postal address|address to come|mailing address not set/i.test(h) && !h.includes(ADDRESS_NOT_SET);
 const OPENER_STYLE = 'font-style:italic;font-size:21px';
-const SIGNATURE = 'Amber and the Puppy Connection team';
+const SIGNATURE = 'The Puppy Connection team';
 
 function common(name, html) {
   check(`${name}: logo from the site by its full https address`, html.includes(`<img src="${esc(LOGO)}"`) && LOGO.startsWith('https://') && LOGO.endsWith('/img/brand/logo-white.png'));
@@ -124,7 +126,7 @@ const SAMPLE = {
   subject: 'Puppy Connection has a new website',
   body: 'Hi friends, we have some happy news to share.\n\nPuppy Connection has a brand new website, and we would love for you to take a look.\n\n'
     + 'Visit the new site:\nhttps://www.puppy-connection.com/\n\nYou can browse puppies from the breeders we work with and get in touch with a breeder about a puppy you love.\n\n'
-    + 'Thank you for being part of the Puppy Connection family.\n\nAmber and the Puppy Connection team',
+    + 'Thank you for being part of the Puppy Connection family.\n\nThe Puppy Connection team',
 };
 // A made-up address for the checks only. The sample file below is rendered with none set.
 const ADDR = 'PO Box 100\nTest Town, IN 00000';

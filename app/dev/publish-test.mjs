@@ -43,8 +43,8 @@ import { fetchData } from '../build/fetch-data.mjs';
 
 const GH = 'http://localhost:8798';
 const PORTAL = process.env.PORTAL || 'http://localhost:8787', ADMIN2 = 'http://localhost:8794', STATIC = 'http://localhost:8795';
-const WRANGLER = path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
-const CHECK_SITE = path.resolve(APP, '../../site-checks/check_site.py');
+const WRANGLER = process.env.WRANGLER_JS || path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
+const CHECK_SITE = process.env.CHECK_SITE || path.resolve(APP, '../../site-checks/check_site.py');
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-publish-'));
 let fails = 0;
 function check(name, ok, detail) { console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${!ok && detail ? `\n      ${detail}` : ''}`); if (!ok) fails += 1; }
@@ -318,7 +318,14 @@ async function part1() {
   const info = Object.fromEntries(['about', 'how-it-works', 'tips-on-buying-a-puppy', 'reviews', 'contact'].map((f) => [f, fs.existsSync(path.join(out, `${f}.html`)) ? fs.readFileSync(path.join(out, `${f}.html`), 'utf8') : '']));
   check('the five site pages are built, each with one h1 and the footer linking all five', Object.values(info).every((s) => (s.match(/<h1>/g) || []).length === 1 && s.includes('href="tips-on-buying-a-puppy.html"') && s.includes('href="contact.html"')) && sm.includes('how-it-works.html'));
   check('How it works says the directory does not sell puppies, and no longer says it takes no deposits or payments', info['how-it-works'].includes('Puppy Connection does not sell puppies.') && !/take deposits|handle payment/.test(info['how-it-works']));
-  check('what only Amber can say is a visible REPLACE THIS on About, Reviews and Contact', ['about', 'reviews', 'contact'].every((f) => info[f].includes('class="replace-this"')));
+  // Workplan D4 and A15 (Amber, 2026-10-25): About opens with her two paragraphs, the dash joining
+  // two clauses a full stop, and Contact carries her email, phone and social links.
+  check("About opens with Amber's own words and Contact carries her details, with no REPLACE THIS left on either",
+    info.about.includes('<p>We started Puppy Connection in 2013 with a simple belief: finding a puppy should be about more than a transaction. It should be the beginning of a lifelong connection.')
+      && info.about.includes('prioritize health and temperament, and take pride') && info.about.includes('who will love them for a lifetime.</p>') && !info.about.includes('transaction —')
+      && info.contact.includes('href="mailto:info@puppy-connection.com"') && info.contact.includes('href="tel:+15742210326"') && info.contact.includes('(574) 221-0326')
+      && info.contact.includes('href="https://www.facebook.com/puppyconnectionUSA"') && info.contact.includes('href="https://www.instagram.com/puppy_connection_in/"')
+      && !['about', 'contact'].some((f) => info[f].includes('REPLACE THIS')));
   check('every generated page carries the mailing list sign-up, posting to the portal, with its honeypot', [hav, hub, info.about].every((x) => /<form class="foot-signup" method="post" action="[^"]+\/subscribe">/.test(x) && x.includes('name="website"')));
   check('a generated page footer links the site pages too', fs.readFileSync(path.join(out, 'breed-havanese.html'), 'utf8').includes('href="about.html"'));
   // Breed guide pages (build/guides.mjs), from dev/fixtures/guides: one published, one draft.

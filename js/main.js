@@ -928,7 +928,7 @@
    still goes to its breeder, whose details stay on the puppy and breeder pages.
 
    Puppy Connection's phone, email and social links go in CONTACT below, the one place they
-   live. Until Amber sends them each shows a visible REPLACE THIS (README pending list).
+   live (Amber, 2026-10-25). An empty value shows a visible REPLACE THIS.
 
    The button hides while the phone menu is open, because the menu covers the page and a button
    floating over it lands on the menu's last link. */
@@ -937,9 +937,9 @@
   if (document.querySelector('.chat-fab')) return;
 
   var CONTACT = {
-    phone: '',     // REPLACE THIS with Puppy Connection's phone, for example '(574) 555-0100'
-    email: '',     // REPLACE THIS with Puppy Connection's email address
-    social: []     // REPLACE THIS with [['Facebook', 'https://...'], ['Instagram', 'https://...']]
+    phone: '(574) 221-0326',
+    email: 'info@puppy-connection.com',
+    social: [['Facebook', 'https://www.facebook.com/puppyconnectionUSA'], ['Instagram', 'https://www.instagram.com/puppy_connection_in/']]
   };
 
   function esc(t) {

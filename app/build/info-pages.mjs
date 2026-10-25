@@ -1,15 +1,18 @@
 // The site's own information pages, carried over from the Wix site (SEO plan P10) and rewritten
 // where the old wording described Puppy Connection selling puppies itself. The directory lists
-// puppies; breeders sell them. Anything only Amber can say is a visible REPLACE THIS, listed in
-// the README's pending list, so the page cannot launch with a guess in it.
+// puppies; breeders sell them. Anything only Amber can say goes in as a visible placeholder span
+// (class replace-this), listed in the README's pending list, so the page cannot launch with a guess
+// in it. None is left since her answers of 2026-10-25.
+//
+// About opens with Amber's own two paragraphs (2026-10-25, hs-proposals/puppyconnection/
+// 2026-10-25-amber-answers-launch-asks.md), kept as she wrote them except that the dash joining
+// two clauses became a full stop. Contact carries her email, phone and social links of the same day.
 //
 // Sources, in _harvest/copy/: about-puppy-connection.txt (facts kept: northern Indiana and the
 // experience Amber publishes), tips-on-buying-a-puppy.txt (carried over almost as written),
 // reviews.txt (the three reviews as published). the-puppy-connection-process.txt described
 // visits, deposits and delivery arranged by Puppy Connection, so How it works is written new
 // from how the directory works. Transportation is written new around Furry Freight (launch item A7).
-
-const replace = (what) => `<span class="replace-this">REPLACE THIS: ${what}</span>`;
 
 export const INFO_PAGES = [
   {
@@ -20,9 +23,10 @@ export const INFO_PAGES = [
 <p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
 <div class="prose">
-<p>Puppy Connection started in northern Indiana, built on many years of experience in showing, breeding, grooming, photographing and studying dogs, including teaching courses in grooming, breeding, conformation and genetics.</p>
+<p>We started Puppy Connection in 2013 with a simple belief: finding a puppy should be about more than a transaction. It should be the beginning of a lifelong connection. We wanted to create a place where families could discover wonderful puppies while helping small, family-owned breeders share the care, time, and love they pour into raising them.</p>
+<p>We look for breeders who genuinely love their dogs, prioritize health and temperament, and take pride in raising puppies that are well-prepared for loving homes. We value breeders who continually learn, work with their veterinarians, and give their puppies the care, socialization, and attention they need to become wonderful companions. Above all, we want to work with people who see their dogs as family and share our heart for connecting those puppies with families who will love them for a lifetime.</p>
+<p>Puppy Connection is based in northern Indiana and built on many years of experience in showing, breeding, grooming, photographing and studying dogs, including teaching courses in grooming, breeding, conformation and genetics.</p>
 <p>Today it is a directory. Small family breeders list their own puppies here, each with photos, a price, birth and go-home dates and what comes home with the puppy, and families contact the breeder directly. Every breeder is approved by Puppy Connection before their first puppy goes up.</p>
-<p>${replace('a few sentences from Amber on why she started Puppy Connection and what she looks for in a breeder.')}</p>
 <h2>What we ask of the breeders who list here</h2>
 <ul class="includes" style="columns:1">
 <li>Health testing information where they have it</li>
@@ -158,8 +162,10 @@ export const INFO_PAGES = [
 <div class="prose">
 <h2>Listing your puppies, or a question about the directory</h2>
 <ul class="contact-list">
-<li><b>Email</b> ${replace("Puppy Connection's email address")}</li>
-<li><b>Phone or text</b> ${replace("Puppy Connection's phone number, if Amber wants one shown")}</li>
+<li><a href="mailto:info@puppy-connection.com"><b>Email</b> info@puppy-connection.com</a></li>
+<li><a href="tel:+15742210326"><b>Call or text</b> (574) 221-0326</a></li>
+<li><a href="https://www.facebook.com/puppyconnectionUSA" target="_blank" rel="noopener"><b>Facebook</b> puppyconnectionUSA</a></li>
+<li><a href="https://www.instagram.com/puppy_connection_in/" target="_blank" rel="noopener"><b>Instagram</b> @puppy_connection_in</a></li>
 </ul>
 <p>Breeders who already list can sign in to the <a href="https://portal.puppyconnection.workers.dev/">breeder portal</a> to change a listing, see their views and clicks, or pay to list.</p>
 </div>

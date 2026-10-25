@@ -8,7 +8,7 @@
 
 import { now, ulid, clean, esc } from './util.js';
 import { auditStmt } from './store.js';
-import { sendMail } from './mail.js';
+import { sendMail, noticeTo } from './mail.js';
 
 export const REPORT_REASONS = [
   ['misleading', 'The details are wrong or misleading'],
@@ -57,7 +57,7 @@ ${siteKey ? `<div class="cf-turnstile" data-sitekey="${esc(siteKey)}" data-actio
 <p class="hint">Puppy Connection does not sell puppies. If you paid a breeder and something went wrong, contact the breeder and your bank as well.</p>`;
 }
 
-/** Checks and stores one report, and emails the owners. Returns { ok, error }. */
+/** Checks and stores one report, and emails NOTICE_TO, or the owners when it is unset (B9). Returns { ok, error }. */
 export async function saveReport(env, ctx, target, form) {
   const reason = String(form.get('reason') || '');
   if (!REASON_LABEL[reason]) return { error: 'Choose what the problem is.' };
@@ -71,7 +71,7 @@ export async function saveReport(env, ctx, target, form) {
       .bind(id, target.breeder_id, target.puppy_id, reason, details, email, now()),
     auditStmt(env, 'system', 'report form', 'listing.report', target.puppy_id ? 'puppy' : 'breeder', target.puppy_id || target.breeder_id, null, { report: id, reason }),
   ]);
-  const owners = (await env.DB.prepare("SELECT email FROM people WHERE role = 'owner'").all()).results.map((r) => r.email);
+  const owners = await noticeTo(env, "SELECT email FROM people WHERE role = 'owner'");
   const send = Promise.all(owners.map((to) => sendMail(env, to, 'listing_report', {
     business: target.business_name, puppy: target.puppy_name, reason: REASON_LABEL[reason], details, reporter: email,
     adminUrl: `${env.ADMIN_ORIGIN || ''}/#/reports-listings`,

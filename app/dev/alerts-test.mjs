@@ -16,7 +16,8 @@
 
 import { d1, r2, freshSchema } from './node-env.mjs';
 import { scheduled, runJob } from '../lib/jobs.js';
-import { alertOnce, flushHeldAlerts, ALERT_QUIET_MS } from '../lib/mail.js';
+import { alertOnce, flushHeldAlerts, ALERT_QUIET_MS, noticeTo } from '../lib/mail.js';
+import { saveReport } from '../lib/reports.js';
 import { publishIfDue, checkBuild } from '../lib/publish.js';
 import { handleEvent } from '../lib/payments.js';
 import { startCampaign, runCampaigns, audienceCount } from '../lib/campaigns.js';
@@ -94,7 +95,7 @@ async function failureAlerts() {
   check('a failed daily job emails the owners', a.length === 3 && to(a) === WANT);
   a = await alerts(env, '%nightly backup job failed%');
   check('a failed nightly backup emails the owners with the cause', a.length === 3 && /R2 refused the write/.test(a[0].body), a[0]?.body);
-  check('the other daily jobs still ran', out.filter((r) => r.ok).map((r) => r.job).join(',') === 'inactivity,housekeeping,links', JSON.stringify(out.map((r) => [r.job, r.ok])));
+  check('the other daily jobs still ran', out.filter((r) => r.ok).map((r) => r.job).join(',') === 'inactivity,housekeeping,retention,links', JSON.stringify(out.map((r) => [r.job, r.ok])));
 
   // A failed publish: the deploy hook cannot be reached.
   env = await freshEnv({ PUBLISH_MODE: 'hook', PUBLISH_HOOK_URL: 'http://localhost:9/hook' });
@@ -225,7 +226,35 @@ async function allContacts() {
   check('an unknown audience is refused', refused);
 }
 
+// Launch workplan B9 (Amber, 2026-10-25). Business notices go to NOTICE_TO when it is set, and
+// failure alerts stay with the owners. The portal's sign-up notice is checked over HTTP in
+// launch-features-test.mjs with NOTICE_PORTAL.
+async function notices() {
+  console.log('-- business notices (B9)');
+  const INFO = 'info@puppy-connection.com';
+  const report = async (env) => {
+    await env.DB.prepare("INSERT INTO breeders (id, email, status, created_at, updated_at) VALUES ('b-report', 'kennel@breeders.test', 'approved', ?, ?)").bind(now(), now()).run();
+    const form = new URLSearchParams({ reason: 'scam', details: 'Asked for a deposit by gift card.' });
+    const r = await saveReport(env, null, { breeder_id: 'b-report', puppy_id: null, business_name: 'Report Kennel', puppy_name: null }, form);
+    return { ok: r.ok, to: to((await env.DB.prepare("SELECT to_addr FROM dev_mailbox WHERE subject LIKE 'Listing reported%' ORDER BY id").all()).results) };
+  };
+  let env = await freshEnv();
+  check('unset, a sign-up notice goes to every operator in people, as before', (await noticeTo(env, 'SELECT email FROM people')).sort().join(',') === [OWNER, OWNER2, STAFF].sort().join(','));
+  let r = await report(env);
+  check('unset, a listing report goes to the owners, as before', r.ok && r.to === [OWNER, OWNER2].sort().join(','), r.to);
+  env = await freshEnv({ NOTICE_TO: ` ${INFO} ,${INFO}` });
+  check('NOTICE_TO replaces the people table for the sign-up notice, trimmed and once', (await noticeTo(env, 'SELECT email FROM people')).join(',') === INFO);
+  r = await report(env);
+  check('NOTICE_TO receives a listing report, and no owner does', r.ok && r.to === INFO, r.to);
+  await alertOnce(env, 'job:notice-test', 'A forced failure', 'detail');
+  const a = await alerts(env, '%A forced failure%');
+  check('NOTICE_TO does not move failure alerts, which stay with the owners and OPS_EXTRA', to(a) === WANT, to(a));
+  env = await freshEnv({ NOTICE_TO: 'amber@example.test, info@example.test' });
+  check('NOTICE_TO takes a comma-separated list', (await noticeTo(env, 'SELECT email FROM people')).join(',') === 'amber@example.test,info@example.test');
+}
+
 await failureAlerts();
 await allContacts();
+await notices();
 console.log(fails ? `\n${fails} failed` : '\nall passed');
 process.exit(fails ? 1 : 0);

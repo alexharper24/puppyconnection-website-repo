@@ -229,8 +229,21 @@ async function logSend(env, to, template, id, status) {
 }
 
 /**
- * Alerts go to every owner in people, and to OPS_EXTRA (Alex) when it is set. Staff get none,
- * until Amber chooses an inbox for each notice (launch workplan, the notice inboxes item).
+ * Who gets a business notice, meaning a new breeder waiting for approval or a listing report
+ * (launch workplan B9, Amber 2026-10-25). NOTICE_TO, a comma-separated list such as
+ * info@puppy-connection.com, replaces the people table for these notices. Unset, each notice keeps
+ * its earlier recipients, which `fallback` selects from people. System alerts (alertOps) never
+ * use it and stay with the owners.
+ */
+export async function noticeTo(env, fallback) {
+  const set = String(env.NOTICE_TO || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (set.length) return [...new Set(set)];
+  return (await env.DB.prepare(fallback).all()).results.map((r) => r.email);
+}
+
+/**
+ * Alerts go to every owner in people, and to OPS_EXTRA (Alex) when it is set. Staff get none.
+ * NOTICE_TO does not change them, because a failed payment or job is for the owners (B9).
  */
 export async function alertOps(env, title, detail) {
   const { results } = await env.DB.prepare("SELECT email FROM people WHERE role = 'owner'").all();

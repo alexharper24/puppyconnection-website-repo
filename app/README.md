@@ -551,9 +551,9 @@ settings, terms and operators are not touched. The audit log and email log are k
       (workplan A24). The data does not say which nine, so the migration turns none on
 
 - [ ] Puppy Connection's own phone number, email address and social links for the Let's Chat
-      button on every site page (workplan A15). Each shows a visible REPLACE THIS until Amber sends
-      them. They go in `CONTACT` at the top of the Let's Chat block at the end of `js/main.js`, the
-      one place they live, then the site's `?v=` is bumped and the site repository synced
+      button and the Contact page (workplan A15). Amber sent them on 2026-10-25 and they are in
+      `CONTACT` at the end of `js/main.js` (`?v=41`) and in `build/info-pages.mjs`. Open until the
+      site repository is synced and the staging site shows them
 
 - [ ] Cloudflare Stream for puppy videos, on hold until Amber wants video and commits to its cost
       (Alex, 2026-10-17). It is $5 a month for 1,000 minutes stored on either plan, and the Starter
@@ -577,8 +577,15 @@ settings, terms and operators are not touched. The audit log and email log are k
 - [ ] Look at every screen at full size. Screenshots timed out in the browser pane during
       the 2026-09-30 build, so the layouts are measured (no sideways overflow at 320 and 375 in the portal and at 320 in the admin)
       but have not been looked at
-- [ ] Listing terms text from Amber. It goes in on the admin's Terms screen, replacing the
-      REPLACE THIS draft, and Publish shows it on `/terms` and in the profile submit card
+- [ ] Publishing Amber's listing terms (workplan D2). Her text of 2026-10-25 is the draft on the
+      admin's Terms screen (migrations/0058, and `schema.sql` for a new database). Publish shows it
+      on `/terms` and in the profile submit card, and asks every breeder who submitted a profile to
+      accept it on their next visit, so Amber or Alex chooses when. Her agreement names a "Terms of
+      Service" the site does not have yet
+- [ ] `NOTICE_TO` (workplan B9) sends new sign-ups waiting for approval and listing reports to
+      info@puppy-connection.com on staging (`wrangler.hosted.jsonc`). Failure alerts stay with the
+      owners and `OPS_EXTRA`. Unset, sign-ups go to every operator in `people` and reports to the
+      owners. Set it on the production portal too
 - [ ] Amber's confirmation of the privacy policy at `/privacy` (`portal/legal.js`), written on
       2026-10-24 to Alex's retention decisions with info@puppy-connection.com as the contact
       address. When she confirms, remove the "Waiting for Amber's confirmation" banner and turn

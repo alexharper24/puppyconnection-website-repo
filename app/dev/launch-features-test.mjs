@@ -1,7 +1,8 @@
 // The launch additions in docs/launch-workplan.md, against the running local Workers.
 //
 //   node app/dev/launch-features-test.mjs            every part
-//   node app/dev/launch-features-test.mjs details    one part (details, reports, photos, placed, inactivity, reference, photohold, approval, counts, visit, wixtext)
+//   node app/dev/launch-features-test.mjs details    one part (details, reports, photos, placed, inactivity, reference, photohold, approval, counts, visit, wixtext, notices)
+//   NOTICE_PORTAL=http://localhost:8781 ...           also checks B9 against a second portal started with --var NOTICE_TO:info@puppy-connection.com
 //
 // Needs pc-portal on 8787 and pc-admin on 8788 on current code, started from app/.state after
 // node app/dev/setup.mjs --reset, with the stand-in Stream (STREAM_MODE=sim in .dev.vars).
@@ -612,7 +613,38 @@ async function wixtext() {
   check("A10 Dixon keeps the breeder's prose, with the color and the parents' weights in their fields", d && /^Introducing a beautiful litter of Poodle puppies/.test(d.description) && d.color === 'black with white markings' && d.mom_weight_lb === 8 && d.dad_weight_lb === 6, JSON.stringify(d));
 }
 
-const PARTS = { details, reports, photos, placed, inactivity, reference, photohold, approval, counts, visit, wixtext };
+// ---------------------------------------------------------------- B9 business notices to NOTICE_TO
+// The default local portal has no NOTICE_TO, so a sign-up still reaches every operator. With
+// NOTICE_PORTAL set to a second local portal started with --var NOTICE_TO:info@puppy-connection.com
+// on the same app/.state, the sign-up notice and a listing report go to that address only.
+async function notices() {
+  const box = async (to, subject) => ((await new Client(PORTAL).get(`/dev/mail.json?to=${encodeURIComponent(to)}`)).data || []).filter((m) => subject.test(m.subject));
+  const A = await breeder('notice-default', false);
+  const plain = new RegExp(`^New breeder waiting for approval: ${A.name}$`);
+  check('B9 without NOTICE_TO a new sign-up still emails the operators in people', (await box('amber@puppyconnection.test', plain)).length === 1 && (await box('info@puppy-connection.com', plain)).length === 0);
+  const NP = process.env.NOTICE_PORTAL;
+  if (!NP) { console.log('SKIP  B9 with NOTICE_TO: set NOTICE_PORTAL to a portal started with --var NOTICE_TO:info@puppy-connection.com'); return; }
+  const stamp = `notice-${Date.now().toString(36)}`;
+  const email = `launch-${stamp}@breeders.test`;
+  const name = `Launch Kennel ${stamp}`;
+  const c = new Client(NP);
+  await call(c, 'POST', '/auth/signup', { email, business_name: name });
+  await usePasswordLink(c, await mailLink(email));
+  const me = (await c.get('/api/me')).data;
+  await c.put('/api/profile', { version: me.profile.version, business_name: name, public_phone: '555-0103', city: 'Goshen', state: 'IN' });
+  const r = await c.post('/api/profile/submit', { accept_terms: true, reference: { name: 'Dr. Sam Example', role: 'vet', contact: '(260) 555-0199' } });
+  const subj = new RegExp(`^New breeder waiting for approval: ${name}$`);
+  check('B9 with NOTICE_TO a new sign-up emails info@puppy-connection.com and no operator', r.status === 200 && (await box('info@puppy-connection.com', subj)).length === 1
+    && (await box('amber@puppyconnection.test', subj)).length === 0, JSON.stringify(sql(`SELECT to_addr FROM email_log WHERE template = 'profile_submitted' ORDER BY id DESC LIMIT 3`)));
+  await admin.post(`/api/breeders/${me.id}/approve`, {});
+  const bslug = (await admin.get(`/api/breeders/${me.id}`)).data.breeder.slug;
+  const rep = await fetch(`${NP}/report`, { method: 'POST', headers: { origin: NP, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ breeder: bslug, reason: 'other', details: `Notice test ${stamp}` }), redirect: 'manual' });
+  const rsub = new RegExp(`^Listing reported: .*${name}`);
+  check('B9 with NOTICE_TO a listing report emails info@puppy-connection.com and no owner', rep.status === 200 && (await box('info@puppy-connection.com', rsub)).length === 1
+    && (await box('amber@puppyconnection.test', rsub)).length === 0, `${rep.status} ${JSON.stringify(sql("SELECT to_addr, template FROM email_log WHERE template = 'listing_report' ORDER BY id DESC LIMIT 3"))}`);
+}
+
+const PARTS = { details, reports, photos, placed, inactivity, reference, photohold, approval, counts, visit, wixtext, notices };
 
 async function main() {
   const only = process.argv[2];

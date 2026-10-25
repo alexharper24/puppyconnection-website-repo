@@ -6,12 +6,18 @@
 //       also checks a second local portal started with --var DEV_MODE:staging
 //
 // Part 1 reads the DEV_MODE rules straight from lib/util.js and admin/identity.js. Part 2 checks
-// the legal pages and the notices on the running local portal and admin. Part 3, when
+// the legal pages and the notices on the running local portal and admin. Part 1b checks migration
+// 0058 (Amber's terms as the draft) on node:sqlite and the terms renderer, with no server. Part 3, when
 // STAGING_PORTAL is set, checks that a staging portal shows no test notices but keeps the
 // mailbox, scoped to each browser, while EMAIL_MODE is log.
 
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { DatabaseSync } from 'node:sqlite';
 import { showTestNotices, isOpenHosted, isLocal } from '../lib/util.js';
 import { identify } from '../admin/identity.js';
+import { termsHtml } from '../portal/legal.js';
 
 const PORTAL = process.env.PORTAL || 'http://localhost:8787';
 const ADMIN = process.env.ADMIN || 'http://localhost:8788';
@@ -36,6 +42,62 @@ function check(label, ok, detail) {
   const stand = await identify(new Request('http://localhost:8788/api/stats'),
     { DEV_MODE: 'staging', DEV_IDENTITY: 'amber@puppyconnection.test', ACCESS_TEAM_DOMAIN: 'PASTE_TEAM_DOMAIN', ACCESS_AUD: 'PASTE_APPLICATION_AUD', DB: null });
   check('staging has no operator stand-in, even on localhost with DEV_IDENTITY set', !stand.ok && stand.status === 403, stand.reason);
+}
+
+// ---------------------------------------------------------------- part 1b, Amber's terms draft (migration 0058, workplan D2)
+{
+  const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const schema = fs.readFileSync(path.join(APP, 'schema.sql'), 'utf8');
+  const mig = fs.readFileSync(path.join(APP, 'migrations/0058_amber_listing_terms_draft.sql'), 'utf8');
+  const fresh = () => { const db = new DatabaseSync(':memory:'); db.exec(schema); return db; };
+  const draftOf = (db) => db.prepare("SELECT body, updated_by FROM terms_versions WHERE version = 'draft'").get();
+  const audits = (db) => db.prepare("SELECT COUNT(*) AS n FROM audit_log WHERE action = 'terms.draft' AND after_json LIKE '%0058%'").get().n;
+  const seedBody = draftOf(fresh()).body;
+  check("a new database starts with Amber's terms as the draft, with the PC sentence spelled out and her photo standard kept",
+    seedBody.startsWith('1. Essential breeder listing terms\n1. Accurate and honest listings\n') && seedBody.includes('because Puppy Connection connects buyers and breeders')
+      && !/\bPC\b/.test(seedBody) && seedBody.includes('\n\nPhoto standard. Photos must be high quality') && seedBody.endsWith('a useful, welcoming place for breeders and families to connect.')
+      && !/[—–]/.test(seedBody) && !/REPLACE THIS/.test(seedBody), seedBody.slice(0, 120));
+  // Staging today: the placeholder published, and the placeholder with the photo standard as the draft (migration 0032).
+  const db = fresh();
+  const old = "REPLACE THIS: the listing terms, in Amber's own words (build spec section 14). Nothing has been written here on her behalf.\n\nPhoto standard. Photos must be high quality, not blurry, and show the puppy clearly with no signs of illness or distress. A listing that falls short can be taken offline by Puppy Connection until proper photos are uploaded.";
+  db.prepare("UPDATE terms_versions SET body = ?, updated_by = 'setup' WHERE version = 'draft'").run(old);
+  const before = db.prepare("SELECT version, body, published_at FROM terms_versions WHERE version != 'draft' ORDER BY version").all();
+  const setting = () => db.prepare("SELECT value FROM settings WHERE key = 'terms_version'").get().value;
+  const v0 = setting();
+  db.exec(mig);
+  const once = draftOf(db);
+  db.exec(mig);
+  check('migration 0058 writes the same draft as schema.sql over the staging placeholder, with one audit row, and a second run changes nothing',
+    once.body === seedBody && once.updated_by === 'migration 0058' && draftOf(db).body === seedBody && audits(db) === 1, `${audits(db)} audit rows`);
+  check('migration 0058 publishes nothing: the published versions and settings.terms_version are as they were',
+    JSON.stringify(db.prepare("SELECT version, body, published_at FROM terms_versions WHERE version != 'draft' ORDER BY version").all()) === JSON.stringify(before) && setting() === v0);
+  const edited = fresh();
+  edited.prepare("UPDATE terms_versions SET body = 'Terms someone wrote on the Terms screen.', updated_by = 'amber@example.test' WHERE version = 'draft'").run();
+  edited.exec(mig);
+  check('migration 0058 leaves a draft someone already wrote alone', draftOf(edited).body === 'Terms someone wrote on the Terms screen.' && audits(edited) === 0);
+  const none = fresh();
+  none.exec("DELETE FROM terms_versions WHERE version = 'draft'");
+  none.exec(mig);
+  check('migration 0058 makes the draft on a database that has none', draftOf(none)?.body === seedBody && audits(none) === 1);
+  // The renderer: her numbered lines are headings, "* " lines are lists, the rest paragraphs, all escaped.
+  const h = termsHtml(seedBody);
+  const h2 = h.match(/<h2>[^<]*<\/h2>/g) || [];
+  check("Amber's terms render with her nine headings, two lists of seven, and paragraphs",
+    h2.length === 9 && h2[0] === '<h2>1. Essential breeder listing terms</h2>' && h2[7] === '<h2>2. Protecting Puppy Connection</h2>' && h2[8] === '<h2>Puppy Connection Breeder Listing Agreement</h2>'
+      && (h.match(/<ul>/g) || []).length === 2 && (h.match(/<li>/g) || []).length === 14 && h.includes('<p>By submitting a puppy listing to Puppy Connection, I confirm that:</p>')
+      && h.includes('<li>No guarantee of a transaction: A listing on Puppy Connection does not guarantee a puppy&#39;s health'), h.slice(0, 300));
+  check('the renderer still escapes, still marks REPLACE THIS, and keeps a plain paragraph as before',
+    termsHtml('REPLACE THIS: x <b>') === '<p class="replace-block"><b>REPLACE THIS:</b> x &lt;b&gt;</p>'
+      && termsHtml('Line one is a sentence.\nLine two is too.') === '<p>Line one is a sentence.<br>Line two is too.</p>'
+      && termsHtml('* <script>') === '<ul><li>&lt;script&gt;</li></ul>');
+  // The portal and the admin draw the terms in the browser with the same rule.
+  for (const [name, file] of [['portal', 'portal/public/portal.js'], ['admin', 'admin/public/admin.js']]) {
+    const src = fs.readFileSync(path.join(APP, file), 'utf8');
+    const fn = src.slice(src.indexOf('function termsParas(body)'), src.indexOf('\n  }', src.indexOf('function termsParas(body)')) + 4);
+    const esc = (t) => String(t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    const termsParas = new Function('esc', `${fn}; return termsParas;`)(esc);
+    check(`the ${name} draws Amber's terms the same way as the /terms page`, termsParas(seedBody) === termsHtml(seedBody).replace(/\n/g, ''));
+  }
 }
 
 // ---------------------------------------------------------------- part 2, the local portal and admin

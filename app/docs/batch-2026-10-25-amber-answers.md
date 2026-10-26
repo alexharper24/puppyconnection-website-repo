@@ -21,6 +21,8 @@ tasks:
   - {id: t8-checklist, status: done, evidence: "Migration 0059 after backup staging-2026-10-25-pre0059.sql: 15 parts ticked, C1 and B7 done and closed in the workplan, the mailing-list address now waits on Amber's PO box; checklist export shows 0 drift", item: "Tick what Amber answered on the admin checklist and update the workplan"}
   - {id: t9-followups, status: done, evidence: "Alex 2026-10-25: terms published as version 2026-10-25 with 'Terms of Service' read as the listing terms (portal /terms shows them, no draft flag); account closing requests go to NOTICE_TO through noticeOps (portal 1d8b0629, checked by script: info@ when set, owners when unset); archived listings forward to their breed page through gonePuppies, live on staging for Brady (page and Wix address) and Remy (commit 8e7d6a2). Password reset links stay 1 hour and invitations 7 days; both work for many clicks until a password is saved", item: "Publish the terms, send closing requests to info@, forward archived listings"}
 waiting:
+  - "Invitations at launch: Teapup to pups@teapup.com (Alex, 2026-10-25); the RDB kennels to administrator@responsibledogbreeder.com through the multi-kennel sign-in (Alex chose it 2026-10-25), once Amber sends the exact list of kennels that switch"
+  - "Amber's photos: 10 originals in _harvest/img/amber-photos (ignored by git); placement sheet placement.html there; only 1 - Copy.JPG matched her current site (Miniature Schnauzer breed page and Tips on buying a puppy). Waiting on Alex and Amber placing each by number"
   - "Mailing list postal address: Amber and Luke may set up a PO box; list emails cannot send until one is set"
   - "The RDB breeders move to managing their own accounts after October 30"
 excluded:

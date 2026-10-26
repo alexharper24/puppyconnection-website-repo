@@ -27,3 +27,6 @@ app/**/.dev.vars
 app/**/.wrangler/
 app/site/public/
 _harvest/data/listings.prev.json
+
+# Amber's original photos (2026-10-25). Only web-sized copies placed on the site are committed.
+_harvest/img/amber-photos/

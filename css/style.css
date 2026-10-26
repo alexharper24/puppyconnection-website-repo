@@ -392,6 +392,9 @@ p{margin:0 0 1rem;max-width:70ch}
 .prose p:first-of-type::first-letter{
   font-family:var(--serif);font-size:3.4em;float:left;line-height:.82;padding:.06em .1em 0 0;color:var(--olive)
 }
+/* A paragraph after a contact list is a note, not an opening: no drop cap, and room above it (Contact, Alex 2026-10-26). */
+.prose .contact-list + p{margin-top:1.6rem}
+.prose .contact-list ~ p::first-letter{font:inherit;float:none;line-height:inherit;padding:0;color:inherit}
 
 /* ---------- pricing (list with us) ---------- */
 .price-card{border:2px solid var(--ink);background:var(--paper);padding:2rem;text-align:center;max-width:420px}

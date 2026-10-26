@@ -381,7 +381,7 @@ p{margin:0 0 1rem;max-width:70ch}
   padding:.5rem .7rem;border:var(--rule);background:var(--paper)}
 .contact-list a:hover{border-color:var(--olive);background:#fff}
 .contact-list b{font-family:var(--cond);font-size:.8rem;letter-spacing:.13em;text-transform:uppercase;
-  color:var(--muted);flex:0 0 4.6rem}
+  color:var(--muted);flex:0 0 7.4rem;white-space:nowrap}
 .disclaimer{font-size:.88rem;color:var(--muted);margin:.9rem 0 0;line-height:1.5}
 
 /* ---------- breeder profile ---------- */

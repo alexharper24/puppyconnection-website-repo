@@ -606,6 +606,15 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // Breeds whose main picture is one of Amber's photos (img/amber/) instead of a listed puppy, in the
   // same slot and crop, with no caption because the photo is not of a listed puppy (Alex, 2026-10-25).
   const BREED_PHOTO = { 'miniature-schnauzer': 4 };
+  // A breed's saved picture, shown only while none of its puppies has a photo, so its page keeps a
+  // picture when its last listings are archived (Alex, 2026-10-25). The Bernese one is the photo the
+  // page showed until Brady was archived that day, Wix 8d80ac_50df93ce, in img/breeds/ as 800 and
+  // 1600 px WebP, with the crop it had.
+  const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/bernese-mountain-dog', w: 1600, pos: '54.5% 50%' } };
+  const fallbackImg = (b, sizes) => {
+    const f = BREED_FALLBACK[b.slug];
+    return `<img src="${f.file}-1600.webp" srcset="${f.file}-800.webp 800w, ${f.file}-1600.webp ${f.w}w" sizes="${sizes}" style="object-position:${f.pos}" alt="${esc(b.name)}" decoding="async">`;
+  };
 
   // A sentence of links, "A, B and C", for links inside body copy (SEO plan P13).
   const linkList = (items) => {
@@ -790,7 +799,8 @@ ${hl ? `<section class="band" style="padding-top:0">
       ${seeAlso}
     </div>
     ${BREED_PHOTO[b.slug] ? `<figure class="breed-photo bt-photo">${photoImg(BREED_PHOTO[b.slug], '(max-width:940px) 1px, 40vw', { wh: false })}</figure>`
-      : lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+      : lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>`
+      : BREED_FALLBACK[b.slug] ? `<figure class="breed-photo bt-photo">${fallbackImg(b, '(max-width:940px) 1px, 40vw')}</figure>` : ''}
     ${guidesFor(b.slug).length ? `<section class="guide-panel bt-guides" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
     <div class="breed-buy bt-buy">
       <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
@@ -805,7 +815,8 @@ ${hl ? `<section class="band" style="padding-top:0">
       ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${seeAlso}</div>
     <aside>
       ${BREED_PHOTO[b.slug] ? `<figure class="breed-photo">${photoImg(BREED_PHOTO[b.slug], '(max-width:940px) 92vw, 40vw', { wh: false })}</figure>`
-      : lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+      : lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>`
+      : BREED_FALLBACK[b.slug] ? `<figure class="breed-photo">${fallbackImg(b, '(max-width:940px) 92vw, 40vw')}</figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">${open.length ? `${open.length} available now${priceSpan(shown) ? `, ${priceSpan(shown)}` : ''}` : 'How this works'}</p>
         <p class="breeder-note">Choose a puppy, then contact its breeder directly. Each breeder sets their own price, and Puppy Connection lists puppies and does not sell them.</p>

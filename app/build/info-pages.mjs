@@ -59,7 +59,7 @@ export const INFO_PAGES = [
 </ul>
 <p>Puppy Connection lists puppies and does not sell them, so the sale, the paperwork and the conversation are between you and the breeder.</p>
 </div>
-<aside><div class="breeder-box"><p class="eyebrow">Find your puppy</p><p class="breeder-note">Browse the puppies listed now, or look by breed or by breeder.</p>
+<aside class="aside-still"><div class="breeder-box"><p class="eyebrow">Find your puppy</p><p class="breeder-note">Browse the puppies listed now, or look by breed or by breeder.</p>
 <div class="btn-row"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div>
 <p style="margin:.8rem 0 0"><a href="breeds.html">Browse breeds</a> · <a href="breeders.html">Meet the breeders</a></p></div></aside>
 </div></section>`,
@@ -179,12 +179,11 @@ export const INFO_PAGES = [
     file: 'contact.html', name: 'Contact',
     title: 'Contact Puppy Connection',
     desc: 'How to reach Puppy Connection about listing your puppies or about the directory. Questions about a puppy go to its breeder.',
-    // Alex, 2026-10-25: the friendlier wording, and the side column starting level with the h1, so
-    // the eyebrow sits above the split and the heading, lead and contact list share its left column.
+    // Alex, 2026-10-25: the friendlier wording. Alex, 2026-10-26: the side column starts level with
+    // the lead paragraph, so the eyebrow and h1 sit above the split.
     photo: { n: 5, slot: 'aside' },
-    body: `<section class="band contact-top"><div class="wrap"><p class="eyebrow">Contact Puppy Connection</p><div class="split">
-<div><h1>We'd love to hear from you</h1>
-<p class="lede">Have a question about a particular puppy? Its breeder is the best person to ask, since they know the puppy and handle the sale, and you'll find their phone and email right on the puppy's page. For anything else, we're always happy to help.</p>
+    body: `<section class="band contact-top"><div class="wrap"><p class="eyebrow">Contact Puppy Connection</p><h1>We'd love to hear from you</h1><div class="split">
+<div><p class="lede">Have a question about a particular puppy? Its breeder is the best person to ask, since they know the puppy and handle the sale, and you'll find their phone and email right on the puppy's page. For anything else, we're always happy to help.</p>
 <div class="prose">
 <h2>Thinking about listing, or have a question for us?</h2>
 <ul class="contact-list">

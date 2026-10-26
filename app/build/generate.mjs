@@ -1139,10 +1139,10 @@ ${others.length ? `<section class="band">
     const slot = PHOTO_SLOTS[pg.photo.slot];
     if (!slot) throw new Error(`generate.mjs: ${pg.file} names an unknown photo slot ${pg.photo.slot}`);
     const fig = `<figure class="photo-fig ${slot.cls}">${photoImg(pg.photo.n, slot.sizes)}</figure>`;
-    const mark = pg.photo.slot === 'aside' ? '<aside>' : '<p class="lede">';
+    const mark = pg.photo.slot === 'aside' ? '<aside' : '<p class="lede">';
     const i = pg.body.indexOf(mark);
     if (i < 0) throw new Error(`generate.mjs: ${pg.file} has no ${mark} for its photo`);
-    const at = pg.photo.slot === 'aside' ? i + mark.length : pg.body.indexOf('</p>', i) + '</p>'.length;
+    const at = pg.photo.slot === 'aside' ? pg.body.indexOf('>', i) + 1 : pg.body.indexOf('</p>', i) + '</p>'.length;
     return pg.body.slice(0, at) + fig + pg.body.slice(at);
   };
   for (const pg of INFO_PAGES) {

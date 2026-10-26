@@ -1,0 +1,81 @@
+// PRODUCTION config for the portal (launch checklist L7, built 2026-10-26 on Alex's instruction).
+// Same Worker, database and bucket as staging: staging becomes production once the test data is
+// cleared (workplan B12). Differences from wrangler.hosted.jsonc:
+//   - DEV_MODE removed, so the test mailbox, the practice checkout and the test notices are gone.
+//   - STRIPE_MODE live, with Amber's live price and her account's current API version.
+//   - EMAIL_ALLOWLIST removed, so email reaches every breeder and subscriber.
+// Secrets are shared with staging because it is the same Worker: set the live STRIPE_SECRET_KEY
+// (and on the portal STRIPE_WEBHOOK_SECRET for webhook we_1UT6dbCVXPZ95g1DTrAn6V7W) immediately
+// before deploying this file, never while wrangler.hosted.jsonc is deployed.
+// WARNING: deploying this takes real money and sends real email. Clear the test data first.
+// At cutover (E2) change the three *_ORIGIN values and TURNSTILE_HOSTNAME to the puppy-connection.com
+// hostnames and add the custom domains; until then it runs on the workers.dev addresses.
+// Deploy from app/portal:  wrangler deploy --config wrangler.production.jsonc
+{
+  "name": "portal",
+  "account_id": "4f6e9dc25ab751960763628b06e6c108",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-18",
+  "observability": { "enabled": true },
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true, "html_handling": "none" },
+  "d1_databases": [
+    { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  // Launch workplan B10. The */15 run reads the site's /api/build through this binding to tell a
+  // site build that finished from one that failed (lib/publish.js, checkBuild). A Worker cannot
+  // fetch another Worker on the same workers.dev subdomain, so it is a binding, not a URL.
+  "services": [{ "binding": "SITE", "service": "site" }],
+  "ratelimits": [{ "name": "AUTH_LIMITER", "namespace_id": "4101", "simple": { "limit": 10, "period": 60 } }],
+  // Workplan A9. The photo quality check on Workers AI (lib/photocheck.js). The free allocation is
+  // 10,000 neurons a day, about 350 photos at the measured 28 neurons each; past it a call fails and
+  // the photo passes unjudged until Workers Paid or the next day.
+  "ai": { "binding": "AI" },
+  // Two of the free plan's five cron triggers. lib/jobs.js says what each one runs.
+  "triggers": { "crons": ["*/15 * * * *", "0 13 * * *"] },
+  "vars": {
+    // Turnstile widget "Puppy Connection breeder portal" in the Puppy Connection account (2026-10-02).
+    // The site key is public by design. TURNSTILE_SECRET is a secret, set with wrangler secret put.
+    "TURNSTILE_SITE_KEY": "0x4AAAAAAFMKWRvBD106y7VJ",
+    "TURNSTILE_HOSTNAME": "portal.puppyconnection.workers.dev",
+    // 2026-10-04). The client ID is public; GOOGLE_CLIENT_SECRET is a secret, set with wrangler secret put.
+    "GOOGLE_CLIENT_ID": "751105615126-cu5h48psv53a59nci3e9g5u0n0mmfuir.apps.googleusercontent.com",
+    "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
+    "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
+    // Plan P2.2. The public site, for the View on the site links.
+    "SITE_ORIGIN": "https://site.puppyconnection.workers.dev",
+    // Publishing (decisions D10 and D11, and Alex 2026-10-06). PUBLISH_MODE hook POSTs the site
+    // Worker's Workers Builds deploy hook, the secret PUBLISH_HOOK_URL, and the build in
+    // alexharper24/puppyconnection-site fetches /data/export.json from here. Until the secret is
+    // set the publish does nothing and says so. The GITHUB_* settings are for PUBLISH_MODE commit
+    // only, kept for later (for example on Workers Paid), and are unused in hook mode, so the
+    "PUBLISH_MODE": "hook",
+    "GITHUB_REPO": "alexharper24/puppyconnection-site",
+    "GITHUB_BRANCH": "main",
+    "PUBLISH_DIR": "",
+    // Real email through Resend on Puppy Connection's verified domain (workplan B3 and B7, Alex
+    // receive mail, list sends included, and /dev/mail is gone while EMAIL_MODE is resend.
+    "EMAIL_MODE": "resend",
+    "EMAIL_FROM": "Puppy Connection <notices@puppy-connection.com>",
+    "EMAIL_REPLY_TO": "info@puppy-connection.com",
+    // Workplan B9 (Amber, 2026-10-25). New breeders waiting for approval and listing reports go here
+    // instead of to the operators in people. Failure alerts stay with the owners. Unset, the old rule.
+    "NOTICE_TO": "info@puppy-connection.com",
+    // and STRIPE_WEBHOOK_SECRET are secrets Alex sets.
+    "PAYMENTS_MODE": "stripe",
+    "STRIPE_MODE": "live",
+    "STRIPE_API_VERSION": "2026-09-30.endive",
+    "STRIPE_PRICE_ID": "price_1UT6ZpCVXPZ95g1DE73UUTSC",
+    // Puppy videos (workplan A3, lib/stream.js). Videos stay off until Stream is subscribed on
+    // this account and Alex sets the STREAM_API_TOKEN secret (a token with Stream Edit). Then set
+    // STREAM_MODE to "stream" and STREAM_CUSTOMER_CODE to the <code> in the account's
+    // customer-<code>.cloudflarestream.com, and redeploy the portal and the admin.
+    // Video is held for now (Alex, 2026-10-25). Set this back to "stream" to switch it on; the key and customer code stay.
+    "STREAM_MODE": "off",
+    "STREAM_CUSTOMER_CODE": "ui4bftd2nmemqgdc",
+    "STREAM_ACCOUNT_ID": "4f6e9dc25ab751960763628b06e6c108",
+    "PHOTO_CHECK_MODE": "ai"
+  }
+}

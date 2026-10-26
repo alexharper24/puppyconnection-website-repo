@@ -89,7 +89,12 @@ async function main() {
     const invite = (await A.c.get(`/dev/mail.json?to=${encodeURIComponent(mEmail)}`)).data;
     check('the added person is emailed that they can sign in', invite.length === 1 && /You can now sign in to Feature Kennel/.test(invite[0].subject), JSON.stringify(invite).slice(0, 200));
     check('the same address cannot be added twice', (await A.c.post('/api/account/members', { email: mEmail })).status === 400);
-    check("another breeder's sign-in address cannot be added", (await A.c.post('/api/account/members', { email: B.email })).status === 400);
+    // Workplan A27 (Alex, 2026-10-25). Another breeder's address can now be added. It waits until that
+    // person confirms from their invitation (multikennel-test.mjs), and comes off again here.
+    const other = await A.c.post('/api/account/members', { email: B.email });
+    const otherRow = other.status === 200 && other.data.members.find((m) => m.email === B.email);
+    check("another breeder's sign-in address can be added, as a kennel they have not opened yet", !!otherRow && (await B.c.get('/api/me')).data.kennel_count === 1, JSON.stringify(other.data).slice(0, 200));
+    if (otherRow) await A.c.req('DELETE', `/api/account/members/${otherRow.id}`);
     check('the main address cannot be added as an extra person', (await A.c.post('/api/account/members', { email: A.email })).status === 400);
     // Launch workplan A26. The added person's email carries a link that sets their password.
     const M = new Client(PORTAL);

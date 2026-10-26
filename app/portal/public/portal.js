@@ -32,6 +32,8 @@
         var data = null;
         try { data = t ? JSON.parse(t) : null; } catch (e) { data = { error: t }; }
         if (res.status === 401) { state.me = null; render(); }
+        // Workplan A27. Signed in to more than one kennel with none picked yet.
+        if (res.status === 409 && data && data.choose) { location.href = data.choose; }
         if (!res.ok) { var err = new Error((data && data.error) || 'Something went wrong.'); err.data = data; err.status = res.status; throw err; }
         return data;
       });
@@ -280,6 +282,8 @@
       (me.site_url ? '<a class="btn btn-sm" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') +
       // Workplan A11. A quiet way back to the public site, in the same tab.
       ((state.config || {}).site_origin ? '<a class="btn btn-sm btn-quiet" href="' + esc(state.config.site_origin) + '/">Visit site</a>' : '') +
+      // Workplan A27. A person on more than one kennel goes back to Choose a kennel from here.
+      (me.kennel_count > 1 && !me.operator ? '<a class="btn btn-sm" id="switch-kennel" href="/choose">Switch kennel</a>' : '') +
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
       (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
@@ -1665,7 +1669,8 @@
 
   api('GET', '/api/config').then(function (c) { state.config = c; })
     .then(function () { return fetch('/api/me', { credentials: 'same-origin' }); })
-    .then(function (res) { return res.ok ? res.json() : null; })
+    // Workplan A27. A person on several kennels who has not picked one goes to Choose a kennel.
+    .then(function (res) { if (res.status === 409) { location.replace('/choose'); return new Promise(function () {}); } return res.ok ? res.json() : null; })
     .then(function (me) { state.me = me; render(); })
     .catch(function () { state.me = null; render(); });
 })();

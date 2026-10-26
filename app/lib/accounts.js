@@ -1,9 +1,11 @@
 // Breeder accounts (launch workplan A24 to A26, migrations/0055). Shared by the portal and the
 // admin, so both check people, passwords, invitations and the authenticator the same way.
 //
-// A person is one sign-in address on one kennel: the kennel's main email (breeders.email) or one
-// of up to MAX_MEMBERS extra people (breeder_members). Their password and authenticator live in
-// credentials, keyed by that address, so they follow the person when Make main contact moves them.
+// A person is one sign-in address. On each kennel they are the main email (breeders.email) or one
+// of up to MAX_MEMBERS extra people (breeder_members), and since launch workplan A27 the same
+// address can be on several kennels, as the main contact of one and a person on others, or as a
+// person on several. Their one password and one authenticator live in credentials, keyed by the
+// address, so they follow the person across kennels and when Make main contact moves them.
 
 import { now, addMinutes, randomToken, sha256hex, timingSafeEqual, bad, clean, ulid } from './util.js';
 import { auditStmt } from './store.js';
@@ -219,14 +221,49 @@ export const failureStmt = (env, email, ip, kind) => env.DB.prepare('INSERT INTO
 
 // ------------------------------------------------------------------ people on a kennel
 
-/** Who an address is: { breeder_id, member_id, main } or null. */
+/**
+ * Every kennel an address signs in to (A27), sorted by business name:
+ * [{ breeder_id, business_name, status, main, member_id }]. Empty for an address on no kennel. A
+ * kennel the person has not yet confirmed from their invitation (awaiting_accept) is left out.
+ */
+export async function kennelsFor(env, email) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e) return [];
+  const { results } = await env.DB.prepare(
+    `SELECT b.id AS breeder_id, COALESCE(p.business_name, '') AS business_name, b.status AS status, 1 AS main, NULL AS member_id
+       FROM breeders b LEFT JOIN breeder_profiles p ON p.breeder_id = b.id WHERE b.email = ?
+     UNION ALL
+     SELECT b.id, COALESCE(p.business_name, ''), b.status, 0, m.id
+       FROM breeder_members m JOIN breeders b ON b.id = m.breeder_id LEFT JOIN breeder_profiles p ON p.breeder_id = b.id WHERE m.email = ? AND m.awaiting_accept = 0
+     ORDER BY 2 COLLATE NOCASE, 1`,
+  ).bind(e, e).all();
+  return results.map((r) => ({ ...r, main: !!r.main }));
+}
+
+/**
+ * Who an address is: { email, kennels, breeder_id, member_id, main } or null when it is on no
+ * kennel. breeder_id, member_id and main describe the kennel only when there is exactly one.
+ */
 export async function personFor(env, email) {
   const e = String(email || '').trim().toLowerCase();
-  if (!e) return null;
-  const b = await env.DB.prepare('SELECT id FROM breeders WHERE email = ?').bind(e).first();
-  if (b) return { email: e, breeder_id: b.id, member_id: null, main: true };
-  const m = await env.DB.prepare('SELECT id, breeder_id FROM breeder_members WHERE email = ?').bind(e).first();
-  return m ? { email: e, breeder_id: m.breeder_id, member_id: m.id, main: false } : null;
+  const kennels = await kennelsFor(env, e);
+  if (!kennels.length) return null;
+  const one = kennels.length === 1 ? kennels[0] : null;
+  return { email: e, kennels, breeder_id: one ? one.breeder_id : null, member_id: one ? one.member_id : null, main: one ? one.main : false };
+}
+
+/**
+ * Whether an address signs in to one kennel: { main, member_id, awaiting } or null. A kennel still
+ * awaiting the person's confirmation counts only when awaiting is true, for the invitation itself.
+ */
+export async function onKennel(env, email, breederId, { awaiting = false } = {}) {
+  const e = String(email || '').trim().toLowerCase();
+  if (!e || !breederId) return null;
+  const r = await env.DB.prepare(
+    `SELECT 1 AS main, NULL AS member_id, 0 AS awaiting FROM breeders WHERE id = ? AND email = ?
+     UNION ALL SELECT 0, id, awaiting_accept FROM breeder_members WHERE breeder_id = ? AND email = ? AND (awaiting_accept = 0 OR ?) LIMIT 1`,
+  ).bind(breederId, e, breederId, e, awaiting ? 1 : 0).first();
+  return r ? { main: !!r.main, member_id: r.member_id, awaiting: !!r.awaiting } : null;
 }
 
 export const credentialFor = (env, email) => env.DB.prepare('SELECT * FROM credentials WHERE email = ?').bind(String(email || '').toLowerCase()).first();
@@ -238,11 +275,17 @@ export const credentialFor = (env, email) => env.DB.prepare('SELECT * FROM crede
 export async function kennelPeople(env, breederId) {
   const b = await env.DB.prepare('SELECT id, email, first_signin_at FROM breeders WHERE id = ?').bind(breederId).first();
   if (!b) return [];
-  const { results: members } = await env.DB.prepare('SELECT id, email, name, added_by, added_at, joined_at FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(breederId).all();
+  const { results: members } = await env.DB.prepare('SELECT id, email, name, added_by, added_at, joined_at, awaiting_accept FROM breeder_members WHERE breeder_id = ? ORDER BY added_at').bind(breederId).all();
   const emails = [b.email, ...members.map((m) => m.email)].map((e) => e.toLowerCase());
   const marks = emails.map(() => '?').join(',');
   const creds = Object.fromEntries((await env.DB.prepare(`SELECT email, password_set_at, totp_enabled_at FROM credentials WHERE email IN (${marks})`).bind(...emails).all())
     .results.map((c) => [c.email.toLowerCase(), c]));
+  // A27. How many other kennels each person also signs in to, so an operator sees a shared sign-in.
+  const others = Object.fromEntries((await env.DB.prepare(
+    `SELECT lower(email) AS email, COUNT(*) AS n FROM (
+       SELECT email FROM breeders WHERE email IN (${marks}) AND id != ?
+       UNION ALL SELECT email FROM breeder_members WHERE email IN (${marks}) AND breeder_id != ?) GROUP BY lower(email)`,
+  ).bind(...emails, breederId, ...emails, breederId).all()).results.map((r) => [r.email, r.n]));
   const t = now();
   const invites = Object.fromEntries((await env.DB.prepare(
     `SELECT lower(email) AS email, MAX(created_at) AS sent_at, MAX(CASE WHEN used_at IS NULL AND expires_at > ? THEN expires_at END) AS open_until
@@ -251,51 +294,79 @@ export async function kennelPeople(env, breederId) {
   const one = (email, extra) => {
     const c = creds[email.toLowerCase()] || {};
     const inv = invites[email.toLowerCase()] || {};
-    return { email, password_set: !!c.password_set_at, authenticator: !!c.totp_enabled_at, invited_at: inv.sent_at || null, invite_open_until: inv.open_until || null, ...extra };
+    return { email, password_set: !!c.password_set_at, authenticator: !!c.totp_enabled_at, invited_at: inv.sent_at || null, invite_open_until: inv.open_until || null,
+      other_kennels: others[email.toLowerCase()] || 0, ...extra };
   };
   return [
     one(b.email, { main: true, member_id: null, name: null, joined_at: b.first_signin_at || (creds[b.email.toLowerCase()] || {}).password_set_at || null }),
-    ...members.map((m) => one(m.email, { main: false, member_id: m.id, name: m.name, added_at: m.added_at, added_by: m.added_by, joined_at: m.joined_at })),
+    ...members.map((m) => one(m.email, { main: false, member_id: m.id, name: m.name, added_at: m.added_at, added_by: m.added_by, joined_at: m.joined_at, awaiting: !!m.awaiting_accept })),
   ];
 }
 
-/** Check a new person for a kennel against the same limits the portal always had. */
+/**
+ * Check a new person for a kennel against the limits the portal always had. Since A27 an address
+ * that already signs in to another kennel is accepted, and that person keeps their one password.
+ */
 export async function checkNewPerson(env, breeder, email) {
   const e = String(email || '').trim().toLowerCase();
   if (!EMAIL_RX.test(e) || e.length > 200) throw bad('Enter a valid email address.');
   if (e === String(breeder.email).toLowerCase()) throw bad('That address already signs in to this kennel.');
-  const taken = await env.DB.prepare('SELECT breeder_id FROM breeder_members WHERE email = ?').bind(e).first();
-  if (taken) throw bad(taken.breeder_id === breeder.id ? 'That person can already sign in.' : 'That address is already used by another kennel on Puppy Connection.');
-  if (await env.DB.prepare('SELECT 1 AS x FROM breeders WHERE email = ?').bind(e).first()) {
-    throw bad('That address already has its own breeder account. Use a different address, or contact Puppy Connection.');
+  if (await env.DB.prepare('SELECT 1 AS x FROM breeder_members WHERE breeder_id = ? AND email = ?').bind(breeder.id, e).first()) {
+    throw bad('That person can already sign in.');
   }
   const { n } = await env.DB.prepare('SELECT COUNT(*) AS n FROM breeder_members WHERE breeder_id = ?').bind(breeder.id).first();
   if (n >= MAX_MEMBERS) throw bad(`A kennel can have up to ${MAX_MEMBERS} extra people. Remove someone first.`);
   return e;
 }
 
-/** Statements that add a person. actor is [actor_type, actor] for the audit row. */
+/**
+ * Statements that add a person. actor is [actor_type, actor] for the audit row. A person who already
+ * signs in to another kennel is added awaiting their confirmation (A27), so the kennel opens for
+ * them only once they use the invitation with their current password or authenticator code.
+ */
 export function addPersonStmts(env, breederId, email, name, addedBy, actor) {
   const id = ulid();
+  const e = String(email).toLowerCase();
   return { id, stmts: [
-    env.DB.prepare('INSERT INTO breeder_members (id, breeder_id, email, name, added_by, added_at) VALUES (?, ?, ?, ?, ?, ?)').bind(id, breederId, email, clean(name, 120), addedBy, now()),
-    auditStmt(env, actor[0], actor[1], 'member.add', 'breeder', breederId, null, { member: id, email }),
+    env.DB.prepare(
+      `INSERT INTO breeder_members (id, breeder_id, email, name, added_by, added_at, awaiting_accept)
+       VALUES (?, ?, ?, ?, ?, ?, CASE WHEN ${STILL_ON} THEN 1 ELSE 0 END)`,
+    ).bind(id, breederId, e, clean(name, 120), addedBy, now(), e, e),
+    auditStmt(env, actor[0], actor[1], 'member.add', 'breeder', breederId, null, { member: id, email: e }),
   ] };
 }
 
+/** Statements that confirm a kennel for a person who used their invitation to it (A27). */
+export function acceptKennelStmts(env, breederId, email, how) {
+  const t = now();
+  const e = String(email).toLowerCase();
+  return [
+    env.DB.prepare('UPDATE breeder_members SET awaiting_accept = 0, joined_at = COALESCE(joined_at, ?) WHERE breeder_id = ? AND email = ?').bind(t, breederId, e),
+    auditStmt(env, 'breeder', e, 'member.join', 'breeder', breederId, null, { email: e, confirmed_with: how }),
+  ];
+}
+
+// True while an address is still on any kennel. The statements below run after the row that takes
+// the address off a kennel, in the same batch, so this sees the address as it is once that is done.
+const STILL_ON = '(EXISTS (SELECT 1 FROM breeders WHERE email = ?) OR EXISTS (SELECT 1 FROM breeder_members WHERE email = ?))';
+
 /**
- * Statements that take an address off a kennel's sign-ins: its sessions end at once, its open
- * invitation and reset links stop working, and its password and authenticator are removed, so an
- * address added again later starts from a new invitation.
+ * Statements that take an address off one kennel's sign-ins (A27). Its sessions on that kennel end
+ * at once and its invitation to that kennel stops working. Only when the address is on no other
+ * kennel do its reset links, its sessions waiting on Choose a kennel, its password and its
+ * authenticator go too, so an address added again later starts from a new invitation. A person on
+ * other kennels keeps signing in to them with the same password.
  */
 export function signInsEndStmts(env, breederId, email, { mainNull = false } = {}) {
   const t = now();
   const e = String(email).toLowerCase();
   return [
     env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL AND operator_email IS NULL AND (email = ?${mainNull ? ' OR email IS NULL' : ''})`).bind(t, breederId, e),
-    env.DB.prepare("UPDATE auth_tokens SET used_at = ? WHERE email = ? AND used_at IS NULL AND purpose IN ('invite','reset','mfa')").bind(t, e),
-    env.DB.prepare('DELETE FROM recovery_codes WHERE email = ?').bind(e),
-    env.DB.prepare('DELETE FROM credentials WHERE email = ?').bind(e),
+    env.DB.prepare("UPDATE auth_tokens SET used_at = ? WHERE email = ? AND used_at IS NULL AND purpose = 'invite' AND breeder_id = ?").bind(t, e, breederId),
+    env.DB.prepare(`UPDATE auth_tokens SET used_at = ? WHERE email = ? AND used_at IS NULL AND purpose IN ('invite','reset','mfa') AND NOT ${STILL_ON}`).bind(t, e, e, e),
+    env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE email = ? AND breeder_id IS NULL AND revoked_at IS NULL AND NOT ${STILL_ON}`).bind(t, e, e, e),
+    env.DB.prepare(`DELETE FROM recovery_codes WHERE email = ? AND NOT ${STILL_ON}`).bind(e, e, e),
+    env.DB.prepare(`DELETE FROM credentials WHERE email = ? AND NOT ${STILL_ON}`).bind(e, e, e),
   ];
 }
 
@@ -305,6 +376,18 @@ export function removePersonStmts(env, breederId, member, actor) {
     ...signInsEndStmts(env, breederId, member.email),
     auditStmt(env, actor[0], actor[1], 'member.remove', 'breeder', breederId, { member: member.id, email: member.email }, null),
   ];
+}
+
+/**
+ * A27. breeders.email stays unique, so a person can be the main contact of one kennel only, and
+ * Make main contact refuses a person who is already the main contact of another kennel.
+ */
+export async function checkMakeMain(env, breeder, member) {
+  const row = await env.DB.prepare('SELECT awaiting_accept FROM breeder_members WHERE id = ?').bind(member.id).first();
+  if (row && row.awaiting_accept) throw bad(`${member.email} has not used their invitation to this kennel yet, so they cannot be made the main contact until they do.`);
+  const other = await env.DB.prepare('SELECT b.id, p.business_name FROM breeders b LEFT JOIN breeder_profiles p ON p.breeder_id = b.id WHERE b.email = ? AND b.id != ?')
+    .bind(String(member.email).toLowerCase(), breeder.id).first();
+  if (other) throw bad(`${member.email} is already the main contact of ${other.business_name || 'another kennel'}, and a person can be the main contact of one kennel only. Make someone else the main contact there first.`);
 }
 
 /**
@@ -340,7 +423,10 @@ export async function newAuthToken(env, { purpose, email = null, breederId = nul
   const token = randomToken();
   const t = now();
   const stmts = [];
-  if (email && (purpose === 'invite' || purpose === 'reset' || purpose === 'verify')) {
+  if (email && purpose === 'invite') {
+    // A27. An invitation is to one kennel, so a new one spends only the earlier one to the same kennel.
+    stmts.push(env.DB.prepare("UPDATE auth_tokens SET used_at = ? WHERE email = ? AND purpose = 'invite' AND breeder_id IS ? AND used_at IS NULL").bind(t, String(email).toLowerCase(), breederId));
+  } else if (email && (purpose === 'reset' || purpose === 'verify')) {
     stmts.push(env.DB.prepare('UPDATE auth_tokens SET used_at = ? WHERE email = ? AND purpose = ? AND used_at IS NULL').bind(t, String(email).toLowerCase(), purpose));
   }
   stmts.push(env.DB.prepare(
@@ -369,14 +455,21 @@ export async function peekAuthToken(env, token, purposes) {
   ).bind(hash, now(), ...purposes).first();
 }
 
-/** Send an invitation to someone on a kennel (A25): a set-password link that works once for 7 days. */
+/**
+ * Send an invitation to someone on a kennel (A25), a link that works once for 7 days. A person who
+ * already has a password (A27) gets the kennel_added email, and the link asks for that password, or
+ * their authenticator code, instead of setting a new one. Either email names the kennel.
+ */
 export async function sendInvitation(env, { breeder, email, by, actor, portalOrigin, template = 'invitation' }) {
-  const { token, stmts } = await newAuthToken(env, { purpose: 'invite', email, breederId: breeder.id, createdBy: by, minutes: INVITE_DAYS * 24 * 60 });
-  stmts.push(auditStmt(env, actor[0], actor[1], 'member.invite', 'breeder', breeder.id, null, { email: String(email).toLowerCase() }));
+  const e = String(email).toLowerCase();
+  const { token, stmts } = await newAuthToken(env, { purpose: 'invite', email: e, breederId: breeder.id, createdBy: by, minutes: INVITE_DAYS * 24 * 60 });
+  const cred = await credentialFor(env, e);
+  const existing = !!(cred && cred.password_hash);
+  stmts.push(auditStmt(env, actor[0], actor[1], 'member.invite', 'breeder', breeder.id, null, existing ? { email: e, existing_signin: true } : { email: e }));
   await env.DB.batch(stmts);
   const link = `${portalOrigin}/auth/set-password?t=${encodeURIComponent(token)}`;
-  await sendMail(env, String(email).toLowerCase(), template, { business: breeder.business_name || 'a kennel', by, link, days: INVITE_DAYS });
-  return { ok: true };
+  await sendMail(env, e, existing ? 'kennel_added' : template, { business: breeder.business_name || 'a kennel', by, link, days: INVITE_DAYS });
+  return { ok: true, existing };
 }
 
 /** Turn a person's authenticator off, so they set it up again (A26, the admin's Reset authenticator). */

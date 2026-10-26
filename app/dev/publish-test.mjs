@@ -328,6 +328,25 @@ async function part1() {
       && !['about', 'contact'].some((f) => info[f].includes('REPLACE THIS')));
   check('every generated page carries the mailing list sign-up, posting to the portal, with its honeypot', [hav, hub, info.about].every((x) => /<form class="foot-signup" method="post" action="[^"]+\/subscribe">/.test(x) && x.includes('name="website"')));
   check('a generated page footer links the site pages too', fs.readFileSync(path.join(out, 'breed-havanese.html'), 'utf8').includes('href="about.html"'));
+  // Alex, 2026-10-25: About and Contact in the main menu on generated pages only, Amber's photos in
+  // their slots with one neutral alt text, and the friendlier Contact wording.
+  const menu = (s) => (s.match(/<nav class="nav">[\s\S]*?<\/nav>/) || [''])[0];
+  const homeOut = fs.readFileSync(path.join(out, 'index.html'), 'utf8'), listOut = fs.readFileSync(path.join(out, 'list-with-us.html'), 'utf8');
+  check('the main menu has About and Contact on generated and concept pages, marking the page it is on',
+    [hav, hub, homeOut, listOut].every((s) => /href="breeds\.html"[^>]*>Breeds<\/a>\n\s*<a href="about\.html">About<\/a>\n\s*<a href="contact\.html">Contact<\/a>/.test(menu(s)))
+      && menu(info.about).includes('<a href="about.html" aria-current="page">About</a>') && menu(info.contact).includes('<a href="contact.html" aria-current="page">Contact</a>')
+      && !menu(hav).includes('aria-current="page">About'));
+  const altOk = (s) => (s.match(/<img src="img\/amber\/[^>]*>/g) || []).every((t) => t.includes('alt="Puppy Connection breeders with their puppies"'));
+  check('About, Contact and Tips carry their photo in its slot, and the home page its band of three, all with the same alt text',
+    info.about.includes('<aside><figure class="photo-fig photo-side"><img src="img/amber/amber-08-1600.webp"')
+      && info.contact.includes('<aside><figure class="photo-fig photo-side"><img src="img/amber/amber-05-1600.webp"')
+      && /<p class="lede">[^<]*<\/p><figure class="photo-fig photo-narrow"><img src="img\/amber\/amber-04-1600\.webp"/.test(info['tips-on-buying-a-puppy'])
+      && /Real families, real puppies[\s\S]*amber-03-1600[\s\S]*amber-06-1600[\s\S]*amber-02-1600/.test(homeOut)
+      && [info.about, info.contact, info['tips-on-buying-a-puppy'], homeOut, listOut].every(altOk));
+  check('Contact has the approved wording and keeps its title',
+    info.contact.includes('<title>Contact Puppy Connection</title>') && info.contact.includes('<p class="eyebrow">Contact Puppy Connection</p>')
+      && info.contact.includes("<h1>We'd love to hear from you</h1>") && info.contact.includes('<h2>Thinking about listing, or have a question for us?</h2>')
+      && info.contact.includes("$14.99 per puppy, paid once, and every family's inquiry comes straight to you."));
   // Breed guide pages (build/guides.mjs), from dev/fixtures/guides: one published, one draft.
   const gp = path.join(out, 'guide-cocker-spaniel-size.html');
   const gpage = fs.existsSync(gp) ? fs.readFileSync(gp, 'utf8') : '';

@@ -13,12 +13,34 @@
 // reviews.txt (the three reviews as published). the-puppy-connection-process.txt described
 // visits, deposits and delivery arranged by Puppy Connection, so How it works is written new
 // from how the directory works. Transportation is written new around Furry Freight (launch item A7).
+//
+// Amber's photos (Alex, 2026-10-25) are the web copies in img/amber/ at the repository root. Every
+// one carries the same neutral alt text, because the build never describes what a photo shows. A
+// page's optional photo field names the photo and its slot: 'aside' puts it at the top of the side
+// column, and 'lede' puts it under the lead paragraph. generate.mjs places it.
+
+const PHOTO_SIZE = { 1: [1600, 1066], 2: [1600, 1066], 3: [1600, 1066], 4: [1600, 1067], 5: [1600, 1329], 6: [1600, 1066], 8: [1600, 1067], 9: [1600, 1066] };
+export const PHOTO_ALT = 'Puppy Connection breeders with their puppies';
+// The img for photo n, with its 800 and 1600 copies. wh false leaves out width and height, for a
+// slot whose CSS sets the shape, such as the breed page's main picture.
+export function photoImg(n, sizes, { lazy = false, wh = true } = {}) {
+  const size = PHOTO_SIZE[n];
+  if (!size) throw new Error(`info-pages.mjs: no size recorded for photo ${n}`);
+  const f = (w) => `img/amber/amber-${String(n).padStart(2, '0')}-${w}.webp`;
+  return `<img src="${f(1600)}" srcset="${f(800)} 800w, ${f(1600)} ${size[0]}w" sizes="${sizes}"`
+    + `${wh ? ` width="${size[0]}" height="${size[1]}"` : ''} alt="${PHOTO_ALT}"${lazy ? ' loading="lazy"' : ''} decoding="async">`;
+}
+export const PHOTO_SLOTS = {
+  aside: { cls: 'photo-side', sizes: '(max-width:940px) 92vw, 600px' },
+  lede: { cls: 'photo-narrow', sizes: '(max-width:700px) 92vw, 640px' },
+};
 
 export const INFO_PAGES = [
   {
     file: 'about.html', name: 'About',
     title: 'About Puppy Connection | Family Dog Breeders in Indiana',
     desc: 'Puppy Connection is a directory of small family dog breeders, based in northern Indiana. See how it began and what we ask of the breeders who list here.',
+    photo: { n: 8, slot: 'aside' },
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">About</p><h1>About Puppy Connection</h1>
 <p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
@@ -69,6 +91,7 @@ export const INFO_PAGES = [
     file: 'tips-on-buying-a-puppy.html', name: 'Tips on buying a puppy',
     title: 'Tips on Buying a Puppy | Puppy Connection',
     desc: 'How to choose a reputable breeder, check health clearances and pick a well-socialized puppy, and how to get your home ready for its arrival.',
+    photo: { n: 4, slot: 'lede' },
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Tips</p><h1>Tips on buying a puppy</h1>
 <p class="lede">When buying a puppy, it's essential to make informed choices so it grows into a healthy, well-adjusted companion. These tips cover choosing a puppy and getting ready for its arrival.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
@@ -156,20 +179,25 @@ export const INFO_PAGES = [
     file: 'contact.html', name: 'Contact',
     title: 'Contact Puppy Connection',
     desc: 'How to reach Puppy Connection about listing your puppies or about the directory. Questions about a puppy go to its breeder.',
-    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Contact</p><h1>Contact Puppy Connection</h1>
-<p class="lede">For a question about a puppy, contact its breeder from the puppy's page, since the breeder knows the puppy and handles the sale.</p></div></section>
-<section class="band" style="padding-top:0"><div class="wrap split">
+    // Alex, 2026-10-25: the friendlier wording, and the side column starting level with the h1, so
+    // the eyebrow sits above the split and the heading, lead and contact list share its left column.
+    photo: { n: 5, slot: 'aside' },
+    body: `<section class="band contact-top"><div class="wrap"><p class="eyebrow">Contact Puppy Connection</p><div class="split">
+<div><h1>We'd love to hear from you</h1>
+<p class="lede">Have a question about a particular puppy? Its breeder is the best person to ask, since they know the puppy and handle the sale, and you'll find their phone and email right on the puppy's page. For anything else, we're always happy to help.</p>
 <div class="prose">
-<h2>Listing your puppies, or a question about the directory</h2>
+<h2>Thinking about listing, or have a question for us?</h2>
 <ul class="contact-list">
 <li><a href="mailto:info@puppy-connection.com"><b>Email</b> info@puppy-connection.com</a></li>
 <li><a href="tel:+15742210326"><b>Call or text</b> (574) 221-0326</a></li>
 <li><a href="https://www.facebook.com/puppyconnectionUSA" target="_blank" rel="noopener"><b>Facebook</b> puppyconnectionUSA</a></li>
 <li><a href="https://www.instagram.com/puppy_connection_in/" target="_blank" rel="noopener"><b>Instagram</b> @puppy_connection_in</a></li>
 </ul>
-<p>Breeders who already list can sign in to the <a href="https://portal.puppyconnection.workers.dev/">breeder portal</a> to change a listing, see their views and clicks, or pay to list.</p>
+<p>Reach out whichever way suits you best, and we'll get back to you as soon as we can.</p>
+<p>Already listing with us? Sign in to the <a href="https://portal.puppyconnection.workers.dev/">breeder portal</a> anytime to update a listing, see how many families have viewed your puppies, or pay to list.</p>
 </div>
-<aside><div class="breeder-box"><p class="eyebrow">Breeders</p><p class="breeder-note">$14.99 per puppy, paid once, with every inquiry going straight to you.</p><div class="btn-row"><a class="btn btn-primary" href="list-with-us.html">List your puppies</a></div></div></aside>
-</div></section>`,
+</div>
+<aside><div class="breeder-box"><p class="eyebrow">Breeders</p><p class="breeder-note">$14.99 per puppy, paid once, and every family's inquiry comes straight to you.</p><div class="btn-row"><a class="btn btn-primary" href="list-with-us.html">List your puppies</a></div></div></aside>
+</div></div></section>`,
   },
 ];

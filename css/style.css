@@ -803,3 +803,25 @@ aside .guide-panel{margin-top:1rem}
 }
 body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 @media print{.chat-fab,.chat-panel{display:none!important}}
+
+/* ---------- the site's own photos (Alex, 2026-10-25) ----------
+   Web copies in img/amber/. The home band, List with us, About, Contact and Tips use them. */
+.photo-fig{margin:0;border:var(--rule);background:var(--paper-warm)}
+.photo-fig img{display:block;width:100%;height:auto}
+.photo-band{padding-top:0}
+.photo-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(.6rem,1.6vw,1.2rem)}
+@media(max-width:700px){.photo-strip{grid-template-columns:1fr 1fr}.photo-strip .photo-fig:first-child{grid-column:1 / -1}}
+.photo-side{margin-bottom:1.2rem}
+.photo-dark{max-width:420px;margin-bottom:1.2rem;border-color:var(--gold)}
+.photo-narrow{max-width:640px;margin-top:1.6rem}
+/* List with us top band: the text column centered against the photo and the price card */
+.list-top > div:first-child{align-self:center}
+/* The questions photo starts level with the first question and stays in view beside the answers.
+   Sticky is bounded by the grid, so it stops where the answers end. */
+.faq-split{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:clamp(1.5rem,4vw,3.4rem);align-items:start}
+.faq-split > *{min-width:0}
+#questions .faq-h2{margin-bottom:1.6rem}
+@media(min-width:941px){.faq-split > .photo-fig{position:sticky;top:calc(var(--hdr-h,152px) + 1.5rem)}}
+@media(max-width:940px){.faq-split{grid-template-columns:1fr}}
+/* Contact: the heading and the side column start on one line */
+.contact-top .lede{margin-bottom:2.6rem}

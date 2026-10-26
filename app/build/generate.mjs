@@ -36,7 +36,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { INFO_PAGES } from './info-pages.mjs';
+import { INFO_PAGES, PHOTO_SLOTS, photoImg } from './info-pages.mjs';
 import { loadGuides, loadHighlights } from './guides.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -379,7 +379,15 @@ export function build({ now = Date.now(), dataDir, out, templates, guides = path
   const idx = concept('index.html');
   const cssV = (idx.match(/css\/style\.css\?v=(\d+)/) || [])[1];
   const head0 = idx.slice(0, idx.indexOf('<title>'));
-  const hdr = idx.slice(idx.indexOf('<a class="skip-link"'), idx.indexOf('<main id="home">'));
+  // About and Contact join the main menu on the generated site only (Alex, 2026-10-25), for the
+  // same reason as the footer's site-pages column below: the concept at the repository root is
+  // served on its own and has no about.html or contact.html, so the links would be broken there.
+  const NAV_AFTER = /(\n([ \t]*)<a href="breeds\.html"[^>]*>Breeds<\/a>)/;
+  const withNav = (s) => {
+    if (!NAV_AFTER.test(s)) throw new Error('generate.mjs: the header menu no longer has the Breeds link that About and Contact follow');
+    return s.replace(NAV_AFTER, (m, link, ind) => `${link}\n${ind}<a href="about.html">About</a>\n${ind}<a href="contact.html">Contact</a>`);
+  };
+  const hdr = withNav(idx.slice(idx.indexOf('<a class="skip-link"'), idx.indexOf('<main id="home">')));
   let ftr = idx.slice(idx.indexOf('<footer class="site-footer">'), idx.indexOf('</footer>') + '</footer>'.length);
   // The footer's base line carries the copyright, this year's, and the Privacy and Listing terms
   // links, which live on the portal (Alex, 2026-10-11: "where is the copyright info").
@@ -595,6 +603,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // Pages that name each other because families compare them (the Munchkin page keeps its own
   // name and never calls itself Mini, per the 2026-09-28 keyword plan, but points to the Mini page).
   const SEE_ALSO = { 'munchkin-bernedoodle': ['mini-bernedoodle'], 'mini-bernedoodle': ['munchkin-bernedoodle'] };
+  // Breeds whose main picture is one of Amber's photos (img/amber/) instead of a listed puppy, in the
+  // same slot and crop, with no caption because the photo is not of a listed puppy (Alex, 2026-10-25).
+  const BREED_PHOTO = { 'miniature-schnauzer': 4 };
 
   // A sentence of links, "A, B and C", for links inside body copy (SEO plan P13).
   const linkList = (items) => {
@@ -778,7 +789,8 @@ ${hl ? `<section class="band" style="padding-top:0">
       <ul class="highlights">${hl.points.map((x) => `<li><b>${esc(x.lead)}</b> ${esc(x.text)}</li>`).join('')}</ul>
       ${seeAlso}
     </div>
-    ${lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+    ${BREED_PHOTO[b.slug] ? `<figure class="breed-photo bt-photo">${photoImg(BREED_PHOTO[b.slug], '(max-width:940px) 1px, 40vw', { wh: false })}</figure>`
+      : lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
     ${guidesFor(b.slug).length ? `<section class="guide-panel bt-guides" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
     <div class="breed-buy bt-buy">
       <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
@@ -792,7 +804,8 @@ ${hl ? `<section class="band" style="padding-top:0">
     <div class="guide"><p>Every ${esc(b.name)} listed here is raised by the breeder named on the puppy's page, and each listing has that breeder's own description and contact details.${bySentence}</p>${guidesFor(b.slug).length
       ? `<section class="guide-panel" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}${seeAlso}</div>
     <aside>
-      ${lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
+      ${BREED_PHOTO[b.slug] ? `<figure class="breed-photo">${photoImg(BREED_PHOTO[b.slug], '(max-width:940px) 92vw, 40vw', { wh: false })}</figure>`
+      : lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">${open.length ? `${open.length} available now${priceSpan(shown) ? `, ${priceSpan(shown)}` : ''}` : 'How this works'}</p>
         <p class="breeder-note">Choose a puppy, then contact its breeder directly. Each breeder sets their own price, and Puppy Connection lists puppies and does not sell them.</p>
@@ -1120,17 +1133,29 @@ ${others.length ? `<section class="band">
   });
 
   // ---- the site's own pages (About, How it works, Tips, Reviews, Contact), from build/info-pages.mjs
+  // A page's optional photo goes at the top of its side column or under its lead paragraph.
+  const withPhoto = (pg) => {
+    if (!pg.photo) return pg.body;
+    const slot = PHOTO_SLOTS[pg.photo.slot];
+    if (!slot) throw new Error(`generate.mjs: ${pg.file} names an unknown photo slot ${pg.photo.slot}`);
+    const fig = `<figure class="photo-fig ${slot.cls}">${photoImg(pg.photo.n, slot.sizes)}</figure>`;
+    const mark = pg.photo.slot === 'aside' ? '<aside>' : '<p class="lede">';
+    const i = pg.body.indexOf(mark);
+    if (i < 0) throw new Error(`generate.mjs: ${pg.file} has no ${mark} for its photo`);
+    const at = pg.photo.slot === 'aside' ? i + mark.length : pg.body.indexOf('</p>', i) + '</p>'.length;
+    return pg.body.slice(0, at) + fig + pg.body.slice(at);
+  };
   for (const pg of INFO_PAGES) {
-    write(pg.file, { title: pg.title, desc: pg.desc, trail: [[pg.name, `${base}${pg.file}`]],
+    write(pg.file, { title: pg.title, desc: pg.desc, trail: [[pg.name, `${base}${pg.file}`]], current: pg.file,
       body: `<main id="info-page">
 <span id="content" tabindex="-1"></span>
-${pg.body}
+${withPhoto(pg)}
 </main>` });
   }
 
   // ---- the concept's own pages, carried over with this site's address, scripts and footer
   for (const f of ['index.html', 'puppies.html', 'list-with-us.html']) {
-    let s = concept(f).split(CONCEPT_BASE).join(base);
+    let s = withNav(concept(f).split(CONCEPT_BASE).join(base));
     s = s.replace(/<meta name="robots"[^>]*>\n/, robots);
     s = s.replace(/<script src="data\/data\.js\?v=\d+"><\/script>\n?/, f === 'list-with-us.html' ? '' : `<script src="data/data.js?v=${dataV}"></script>\n`);
     s = s.replace(/js\/main\.js\?v=\d+/, `js/main.js?v=${mainV}`);

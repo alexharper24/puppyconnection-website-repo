@@ -129,6 +129,11 @@ async function sql() {
     `DELETE FROM puppies WHERE breeder_id IN ${inIds};`,
     `DELETE FROM litters WHERE breeder_id IN ${inIds};`,
     ...(has('parent_dogs') ? [`DELETE FROM parent_dogs WHERE breeder_id IN ${inIds};`] : []),
+    // Sign-in records (migrations 0055 and 0066). Links point at the breeder. Passwords and recovery
+    // codes are kept per email address, so they go only for an address left on no other kennel.
+    ...(has('auth_tokens') ? [`DELETE FROM auth_tokens WHERE breeder_id IN ${inIds};`] : []),
+    ...['credentials', 'recovery_codes'].filter(has).map((t) => `DELETE FROM ${t} WHERE lower(email) IN (SELECT lower(email) FROM breeders WHERE id IN ${inIds} UNION SELECT lower(email) FROM breeder_members WHERE breeder_id IN ${inIds})`
+      + ` AND lower(email) NOT IN (SELECT lower(email) FROM breeders WHERE id NOT IN ${inIds} UNION SELECT lower(email) FROM breeder_members WHERE breeder_id NOT IN ${inIds});`),
     ...['breeder_breeds', 'operator_notes', 'account_requests', 'listing_reports', 'breeder_members', 'breeder_references']
       .filter(has).map((t) => `DELETE FROM ${t} WHERE breeder_id IN ${inIds};`),
     `DELETE FROM sessions WHERE breeder_id IN ${inIds};`,

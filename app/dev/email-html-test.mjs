@@ -39,6 +39,7 @@ const DATA = {
   password_reset: { link: `${P}/auth/set-password?t=sample-reset-token` },
   invitation: { business: 'Sample Kennel', link: `${P}/auth/set-password?t=sample-invite-token`, days: 7 },
   member_added: { business: EVIL, by: '<img src=x onerror=alert(1)>', link: `${P}/auth/set-password?t=member-token`, days: 7 },
+  kennel_added: { business: EVIL, by: '<img src=x onerror=alert(1)>', link: `${P}/auth/set-password?t=kennel-token`, days: 7 },
   contact_changed: { business: EVIL, by: 'operator', portalUrl: `${P}/`, changes: [{ label: 'Phone', from: '<b>555</b>', to: '574 555 0100' }, { label: 'Email', from: '', to: 'new@example.com' }] },
   profile_submitted: { business: EVIL, adminUrl: 'https://admin.puppyconnection.workers.dev/#/breeders/b1' },
   approved: { business: EVIL, portalUrl: `${P}/` },
@@ -99,7 +100,9 @@ for (const [name, make] of Object.entries(TEMPLATES)) {
   const html = templateHtml(env, name, msg, data);
   rendered[name] = html;
   common(name, html);
-  check(`${name}: text part unchanged from ${BASE}`, main[name] && JSON.stringify(main[name](data)) === JSON.stringify(msg));
+  // A template added on this branch (kennel_added, workplan A27) has no text on the base to compare.
+  if (main[name]) check(`${name}: text part unchanged from ${BASE}`, JSON.stringify(main[name](data)) === JSON.stringify(msg));
+  else console.log(`NOTE  ${name}: new on this branch, so there is no text part on ${BASE} to compare`);
   const url = firstUrl(msg.text);
   const cfg = TEMPLATE_HTML[name];
   if (url && cfg.button) {

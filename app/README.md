@@ -205,6 +205,7 @@ node app/dev/e2e.mjs            # the whole journey, 41 checks
 node app/dev/access-tests.mjs   # the ten acceptance tests from build spec section 4
 node app/dev/signin-test.mjs    # emailed codes stay off, 60-day sessions, the contact change notice
 node app/dev/accounts-test.mjs  # launch workplan A24 to A26: passwords and their limits, the authenticator and recovery codes, password links, invitations, Make main contact, removing a person, Manage as this breeder and its hand-over
+node app/dev/multikennel-test.mjs # launch workplan A27: one address on several kennels, Choose a kennel, Switch kennel, signing out of every kennel, an invitation to someone who already has a password, removing a person from one kennel, the authenticator across kennels, Manage as this breeder
 node app/dev/jobs-test.mjs      # the scheduled jobs
 node app/dev/retention-test.mjs # launch workplan D1 on Node, no server: activity 2 years, payments 7 years, counts kept, unsubscribed tidied, closed accounts removed at 30 days, the caps and the job's cost
 node app/dev/google-test.mjs    # Continue with Google, against a stand-in Google on 8799

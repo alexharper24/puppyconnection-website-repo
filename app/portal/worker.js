@@ -39,7 +39,7 @@ import {
 } from '../lib/parents.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
 import {
-  personFor, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
+  personFor, kennelsFor, onKennel, checkMakeMain, acceptKennelStmts, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
   spendAuthToken, peekAuthToken, sendInvitation, hashPassword, checkPassword, passwordProblem, useSecondFactor, failureState,
   failureStmt, sealSecret, openSecret, base32, otpauthUri, matchTotp, newRecoveryCodes, accessStmts, ACCESS_HOW, MAX_MEMBERS,
   RESET_MINUTES, VERIFY_HOURS, MFA_MINUTES, OPERATOR_SESSION_HOURS, INVITE_DAYS,
@@ -63,17 +63,24 @@ const ipOf = (request) => request.headers.get('cf-connecting-ip') || 'local';
 const RENEWED = new WeakMap();
 
 /**
- * The signed-in kennel, or null. breeder.actor is who the audit log names for a write made in this
- * session: the breeder's own address, or, in a session an operator opened through the admin's
- * Manage as this breeder (workplan A24), "<operator> acting for <business>" as an operator.
+ * The session in this browser, or null: { hash, breeder, email, operator }. breeder is null while a
+ * person on more than one kennel has not picked one yet on Choose a kennel (workplan A27), and
+ * email is then the person's address. breeder.actor is who the audit log names for a write made in
+ * this session: the signed-in person's own address, or, in a session an operator opened through the
+ * admin's Manage as this breeder (workplan A24), "<operator> acting for <business>" as an operator.
  */
-async function currentSession(request, env) {
+async function readSession(request, env) {
   const token = parseCookies(request)[sessionCookieName(request)];
   if (!token) return null;
   const hash = await sha256hex(token);
   const s = await env.DB.prepare('SELECT * FROM sessions WHERE token_hash = ?').bind(hash).first();
   const t = now();
   if (!s || s.revoked_at || s.expires_at <= t) return null;
+  if (!s.breeder_id) {
+    if (s.operator_email || !s.email) return null;
+    await renewSession(request, env, s, token, hash, t);
+    return { hash, breeder: null, email: s.email.toLowerCase(), operator: null };
+  }
   const breeder = await loadBreeder(env, s.breeder_id);
   if (!breeder) return null;
   if (s.operator_email) {
@@ -85,6 +92,16 @@ async function currentSession(request, env) {
     breeder.actor = ['operator', `${s.operator_email} acting for ${breeder.business_name || breeder.email}`];
     return { hash, breeder, email: breeder.email, operator: { email: s.operator_email, name: person.name, until: s.expires_at } };
   }
+  // Workplan A27. The person must still be on this kennel. Removing them ends these sessions too
+  // (lib/accounts.js signInsEndStmts), so this is the second lock, checked on every request.
+  const email = String(s.email || breeder.email).toLowerCase();
+  if (email !== String(breeder.email).toLowerCase() && !(await onKennel(env, email, breeder.id))) return null;
+  await renewSession(request, env, s, token, hash, t);
+  breeder.actor = ['breeder', email];
+  return { hash, breeder, email, operator: null };
+}
+
+async function renewSession(request, env, s, token, hash, t) {
   if (s.expires_at < addDays(t, SESSION_DAYS - 1)) {
     const r = await env.DB.prepare('UPDATE sessions SET expires_at = ?, last_seen_at = ? WHERE token_hash = ? AND revoked_at IS NULL')
       .bind(addDays(t, SESSION_DAYS), t, hash).run();
@@ -92,16 +109,24 @@ async function currentSession(request, env) {
   } else if (s.last_seen_at < addMinutes(t, -5)) {
     await env.DB.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').bind(t, hash).run();
   }
-  breeder.actor = ['breeder', breeder.email];
-  return { hash, breeder, email: s.email || breeder.email, operator: null };
+}
+
+/** The signed-in kennel, or null. A session still on Choose a kennel has none, so it counts as null. */
+async function currentSession(request, env) {
+  const s = await readSession(request, env);
+  return s && s.breeder ? s : null;
 }
 
 /** Who the audit log names for a write, [actor_type, actor]. */
 const who = (breeder) => breeder.actor || ['breeder', breeder.email];
 
+const CHOOSE = '/choose';
+
 async function needSession(request, env) {
-  const s = await currentSession(request, env);
+  const s = await readSession(request, env);
   if (!s) throw new HttpError(401, 'Please sign in.');
+  // Workplan A27. Signed in, with more than one kennel and none picked yet.
+  if (!s.breeder) throw new HttpError(409, 'Choose a kennel first.', { choose: CHOOSE });
   return s;
 }
 
@@ -116,9 +141,18 @@ async function needOwnSession(request, env) {
   return s;
 }
 
+/**
+ * Start a session. breederId is the kennel it opens on, or null for a person on more than one
+ * kennel, who picks one on Choose a kennel next (workplan A27).
+ */
 async function startSession(request, env, breederId, email = null, { operator = null } = {}) {
   const token = randomToken();
   const t = now();
+  if (!breederId && !operator) {
+    await env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at, email) VALUES (?, NULL, ?, ?, ?, ?)')
+      .bind(await sha256hex(token), t, addDays(t, SESSION_DAYS), t, email).run();
+    return setCookie(request, sessionCookieName(request), token, SESSION_DAYS * 86400);
+  }
   if (operator) {
     // Workplan A24. Hours, not 60 days, never renewed, and it neither counts as the breeder's
     // first sign-in nor starts an imported breeder's inactivity clock.
@@ -260,8 +294,9 @@ async function authPassword(request, env) {
     return json({ need_code: true, ticket: token });
   }
   if (stmts.length) await env.DB.batch(stmts);
-  const breederId = await breederForVerifiedEmail(env, email, { method: 'password' });
-  return json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId, email) });
+  const kennels = await verifiedKennels(env, email, { method: 'password' });
+  const s = await signInPerson(request, env, email, kennels);
+  return json({ ok: true, choose: s.choose }, 200, { 'set-cookie': s.cookie });
 }
 
 /** The second step: the authenticator code, or one recovery code, for a ticket from authPassword. */
@@ -275,7 +310,8 @@ async function authTotp(request, env) {
   if (await lockedOut(env, row.email, ip)) throw new HttpError(429, LOCKED);
   const person = await personFor(env, row.email);
   const cred = await credentialFor(env, row.email);
-  if (!person || person.breeder_id !== row.breeder_id || !cred || !cred.totp_enabled_at) throw bad(gone);
+  // Workplan A27. The ticket is for the person, who may be on several kennels, so it names no one kennel.
+  if (!person || !cred || !cred.totp_enabled_at) throw bad(gone);
   const used = await useSecondFactor(env, cred, body.code);
   if (!used.ok) {
     await env.DB.batch([
@@ -286,10 +322,11 @@ async function authTotp(request, env) {
     throw bad('That code is not right. Use the six numbers your authenticator app shows now, or one of your recovery codes.');
   }
   if (!(await spendAuthToken(env, body.ticket, ['mfa']))) throw bad(gone);
-  const breederId = await breederForVerifiedEmail(env, row.email, { method: used.how === 'recovery' ? 'recovery_code' : 'authenticator' });
+  const kennels = await verifiedKennels(env, row.email, { method: used.how === 'recovery' ? 'recovery_code' : 'authenticator' });
   const left = used.how === 'recovery'
     ? (await env.DB.prepare('SELECT COUNT(*) AS n FROM recovery_codes WHERE email = ? AND used_at IS NULL').bind(row.email).first()).n : null;
-  return json({ ok: true, recovery_left: left }, 200, { 'set-cookie': await startSession(request, env, breederId, row.email) });
+  const s = await signInPerson(request, env, row.email, kennels);
+  return json({ ok: true, recovery_left: left, choose: s.choose }, 200, { 'set-cookie': s.cookie });
 }
 
 // Emailed sign-in codes and links are switched off (A26). An old link or a cached page gets a plain answer.
@@ -308,7 +345,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=20"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=21"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }
@@ -326,9 +363,31 @@ async function setPasswordContext(env, row) {
   if (row.purpose === 'verify') return { heading: 'Choose your password', intro: 'Your email address is confirmed. Choose a password to finish creating your breeder account.' };
   const b = row.breeder_id ? await loadBreeder(env, row.breeder_id) : null;
   const name = (b && b.business_name) || 'your kennel';
-  if (row.purpose === 'invite') return { heading: `Manage ${name} on Puppy Connection`, intro: `Choose a password to sign in to ${name} in the breeder portal.` };
+  if (row.purpose === 'invite') return { heading: `Manage ${name} on Puppy Connection`, intro: `Choose a password to sign in to ${name} in the breeder portal.`, name };
+  // Workplan A27. A reset for a person on several kennels names none of them, because one password signs in to all.
+  if (!b) return { heading: 'Choose a new password', intro: 'This sets the password you use to sign in to each of your kennels on Puppy Connection.' };
   return { heading: 'Choose a new password', intro: `This sets the password you use to sign in to ${name}.` };
 }
+
+/**
+ * Workplan A27. The invitation page for a person who already has a password: it asks for that
+ * password, or for their authenticator code when they have one, and sets nothing new.
+ */
+function acceptForm({ t, email, name, needCode, error }) {
+  const ask = needCode
+    ? '<div class="field"><label for="code">Code from your authenticator app</label><input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required><p class="hint">Lost your phone? Type one of your recovery codes instead.</p></div>'
+    : '<div class="field"><label for="pw">Your current password</label><input id="pw" name="password" type="password" autocomplete="current-password" maxlength="200" required></div><p class="hint">Forgot it? Use Forgot password on the <a href="/">sign-in page</a> first, then open this invitation again.</p>';
+  return html(page(`Add ${name}`, `<h1>Add ${esc(name)} to your sign-in</h1>
+<p>You already sign in to Puppy Connection as <b>${esc(email)}</b>. ${needCode ? 'Enter the code from your authenticator app' : 'Enter your current password'} to add ${esc(name)}. Your password stays the same, and you choose which kennel to open each time you sign in.</p>
+${error ? `<p class="error" role="alert">${esc(error)}</p>` : ''}
+<form method="post" action="/auth/set-password" class="set-password"><input type="hidden" name="t" value="${esc(t)}">
+<input type="email" name="username" value="${esc(email)}" autocomplete="username" readonly hidden>
+${ask}
+<button class="btn btn-primary" type="submit">Add the kennel and sign in</button></form>`), error ? 400 : 200);
+}
+
+/** Whether an invitation goes to the page that asks for the person's current password (A27). */
+const joinsWithExisting = (row, cred) => row.purpose === 'invite' && !!(cred && cred.password_hash);
 
 function passwordForm({ t, email, heading, intro, needCode, error }) {
   return html(page('Choose a password', `<h1>${esc(heading)}</h1><p>${esc(intro)}</p>
@@ -349,7 +408,9 @@ async function setPasswordPage(request, env) {
   const row = await peekAuthToken(env, t, SET_PURPOSES);
   if (!row) return linkGonePage();
   const cred = row.purpose === 'verify' ? null : await credentialFor(env, row.email);
-  return passwordForm({ t, email: row.email, ...(await setPasswordContext(env, row)), needCode: !!(cred && cred.totp_enabled_at) });
+  const ctx = await setPasswordContext(env, row);
+  if (joinsWithExisting(row, cred)) return acceptForm({ t, email: row.email, name: ctx.name, needCode: !!cred.totp_enabled_at });
+  return passwordForm({ t, email: row.email, ...ctx, needCode: !!(cred && cred.totp_enabled_at) });
 }
 
 /**
@@ -363,10 +424,13 @@ async function setPassword(request, env) {
   const t = String(form.get('t') || '');
   const row = await peekAuthToken(env, t, SET_PURPOSES);
   if (!row) return linkGonePage();
+  // An invitation is for one kennel, and a reset for a person on at least one (workplan A27). If the
+  // address has since come off that kennel, or off every kennel, the link is dead.
+  if (row.purpose === 'invite' && !(await onKennel(env, row.email, row.breeder_id, { awaiting: true }))) return linkGonePage();
   const person = await personFor(env, row.email);
-  // An invitation or reset is for one kennel. If the address has since come off it, the link is dead.
-  if (row.purpose !== 'verify' && (!person || person.breeder_id !== row.breeder_id)) return linkGonePage();
-  const cred = person ? await credentialFor(env, row.email) : null;
+  if (row.purpose === 'reset' && !person) return linkGonePage();
+  const cred = row.purpose === 'verify' ? null : await credentialFor(env, row.email);
+  if (joinsWithExisting(row, cred)) return acceptInvite(request, env, form, row, cred);
   const needCode = !!(cred && cred.totp_enabled_at);
   const again = async (error) => passwordForm({ t, email: row.email, ...(await setPasswordContext(env, row)), needCode, error });
   const password = String(form.get('password') || '');
@@ -387,23 +451,77 @@ async function setPassword(request, env) {
     }
   }
   if (!(await spendAuthToken(env, t, SET_PURPOSES))) return linkGonePage();
-  const breederId = await breederForVerifiedEmail(env, row.email, { businessName: row.signup_name || '', method: `password_${row.purpose}` });
+  // The invited kennel opens for the person now, if it was waiting for them (A27).
+  if (row.purpose === 'invite') await env.DB.batch(acceptKennelStmts(env, row.breeder_id, row.email, 'new_password'));
+  const kennels = await verifiedKennels(env, row.email, { businessName: row.signup_name || '', method: `password_${row.purpose}` });
+  const breederId = row.breeder_id || kennels[0].breeder_id;
   const tnow = now();
   const stmts = [
     env.DB.prepare(
       `INSERT INTO credentials (email, breeder_id, password_hash, password_set_at, updated_at) VALUES (?, ?, ?, ?, ?)
-       ON CONFLICT(email) DO UPDATE SET breeder_id = excluded.breeder_id, password_hash = excluded.password_hash, password_set_at = excluded.password_set_at, updated_at = excluded.updated_at`,
+       ON CONFLICT(email) DO UPDATE SET password_hash = excluded.password_hash, password_set_at = excluded.password_set_at, updated_at = excluded.updated_at`,
     ).bind(row.email, breederId, await hashPassword(env, password), tnow, tnow),
     auditStmt(env, 'breeder', row.email, 'account.password_set', 'breeder', breederId, null, { email: row.email, via: row.purpose }),
   ];
-  // A reset ends this person's other sessions, in case the password was reset because someone else had it.
-  if (row.purpose === 'reset') {
-    const main = person && person.main;
-    stmts.push(env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL AND operator_email IS NULL AND (email = ?${main ? ' OR email IS NULL' : ''})`)
-      .bind(tnow, breederId, row.email));
-  }
+  // A reset ends this person's other sessions on every kennel, in case the password was reset
+  // because someone else had it.
+  if (row.purpose === 'reset') stmts.push(personSessionsEndStmt(env, row.email, tnow));
   await env.DB.batch(stmts);
-  return redirect('/', 303, { 'set-cookie': await startSession(request, env, breederId, row.email) });
+  // An invitation opens the kennel it was for. Otherwise the person goes to their one kennel, or to Choose a kennel.
+  const s = row.purpose === 'invite'
+    ? { cookie: await startSession(request, env, row.breeder_id, row.email), choose: undefined }
+    : await signInPerson(request, env, row.email, kennels);
+  return redirect(s.choose || '/', 303, { 'set-cookie': s.cookie });
+}
+
+/**
+ * Every session a person signed in to themselves, on every kennel and on Choose a kennel. A main
+ * address's sessions from before migrations/0010 carry no email, so those are found by the kennel.
+ * except names the one session that carries on, when a person changes their password.
+ */
+function personSessionsEndStmt(env, email, t, except = '') {
+  const e = String(email).toLowerCase();
+  return env.DB.prepare(
+    `UPDATE sessions SET revoked_at = ? WHERE revoked_at IS NULL AND operator_email IS NULL AND token_hash != ?
+       AND (email = ? OR (email IS NULL AND breeder_id IN (SELECT id FROM breeders WHERE email = ?)))`,
+  ).bind(t, except, e, e);
+}
+
+/**
+ * Workplan A27. An invitation to a person who already has a password. Their password, or their
+ * authenticator code when they have one, proves it is them, and wrong tries count against the
+ * address and the link like any other sign-in. Then the kennel opens for them and they are signed
+ * in to it, with their password unchanged.
+ */
+async function acceptInvite(request, env, form, row, cred) {
+  const t = String(form.get('t') || '');
+  const ctx = await setPasswordContext(env, row);
+  const needCode = !!cred.totp_enabled_at;
+  const again = (error) => acceptForm({ t, email: row.email, name: ctx.name, needCode, error });
+  const ip = ipOf(request);
+  if (await lockedOut(env, row.email, ip)) return again(LOCKED);
+  let how = 'password';
+  if (needCode) {
+    const used = await useSecondFactor(env, cred, form.get('code'));
+    how = used.how === 'recovery' ? 'recovery_code' : 'authenticator';
+    if (!used.ok) return wrongTry(env, row, ip, 'code', again, 'That code is not right. Use the six numbers your authenticator app shows now, or one of your recovery codes.');
+  } else {
+    const r = await checkPassword(env, String(form.get('password') || '').slice(0, 200), cred.password_hash);
+    if (!r.ok) return wrongTry(env, row, ip, 'password', again, 'That password is not right. Use the password you sign in to Puppy Connection with.');
+  }
+  if (!(await spendAuthToken(env, t, ['invite']))) return linkGonePage();
+  await env.DB.batch(acceptKennelStmts(env, row.breeder_id, row.email, how));
+  await verifiedKennels(env, row.email, { method: 'invite_existing' });
+  return redirect('/', 303, { 'set-cookie': await startSession(request, env, row.breeder_id, row.email) });
+}
+
+async function wrongTry(env, row, ip, kind, again, message) {
+  await env.DB.batch([
+    failureStmt(env, row.email, ip, kind),
+    env.DB.prepare('UPDATE auth_tokens SET tries = tries + 1, used_at = CASE WHEN tries + 1 >= ? THEN ? ELSE used_at END WHERE token_hash = ?').bind(CODE_TRIES, now(), row.token_hash),
+  ]);
+  if (row.tries + 1 >= CODE_TRIES) return linkGonePage();
+  return again(message);
 }
 
 // ------------------------------------------------------------------ Manage as this breeder (A24)
@@ -428,27 +546,30 @@ async function authHandoff(request, env) {
 }
 
 /**
- * The account for an email address that has just been proven, by a password, an emailed link or
- * by Google. An existing breeder is signed in whatever their status, because approval and
- * suspension are enforced on every request after this. A new address becomes a pending
- * breeder.
+ * The kennels for an email address that has just been proven, by a password, an emailed link or
+ * by Google. Since workplan A27 an address may be on several. An existing person is signed in
+ * whatever each kennel's status, because approval and suspension are enforced on every request
+ * after this. The main address is marked verified and a person marked joined, on every kennel. A
+ * new address becomes a pending breeder, so someone a breeder added is never given a new account.
  */
-async function breederForVerifiedEmail(env, email, { businessName = '', contactName = null, method }) {
+async function verifiedKennels(env, email, { businessName = '', contactName = null, method }) {
   const t = now();
-  const existing = await env.DB.prepare('SELECT id, email_verified_at FROM breeders WHERE email = ?').bind(email).first();
-  if (existing) {
-    const stmts = [auditStmt(env, 'breeder', email, `breeder.signin.${method}`, 'breeder', existing.id, null, null)];
-    if (!existing.email_verified_at) stmts.push(env.DB.prepare('UPDATE breeders SET email_verified_at = ? WHERE id = ?').bind(t, existing.id));
-    await env.DB.batch(stmts);
-    return existing.id;
+  const kennels = await kennelsFor(env, email);
+  if (kennels.length) {
+    const one = kennels.length === 1 ? kennels[0] : null;
+    await env.DB.batch([
+      // A person on several kennels is recorded once, against their address, and each kennel they
+      // open is recorded when they choose it (chooseKennel).
+      one ? auditStmt(env, 'breeder', email, `breeder.signin.${method}`, 'breeder', one.breeder_id, null, one.main ? null : { member: one.member_id })
+        : auditStmt(env, 'breeder', email, `breeder.signin.${method}`, 'person', email, null, { kennels: kennels.map((k) => k.breeder_id) }),
+      env.DB.prepare('UPDATE breeders SET email_verified_at = ? WHERE email = ? AND email_verified_at IS NULL').bind(t, email),
+      env.DB.prepare('UPDATE breeder_members SET joined_at = ? WHERE email = ? AND joined_at IS NULL AND awaiting_accept = 0').bind(t, email),
+    ]);
+    return kennels;
   }
-  // Someone a breeder added to their kennel signs in to that kennel, never to a new account.
-  const member = await env.DB.prepare('SELECT id, breeder_id, joined_at FROM breeder_members WHERE email = ?').bind(email).first();
-  if (member) {
-    const stmts = [auditStmt(env, 'breeder', email, `breeder.signin.${method}`, 'breeder', member.breeder_id, null, { member: member.id })];
-    if (!member.joined_at) stmts.push(env.DB.prepare('UPDATE breeder_members SET joined_at = ? WHERE id = ?').bind(t, member.id));
-    await env.DB.batch(stmts);
-    return member.breeder_id;
+  // An address still waiting to confirm its only kennel from an invitation (A27) is not given a new account.
+  if (await env.DB.prepare('SELECT 1 AS x FROM breeder_members WHERE email = ?').bind(email).first()) {
+    throw bad('That address has an invitation waiting. Open the invitation email to add the kennel.');
   }
   const id = ulid();
   await env.DB.batch([
@@ -458,7 +579,73 @@ async function breederForVerifiedEmail(env, email, { businessName = '', contactN
       .bind(id, businessName || '', contactName, t),
     auditStmt(env, 'breeder', email, 'breeder.signup', 'breeder', id, null, { email, method }),
   ]);
-  return id;
+  return [{ breeder_id: id, business_name: businessName || '', status: 'pending', main: true, member_id: null }];
+}
+
+/**
+ * Workplan A27. Sign a person in once their address is proven. With one kennel the session opens on
+ * it, exactly as before. With more, the session opens on no kennel and they go to Choose a kennel.
+ */
+async function signInPerson(request, env, email, kennels) {
+  if (kennels.length === 1) return { cookie: await startSession(request, env, kennels[0].breeder_id, email), choose: undefined };
+  return { cookie: await startSession(request, env, null, email), choose: CHOOSE };
+}
+
+// ------------------------------------------------------------------ Choose a kennel (workplan A27)
+
+const KENNEL_STATUS = { pending: 'Waiting for approval', approved: 'Approved', suspended: 'Paused', declined: 'Not approved' };
+
+function choosePageHtml(kennels, currentId, email) {
+  const items = kennels.map((k) => {
+    const name = k.business_name || 'A kennel with no name yet';
+    const role = k.main ? 'You are the main contact' : 'You manage this kennel';
+    const here = k.breeder_id === currentId;
+    return `<li><form method="post" action="${CHOOSE}"><input type="hidden" name="kennel" value="${esc(k.breeder_id)}">
+<button class="kennel-pick${here ? ' is-here' : ''}" type="submit"${here ? ' aria-current="true"' : ''}><span class="kennel-name">${esc(name)}</span>
+<span class="kennel-meta">${esc(role)}. ${esc(KENNEL_STATUS[k.status] || '')}.${here ? ' Open now.' : ''}</span></button></form></li>`;
+  }).join('');
+  return page('Choose a kennel', `<h1>Choose a kennel</h1>
+<p>You manage more than one kennel on Puppy Connection. Choose the one to open. You can come back here at any time with Switch kennel at the top of the portal.</p>
+<p class="muted small">Signed in as <b>${esc(email)}</b></p>
+<ul class="kennel-list">${items}</ul>
+<form method="post" action="/auth/signout" class="kennel-signout"><button class="btn btn-quiet" type="submit">Sign out</button></form>`);
+}
+
+/** The Choose a kennel page. Only a person's own session has one, because an operator's stays on its kennel. */
+async function choosePage(request, env) {
+  const s = await readSession(request, env);
+  if (!s || s.operator) return redirect('/', 303);
+  const kennels = await kennelsFor(env, s.email);
+  if (!kennels.length) return redirect('/', 303);
+  return html(choosePageHtml(kennels, s.breeder ? s.breeder.id : null, s.email));
+}
+
+/**
+ * Open the kennel picked on Choose a kennel. The person must be on it, so a forged id for someone
+ * else's kennel is refused, and the audit log records each kennel opened and each switch.
+ */
+async function chooseKennel(request, env) {
+  requireSameOrigin(request);
+  const s = await readSession(request, env);
+  if (!s) return redirect('/', 303);
+  if (s.operator) throw forbidden('A Puppy Connection session stays on the kennel it was opened for.');
+  const form = await request.formData();
+  const id = String(form.get('kennel') || '');
+  if (!(await onKennel(env, s.email, id))) {
+    return html(page('Not one of your kennels', `<h1>That kennel is not one of yours</h1>
+<p>You can open only the kennels you manage. <a href="${CHOOSE}">Choose a kennel</a> from your list.</p>`), 403);
+  }
+  const from = s.breeder ? s.breeder.id : null;
+  if (from !== id) {
+    const t = now();
+    await env.DB.batch([
+      env.DB.prepare('UPDATE sessions SET breeder_id = ?, last_seen_at = ? WHERE token_hash = ? AND revoked_at IS NULL').bind(id, t, s.hash),
+      // Workplan A2. The first sign-in starts the inactivity clock for an imported Wix breeder.
+      env.DB.prepare('UPDATE breeders SET first_signin_at = ? WHERE id = ? AND first_signin_at IS NULL').bind(t, id),
+      auditStmt(env, 'breeder', s.email, from ? 'session.kennel_switch' : 'session.kennel_open', 'breeder', id, from ? { kennel: from } : null, { email: s.email, kennel: id }),
+    ]);
+  }
+  return redirect('/', 303);
 }
 
 // ------------------------------------------------------------------ Continue with Google (plan P6.1)
@@ -497,9 +684,10 @@ async function googleCallback(request, env) {
   }
   const email = String(claims.email).trim().toLowerCase();
   if (!EMAIL_RX.test(email)) return fail('email address not usable');
-  const breederId = await breederForVerifiedEmail(env, email, { contactName: clean(claims.name, 120), method: 'google' });
-  const session = await startSession(request, env, breederId, email);
-  const res = redirect('/', 303, { 'set-cookie': session });
+  let kennels;
+  try { kennels = await verifiedKennels(env, email, { contactName: clean(claims.name, 120), method: 'google' }); } catch (e) { if (e instanceof HttpError) return fail(e.message); throw e; }
+  const session = await signInPerson(request, env, email, kennels);
+  const res = redirect(session.choose || '/', 303, { 'set-cookie': session.cookie });
   res.headers.append('set-cookie', clear);
   return res;
 }
@@ -532,15 +720,21 @@ async function oneTapSignIn(request, env) {
   }
   const email = String(claims.email).trim().toLowerCase();
   if (!EMAIL_RX.test(email)) return json({ error: 'That Google account has no usable email address.' }, 400, { 'set-cookie': clear });
-  const breederId = await breederForVerifiedEmail(env, email, { contactName: clean(claims.name, 120), method: 'google' });
-  const res = json({ ok: true }, 200, { 'set-cookie': await startSession(request, env, breederId, email) });
+  const kennels = await verifiedKennels(env, email, { contactName: clean(claims.name, 120), method: 'google' });
+  const session = await signInPerson(request, env, email, kennels);
+  const res = json({ ok: true, choose: session.choose }, 200, { 'set-cookie': session.cookie });
   res.headers.append('set-cookie', clear);
   return res;
 }
 
+/**
+ * Sign out of this browser. A person on several kennels has one session that moves between them
+ * (workplan A27), so this ends it on every kennel at once. The Choose a kennel page posts a form
+ * here and is sent back to the sign-in page.
+ */
 async function signOut(request, env) {
   requireSameOrigin(request);
-  const s = await currentSession(request, env);
+  const s = await readSession(request, env);
   if (s) {
     await env.DB.batch([
       env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE token_hash = ?').bind(now(), s.hash),
@@ -548,7 +742,9 @@ async function signOut(request, env) {
       ...(s.operator ? [auditStmt(env, 'operator', s.operator.email, 'operator.session_end', 'breeder', s.breeder.id, null, null)] : []),
     ]);
   }
-  return json({ ok: true, back: s && s.operator && env.ADMIN_ORIGIN ? `${env.ADMIN_ORIGIN}/#/breeders/${encodeURIComponent(s.breeder.id)}` : null }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
+  const clear = setCookie(request, sessionCookieName(request), '', 0);
+  if (/application\/x-www-form-urlencoded|multipart\/form-data/.test(request.headers.get('content-type') || '')) return redirect('/', 303, { 'set-cookie': clear });
+  return json({ ok: true, back: s && s.operator && env.ADMIN_ORIGIN ? `${env.ADMIN_ORIGIN}/#/breeders/${encodeURIComponent(s.breeder.id)}` : null }, 200, { 'set-cookie': clear });
 }
 
 /** Sign out of every device, this one included (plan P6.3; P2.7 gives it a screen). */
@@ -596,6 +792,8 @@ async function me(request, env) {
   const cred = sess.operator ? null : await credentialFor(env, sess.email);
   out.signed_in_as = sess.operator ? null : sess.email;
   out.authenticator_nudge = !sess.operator && !(cred && (cred.totp_enabled_at || cred.totp_nudge_dismissed_at));
+  // Workplan A27. How many kennels this person signs in to, so the header offers Switch kennel when it is more than one.
+  out.kennel_count = sess.operator ? 1 : (await kennelsFor(env, sess.email)).length;
   out.payments_mode = env.PAYMENTS_MODE || 'off';
   out.test_notices = showTestNotices(env);
   out.mailbox = env.EMAIL_MODE === 'log' && isLocal(request, env);
@@ -891,6 +1089,7 @@ async function makeMain(request, env, ctx, id) {
   if (email.toLowerCase() !== String(breeder.email).toLowerCase()) throw forbidden('Only the main contact can hand the main email to someone else.');
   const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(id, breeder.id).first();
   if (!m) throw notFound();
+  await checkMakeMain(env, breeder, m);
   const keepOld = (await readJson(request)).keep_old !== false;
   await env.DB.batch(makeMainStmts(env, breeder, m, { keepOld, addedBy: email, actor: who(breeder) }));
   if (!keepOld) return json({ ok: true, signed_out: true }, 200, { 'set-cookie': setCookie(request, sessionCookieName(request), '', 0) });
@@ -934,9 +1133,8 @@ async function changePassword(request, env) {
   await env.DB.batch([
     upsertCred(env, email, s.breeder.id),
     env.DB.prepare('UPDATE credentials SET password_hash = ?, password_set_at = ?, updated_at = ? WHERE email = ?').bind(await hashPassword(env, String(body.password)), t, t, email),
-    // Every other session of this person ends, and this one carries on.
-    env.DB.prepare(`UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND token_hash != ? AND revoked_at IS NULL AND operator_email IS NULL AND (email = ?${email === String(s.breeder.email).toLowerCase() ? ' OR email IS NULL' : ''})`)
-      .bind(t, s.breeder.id, s.hash, email),
+    // Every other session of this person ends, on every kennel (A27), and this one carries on.
+    personSessionsEndStmt(env, email, t, s.hash),
     auditStmt(env, 'breeder', email, 'account.password_change', 'breeder', s.breeder.id, null, { email }),
   ]);
   return account(request, env);
@@ -2004,6 +2202,8 @@ const ROUTES = [
   ['GET', /^\/auth\/handoff$/, authHandoff],
   ['POST', /^\/auth\/signout$/, signOut],
   ['POST', /^\/auth\/signout-all$/, signOutAll],
+  ['GET', /^\/choose$/, choosePage],
+  ['POST', /^\/choose$/, chooseKennel],
   ['GET', /^\/auth\/google$/, googleStart],
   ['GET', /^\/auth\/google\/callback$/, googleCallback],
   ['GET', /^\/auth\/google\/nonce$/, oneTapNonce],

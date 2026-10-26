@@ -300,6 +300,16 @@ body.plain { display: grid; place-items: start center; min-height: 100dvh; paddi
 .brandmark img { width: 100%; height: auto; display: block; }
 .plain-mark { display: grid; place-items: center; background: var(--rail-bg); border-radius: var(--r-lg); padding: 1rem; margin: -.4rem -.4rem 1.2rem; }
 .plain-mark img { width: 10rem; height: auto; display: block; }
+/* Launch workplan A27. Choose a kennel: one row a kennel, the whole row a button, names may wrap */
+.kennel-list { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; gap: .6rem; }
+.kennel-list form { margin: 0; }
+.kennel-pick { display: grid; gap: .2rem; width: 100%; min-height: var(--tap); padding: .75rem 1rem; text-align: left; cursor: pointer;
+  background: #fff; border: 1px solid var(--line-strong); border-radius: var(--radius); color: var(--ink); font: inherit; overflow-wrap: anywhere; }
+.kennel-pick:hover { border-color: var(--bronze); background: var(--row-hover); }
+.kennel-pick.is-here { border-color: var(--bronze); box-shadow: inset 3px 0 0 var(--gold); }
+.kennel-name { font: 600 1.02rem var(--sans); }
+.kennel-meta { font-size: .85rem; color: var(--muted); }
+.plain-card .kennel-signout { margin-top: 1.2rem; }
 .sim-flag { background: #f4f6f8; border: 1px solid #d7dde4; border-radius: var(--radius); padding: .5rem .7rem; font-size: .85rem; color: #3f4a57; }
 /* privacy and terms (plan P7.1): a wider card for reading, links under every plain page */
 .plain-card.plain-wide { width: min(760px, 100%); }

@@ -520,19 +520,21 @@
     var people = data.people || [];
     var extra = people.filter(function (p) { return !p.main; }).length;
     return '<h3>Who signs in</h3><ul class="member-list people-admin">' + people.map(function (p) {
-      var state = p.password_set ? 'Has a password' : p.invite_open_until ? 'Invited, link open until ' + day(p.invite_open_until) : p.joined_at ? 'Signed in before, no password yet' : p.invited_at ? 'Invitation expired or used' : 'Not invited yet';
+      var state = p.awaiting ? (p.invite_open_until ? 'Signs in to another kennel. Invited, link open until ' + day(p.invite_open_until) + ', and this kennel opens once they confirm with their password' : 'Signs in to another kennel. Waiting for them to use an invitation to this one')
+        : p.password_set ? 'Has a password' : p.invite_open_until ? 'Invited, link open until ' + day(p.invite_open_until) : p.joined_at ? 'Signed in before, no password yet' : p.invited_at ? 'Invitation expired or used' : 'Not invited yet';
+      var others = p.other_kennels ? ', also signs in to ' + p.other_kennels + ' other kennel' + (p.other_kennels === 1 ? '' : 's') : '';
       return '<li data-person="' + esc(p.email) + '"><div class="meta"><b>' + esc(p.name || p.email) + '</b>' + (p.name ? ' <span class="muted small">' + esc(p.email) + '</span>' : '') +
         (p.main ? ' <span class="pill">Main contact</span>' : '') +
-        '<div class="small muted">' + esc(state) + (p.joined_at ? ', joined ' + esc(day(p.joined_at)) : '') + (p.authenticator ? ', authenticator on' : '') + '</div></div>' +
+        '<div class="small muted">' + esc(state) + (p.joined_at && !p.awaiting ? ', joined ' + esc(day(p.joined_at)) : '') + (p.authenticator ? ', authenticator on' : '') + esc(others) + '</div></div>' +
         '<div class="btn-row"><button class="btn btn-sm" type="button" data-invite="' + esc(p.email) + '">' + (p.invited_at ? 'Send invitation again' : 'Send invitation') + '</button>' +
-        (p.main ? '' : '<button class="btn btn-sm" type="button" data-main="' + esc(p.member_id) + '">Make main contact</button>') +
+        (p.main || p.awaiting ? '' : '<button class="btn btn-sm" type="button" data-main="' + esc(p.member_id) + '">Make main contact</button>') +
         (p.authenticator ? '<button class="btn btn-sm" type="button" data-reset-auth="' + esc(p.email) + '">Reset authenticator</button>' : '') +
         (p.main ? '' : '<button class="btn btn-sm btn-danger" type="button" data-remove-person="' + esc(p.member_id) + '">Remove</button>') + '</div></li>';
     }).join('') + '</ul><div id="main-choice"></div>' +
       (extra < 5 ? '<form id="person-form" class="member-form" novalidate><div class="field"><label for="pp-name">Name</label><input id="pp-name" type="text" maxlength="120" autocomplete="off"></div>' +
         '<div class="field"><label for="pp-email">Email address</label><input id="pp-email" type="email" maxlength="200" autocomplete="off" required></div>' +
         '<button class="btn btn-sm btn-primary" type="submit">Add and invite</button></form>' +
-        '<p class="hint">An invitation is a link that works once for 7 days and lands the person on the page that sets their password. Sending again stops the earlier link working.</p>'
+        '<p class="hint">An invitation is a link that works once for 7 days and lands the person on the page that sets their password. Sending again stops the earlier link working. Someone who already signs in to another kennel keeps their one password, and the link asks for it to add this kennel.</p>'
         : '<p class="hint">This kennel has the most extra people it can have, five. Remove someone to add another.</p>');
   }
 

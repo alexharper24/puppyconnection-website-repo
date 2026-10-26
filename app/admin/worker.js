@@ -19,7 +19,7 @@ import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
 import {
   kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, sendInvitation, resetAuthenticatorStmts,
-  accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES,
+  accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES, checkMakeMain,
 } from '../lib/accounts.js';
 import { checkLitterParents, parentsFor, documentsFor } from '../lib/parents.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
@@ -258,9 +258,11 @@ async function changeEmail(req, env, ctx, id, who) {
   const b = await loadBreeder(env, id);
   if (!b) throw notFound();
   if (addr === String(b.email).toLowerCase()) return breederDetail(req, env, ctx, id);
-  // Workplan A25. A person already on a kennel is moved with Make main contact instead.
-  if (await env.DB.prepare('SELECT 1 AS x FROM breeder_members WHERE email = ?').bind(addr).first()) {
-    throw bad('That address is a person on a kennel. To make them the main contact here, use Make main contact.');
+  // Workplan A25. A person already on this kennel is moved with Make main contact instead. Since A27
+  // a person on another kennel may become the main contact here, as long as they are not the main
+  // contact there too, which the UNIQUE answer below refuses.
+  if (await env.DB.prepare('SELECT 1 AS x FROM breeder_members WHERE breeder_id = ? AND email = ?').bind(id, addr).first()) {
+    throw bad('That address is a person on this kennel. To make them the main contact, use Make main contact.');
   }
   const t = now();
   try {
@@ -343,6 +345,7 @@ async function makeMainAdmin(req, env, ctx, id, who) {
   if (!['keep', 'remove'].includes(body.old)) throw bad('Choose whether the current main email stays on as a person or is removed.');
   const m = await env.DB.prepare('SELECT id, email FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(String(body.member_id || ''), b.id).first();
   if (!m) throw bad('Choose one of the people on this kennel.');
+  await checkMakeMain(env, b, m);
   await env.DB.batch(makeMainStmts(env, b, m, { keepOld: body.old === 'keep', addedBy: who.email, actor: opActor(who) }));
   return breederDetail(req, env, ctx, id);
 }
@@ -1020,7 +1023,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=20"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=21"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }

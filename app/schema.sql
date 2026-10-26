@@ -117,9 +117,11 @@ CREATE TABLE IF NOT EXISTS login_tokens (
 );
 CREATE INDEX IF NOT EXISTS login_tokens_email_created ON login_tokens(email, created_at);
 
+-- breeder_id is the kennel the session is on. It is empty while a person on more than one kennel
+-- picks one on the Choose a kennel page (migrations/0066, launch workplan A27).
 CREATE TABLE IF NOT EXISTS sessions (
   token_hash   TEXT PRIMARY KEY,
-  breeder_id   TEXT NOT NULL REFERENCES breeders(id),
+  breeder_id   TEXT REFERENCES breeders(id),
   created_at   TEXT NOT NULL,
   expires_at   TEXT NOT NULL,
   last_seen_at TEXT NOT NULL,
@@ -132,23 +134,32 @@ CREATE TABLE IF NOT EXISTS sessions (
   operator_email TEXT COLLATE NOCASE
 );
 CREATE INDEX IF NOT EXISTS sessions_breeder ON sessions(breeder_id);
+CREATE INDEX IF NOT EXISTS sessions_email ON sessions(email);
 
 -- More than one person per kennel (migrations/0010_kennel_members.sql). Each extra person signs
--- in with their own address and has the same access as the breeder's own address.
+-- in with their own address and has the same access as the breeder's own address. An address is
+-- unique on each kennel, so one person can be on several kennels with one sign-in (migrations/0066).
 CREATE TABLE IF NOT EXISTS breeder_members (
   id          TEXT PRIMARY KEY,
   breeder_id  TEXT NOT NULL REFERENCES breeders(id),
-  email       TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  email       TEXT NOT NULL COLLATE NOCASE,
   name        TEXT,
   added_by    TEXT NOT NULL,
   added_at    TEXT NOT NULL,
-  joined_at   TEXT
+  joined_at   TEXT,
+  -- 1 while a person who already signs in to another kennel has not yet confirmed this one through
+  -- their invitation, with their current password or authenticator code (A27). The kennel does not
+  -- open for them until then.
+  awaiting_accept INTEGER NOT NULL DEFAULT 0,
+  UNIQUE (breeder_id, email)
 );
 CREATE INDEX IF NOT EXISTS breeder_members_breeder ON breeder_members(breeder_id);
+CREATE INDEX IF NOT EXISTS breeder_members_email ON breeder_members(email);
 
 -- Launch workplan A24 to A26 (migrations/0055).
 -- A26. Each sign-in address's password and authenticator, keyed by the address so they follow the
--- person when Make main contact moves them. password_hash is "pbkdf2-sha256$<iterations>$<salt>$<hash>".
+-- person when Make main contact moves them, and so one person on several kennels has one password
+-- and one authenticator (A27). breeder_id records only the kennel the password was first set on. password_hash is "pbkdf2-sha256$<iterations>$<salt>$<hash>".
 -- totp_secret is "v1:<iv>:<ciphertext>" under the TOTP_KEY Worker secret, or "plain:<base32>"
 -- until that secret is set. totp_pending holds a secret during set-up, before one code confirms it.
 CREATE TABLE IF NOT EXISTS credentials (

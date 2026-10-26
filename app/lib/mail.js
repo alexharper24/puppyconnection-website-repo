@@ -61,6 +61,16 @@ export const TEMPLATES = {
       'If you were not expecting this, you can ignore it, or reply and let us know.' + signOff(),
     link,
   }),
+  // Launch workplan A27. Someone who already signs in to Puppy Connection was added to another
+  // kennel. The link asks for their current password, or their authenticator code, and adds it.
+  kennel_added: ({ business, by, link, days }) => ({
+    subject: `You can now manage ${business} on Puppy Connection`,
+    text: `${by} added you to ${business} on Puppy Connection, so you can manage its profile, litters and puppies with the email address and password you already use.\n\n` +
+      `Open this link and confirm with your current password, or with your authenticator code if you set one up, to add ${business} to your sign-in.\n\n${link}\n\n` +
+      `The link works once and stops working after ${days} days. After that, each time you sign in you choose which kennel to open. ` +
+      'If you were not expecting this, you can ignore it, or reply and let us know.' + signOff(),
+    link,
+  }),
   // Plan P6.6. Sent to the sign-in address, so the real owner hears about a change they did not make.
   contact_changed: ({ business, changes, by, portalUrl }) => ({
     subject: 'Your Puppy Connection contact details were changed',

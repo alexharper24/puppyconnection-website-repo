@@ -816,12 +816,18 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 .photo-narrow{max-width:640px;margin-top:1.6rem}
 /* List with us top band: the text column centered against the photo and the price card */
 .list-top > div:first-child{align-self:center}
-/* The questions photo starts level with the first question and stays in view beside the answers.
-   Sticky is bounded by the grid, so it stops where the answers end. */
-.faq-split{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:clamp(1.5rem,4vw,3.4rem);align-items:start}
+/* The questions photo starts level with the first line of the first answer and stays put (Alex,
+   2026-10-26). The first question has a row of its own, so the photo starts under it however the
+   question wraps. */
+.faq-split{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);grid-template-areas:"q1 ." "rest photo";
+  column-gap:clamp(1.5rem,4vw,3.4rem);row-gap:0;align-items:start}
 .faq-split > *{min-width:0}
+.faq-q1{grid-area:q1}
+.faq-rest{grid-area:rest}
+.faq-photo{grid-area:photo}
 #questions .faq-h2{margin-bottom:1.6rem}
-@media(min-width:941px){.faq-split > .photo-fig{position:sticky;top:calc(var(--hdr-h,152px) + 1.5rem)}}
-@media(max-width:940px){.faq-split{grid-template-columns:1fr}}
-/* Contact: the heading and the side column start on one line */
+@media(max-width:940px){.faq-split{grid-template-columns:1fr;grid-template-areas:"q1" "rest" "photo"}.faq-photo{margin-top:1.5rem}}
+/* Contact: the photo and Breeders box start level with the lead paragraph, under the heading */
 .contact-top .lede{margin-bottom:2.6rem}
+/* About: the side column stays where it starts rather than travelling with the reader */
+@media(min-width:941px){.split > aside.aside-still{position:static}}

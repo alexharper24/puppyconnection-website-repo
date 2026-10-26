@@ -338,7 +338,7 @@ async function part1() {
       && !menu(hav).includes('aria-current="page">About'));
   const altOk = (s) => (s.match(/<img src="img\/amber\/[^>]*>/g) || []).every((t) => t.includes('alt="Puppy Connection breeders with their puppies"'));
   check('About, Contact and Tips carry their photo in its slot, and the home page its band of three, all with the same alt text',
-    info.about.includes('<aside><figure class="photo-fig photo-side"><img src="img/amber/amber-08-1600.webp"')
+    info.about.includes('<aside class="aside-still"><figure class="photo-fig photo-side"><img src="img/amber/amber-08-1600.webp"')
       && info.contact.includes('<aside><figure class="photo-fig photo-side"><img src="img/amber/amber-05-1600.webp"')
       && /<p class="lede">[^<]*<\/p><figure class="photo-fig photo-narrow"><img src="img\/amber\/amber-04-1600\.webp"/.test(info['tips-on-buying-a-puppy'])
       && /Real families, real puppies[\s\S]*amber-03-1600[\s\S]*amber-06-1600[\s\S]*amber-02-1600/.test(homeOut)

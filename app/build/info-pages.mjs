@@ -45,6 +45,7 @@ export const INFO_PAGES = [
 <p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
 <div class="prose">
+<p class="brand-line">Because they're more than precious paws and puppy breath. They're family.</p>
 <p>We started Puppy Connection in 2013 with a simple belief: finding a puppy should be about more than a transaction. It should be the beginning of a lifelong connection. We wanted to create a place where families could discover wonderful puppies while helping small, family-owned breeders share the care, time, and love they pour into raising them.</p>
 <p>We look for breeders who genuinely love their dogs, prioritize health and temperament, and take pride in raising puppies that are well-prepared for loving homes. We value breeders who continually learn, work with their veterinarians, and give their puppies the care, socialization, and attention they need to become wonderful companions. Above all, we want to work with people who see their dogs as family and share our heart for connecting those puppies with families who will love them for a lifetime.</p>
 <p>Puppy Connection is based in northern Indiana and built on many years of experience in showing, breeding, grooming, photographing and studying dogs, including teaching courses in grooming, breeding, conformation and genetics.</p>

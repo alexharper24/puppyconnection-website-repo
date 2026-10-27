@@ -23,7 +23,96 @@
   function $(sel, root) { return (root || document).querySelector(sel); }
   function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
 
+  // ------------------------------------------------------------ busy states
+  /* Amber, 2026-10-26: a slight lag when adding puppies, with no sign the press was taken. The
+     button or form that starts a change is held busy until every request it led to has finished,
+     including the reload after a save, so a second press cannot add a second copy. The label
+     changes to Saving, Adding and so on only when the wait passes 150 ms, so quick actions do not
+     flicker. Uploads that shrink a photo first say what they are doing through fileBusy. */
+  var trigger = null, held = null, inflight = 0;
+  var BUSY_WORDS = [[/^(save|accept|i accept)/i, 'Saving…'], [/^add/i, 'Adding…'], [/^submit/i, 'Submitting…'], [/^send/i, 'Sending…'],
+    [/^sign in/i, 'Signing in…'], [/^(pay|relist)/i, 'Opening checkout…'], [/^remove/i, 'Removing…'], [/^copy/i, 'Copying…'],
+    [/^(mark|make|move)/i, 'Updating…'], [/^(create|set|turn|confirm|verify|continue)/i, 'Working…']];
+  function busyWord(el) {
+    var t = (el.textContent || '').trim();
+    for (var i = 0; i < BUSY_WORDS.length; i++) if (BUSY_WORDS[i][0].test(t)) return BUSY_WORDS[i][1];
+    return 'Working…';
+  }
+  function markBusy(el, word) {
+    el.dataset.busy = '1';
+    el.setAttribute('aria-busy', 'true');
+    if (el.tagName === 'BUTTON' || el.tagName === 'LABEL') {
+      if (el.tagName === 'BUTTON' && !el.disabled) { el.disabled = true; el.dataset.busyDisabled = '1'; }
+      el.style.minWidth = el.offsetWidth + 'px';
+      el.dataset.busyLabel = el.innerHTML;
+      el.textContent = word || busyWord(el);
+    }
+    el.classList.add('is-busy');
+  }
+  function clearBusy(el) {
+    if (!el || !el.dataset.busy) return;
+    delete el.dataset.busy;
+    el.removeAttribute('aria-busy');
+    el.classList.remove('is-busy');
+    if (el.dataset.busyLabel != null) { el.innerHTML = el.dataset.busyLabel; delete el.dataset.busyLabel; el.style.minWidth = ''; }
+    if (el.dataset.busyDisabled) { el.disabled = false; delete el.dataset.busyDisabled; }
+  }
+  function hold(el, form) {
+    if (held) return;
+    held = { el: el, form: form, shown: false };
+    if (form) form.dataset.busy = '1';
+    el.dataset.busy = '1';
+    held.timer = setTimeout(function () { if (held && held.el === el && !held.done) { held.shown = true; markBusy(el); } }, 150);
+  }
+  function release() {
+    if (!held || inflight) return;
+    var h = held; held = null; h.done = true;
+    clearTimeout(h.timer);
+    if (h.shown) clearBusy(h.el); else delete h.el.dataset.busy;
+    if (h.form) delete h.form.dataset.busy;
+  }
+  function requestStarted(method) {
+    inflight++;
+    if (method !== 'GET' && trigger && !held) hold(trigger.el, trigger.form);
+  }
+  function requestEnded() {
+    inflight--;
+    // A save is usually followed by a reload of the list, started in the same turn, so wait one
+    // turn before letting go.
+    setTimeout(release, 0);
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest && e.target.closest('button');
+    if (!b) return;
+    if (b.dataset.busy || (b.form && b.form.dataset.busy)) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    trigger = { el: b, form: b.form || null };
+    setTimeout(function () { if (trigger && trigger.el === b) trigger = null; }, 0);
+  }, true);
+  document.addEventListener('submit', function (e) {
+    var f = e.target;
+    if (f.dataset.busy) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+    var b = e.submitter || $('button[type=submit]', f) || $('button', f);
+    if (!b) return;
+    trigger = { el: b, form: f };
+    setTimeout(function () { if (trigger && trigger.el === b) trigger = null; }, 0);
+  }, true);
+  /* For a file picker: the label that opens it says what is happening and the picker is locked
+     until done(). set(text) changes the words, for a batch of photos. */
+  function fileBusy(input, text) {
+    var label = input.id ? $('label[for="' + input.id + '"]') : null;
+    input.disabled = true;
+    if (label) { markBusy(label, text); label.setAttribute('role', 'status'); }
+    return {
+      set: function (t) { if (label) label.textContent = t; },
+      done: function () { input.disabled = false; if (label) { label.removeAttribute('role'); clearBusy(label); } },
+    };
+  }
+
   function api(method, path, body, raw) {
+    requestStarted(method);
+    return apiFetch(method, path, body, raw).then(function (v) { requestEnded(); return v; }, function (e) { requestEnded(); throw e; });
+  }
+  function apiFetch(method, path, body, raw) {
     var opts = { method: method, credentials: 'same-origin', headers: {} };
     if (raw) { opts.body = raw; opts.headers['content-type'] = raw.type || 'application/octet-stream'; }
     else if (body !== undefined) { opts.body = JSON.stringify(body); opts.headers['content-type'] = 'application/json'; }
@@ -578,12 +667,14 @@
         var file = input.files && input.files[0];
         if (!file) return;
         err.hidden = true;
+        var fb = fileBusy(input, 'Uploading…');
         shrink(file).then(function (s) {
           return api('POST', '/api/profile/' + kind, undefined, s.full).then(function () {
             if (s.card) return api('POST', '/api/profile/' + kind + '/card', undefined, s.card).catch(function () {});
           });
         }).then(function () { return done(kind === 'logo' ? 'Logo saved' : 'Kennel photo saved'); })
-          .catch(function (e2) { err.hidden = false; err.textContent = e2.message; });
+          .catch(function (e2) { err.hidden = false; err.textContent = e2.message; })
+          .then(fb.done);
       });
       var rm = $('[data-unbrand]', box);
       if (rm) rm.addEventListener('click', function () {
@@ -962,7 +1053,7 @@
       if (!file) return;
       errBox.hidden = true;
       if (file.size > V.max_bytes) { errBox.hidden = false; errBox.textContent = 'That video is larger than 200 MB. A shorter clip, or one saved at a lower quality, will fit.'; return; }
-      var started = null;
+      var started = null, fb = fileBusy(input, 'Uploading video…');
       api('POST', '/api/puppies/' + x.id + '/videos', {}).then(function (r) {
         started = r.id;
         return new Promise(function (ok, fail) {
@@ -977,8 +1068,9 @@
       }).then(function (r) {
         prog.textContent = 'Uploaded. Processing the video.';
         return api('POST', '/api/videos/' + r.id + '/check', {});
-      }).then(function () { toast('Video added'); reopen(); })
+      }).then(function () { fb.done(); toast('Video added'); reopen(); })
         .catch(function (err) {
+          fb.done();
           prog.hidden = true; errBox.hidden = false; errBox.textContent = err.message;
           // An upload that never finished is taken back off the puppy, so it does not hold a place.
           if (started) api('DELETE', '/api/videos/' + started).catch(function () {});
@@ -1069,13 +1161,13 @@
       });
     }).catch(function () { return { full: file, card: null }; });
   }
-  function uploadOne(puppyId, file) {
+  function uploadOne(puppyId, file, checking) {
     return screen(file).then(function () { return shrink(file); }).then(function (s) {
       return api('POST', '/api/puppies/' + puppyId + '/photos', undefined, s.full).then(function (r) {
         // A missing card copy only means cards load the full photo, so its failure is not shown.
         return (s.card ? api('POST', '/api/photos/' + r.id + '/card', undefined, s.card).catch(function () {}) : Promise.resolve())
           // Workplan A9. The quality check. If it cannot run now, the photo is checked within 15 minutes.
-          .then(function () { return api('POST', '/api/photos/' + r.id + '/check', {}).catch(function () { return { quality: 'pending' }; }); })
+          .then(function () { if (checking) checking(); return api('POST', '/api/photos/' + r.id + '/check', {}).catch(function () { return { quality: 'pending' }; }); })
           .then(function (c) { c.name = file.name; return c; });
       });
     });
@@ -1100,11 +1192,15 @@
       if (!files.length) return;
       errBox.hidden = true;
       var chain = Promise.resolve(), results = [], problems = [];
-      files.forEach(function (file) {
+      var many = files.length > 1, fb = fileBusy(input, many ? 'Uploading photo 1 of ' + files.length + '…' : 'Uploading photo…');
+      files.forEach(function (file, i) {
         chain = chain.then(function () {
-          return uploadOne(x.id, file).then(function (c) { results.push(c); }, function (e) { if (e.message !== 'skip') problems.push(e.message); });
+          fb.set(many ? 'Uploading photo ' + (i + 1) + ' of ' + files.length + '…' : 'Uploading photo…');
+          return uploadOne(x.id, file, function () { fb.set(many ? 'Checking photo ' + (i + 1) + ' of ' + files.length + '…' : 'Checking photo…'); })
+            .then(function (c) { results.push(c); }, function (e) { if (e.message !== 'skip') problems.push(e.message); });
         });
       });
+      chain = chain.then(function (v) { fb.done(); return v; }, function (e) { fb.done(); throw e; });
       chain.then(function () {
         var ok = results.filter(function (c) { return c.quality !== 'sent_back' && c.quality !== 'review'; }).length;
         if (ok) toast(ok === 1 ? 'Photo added' : ok + ' photos added');
@@ -1245,10 +1341,11 @@
       var file = input.files && input.files[0];
       if (!file) return;
       errBox.hidden = true;
+      var fb = fileBusy(input, 'Uploading photo…');
       shrink(file).then(function (s) {
         return api('POST', '/api/parents/' + p.id + '/photo', undefined, s.full)
           .then(function () { return s.card ? api('POST', '/api/parents/' + p.id + '/photo/card', undefined, s.card).catch(function () {}) : null; });
-      }).then(function () { toast('Photo added'); reopen(); }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
+      }).then(function () { fb.done(); toast('Photo added'); reopen(); }).catch(function (err) { fb.done(); errBox.hidden = false; errBox.textContent = err.message; });
     });
     var rm = $('#pa-photo-remove', d);
     if (rm) rm.addEventListener('click', function () {
@@ -1294,8 +1391,9 @@
       var f = formData(form);
       var vis = ($('[name=visibility]:checked', form) || {}).value || 'private';
       var q = '?kind=' + encodeURIComponent(f.kind) + '&visibility=' + encodeURIComponent(vis) + '&title=' + encodeURIComponent(f.title || '') + '&name=' + encodeURIComponent(file.name.replace(/\.[^.]+$/, ''));
-      api('POST', uploadPath + q, undefined, file).then(function () { toast(vis === 'public' ? 'Document added for families to see' : 'Document added, for Puppy Connection only'); reopen(); })
-        .catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
+      var fb = fileBusy(this, 'Uploading…');
+      api('POST', uploadPath + q, undefined, file).then(function () { fb.done(); toast(vis === 'public' ? 'Document added for families to see' : 'Document added, for Puppy Connection only'); reopen(); })
+        .catch(function (err) { fb.done(); errBox.hidden = false; errBox.textContent = err.message; });
     });
     $$('[data-doc-vis]', sec).forEach(function (b) {
       b.addEventListener('click', function () {

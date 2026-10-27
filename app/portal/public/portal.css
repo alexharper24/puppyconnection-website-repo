@@ -483,3 +483,10 @@ fieldset.field { border: 0; padding: 0; margin: 0 0 1rem; }
 fieldset.field legend { font-weight: 600; margin-bottom: .4rem; }
 fieldset.field .check { margin: .3rem 0; }
 @media (max-width: 560px) { .member-list li { flex-wrap: wrap; } .member-list li .btn-row { justify-content: flex-start; } }
+
+/* Busy states (Amber, 2026-10-26). A button or upload label that is working says so in words,
+   with a small turning ring, and keeps full strength rather than the faded disabled look. */
+.btn.is-busy, .btn.is-busy[disabled] { opacity: 1; cursor: progress; }
+.btn.is-busy::before { content: ""; width: .9em; height: .9em; flex: none; border-radius: 50%;
+  border: 2px solid currentColor; border-right-color: transparent; }
+@media (prefers-reduced-motion: no-preference) { .btn.is-busy::before { animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } } }

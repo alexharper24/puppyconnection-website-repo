@@ -483,3 +483,15 @@ fieldset.field { border: 0; padding: 0; margin: 0 0 1rem; }
 fieldset.field legend { font-weight: 600; margin-bottom: .4rem; }
 fieldset.field .check { margin: .3rem 0; }
 @media (max-width: 560px) { .member-list li { flex-wrap: wrap; } .member-list li .btn-row { justify-content: flex-start; } }
+
+/* Wide record drawers (Alex, 2026-10-27, after Teapup's editor). From 1,200px a record opens at
+   about two thirds of the window, never over the menu and never past 1,400px, with its details
+   on the left and its photos and lists on the right. Narrower than that the drawer keeps its
+   own width and the two columns stack. */
+@media (min-width: 1200px) {
+  .drawer.wide { width: min(calc(100% - var(--rail)), max(1040px, 66.667%), 1400px); }
+  .drawer.wide .drawer-body { padding: 1.1rem 1.5rem 2rem; }
+  .drawer.wide .d-cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.6rem; align-items: start; }
+  .drawer.wide .d-side { border-left: 1px solid var(--line); padding-left: 1.6rem; }
+  .drawer.wide .d-side > :first-child, .drawer.wide .d-side > section:first-child h3:first-child { margin-top: 0; }
+}

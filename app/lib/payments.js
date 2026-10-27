@@ -65,7 +65,9 @@ const stripeProvider = {
     const s = await this.call(env, 'POST', '/checkout/sessions', {
       mode: 'payment',
       line_items: [{ price: o.priceId, quantity: o.quantity }],
-      payment_method_types: ['card'],
+      // No payment_method_types. API 2026-09-30.endive refuses it, and the payment methods
+      // offered are set under Settings, Payment methods in the Stripe Dashboard (card only).
+      // A delayed method still lists nothing until paid, through async_payment_succeeded.
       customer: o.customer,
       client_reference_id: o.checkoutId,
       metadata: { checkout_id: o.checkoutId, breeder_id: o.breederId },

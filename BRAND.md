@@ -40,7 +40,7 @@ with a walking-figure-and-dog mark under an arc.
 | `img/brand/logo-charcoal.png` | Generated from the white version, for light backgrounds |
 | `img/brand/logo-charcoal-trim.png` | Same, whitespace trimmed to 1600×838 |
 
-Tagline as set beneath the mark: *Connecting responsible breeders with loving families.*
+Tagline set beneath the mark: *Where puppies find their people.* Brand message for the homepage and About page: *Because they're more than precious paws and puppy breath. They're family.* (Amber, 2026-10-26, replacing *Connecting responsible breeders with loving families.*, with a period in place of her dash under the site copy rule.)
 
 ## Hero
 

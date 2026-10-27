@@ -14,7 +14,7 @@
 // It is never inlined as a data URI, because many mail clients block those.
 
 const SITE = 'Puppy Connection';
-const TAGLINE = 'Connecting responsible breeders with loving families';
+const TAGLINE = 'Where puppies find their people.';
 const SIGNATURE = 'The Puppy Connection team';
 const AUTOMATIC = 'This is an automatic message from the breeder portal.';
 // The signOff() lib/mail.js appends to every text part. The HTML shows it in the footer instead.

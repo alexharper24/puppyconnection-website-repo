@@ -389,7 +389,7 @@ p{margin:0 0 1rem;max-width:70ch}
    right column, and two marks competing beside the name read as clutter. */
 .profile-head h1{margin-bottom:.15rem}
 .prose p{margin-bottom:1.1rem}
-.prose p:first-of-type::first-letter{
+.prose p:first-of-type::first-letter,.prose .brand-line + p::first-letter{
   font-family:var(--serif);font-size:3.4em;float:left;line-height:.82;padding:.06em .1em 0 0;color:var(--olive)
 }
 /* A paragraph after a contact list is a note, not an opening: no drop cap, and room above it (Contact, Alex 2026-10-26). */
@@ -834,3 +834,9 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 .contact-top .lede{margin-bottom:2.6rem}
 /* About: the side column stays where it starts rather than travelling with the reader */
 @media(min-width:941px){.split > aside.aside-still{position:static}}
+
+/* Amber's brand message (2026-10-26): a cream band under the homepage search, and the opening line of About. */
+.brand-message{padding:1.6rem 0;text-align:center}
+.brand-message p{margin:0 auto;max-width:40ch;font-family:var(--serif);font-style:italic;font-size:clamp(1.15rem,2.4vw,1.5rem);line-height:1.35;color:var(--ink);text-wrap:balance}
+.prose .brand-line{font-family:var(--serif);font-style:italic;font-size:1.3rem;line-height:1.4;color:var(--ink)}
+.prose p.brand-line::first-letter{font:inherit;float:none;line-height:inherit;padding:0;color:inherit}

@@ -52,12 +52,31 @@
   }
 
   var lastFocus = null;
+  /* Alex, 2026-10-27, after Teapup's editor: a record opens wide, about two thirds of a laptop
+     window, in two columns, so less of it needs scrolling. SPLIT marks where the right column
+     starts, and WIDE widens a drawer without columns. Under 1,200px wide the drawer keeps its
+     narrow width and the columns stack. */
+  var SPLIT = '<i data-split hidden></i>', WIDE = '<i data-wide hidden></i>';
+  function splitColumns(body) {
+    var mark = $('[data-split]', body);
+    if (!mark || mark.parentNode !== body) return;
+    var cols = document.createElement('div'); cols.className = 'd-cols';
+    var main = document.createElement('div'); main.className = 'd-main';
+    var side = document.createElement('div'); side.className = 'd-side';
+    var into = main;
+    Array.prototype.slice.call(body.childNodes).forEach(function (n) {
+      if (n === mark) { into = side; body.removeChild(n); return; }
+      into.appendChild(n);
+    });
+    cols.appendChild(main); cols.appendChild(side); body.appendChild(cols);
+  }
   function openDrawer(title, html, ready) {
     closeDrawer(); lastFocus = document.activeElement;
     var s = document.createElement('div'); s.className = 'scrim'; s.id = 'scrim';
     var d = document.createElement('aside'); d.className = 'drawer'; d.id = 'drawer';
     d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', title);
     d.innerHTML = '<div class="drawer-head"><h2>' + esc(title) + '</h2><button class="btn btn-quiet" data-close>Close</button></div><div class="drawer-body">' + html + '</div>';
+    if (html.indexOf(SPLIT) >= 0 || html.indexOf(WIDE) >= 0) { d.classList.add('wide'); splitColumns($('.drawer-body', d)); }
     document.body.appendChild(s); document.body.appendChild(d);
     s.addEventListener('click', closeDrawer); $('[data-close]', d).addEventListener('click', closeDrawer);
     var f = $('button:not([data-close]), input, textarea, select', d); if (f) f.focus();
@@ -445,6 +464,9 @@
         '<form id="note-form"><label class="sr" for="note-body">New note</label><textarea id="note-body" name="body" style="min-height:70px" placeholder="Add a note about this breeder"></textarea>' +
         '<div class="btn-row" style="margin-top:.5rem"><button class="btn btn-sm" type="submit">Add note</button></div></form>' +
         '<div id="notes">' + notesHtml(data.notes) + '</div>' +
+        '<h3>Change sign-in email</h3><form id="email-form" class="btn-row" style="margin:0"><input type="email" name="email" aria-label="Sign-in email" value="' + esc(b.email) + '" style="flex:1 1 220px"><button class="btn btn-sm" type="submit">Change</button></form>' +
+        '<p class="hint">Changing it signs the breeder out everywhere. The new address then needs an invitation, from Who signs in above, to set its password. To hand the kennel to a person already on it, use Make main contact.</p>' +
+        SPLIT +
         (litters.length ? '<h3>Litters (' + litters.length + ')</h3>' + litters.map(function (l) {
           var n = l.puppies.filter(function (p) { return p.publication_state !== 'archived'; }).length;
           return '<div class="pay-row"><span><b>' + esc(l.breed_name) + '</b></span><span class="muted small">' + (l.born_on ? 'born ' + esc(day(l.born_on)) + ', ' : '') + plural(n, 'puppy', 'puppies') + '</span>' +
@@ -460,8 +482,6 @@
         '<h3>Payments</h3>' + (data.checkouts.length ? data.checkouts.map(function (c) {
           return '<div class="pay-row"><span>' + esc(day(c.created_at)) + '</span><span>' + plural(c.quantity, 'listing') + ', ' + esc(money(c.amount_total_cents)) + '</span><span class="pill">' + esc(c.status) + '</span></div>';
         }).join('') : '<p class="muted small">None yet.</p>') +
-        '<h3>Change sign-in email</h3><form id="email-form" class="btn-row" style="margin:0"><input type="email" name="email" aria-label="Sign-in email" value="' + esc(b.email) + '" style="flex:1 1 220px"><button class="btn btn-sm" type="submit">Change</button></form>' +
-        '<p class="hint">Changing it signs the breeder out everywhere. The new address then needs an invitation, from Who signs in above, to set its password. To hand the kennel to a person already on it, use Make main contact.</p>' +
         '<h3>Activity</h3>' + (data.audit.length ? data.audit.slice(0, 20).map(function (a) {
           return '<div class="small" style="padding:.3rem 0;border-top:1px solid var(--line)">' + esc(when(a.at)) + ', ' + esc(a.action) + ' <span class="muted">by ' + esc(a.actor) + '</span></div>';
         }).join('') : '<p class="muted small">Nothing yet.</p>'),
@@ -635,7 +655,7 @@
   }
   function photoDrawer(data, p) {
     api('GET', '/api/puppies/' + p.id + '/photos').then(function (photos) {
-      openDrawer('Photos of ' + p.name,
+      openDrawer('Photos of ' + p.name, WIDE +
         '<p class="notice small">You are changing this on behalf of ' + esc(data.breeder.business_name || data.breeder.email) + '. The change is recorded in the activity log under your name.</p>' +
         (photos.length ? '<ul class="admin-photos">' + photos.map(function (ph, i) {
           return '<li data-id="' + esc(ph.id) + '"><img src="' + esc(photoThumb(ph.card || ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(p.name) + '" decoding="async">' +

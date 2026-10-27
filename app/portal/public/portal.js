@@ -154,6 +154,24 @@
 
   // ------------------------------------------------------------ drawer
   var lastFocus = null;
+  /* Alex, 2026-10-27, after Teapup's editor: a record opens wide, about two thirds of a laptop
+     window, with its details on the left and its photos, videos and documents on the right, so
+     less of it needs scrolling. SPLIT marks where the right column starts. Under 1,200px wide the
+     drawer keeps its narrow width and the two columns stack. */
+  var SPLIT = '<i data-split hidden></i>';
+  function splitColumns(body) {
+    var mark = $('[data-split]', body);
+    if (!mark || mark.parentNode !== body) return;
+    var cols = document.createElement('div'); cols.className = 'd-cols';
+    var main = document.createElement('div'); main.className = 'd-main';
+    var side = document.createElement('div'); side.className = 'd-side';
+    var into = main;
+    Array.prototype.slice.call(body.childNodes).forEach(function (n) {
+      if (n === mark) { into = side; body.removeChild(n); return; }
+      into.appendChild(n);
+    });
+    cols.appendChild(main); cols.appendChild(side); body.appendChild(cols);
+  }
   function openDrawer(title, bodyHtml, onReady) {
     closeDrawer();
     lastFocus = document.activeElement;
@@ -162,6 +180,7 @@
     d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', title);
     d.innerHTML = '<div class="drawer-head"><h2>' + esc(title) + '</h2><button class="btn btn-quiet" data-close aria-label="Close">Close</button></div>' +
       '<div class="drawer-body">' + bodyHtml + '</div>';
+    if (bodyHtml.indexOf(SPLIT) >= 0) { d.classList.add('wide'); splitColumns($('.drawer-body', d)); }
     document.body.appendChild(scrim); document.body.appendChild(d);
     scrim.addEventListener('click', closeDrawer);
     $('[data-close]', d).addEventListener('click', closeDrawer);
@@ -948,7 +967,7 @@
       detailFields(x, dis) +
       (canEdit ? '<div id="quality" aria-live="polite">' + qualityBox(x, findLitter(x ? x.litter_id : litterId), null) + '</div>' : '') +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + (x ? '<button class="btn btn-danger" type="button" id="archive-puppy">Remove puppy</button>' : '') + '</div>' : '') +
-      '</form>' + (x ? photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy') : '<p class="hint" style="margin-top:1rem">Add photos, videos and documents after the puppy is saved.</p>'),
+      '</form>' + (x ? SPLIT + photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy') : '<p class="hint" style="margin-top:1rem">Add photos, videos and documents after the puppy is saved.</p>'),
       function (d) {
         var form = $('#puppy', d);
         $$('[data-av]', d).forEach(function (b) {
@@ -1302,7 +1321,7 @@
       '<div class="field"><label for="pa-ped">Pedigree</label><textarea id="pa-ped" name="pedigree" style="min-height:70px"' + dis + '>' + esc(p ? p.pedigree : '') + '</textarea><div class="hint">The ' + word + '\'s parents and lines, as you would tell a family. You can also upload the pedigree below.</div></div>' +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (p ? 'Save ' + word : 'Add ' + word) + '</button>' +
         (p ? '<button class="btn btn-quiet" type="button" id="archive-parent">' + (p.archived_at ? 'Put back on the litter picker' : 'Remove from the litter picker') + '</button>' : '') + '</div>' : '') +
-      '</form>' + (p ? parentPhotoSection(p, canEdit) + docSection(p.documents, canEdit, 'parent') : '<p class="hint" style="margin-top:1rem">Add a photo and documents after the ' + word + ' is saved.</p>'),
+      '</form>' + (p ? SPLIT + parentPhotoSection(p, canEdit) + docSection(p.documents, canEdit, 'parent') : '<p class="hint" style="margin-top:1rem">Add a photo and documents after the ' + word + ' is saved.</p>'),
       function (d) {
         var form = $('#parent', d);
         $('#pa-breed', d).addEventListener('change', function () {

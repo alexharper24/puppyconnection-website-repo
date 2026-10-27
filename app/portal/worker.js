@@ -345,7 +345,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=21"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=22"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
 }

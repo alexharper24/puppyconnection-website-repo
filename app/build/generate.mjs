@@ -1120,6 +1120,9 @@ ${others.length ? `<section class="band">
     title: 'Breeds | Puppy Connection', current: 'breeds.html',
     desc: 'Every breed currently listed on Puppy Connection, with guides and what is available now.',
     trail: [['Breeds', `${base}breeds.html`]],
+    // Ahrefs crawl 2026-10-28: list pages should carry ItemList data.
+    ld: [{ '@type': 'ItemList', name: 'Breeds on Puppy Connection', numberOfItems: listedBreeds.length,
+      itemListElement: listedBreeds.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breed(b.slug)}`, name: b.name })) }],
     body: `<main id="breedIndex-page">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Breeds</p><h1>Find the breed that suits your family</h1>
 <p class="lede">Every breed currently listed, with what is available now and a guide where one has been written.</p></div></section>
@@ -1133,6 +1136,8 @@ ${others.length ? `<section class="band">
     // Indiana and the Midwest and grows from there (Alex, 2026-10-07).
     title: 'Dog Breeders in Indiana and the Midwest | Puppy Connection', current: 'breeders.html',
     desc: 'The small family dog breeders in Indiana and the Midwest who list their puppies on Puppy Connection. See each breeder\'s puppies and contact them directly.',
+    ld: [{ '@type': 'ItemList', name: 'Dog breeders on Puppy Connection', numberOfItems: breedersShown.length,
+      itemListElement: breedersShown.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
     trail: [['Breeders', `${base}breeders.html`]],
     body: `<main id="breederIndex-page">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Directory</p><h1>Dog breeders in Indiana and the Midwest</h1>
@@ -1158,6 +1163,8 @@ ${others.length ? `<section class="band">
   };
   for (const pg of INFO_PAGES) {
     write(pg.file, { title: pg.title, desc: pg.desc, trail: [[pg.name, `${base}${pg.file}`]], current: pg.file,
+      // Ahrefs crawl 2026-10-28: the buying tips page is an article and says so in its data.
+      ld: pg.file === 'tips-on-buying-a-puppy.html' ? [{ '@type': 'Article', headline: pg.name, description: pg.desc, mainEntityOfPage: `${base}${pg.file}`, publisher: { '@type': 'Organization', name: 'Puppy Connection', url: base } }] : [],
       body: `<main id="info-page">
 <span id="content" tabindex="-1"></span>
 ${withPhoto(pg)}
@@ -1171,6 +1178,12 @@ ${withPhoto(pg)}
     s = s.replace(/<script src="data\/data\.js\?v=\d+"><\/script>\n?/, f === 'list-with-us.html' ? '' : `<script src="data/data.js?v=${dataV}"></script>\n`);
     s = s.replace(/js\/main\.js\?v=\d+/, `js/main.js?v=${mainV}`);
     if (f === 'puppies.html') s = s.replace(/(<script src="js\/main\.js\?v=\w+"><\/script>\n?)/, `$1<script src="js/search-count.js?v=${hash(SEARCH_JS)}"></script>\n`);
+    // Ahrefs crawl 2026-10-28: the puppy list is drawn in the browser, so its ItemList data names the 50 newest available puppies here.
+    if (f === 'puppies.html') {
+      const first = D.puppies.filter((p) => !p.placed).sort(byStanding).slice(0, 50);
+      s = s.replace('</head>', `<script type="application/ld+json">${JSON.stringify({ '@context': 'https://schema.org', '@type': 'ItemList', name: 'Available puppies', numberOfItems: first.length,
+        itemListElement: first.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.puppy(p.slug)}`, name: `${p.name}, ${p.b.name}` })) })}</script>\n</head>`);
+    }
     s = withLegal(s);
     s = withSignup(withInfo(s));
     if (GUIDES.length) s = s.replace('<li><a href="breeds.html">Breeds</a></li>', '<li><a href="breeds.html">Breeds</a></li><li><a href="guides.html">Breed guides</a></li>');
@@ -1207,7 +1220,7 @@ ${withPhoto(pg)}
   const legacy = fs.readFileSync(path.join(HERE, 'legacy-pages.tsv'), 'utf8').split(/\r?\n/).filter((l) => l && !l.startsWith('#')).map((l) => {
     const [from, to] = l.split('\t');
     let target = to.replace('{portal}', portal.replace(/\/$/, ''));
-    if (target.startsWith('/') && !fs.existsSync(path.join(out, target.slice(1)))) target = '/breeds.html';
+    if (target.startsWith('/') && !fs.existsSync(path.join(out, target.slice(1)))) target = /^\/breeder-/.test(target) ? '/breeders.html' : '/breeds.html';
     return `${from} ${target} 301`;
   });
   // Workplan A2. A puppy the inactivity schedule took off the site forwards to its breed page, or to

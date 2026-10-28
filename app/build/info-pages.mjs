@@ -42,7 +42,7 @@ export const INFO_PAGES = [
     desc: 'Puppy Connection is a directory of small family dog breeders, based in northern Indiana. See how it began and what we ask of the breeders who list here.',
     photo: { n: 8, slot: 'aside' },
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">About</p><h1>About Puppy Connection</h1>
-<p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest.</p></div></section>
+<p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest. We serve families from South Bend, Fort Wayne, Indianapolis and Columbus to Chicago and Detroit.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
 <div class="prose">
 <p class="brand-line">Because they're more than precious paws and puppy breath. They're family.</p>
@@ -184,7 +184,7 @@ export const INFO_PAGES = [
     // the lead paragraph, so the eyebrow and h1 sit above the split.
     photo: { n: 5, slot: 'aside' },
     body: `<section class="band contact-top"><div class="wrap"><p class="eyebrow">Contact Puppy Connection</p><h1>We'd love to hear from you</h1><div class="split">
-<div><p class="lede">Have a question about a particular puppy? Its breeder is the best person to ask, since they know the puppy and handle the sale, and you'll find their phone and email right on the puppy's page. For anything else, we're always happy to help.</p>
+<div><p class="lede">Have a question about a particular puppy? The breeder is the best person to ask, since they know the puppy the best and they are the ones that handle the sale. You'll find their phone and email right on the puppy's profile page. For anything else, we're always happy to help!</p>
 <div class="prose">
 <h2>Thinking about listing, or have a question for us?</h2>
 <ul class="contact-list">

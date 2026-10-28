@@ -1109,8 +1109,8 @@ ${others.length ? `<section class="band">
   const inState = statesListed.length === 1 ? breedersShown.filter((b) => stateName(b.state) === statesListed[0]).length : 0;
   const stateLink = (S) => `<a href="${pageFor.stateBreeders(S)}">${esc(S)}</a>`;
   const hubLede = statesListed.length === 1 && inState
-    ? `Every puppy on this site is raised and sold by one of these breeders, ${inState === breedersShown.length ? 'all of them' : inState * 2 > breedersShown.length ? 'most of them' : 'including breeders'} in ${stateLink(statesListed[0])}. We list their puppies, and they handle the sale, the paperwork and the conversation with your family.`
-    : 'Every puppy on this site is raised and sold by one of these breeders. We list their puppies, and they handle the sale, the paperwork and the conversation with your family.';
+    ? `Every puppy on this site is raised and sold by one of these breeders, ${inState === breedersShown.length ? 'all of them' : inState * 2 > breedersShown.length ? 'most of them' : 'including breeders'} in ${stateLink(statesListed[0])}. They list their puppies on our site and they handle the sale, the paperwork and the conversation with your family.`
+    : 'Every puppy on this site is raised and sold by one of these breeders. They list their puppies on our site and they handle the sale, the paperwork and the conversation with your family.';
   const byState = statesListed.length > 1
     ? `<p class="lede" style="margin-top:.8rem">Find breeders by state: ${linkList(statesListed.map((S) => [pageFor.stateBreeders(S), S]))}.</p>`
     : '';
@@ -1125,7 +1125,7 @@ ${others.length ? `<section class="band">
       itemListElement: listedBreeds.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breed(b.slug)}`, name: b.name })) }],
     body: `<main id="breedIndex-page">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Breeds</p><h1>Find the breed that suits your family</h1>
-<p class="lede">Every breed currently listed, with what is available now and a guide where one has been written.</p></div></section>
+<p class="lede">Read all about your favorite breeds, find out which one best matches your family and lifestyle, then check out available puppies of that breed!</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">Listed here</p><h2>${listedBreeds.length} breeds</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
 <div class="grid grid-4">${listedBreeds.map((b) => breedCard(b)).join('')}</div></div></section>

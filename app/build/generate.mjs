@@ -471,9 +471,14 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     lead_card: p.photos[0] && isWix(p.photos[0].src) && p.photos[0].w ? fill(p.photos[0], 600, 400) : null,
     lead_pos: objectPosition(p.photos[0], 600, 400), lead_pos_tall: objectPosition(p.photos[0], 480, 600),
   }));
+  // A breed's saved picture, shown only while none of its puppies has a photo, so its page and its cards keep a
+  // picture when its last listings are archived (Alex, 2026-10-25). The Bernese one is the photo the
+  // page showed until Brady was archived that day, Wix 8d80ac_50df93ce, in img/breeds/ as 800 and
+  // 1600 px WebP, with the crop it had.
+  const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/bernese-mountain-dog', w: 1600, pos: '54.5% 50%' } };
   const pcBreeds = listedBreeds.map((b) => {
     const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
-    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : null,
+    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : BREED_FALLBACK[b.slug] ? `${BREED_FALLBACK[b.slug].file}-800.webp` : null,
       // The phone home page shows breed cards at portrait 4:5 (Alex, 2026-10-07), cropped around the same focus point.
       photo_tall: lead && isWix(lead.src) ? fill(lead, 480, 600) : null };
   });
@@ -606,11 +611,6 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // Breeds whose main picture is one of Amber's photos (img/amber/) instead of a listed puppy, in the
   // same slot and crop, with no caption because the photo is not of a listed puppy (Alex, 2026-10-25).
   const BREED_PHOTO = { 'miniature-schnauzer': 4 };
-  // A breed's saved picture, shown only while none of its puppies has a photo, so its page keeps a
-  // picture when its last listings are archived (Alex, 2026-10-25). The Bernese one is the photo the
-  // page showed until Brady was archived that day, Wix 8d80ac_50df93ce, in img/breeds/ as 800 and
-  // 1600 px WebP, with the crop it had.
-  const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/bernese-mountain-dog', w: 1600, pos: '54.5% 50%' } };
   const fallbackImg = (b, sizes) => {
     const f = BREED_FALLBACK[b.slug];
     return `<img src="${f.file}-1600.webp" srcset="${f.file}-800.webp 800w, ${f.file}-1600.webp ${f.w}w" sizes="${sizes}" style="object-position:${f.pos}" alt="${esc(b.name)}" decoding="async">`;
@@ -759,7 +759,8 @@ ${mates.length ? `<section class="band band-warm">
   const breedCard = (b, w = 600, hh = 400) => {
     const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
     const open = D.puppies.filter((p) => p.b.slug === b.slug && !p.placed).length;
-    return `<a class="card" href="${pageFor.breed(b.slug)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, w, hh)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">` : ''}</div>`
+    return `<a class="card" href="${pageFor.breed(b.slug)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, w, hh)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">`
+      : BREED_FALLBACK[b.slug] ? `<img src="${BREED_FALLBACK[b.slug].file}-800.webp" style="object-position:${BREED_FALLBACK[b.slug].pos}" alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${guidesFor(b.slug).length ? 'Guides' : ''}</span></div></div></a>`;
   };
   for (const b of listedBreeds) {

@@ -19,7 +19,11 @@
 // page's optional photo field names the photo and its slot: 'aside' puts it at the top of the side
 // column, and 'lede' puts it under the lead paragraph. generate.mjs places it.
 
-const PHOTO_SIZE = { 1: [1600, 1066], 2: [1600, 1066], 3: [1600, 1066], 4: [1600, 1067], 5: [1600, 1329], 6: [1600, 1066], 8: [1600, 1067], 9: [1600, 1066] };
+// 10 to 15 are Amber's photos of 2026-10-28: the four How it works steps, Transportation and the
+// second photo on Tips (her choices). 10, 11 and 14 had their watermark removed by Alex, and 15 is
+// cropped clear of its watermark.
+const PHOTO_SIZE = { 1: [1600, 1066], 2: [1600, 1066], 3: [1600, 1066], 4: [1600, 1067], 5: [1600, 1329], 6: [1600, 1066], 8: [1600, 1067], 9: [1600, 1066],
+  10: [1448, 1086], 11: [1448, 1086], 12: [1600, 1067], 13: [1600, 851], 14: [1448, 1086], 15: [1600, 1199] };
 export const PHOTO_ALT = 'Puppy Connection breeders with their puppies';
 // The img for photo n, with its 800 and 1600 copies. wh false leaves out width and height, for a
 // slot whose CSS sets the shape, such as the breed page's main picture.
@@ -30,6 +34,8 @@ export function photoImg(n, sizes, { lazy = false, wh = true } = {}) {
   return `<img src="${f(1600)}" srcset="${f(800)} 800w, ${f(1600)} ${size[0]}w" sizes="${sizes}"`
     + `${wh ? ` width="${size[0]}" height="${size[1]}"` : ''} alt="${PHOTO_ALT}"${lazy ? ' loading="lazy"' : ''} decoding="async">`;
 }
+// The How it works cards: four across, then two, then one.
+const HIW_SIZES = '(max-width:560px) 92vw, (max-width:980px) 46vw, 330px';
 export const PHOTO_SLOTS = {
   aside: { cls: 'photo-side', sizes: '(max-width:940px) 92vw, 600px' },
   lede: { cls: 'photo-narrow', sizes: '(max-width:700px) 92vw, 640px' },
@@ -45,7 +51,7 @@ export const INFO_PAGES = [
 <p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest. We serve families from South Bend, Fort Wayne, Indianapolis and Columbus to Chicago and Detroit.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
 <div class="prose">
-<p class="brand-line">Because they're more than precious paws and puppy breath. They're family.</p>
+<p class="brand-line">Because they're more than just precious paws and puppy breath. They're family.</p>
 <p>We started Puppy Connection in 2013 with a simple belief: finding a puppy should be about more than a transaction. It should be the beginning of a lifelong connection. We wanted to create a place where families could discover wonderful puppies while helping small, family-owned breeders share the care, time, and love they pour into raising them.</p>
 <p>We look for breeders who genuinely love their dogs, prioritize health and temperament, and take pride in raising puppies that are well-prepared for loving homes. We value breeders who continually learn, work with their veterinarians, and give their puppies the care, socialization, and attention they need to become wonderful companions. Above all, we want to work with people who see their dogs as family and share our heart for connecting those puppies with families who will love them for a lifetime.</p>
 <p>Puppy Connection is based in northern Indiana and built on many years of experience in showing, breeding, grooming, photographing and studying dogs, including teaching courses in grooming, breeding, conformation and genetics.</p>
@@ -73,11 +79,12 @@ export const INFO_PAGES = [
 <p class="lede">Puppy Connection shows you puppies from small family breeders and puts you in touch with the breeder. The breeder does the rest.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">For families</p><h2>Finding your puppy</h2></div></div>
-<ol class="steps">
-<li><h3>Browse</h3><p>Look through <a href="puppies.html">every available puppy</a>, or start from a <a href="breeds.html">breed</a> or a <a href="breeders.html">breeder</a>. Each breed page also answers what families ask most, such as how big the breed gets and what puppies cost here.</p></li>
-<li><h3>Open a puppy</h3><p>Each puppy has its own page with its photos, price, deposit, birth and go-home dates, and what it goes home with.</p></li>
-<li><h3>Contact the breeder</h3><p>Call, email or visit the breeder's website straight from the puppy's page. Your conversation is with the breeder, never with us.</p></li>
-<li><h3>Arrange the rest with the breeder</h3><p>Visits, deposits, paperwork, health records and guarantees are agreed between you and the breeder. If you are not local, <a href="transportation.html">Furry Freight can deliver your puppy</a>.</p></li>
+<!-- Amber, 2026-10-28: her four steps as photo cards, with her photos, after the layout of a template she sent. -->
+<ol class="hiw-steps">
+<li><div class="hiw-arch">${photoImg(10, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">1</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg><h3>Browse</h3><span class="hiw-rule" aria-hidden="true"></span><p>Look through <a href="puppies.html">every available puppy</a>, or start from a <a href="breeds.html">breed</a> or a <a href="breeders.html">breeder</a>. Each breed page also answers what families ask most, such as how big the breed gets and what puppies cost here.</p></li>
+<li><div class="hiw-arch">${photoImg(11, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">2</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5c3-1.5 6-1.5 9 0v14c-3-1.5-6-1.5-9 0z"/><path d="M21 5.5c-3-1.5-6-1.5-9 0v14c3-1.5 6-1.5 9 0z"/></svg><h3>Learn</h3><span class="hiw-rule" aria-hidden="true"></span><p>Each puppy has its own page with its photos, price, deposit, birth and go-home dates, and what it goes home with.</p></li>
+<li><div class="hiw-arch">${photoImg(12, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">3</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><h3>Connect</h3><span class="hiw-rule" aria-hidden="true"></span><p>Call, email or visit the breeder's website straight from the puppy's page. Your conversation is with the breeder, never with us.</p></li>
+<li><div class="hiw-arch">${photoImg(13, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">4</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M12 17s-3-1.8-3-3.6a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8c0 1.8-3 3.6-3 3.6z"/></svg><h3>Welcome home</h3><span class="hiw-rule" aria-hidden="true"></span><p>Visits, deposits, paperwork, health records and guarantees are agreed between you and the breeder. If you are not local, <a href="transportation.html">Furry Freight can deliver your puppy</a>.</p></li>
 </ol>
 <p class="disclaimer" style="margin-top:1.2rem">Puppy Connection does not sell puppies. Read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a> before you choose.</p>
 </div></section>
@@ -105,6 +112,7 @@ export const INFO_PAGES = [
 <p>Choose a puppy that is friendly, curious and confident, and avoid puppies that seem overly shy, fearful or aggressive. Puppies should meet a range of people, sights and sounds in their first weeks of life, and a well-socialized puppy adapts better to new situations and is easier to train.</p>
 <h2>Consider the breed's needs</h2>
 <p>Research the breed's energy level, grooming needs and health concerns, and make sure the breed fits your lifestyle, home and experience. Each <a href="breeds.html">breed page</a> here covers size, shedding, temperament and lifespan.</p>
+<figure class="photo-fig photo-narrow">${photoImg(15, '(max-width:700px) 92vw, 640px', { lazy: true })}</figure>
 <h2>Prepare for your puppy's arrival</h2>
 <h3>Puppy-proof your home</h3>
 <p>Remove hazards like electrical cords, toxic plants and small objects a puppy could swallow, and set up a safe space, such as a crate or a gated area, for sleeping and resting.</p>
@@ -124,6 +132,7 @@ export const INFO_PAGES = [
     // Launch item A7 (Alex, 2026-10-17): Furry Freight, the pet transportation company in
     // Pierceton, Indiana. Families book and pay Furry Freight directly. Old /transportation 301s here.
     file: 'transportation.html', name: 'Transportation',
+    photo: { n: 14, slot: 'lede' },
     title: 'Puppy Transportation and Delivery | Puppy Connection',
     desc: 'Too far to pick up your puppy? Furry Freight, a pet transportation company in Pierceton, Indiana, delivers by road and air. Book with them directly.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap wrap-mid"><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>

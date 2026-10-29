@@ -135,7 +135,7 @@ export const INFO_PAGES = [
     photo: { n: 14, slot: 'aside' },
     title: 'Puppy Transportation and Delivery | Puppy Connection',
     desc: 'Too far to pick up your puppy? Furry Freight, a pet transportation company in Pierceton, Indiana, delivers by road and air. Book with them directly.',
-    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap wrap-mid split" style="align-items:center"><div><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
+    body: `<section class="band" style="padding-bottom:3.6rem"><div class="wrap wrap-mid split" style="align-items:center"><div><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
 <p class="lede">Most families pick their puppy up from the breeder. When the breeder is too far away, a pet transportation company can bring the puppy to you.</p></div><aside class="aside-still"></aside></div></section>
 <section class="band" style="padding-top:0" id="delivery"><div class="wrap wrap-mid">
 <div class="partner">
@@ -164,8 +164,9 @@ export const INFO_PAGES = [
     file: 'reviews.html', name: 'Reviews',
     title: 'Reviews | Puppy Connection',
     desc: 'What families say about finding their puppy through Puppy Connection.',
-    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Reviews</p><h1>What families say</h1>
-<p class="lede">Reviews families have left for Puppy Connection on Google, in their own words.</p></div></section>
+    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap head-row"><div class="head-text"><p class="eyebrow">Reviews</p><h1>What families say</h1>
+<p class="lede">Reviews families have left for Puppy Connection on Google, in their own words.</p></div>
+<div class="btn-row head-actions"><a class="btn btn-primary" href="https://search.google.com/local/reviews?placeid=ChIJkfPWTL6XFogRqYXvz4YXd0c" target="_blank" rel="noopener">Read our reviews on Google</a><a class="btn btn-ghost" href="https://g.page/r/CamF78-GF3dHEAI/review" target="_blank" rel="noopener">Leave a review</a><a class="btn btn-ghost" href="puppies.html">See available puppies</a></div></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="reviews">
 <figure class="review"><blockquote><p>"We found the perfect dog for our family through Puppy Connection. Jackson is a healthy Miniature Schnauzer puppy, and it is very obvious that the breeder spent a lot of time socializing him. He is our 4th Miniature Schnauzer and he is by far the easiest for us to intergrate into our household. He is wonderful! Puppy Connection provided us with great information on how to plan for a new puppy in our home, and they kept us apprised on Jackson's travel arrangements. The transport company used to bring Jackson to us is fabulous. We did have to wait 10 days for his pick up from the breeder, but the transport company had great communication with us and the drivers truly cared about our dog. Our family highly recommends Puppy Connection for a healthy, happy puppy."</p></blockquote><figcaption>Ann, on Google</figcaption></figure>
@@ -182,7 +183,6 @@ export const INFO_PAGES = [
 <figure class="review"><blockquote><p>"We have been wanting to adopt another sweet fur baby for a few months and finally decided to make it happen! The photography of the fur babies is top notch! We adopted our little 2 lb Cavapoo yesterday and she looks exactly like the photos show on this site. The experience of working with the breeder was also seamless. Thank you for providing high quality services for listing puppies needing a furever home! 5/5 stars!"</p></blockquote><figcaption>Allison</figcaption></figure>
 <figure class="review"><blockquote><p>"I had a fantastic experience with Puppy Connection. The website was convenient and gave me a number of puppies to choose from so I found just what I was looking for. I'd heard horror stories about scams but Nero (now Grimm) was just as pictured. My breeder Rosemary Yoder was equally great to work with. He is loving, self-assured, nearly house trained after only two weeks with no crating, and the best mannered student in puppy class. He's been the greatest little guy. It's a dream!"</p></blockquote><figcaption>A Puppy Connection family</figcaption></figure>
 </div>
-<div class="btn-row" style="margin-top:1.4rem"><a class="btn btn-primary" href="https://search.google.com/local/reviews?placeid=ChIJkfPWTL6XFogRqYXvz4YXd0c" target="_blank" rel="noopener">Read our reviews on Google</a><a class="btn btn-ghost" href="https://g.page/r/CamF78-GF3dHEAI/review" target="_blank" rel="noopener">Leave a review</a><a class="btn btn-ghost" href="puppies.html">See available puppies</a></div>
 </div></section>`,
   },
   {

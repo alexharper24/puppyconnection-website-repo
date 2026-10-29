@@ -860,3 +860,11 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 .hiw-steps p{font-size:.95rem;color:var(--ink-soft);margin:0;padding:0 1.1rem 1.4rem}
 @media(max-width:980px){.hiw-steps{grid-template-columns:repeat(2,minmax(0,1fr))}.hiw-steps::before{display:none}}
 @media(max-width:560px){.hiw-steps{grid-template-columns:1fr}}
+
+/* Page heads with actions on the right (Reviews, 2026-10-29): the buttons sit at the right edge, bottom-aligned with the
+   last line of the intro, and drop under it when the width runs out. */
+.head-row{display:flex;align-items:flex-end;justify-content:space-between;gap:1rem 2rem;flex-wrap:wrap}
+.head-row .head-text{flex:1 1 22rem;min-width:0}
+.head-row .head-text .lede{max-width:34rem;margin-bottom:0}
+.head-row .head-actions{flex:0 1 auto;max-width:100%;margin:0;justify-content:flex-end}
+@media(max-width:940px){.head-row .head-actions{justify-content:flex-start}}

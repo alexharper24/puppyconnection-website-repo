@@ -872,8 +872,9 @@ ${others.length ? `<section class="band">
 <section class="band" style="padding-top:0">
   <div class="wrap split">
     <div class="guide">${guideHtml(g.paragraphs, guideTokens(b, pups))}</div>
-    <aside>
-      ${lead ? `<figure class="breed-photo"><img ${fillAttrs(lead, 900, 600)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} listed on Puppy Connection</span></figure>` : ''}
+    <aside class="aside-still">
+      ${lead ? `<figure class="breed-photo gp-photo"><img src="${esc(fill(lead, 900, 600))}" style="--pos:${objectPosition(lead, 900, 600) || '50% 50%'};--pos-sq:${objectPosition(lead, 600, 600) || '50% 50%'}" alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} listed on Puppy Connection</span></figure>`
+        : BREED_FALLBACK[b.slug] ? `<figure class="breed-photo gp-photo">${fallbackImg(b, '(max-width:940px) 92vw, 40vw')}</figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">${open.length ? `${open.length} available now` : 'Listings'}</p>
         <p class="breeder-note">${open.length ? `See every ${esc(b.name)} puppy listed now, then contact its breeder directly.` : `No ${esc(b.name)} puppies are listed right now. New litters appear on the breed page as breeders add them.`}</p>
@@ -912,7 +913,8 @@ ${withGuides.map((b) => {
   // Option A (Alex, 2026-10-11): a card per breed with its photo and its guides.
   const bp = D.puppies.filter((p) => p.b.slug === b.slug);
   const lead = breedLead(b, bp), n = bp.filter((p) => !p.placed).length, pr = priceSpan(bp.filter((p) => !p.placed));
-  return `<article class="gc" id="${esc(b.slug)}"><a class="gc-photo" href="${pageFor.breed(b.slug)}" tabindex="-1" aria-hidden="true">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="" loading="lazy" decoding="async" width="600" height="400">` : ''}</a>
+  return `<article class="gc" id="${esc(b.slug)}"><a class="gc-photo" href="${pageFor.breed(b.slug)}" tabindex="-1" aria-hidden="true">${lead ? `<img src="${esc(fill(lead, 600, 400))}" style="--pos:${objectPosition(lead, 600, 450) || '50% 50%'};--pos-tall:${objectPosition(lead, 480, 600) || '50% 50%'}" alt="" loading="lazy" decoding="async" width="600" height="400">`
+    : BREED_FALLBACK[b.slug] ? `<img src="${BREED_FALLBACK[b.slug].file}-800.webp" style="--pos:${BREED_FALLBACK[b.slug].pos};--pos-tall:${BREED_FALLBACK[b.slug].pos}" alt="" loading="lazy" decoding="async" width="600" height="400">` : ''}</a>
 <div class="gc-body"><h2><a href="${pageFor.breed(b.slug)}">${esc(b.name)}</a></h2><p class="gc-meta">${n} available${pr ? `, ${pr}` : ''}</p>${guideList(b.slug, 'gc-list')}</div></article>`;
 }).join('\n')}
 </div></section>

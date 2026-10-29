@@ -657,7 +657,7 @@ aside .guide-panel{margin-top:1rem}
 /* The guides hub as option A (2026-10-11): a card per breed, two to a row on a phone like the puppies page. */
 .guide-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:1.2rem}
 .gc{background:var(--paper);border:1px solid var(--line);display:flex;flex-direction:column;min-width:0}
-.gc-photo img{display:block;width:100%;aspect-ratio:3/2;object-fit:cover}
+.gc-photo img{display:block;width:100%;height:auto;aspect-ratio:4/3;object-fit:cover;object-position:var(--pos,50% 50%)}
 .gc-body{padding:.9rem 1rem 1rem}
 .gc-body h2{font-size:1.2rem;margin:0 0 .15rem;line-height:1.2}
 .gc-body h2 a{color:var(--ink);text-decoration:none}
@@ -668,7 +668,7 @@ aside .guide-panel{margin-top:1rem}
 .gc-list a:hover{color:var(--olive);text-decoration:underline}
 @media(max-width:760px){
   .guide-cards{grid-template-columns:repeat(2,minmax(0,1fr));gap:.8rem}
-  .gc-photo img{aspect-ratio:4/5}
+  .gc-photo img{aspect-ratio:4/5;object-position:var(--pos-tall,var(--pos,50% 50%))}
   .gc-body{padding:.6rem .7rem .75rem}
   .gc-body h2{font-size:1.02rem}
   .gc-list a{font-size:.86rem;padding:.4rem 0}
@@ -868,3 +868,9 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 .head-row .head-text .lede{max-width:34rem;margin-bottom:0}
 .head-row .head-actions{flex:0 1 auto;max-width:100%;margin:0;justify-content:flex-end}
 @media(max-width:940px){.head-row .head-actions{justify-content:flex-start}}
+
+/* Guide page photo (Alex, 2026-10-29): beside the text it is a square, cropped around the puppy, so
+   a puppy that sits to one side of a 3:2 photo is centered. The page stacks under 941px, where the
+   photo is 3:2 again. The hub cards are 4:3 on a laptop for the same reason. */
+.gp-photo img{object-position:var(--pos,50% 50%)}
+@media(min-width:941px){.gp-photo img{aspect-ratio:1/1;object-position:var(--pos-sq,var(--pos,50% 50%))}}

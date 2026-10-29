@@ -288,11 +288,18 @@
       var sc = score(typed, [p]);
       if (sc) out.push({ kind: 'Place', label: 'Puppies in ' + p, sub: places[p] + ' available', href: 'puppies.html?q=' + encodeURIComponent(p), s: sc });
     });
+    /* A puppy's name shows as soon as three letters of it are typed (Alex, 2026-10-29: "rom" did not
+       find Romeo until the whole name was typed). A name that only starts with what was typed ranks
+       below breeds, breeders and places, and at most three names show, so a short typed word does not
+       fill the list with every name that begins with it. */
+    var names = [];
     L.forEach(function (l) {
-      if (isPlaced(l)) return;
-      var sc = score(typed, [l.puppy_name || '']);
-      if (sc >= 13) out.push({ kind: 'Puppy', label: l.puppy_name, sub: l.breed + (l.price ? ', ' + money(l.price) : ''), href: pageHref('puppy', l.slug), s: sc - 2 });
+      if (isPlaced(l) || !l.puppy_name) return;
+      var sc = score(typed, [l.puppy_name]);
+      if (sc >= 13 || (sc >= 10 && typed.join('').length >= 3)) names.push({ kind: 'Puppy', label: l.puppy_name, sub: l.breed + (l.price ? ', ' + money(l.price) : ''), href: pageHref('puppy', l.slug), s: sc - 2 });
     });
+    names.sort(function (x, y) { return y.s - x.s; });
+    out = out.concat(names.slice(0, 3));
     /* What the words describe rather than name: a price, low shedding, a color. */
     var cols = colorsListed().filter(function (c) { return rest.some(function (t) { return c === t || (t.length > 3 && c.indexOf(t) === 0); }); });
     if (price || lowShed || cols.length) {

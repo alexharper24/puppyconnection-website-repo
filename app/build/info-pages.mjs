@@ -76,15 +76,15 @@ export const INFO_PAGES = [
     title: 'How Puppy Connection Works | Find a Puppy from a Family Breeder',
     desc: 'How to find a puppy on Puppy Connection: browse by breed or state, see each puppy and its breeder, and contact the breeder directly. How breeders list, too.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">How it works</p><h1>How Puppy Connection works</h1>
-<p class="lede">Puppy Connection shows you puppies from small family breeders and puts you in touch with the breeder. The breeder does the rest.</p></div></section>
+<p class="lede">We make it easy to find the right puppy and connect with the right breeder. Here's how Puppy Connection works:</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
-<div class="sec-head"><div><p class="eyebrow">For families</p><h2>Finding your puppy</h2></div></div>
+<div class="sec-head"><div><p class="eyebrow">For families</p><h2>Simple steps. A lifetime of memories.</h2></div></div>
 <!-- Amber, 2026-10-28: her four steps as photo cards, with her photos, after the layout of a template she sent. -->
 <ol class="hiw-steps">
-<li><div class="hiw-arch">${photoImg(10, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">1</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg><h3>Browse</h3><span class="hiw-rule" aria-hidden="true"></span><p>Look through <a href="puppies.html">every available puppy</a>, or start from a <a href="breeds.html">breed</a> or a <a href="breeders.html">breeder</a>. Each breed page also answers what families ask most, such as how big the breed gets and what puppies cost here.</p></li>
-<li><div class="hiw-arch">${photoImg(11, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">2</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5c3-1.5 6-1.5 9 0v14c-3-1.5-6-1.5-9 0z"/><path d="M21 5.5c-3-1.5-6-1.5-9 0v14c3-1.5 6-1.5 9 0z"/></svg><h3>Learn</h3><span class="hiw-rule" aria-hidden="true"></span><p>Each puppy has its own page with its photos, price, deposit, birth and go-home dates, and what it goes home with.</p></li>
-<li><div class="hiw-arch">${photoImg(12, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">3</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><h3>Connect</h3><span class="hiw-rule" aria-hidden="true"></span><p>Call, email or visit the breeder's website straight from the puppy's page. Your conversation is with the breeder, never with us.</p></li>
-<li><div class="hiw-arch">${photoImg(13, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">4</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M12 17s-3-1.8-3-3.6a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8c0 1.8-3 3.6-3 3.6z"/></svg><h3>Welcome home</h3><span class="hiw-rule" aria-hidden="true"></span><p>Visits, deposits, paperwork, health records and guarantees are agreed between you and the breeder. If you are not local, <a href="transportation.html">Furry Freight can deliver your puppy</a>.</p></li>
+<li><div class="hiw-arch">${photoImg(10, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">1</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg><h3>Browse</h3><span class="hiw-rule" aria-hidden="true"></span><p>Explore <a href="puppies.html">puppies</a> from trusted, responsible breeders across a <a href="breeds.html">variety of breeds</a>. Use filters to find the perfect match for your family.</p></li>
+<li><div class="hiw-arch">${photoImg(11, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">2</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5c3-1.5 6-1.5 9 0v14c-3-1.5-6-1.5-9 0z"/><path d="M21 5.5c-3-1.5-6-1.5-9 0v14c3-1.5 6-1.5 9 0z"/></svg><h3>Learn</h3><span class="hiw-rule" aria-hidden="true"></span><p>Review <a href="breeders.html">breeder profiles</a>, puppy details, health information and <a href="guides.html">helpful resources</a> so you can make an informed decision.</p></li>
+<li><div class="hiw-arch">${photoImg(12, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">3</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><h3>Connect</h3><span class="hiw-rule" aria-hidden="true"></span><p>Reach out directly to the breeder by phone or email from the puppy's page. Ask questions and start the conversation. Your conversation is with the breeder, never with us.</p></li>
+<li><div class="hiw-arch">${photoImg(13, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">4</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M12 17s-3-1.8-3-3.6a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8c0 1.8-3 3.6-3 3.6z"/></svg><h3>Welcome home</h3><span class="hiw-rule" aria-hidden="true"></span><p>When you've found the one, work directly with the breeder to complete the adoption and prepare for your new family member. If you are not local, <a href="transportation.html">Furry Freight can deliver your puppy</a>.</p></li>
 </ol>
 <p class="disclaimer" style="margin-top:1.2rem">Puppy Connection does not sell puppies. Read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a> before you choose.</p>
 </div></section>
@@ -99,7 +99,7 @@ export const INFO_PAGES = [
     file: 'tips-on-buying-a-puppy.html', name: 'Tips on buying a puppy',
     title: 'Tips on Buying a Puppy | Puppy Connection',
     desc: 'How to choose a reputable breeder, check health clearances and pick a well-socialized puppy, and how to get your home ready for its arrival.',
-    photo: { n: 4, slot: 'lede' },
+    photo: { n: 4, slot: 'aside' },
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Tips</p><h1>Tips on buying a puppy</h1>
 <p class="lede">When buying a puppy, it's essential to make informed choices so it grows into a healthy, well-adjusted companion. These tips cover choosing a puppy and getting ready for its arrival.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
@@ -132,11 +132,11 @@ export const INFO_PAGES = [
     // Launch item A7 (Alex, 2026-10-17): Furry Freight, the pet transportation company in
     // Pierceton, Indiana. Families book and pay Furry Freight directly. Old /transportation 301s here.
     file: 'transportation.html', name: 'Transportation',
-    photo: { n: 14, slot: 'lede' },
+    photo: { n: 14, slot: 'aside' },
     title: 'Puppy Transportation and Delivery | Puppy Connection',
     desc: 'Too far to pick up your puppy? Furry Freight, a pet transportation company in Pierceton, Indiana, delivers by road and air. Book with them directly.',
-    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap wrap-mid"><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
-<p class="lede">Most families pick their puppy up from the breeder. When the breeder is too far away, a pet transportation company can bring the puppy to you.</p></div></section>
+    body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap wrap-mid split" style="align-items:center"><div><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
+<p class="lede">Most families pick their puppy up from the breeder. When the breeder is too far away, a pet transportation company can bring the puppy to you.</p></div><aside class="aside-still"></aside></div></section>
 <section class="band" style="padding-top:0" id="delivery"><div class="wrap wrap-mid">
 <div class="partner">
 <img class="partner-logo" src="img/brand/furry-freight-logo.png" alt="Furry Freight Pet Transportation" width="420" height="331" loading="lazy" decoding="async">
@@ -182,7 +182,7 @@ export const INFO_PAGES = [
 <figure class="review"><blockquote><p>"We have been wanting to adopt another sweet fur baby for a few months and finally decided to make it happen! The photography of the fur babies is top notch! We adopted our little 2 lb Cavapoo yesterday and she looks exactly like the photos show on this site. The experience of working with the breeder was also seamless. Thank you for providing high quality services for listing puppies needing a furever home! 5/5 stars!"</p></blockquote><figcaption>Allison</figcaption></figure>
 <figure class="review"><blockquote><p>"I had a fantastic experience with Puppy Connection. The website was convenient and gave me a number of puppies to choose from so I found just what I was looking for. I'd heard horror stories about scams but Nero (now Grimm) was just as pictured. My breeder Rosemary Yoder was equally great to work with. He is loving, self-assured, nearly house trained after only two weeks with no crating, and the best mannered student in puppy class. He's been the greatest little guy. It's a dream!"</p></blockquote><figcaption>A Puppy Connection family</figcaption></figure>
 </div>
-<div class="btn-row" style="margin-top:1.4rem"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div>
+<div class="btn-row" style="margin-top:1.4rem"><a class="btn btn-primary" href="https://search.google.com/local/reviews?placeid=ChIJkfPWTL6XFogRqYXvz4YXd0c" target="_blank" rel="noopener">Read our reviews on Google</a><a class="btn btn-ghost" href="https://g.page/r/CamF78-GF3dHEAI/review" target="_blank" rel="noopener">Leave a review</a><a class="btn btn-ghost" href="puppies.html">See available puppies</a></div>
 </div></section>`,
   },
   {

@@ -475,7 +475,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // picture when its last listings are archived (Alex, 2026-10-25). The Bernese one is the photo the
   // page showed until Brady was archived that day, Wix 8d80ac_50df93ce, in img/breeds/ as 800 and
   // 1600 px WebP, with the crop it had.
-  const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/bernese-mountain-dog', w: 1600, pos: '54.5% 50%' } };
+  const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/bernese-mountain-dog', w: 1600, pos: '54.5% 20%' } };
   const pcBreeds = listedBreeds.map((b) => {
     const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
     return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : BREED_FALLBACK[b.slug] ? `${BREED_FALLBACK[b.slug].file}-800.webp` : null,
@@ -927,7 +927,7 @@ ${withGuides.map((b) => {
     const theirs = D.puppies.filter((p) => p.br === b);
     const lead = leadOf(theirs);
     const open = theirs.filter((p) => !p.placed).length;
-    return `<a class="card" href="${pageFor.breeder(b.slug)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
+    return `<a class="card" href="${pageFor.breeder(b.slug)}"><div class="card-media${!lead && b.logo ? ' is-logo' : ''}">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : b.logo ? `<img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-breed">${esc(place(b) || host(b.website))}</div>`
       + `<div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${theirs.length} listed</span></div></div></a>`;
   };

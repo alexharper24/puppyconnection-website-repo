@@ -37,9 +37,9 @@ PHOTOS = {
     'boston-terrier': ('ChatGPT Image Oct 30, 2026, 05_06_47 PM-2.png', .55, .50),
     'golden-retriever': ('IMG_1830.jpg', .72, .55),
     'papillon': ('10.jpg', .55, .50, (.62, .47, .85)),
-    'miniature-schnauzer': ('ChatGPT Image Oct 30, 2026, 05_06_46 PM-1.png', .52, .50),
+    'miniature-schnauzer': ('teapup-schnauzer.jpg', .50, .36),
     'saint-bernard': ('Benji1.jpg', .58, .45, (.56, .50, .88)),
-    'labrador-retriever': ('Jo Jo 3.jpg', .50, .25, (.57, .50, .86)),
+    'labrador-retriever': ('spp-labrador.jpg', .53, .27),
     'havanese': ('4.jpg', .53, .55, (.55, .50, .92)),
 }
 

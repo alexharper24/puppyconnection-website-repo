@@ -528,7 +528,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     'papillon': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
     'miniature-schnauzer': { w: 1600, h: 2135, fx: 0.5, fy: 0.36 },
     'saint-bernard': { w: 1600, h: 1409, fx: 0.58, fy: 0.45 },
-    'labrador-retriever': { w: 1600, h: 2059, fx: 0.53, fy: 0.27 },
+    'labrador-retriever': { w: 1600, h: 2059, fx: 0.55, fy: 0.33 },
     'havanese': { w: 1600, h: 1067, fx: 0.53, fy: 0.55 },
   };
   const breedPhoto = (slug) => {
@@ -545,7 +545,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // ops/breed_photos.py. Same focus-point rules as the breed photos above.
   const CHOSEN_BREEDER_PHOTO = {
     'teapup': { w: 1600, h: 2135, fx: 0.5, fy: 0.36 },
-    'sweetpuppypaws': { w: 1600, h: 2059, fx: 0.53, fy: 0.27 },
+    'sweetpuppypaws': { w: 1600, h: 2059, fx: 0.55, fy: 0.33 },
   };
   const breederPhoto = (slug) => {
     const t = CHOSEN_BREEDER_PHOTO[slug];
@@ -1248,7 +1248,7 @@ ${others.length ? `<section class="band">
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Breeds</p><h1>Find the breed that suits your family</h1>
 <p class="lede">Read all about your favorite breeds, find out which one best matches your family and lifestyle, then check out available puppies of that breed!</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
-<div class="sec-head"><div><p class="eyebrow">Listed here</p><h2 class="list-count-h">${listedBreeds.length} breeds</h2></div><div class="sec-tools">${listSearch('breeds', 'Search breeds, such as Frenchie or Lab', 'breedGrid')}<a class="link-more" href="puppies.html">Browse all puppies</a></div></div>
+<div class="sec-head"><div><p class="eyebrow">Listed here</p><h2 class="list-count-h">${listedBreeds.length} breeds</h2></div><div class="sec-tools">${listSearch('breeds', 'Search breeds, e.g. Frenchie', 'breedGrid')}<a class="link-more" href="puppies.html">Browse all puppies</a></div></div>
 ${listNone('breeds')}
 <div class="grid grid-4" id="breedGrid">${listedBreeds.map((b) => breedCard(b)).join('')}</div></div></section>
 </main>`,

@@ -39,7 +39,7 @@ PHOTOS = {
     'papillon': ('10.jpg', .55, .50, (.62, .47, .85)),
     'miniature-schnauzer': ('teapup-schnauzer.jpg', .50, .36),
     'saint-bernard': ('Benji1.jpg', .58, .45, (.56, .50, .88)),
-    'labrador-retriever': ('spp-labrador.jpg', .53, .27),
+    'labrador-retriever': ('spp-labrador.jpg', .55, .33),
     'havanese': ('4.jpg', .53, .55, (.55, .50, .92)),
 }
 
@@ -47,7 +47,7 @@ PHOTOS = {
 # img/breeders/<slug>-photo-800.webp and -1600.webp.
 BREEDER_PHOTOS = {
     'teapup': ('teapup-schnauzer.jpg', .50, .36),
-    'sweetpuppypaws': ('spp-labrador.jpg', .53, .27),
+    'sweetpuppypaws': ('spp-labrador.jpg', .55, .33),
 }
 OUT_B = os.path.join(REPO, 'img', 'breeders')
 

@@ -454,10 +454,10 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // They come before any puppy photo, so each breed's page, cards and guides show the same picture. fx and fy are
   // where the subject sits as a fraction of the saved photo, so every slot crops around it.
   const CHOSEN_BREED_PHOTO = {
-    'doberman-pinscher': { w: 1600, h: 1129, fx: 0.5, fy: 0.55 },
+    'doberman-pinscher': { w: 1600, h: 1129, fx: 0.38, fy: 0.55 },
     'french-bulldog': { w: 1600, h: 1215, fx: 0.52, fy: 0.55 },
     'toy-poodle': { w: 1600, h: 1067, fx: 0.45, fy: 0.55 },
-    'miniature-poodle': { w: 1600, h: 1067, fx: 0.65, fy: 0.55 },
+    'miniature-poodle': { w: 1600, h: 1067, fx: 0.5, fy: 0.55 },
     'yorkshire-terrier': { w: 1600, h: 1066, fx: 0.55, fy: 0.55 },
     'pomeranian': { w: 1600, h: 1066, fx: 0.45, fy: 0.6 },
     'basset-hound': { w: 1600, h: 1144, fx: 0.45, fy: 0.5 },
@@ -466,15 +466,15 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     'miniature-dachshund': { w: 1600, h: 1066, fx: 0.55, fy: 0.6 },
     'great-dane': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
     'shih-tzu': { w: 604, h: 402, fx: 0.55, fy: 0.6 },
-    'cocker-spaniel': { w: 420, h: 630, fx: 0.5, fy: 0.33 },
-    'english-bulldog': { w: 683, h: 1024, fx: 0.45, fy: 0.38 },
-    'bernese-mountain-dog': { w: 1600, h: 634, fx: 0.5, fy: 0.45 },
-    'boston-terrier': { w: 420, h: 630, fx: 0.5, fy: 0.36 },
+    'cocker-spaniel': { w: 1448, h: 1086, fx: 0.55, fy: 0.5 },
+    'english-bulldog': { w: 1448, h: 1086, fx: 0.53, fy: 0.55 },
+    'bernese-mountain-dog': { w: 1600, h: 634, fx: 0.55, fy: 0.45 },
+    'boston-terrier': { w: 1448, h: 1086, fx: 0.55, fy: 0.5 },
     'golden-retriever': { w: 1600, h: 1066, fx: 0.72, fy: 0.55 },
     'papillon': { w: 1600, h: 1066, fx: 0.5, fy: 0.5 },
-    'miniature-schnauzer': { w: 1600, h: 2400, fx: 0.5, fy: 0.37 },
+    'miniature-schnauzer': { w: 1448, h: 1086, fx: 0.52, fy: 0.5 },
     'saint-bernard': { w: 1600, h: 1410, fx: 0.6, fy: 0.45 },
-    'labrador-retriever': { w: 683, h: 1024, fx: 0.5, fy: 0.36 },
+    'labrador-retriever': { w: 683, h: 1024, fx: 0.5, fy: 0.31 },
     'havanese': { w: 1600, h: 1067, fx: 0.5, fy: 0.55 },
   };
   const breedPhoto = (slug) => {

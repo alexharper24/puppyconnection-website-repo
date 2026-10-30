@@ -1,35 +1,18 @@
-/* Preview only (Amber, 2026-10-30): the homepage with a lighter gray header, footer and brand band.
+/* Preview only (Amber, 2026-10-30): the homepage with a sage green header, footer and brand band.
    Loaded by home-light.html after style.css and nowhere else. Delete this file and the preview
-   block in app/build/generate.mjs once the color is decided. The gray is a warm light gray
-   chosen to sit with the cream and gold, not sampled from the Wix editor. */
-:root{--tone:#c4c0b8;--tone-line:#a9a49a;--tone-ink:#262626;--tone-accent:#4d4122}
+   block in app/build/generate.mjs once the color is decided. The green is read from a photo of
+   Amber's screen, so it is close and not exact. The white logo, cream text and gold accents of the
+   dark header carry over unchanged, so only the background changes. */
+:root{--sage:#4a5a4b;--sage-line:#6b7b6c}
 
-.site-header{background:var(--tone);border-bottom:1px solid var(--tone-line)}
-.brand small{color:var(--tone-ink);opacity:.85}
-.nav a{color:var(--tone-ink)}
-.nav a:hover,.nav a[aria-current]{color:var(--tone-ink);border-bottom-color:var(--tone-accent)}
-.nav .btn-list{background:var(--ink);border-color:var(--ink);color:var(--gold)}
-.nav .btn-list:hover{background:var(--gold);color:var(--ink);border-color:var(--gold)}
-.burger{border-color:var(--tone-line);color:var(--tone-ink)}
-@media(max-width:900px){
-  .nav{background:var(--tone)}
-  .nav a:first-child{border-top-color:var(--tone-line)}
-  .nav a{border-bottom-color:var(--tone-line);color:var(--tone-ink)}
-  .nav .btn-list{background:var(--ink);color:var(--gold)}
-}
+.site-header{background:var(--sage)}
+.nav .btn-list:hover{color:var(--sage)}
+.burger{border-color:var(--sage-line)}
+.nav a:first-child{border-top-color:var(--sage-line)}
 
-.brand-message-dark{background:var(--tone)}
-.brand-message-dark p{color:var(--tone-ink)}
-.brand-message .fam{color:var(--tone-accent)}
+.brand-message-dark{background:var(--sage)}
+.site-footer{background:var(--sage)}
+.foot-note,.foot-base{border-top-color:var(--sage-line)}
 
-.site-footer{background:var(--tone);color:var(--tone-ink)}
-.site-footer img{filter:brightness(0);opacity:.85}
-.site-footer .foot-h{color:var(--tone-accent)}
-.site-footer a{color:var(--tone-ink)}
-.site-footer a:hover{color:var(--tone-accent);text-decoration:underline}
-.site-footer .foot-more{color:var(--tone-ink)}
-.site-footer .foot-base,.foot-base{border-top-color:var(--tone-line);color:var(--tone-ink)}
-.site-footer p,.site-footer label{color:var(--tone-ink)}
-
-.preview-note{background:var(--ink);color:var(--cream-text);font-family:var(--cond);letter-spacing:.1em;text-transform:uppercase;font-size:.9rem;text-align:center;padding:.5rem var(--gut)}
+.preview-note{background:#262626;color:var(--cream-text);font-family:var(--cond);letter-spacing:.1em;text-transform:uppercase;font-size:.9rem;text-align:center;padding:.5rem var(--gut)}
 .preview-note a{color:var(--gold)}

@@ -479,7 +479,10 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   };
   const breedPhoto = (slug) => {
     const t = CHOSEN_BREED_PHOTO[slug];
-    return t ? { src: `img/breeds/${slug}-1600.webp`, card: `img/breeds/${slug}-800.webp`, w: t.w, h: t.h, aspect: t.w / t.h, fx: t.fx, fy: t.fy, local: true } : null;
+    if (!t) return null;
+    // A v= from each file's bytes, because a replaced photo keeps its name and browsers kept showing the old one (Alex, 2026-10-30).
+    const v = (w) => `img/breeds/${slug}-${w}.webp?v=${hash(fs.readFileSync(path.join(T, `img/breeds/${slug}-${w}.webp`)))}`;
+    return { src: v(1600), card: v(800), w: t.w, h: t.h, aspect: t.w / t.h, fx: t.fx, fy: t.fy, local: true };
   };
   const breedLead = (b, list) => {
     if (breedPhoto(b.slug)) return breedPhoto(b.slug);
@@ -510,7 +513,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // picture when its last listings are archived (Alex, 2026-10-25). The Bernese one is the photo the
   // page showed until Brady was archived that day, Wix 8d80ac_50df93ce, in img/breeds/ as 800 and
   // 1600 px WebP, with the crop it had.
-  const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/bernese-mountain-dog', w: 1600, pos: '54.5% 20%' } };
+  const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/archive/bernese-mountain-dog-brady', w: 1600, pos: '54.5% 20%' } };
   const pcBreeds = listedBreeds.map((b) => {
     const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
     return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.local ? lead.card : lead.src) : BREED_FALLBACK[b.slug] ? `${BREED_FALLBACK[b.slug].file}-800.webp` : null,
@@ -646,7 +649,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   const SEE_ALSO = { 'munchkin-bernedoodle': ['mini-bernedoodle'], 'mini-bernedoodle': ['munchkin-bernedoodle'] };
   // Breeds whose main picture is one of Amber's photos (img/amber/) instead of a listed puppy, in the
   // same slot and crop, with no caption because the photo is not of a listed puppy (Alex, 2026-10-25).
-  const BREED_PHOTO = { 'miniature-schnauzer': 4 };
+  // The Miniature Schnauzer used photo 4 here until Alex chose its breed photo (CHOSEN_BREED_PHOTO, 2026-10-30).
+  const BREED_PHOTO = {};
   const fallbackImg = (b, sizes) => {
     const f = BREED_FALLBACK[b.slug];
     return `<img src="${f.file}-1600.webp" srcset="${f.file}-800.webp 800w, ${f.file}-1600.webp ${f.w}w" sizes="${sizes}" style="object-position:${f.pos}" alt="${esc(b.name)}" decoding="async">`;

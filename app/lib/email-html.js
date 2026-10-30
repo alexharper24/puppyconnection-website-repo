@@ -30,8 +30,8 @@ export const CONTACT = {
   instagram: 'https://www.instagram.com/puppy_connection_in/',
 };
 
-// The colors of design B, every pair checked for WCAG AA in dev/email-options.html.
-const C = { band: '#262626', gold: '#f7d57f', cream: '#f5f2ea', ink: '#262626', body: '#414141', muted: '#6f6a60', olive: '#7c6b40', creamText: '#e6deca' };
+// The colors of design B, every pair checked for WCAG AA in dev/email-options.html. The band is the sage green of the site's header and footer (Amber, 2026-10-30): cream text 5.5:1, gold 5.2:1.
+const C = { band: '#4a5a4b', gold: '#f7d57f', cream: '#f5f2ea', ink: '#262626', body: '#414141', muted: '#6f6a60', olive: '#7c6b40', creamText: '#e6deca' };
 const SERIF = "'Playfair Display',Georgia,'Times New Roman',serif";
 const SANS = "'Barlow','Segoe UI',Helvetica,Arial,sans-serif";
 

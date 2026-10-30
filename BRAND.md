@@ -55,3 +55,7 @@ different Wix media account than her own uploads, so it is likely stock.
 - **Breed**: NOT SET. The dropdown still contains Wix's default
   `Item 1 / Item 2` placeholders. See `_harvest/data/breeds.json` for a
   25-breed list derived from her actual live inventory instead.
+
+## Sage green (Amber, 2026-10-30)
+
+The header, phone menu, brand band and footer use sage green, `#4a5a4b` (`--sage` in css/style.css), replacing the charcoal. Amber likes black for a classic, professional feel and wants the site to feel warm and welcoming, and sage does both. The value was read from a photo of her screen, so send her exact color code to change it in one place. The white logo, cream text and gold accents are unchanged, and the hero gradient, buttons and price card stay charcoal.

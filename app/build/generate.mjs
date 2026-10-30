@@ -131,6 +131,9 @@ const MAIN_PATCHES = [
     "if (!seen[s]) seen[s] = { slug: s, name: breederLabel(l), domain: /\\.puppyconnection$/.test(l.breeder_domain) ? (l.breeder_place || '') : l.breeder_domain, listings: [] };"],
   // The static pages carry the concept's ids for its styles, so these renderers only run where
   // the page loads the listing data (the home page and the puppy browser).
+  // A breed card on the home page crops around the breed photo's focus point (photo_pos), not the middle.
+  ["esc(PHONE.matches ? wix(b.photo_tall || b.photo, 480, 600) : wix(b.photo, 600, 400)) +\n            '\" alt=\"' + esc(b.name)",
+    "esc(PHONE.matches ? wix(b.photo_tall || b.photo, 480, 600) : wix(b.photo, 600, 400)) +\n            '\"' + (b.photo_pos ? ' style=\"object-position:' + esc(PHONE.matches ? b.photo_pos_tall : b.photo_pos) + '\"' : '') + ' alt=\"' + esc(b.name)"],
   // The puppy cards crop around the focus point (lead_card, lead_pos), not from the top edge.
   [" : wix(img(l), 600, 400)) + '\" alt=\"' + esc(l.puppy_name)",
     " : (l.lead_card || wix(img(l), 600, 400))) + '\"' + (l.lead_pos && (phone || !tall) ? ' style=\"object-position:' + esc(phone ? l.lead_pos_tall : l.lead_pos) + '\"' : '') + ' alt=\"' + esc(l.puppy_name)"],
@@ -447,7 +450,39 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   };
   // A breed's own photo, chosen in the database from the professional-looking listing photos
   // (Alex, 2026-10-19), while one of its puppies still shows it. Otherwise the best-shaped photo.
+  // The breed photos Alex chose (2026-10-30), kept in img/breeds/ as 800 and 1600 px WebP by ops/breed_photos.py.
+  // They come before any puppy photo, so each breed's page, cards and guides show the same picture. fx and fy are
+  // where the subject sits as a fraction of the saved photo, so every slot crops around it.
+  const CHOSEN_BREED_PHOTO = {
+    'doberman-pinscher': { w: 1600, h: 1129, fx: 0.5, fy: 0.55 },
+    'french-bulldog': { w: 1600, h: 1215, fx: 0.52, fy: 0.55 },
+    'toy-poodle': { w: 1600, h: 1067, fx: 0.45, fy: 0.55 },
+    'miniature-poodle': { w: 1600, h: 1067, fx: 0.65, fy: 0.55 },
+    'yorkshire-terrier': { w: 1600, h: 1066, fx: 0.55, fy: 0.55 },
+    'pomeranian': { w: 1600, h: 1066, fx: 0.45, fy: 0.6 },
+    'basset-hound': { w: 1600, h: 1144, fx: 0.45, fy: 0.5 },
+    'cavalier-king-charles-spaniel': { w: 1600, h: 1066, fx: 0.5, fy: 0.55 },
+    'pembroke-welsh-corgi': { w: 1600, h: 1067, fx: 0.6, fy: 0.55 },
+    'miniature-dachshund': { w: 1600, h: 1066, fx: 0.55, fy: 0.6 },
+    'great-dane': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
+    'shih-tzu': { w: 604, h: 402, fx: 0.55, fy: 0.6 },
+    'cocker-spaniel': { w: 420, h: 630, fx: 0.5, fy: 0.33 },
+    'english-bulldog': { w: 683, h: 1024, fx: 0.45, fy: 0.38 },
+    'bernese-mountain-dog': { w: 1600, h: 634, fx: 0.5, fy: 0.45 },
+    'boston-terrier': { w: 420, h: 630, fx: 0.5, fy: 0.36 },
+    'golden-retriever': { w: 1600, h: 1066, fx: 0.72, fy: 0.55 },
+    'papillon': { w: 1600, h: 1066, fx: 0.5, fy: 0.5 },
+    'miniature-schnauzer': { w: 1600, h: 2400, fx: 0.5, fy: 0.37 },
+    'saint-bernard': { w: 1600, h: 1410, fx: 0.6, fy: 0.45 },
+    'labrador-retriever': { w: 683, h: 1024, fx: 0.5, fy: 0.36 },
+    'havanese': { w: 1600, h: 1067, fx: 0.5, fy: 0.55 },
+  };
+  const breedPhoto = (slug) => {
+    const t = CHOSEN_BREED_PHOTO[slug];
+    return t ? { src: `img/breeds/${slug}-1600.webp`, card: `img/breeds/${slug}-800.webp`, w: t.w, h: t.h, aspect: t.w / t.h, fx: t.fx, fy: t.fy, local: true } : null;
+  };
   const breedLead = (b, list) => {
+    if (breedPhoto(b.slug)) return breedPhoto(b.slug);
     if (b.photo) for (const p of list) { const ph = p.photos.find((x) => x.src === b.photo); if (ph) return ph; }
     return leadOf(list);
   };
@@ -478,9 +513,10 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   const BREED_FALLBACK = { 'bernese-mountain-dog': { file: 'img/breeds/bernese-mountain-dog', w: 1600, pos: '54.5% 20%' } };
   const pcBreeds = listedBreeds.map((b) => {
     const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
-    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.src) : BREED_FALLBACK[b.slug] ? `${BREED_FALLBACK[b.slug].file}-800.webp` : null,
+    return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.local ? lead.card : lead.src) : BREED_FALLBACK[b.slug] ? `${BREED_FALLBACK[b.slug].file}-800.webp` : null,
       // The phone home page shows breed cards at portrait 4:5 (Alex, 2026-10-07), cropped around the same focus point.
-      photo_tall: lead && isWix(lead.src) ? fill(lead, 480, 600) : null };
+      photo_tall: lead && isWix(lead.src) ? fill(lead, 480, 600) : null,
+      photo_pos: lead && lead.local ? objectPosition(lead, 600, 400) : null, photo_pos_tall: lead && lead.local ? objectPosition(lead, 480, 600) : null };
   });
   const dataJs = `// Written by app/build/generate.mjs from data/*.json. Do not edit.\nwindow.PC_LISTINGS=${JSON.stringify(pcListings)};\nwindow.PC_BREEDS=${JSON.stringify(pcBreeds)};\nwindow.PC_BREEDERS=[];\n`;
   fs.writeFileSync(path.join(out, 'data/data.js'), dataJs);

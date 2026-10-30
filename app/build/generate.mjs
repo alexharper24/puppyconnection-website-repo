@@ -1198,7 +1198,7 @@ ${withPhoto(pg)}
       let p = s.replace(/<meta name="robots"[^>]*>\n/, '').replace('<head>', '<head>\n<meta name="robots" content="noindex, nofollow">');
       p = p.replace(/<link rel="canonical"[^>]*>\n?/, '').replace(/<meta property="og:url"[^>]*>\n?/, '');
       p = p.replace(/<title>[^<]*<\/title>/, '<title>Homepage preview, sage green header and footer | Puppy Connection</title>');
-      p = p.replace(/(<link rel="stylesheet" href="css\/style\.css\?v=\d+">)/, '$1\n<link rel="stylesheet" href="css/home-light-preview.css?v=1">');
+      p = p.replace(/(<link rel="stylesheet" href="css\/style\.css\?v=\d+">)/, '$1\n<link rel="stylesheet" href="css/home-light-preview.css?v=2">');
       p = p.replace('<body>', '<body>\n<div class="preview-note">Preview of a sage green header and footer. <a href="index.html">See the current homepage</a></div>');
       fs.writeFileSync(path.join(out, 'home-light.html'), p);
       unlisted.add('home-light.html');

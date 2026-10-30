@@ -304,6 +304,45 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(balance);
     balance();
   }
+
+  // The search box on the breeds and breeders pages (Alex, 2026-10-30). Each card carries data-q, its
+  // searchable words, and a card shows while every typed word starts a word in data-q, so "frenchie"
+  // finds the French Bulldog and "poodle indiana" finds the Indiana kennels that list Poodles.
+  var ls = document.querySelector('[data-list-search]');
+  var lsGrid = ls && document.querySelector(ls.getAttribute('data-list-search'));
+  if (ls && lsGrid) {
+    var lsCards = [].slice.call(lsGrid.children);
+    var lsNoun = ls.getAttribute('data-noun') || 'results';
+    var lsClear = document.querySelector('.list-search-clear');
+    var lsNone = document.querySelector('.list-search-none');
+    var lsCount = document.querySelector('.list-search-count');
+    var lsNorm = function (t) { return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
+    var lsText = lsCards.map(function (c) { return ' ' + lsNorm(c.getAttribute('data-q')); });
+    var lsRun = function () {
+      var raw = ls.value;
+      var words = lsNorm(raw) ? lsNorm(raw).split(' ') : [];
+      var shown = 0;
+      lsCards.forEach(function (c, n) {
+        var ok = words.every(function (w) { return lsText[n].indexOf(' ' + w) >= 0; });
+        c.classList.toggle('is-filtered', !ok);
+        if (ok) shown += 1;
+      });
+      if (lsClear) lsClear.hidden = !raw;
+      if (lsCount) lsCount.textContent = words.length ? shown + ' of ' + lsCards.length + ' ' + lsNoun : '';
+      if (lsNone) {
+        lsNone.hidden = !(words.length && !shown);
+        var q = lsNone.querySelector('.list-search-q');
+        if (q) q.textContent = raw.trim();
+      }
+    };
+    ls.addEventListener('input', lsRun);
+    ls.addEventListener('keydown', function (e) { if (e.key === 'Escape' && ls.value) { ls.value = ''; lsRun(); } });
+    [].slice.call(document.querySelectorAll('.list-search-clear, .list-search-none button')).forEach(function (b) {
+      b.addEventListener('click', function () { ls.value = ''; lsRun(); ls.focus(); });
+    });
+    var pre = new URLSearchParams(location.search).get('q');
+    if (pre) { ls.value = pre; lsRun(); }
+  }
 })();
 `;
 
@@ -360,6 +399,18 @@ const realBreeder = (b) => b && b.slug !== 'unassigned';
 // A breeder with a state and no town shows the state's name, since a bare "IN" under the name reads
 // as a stray mark (Alex, 2026-10-19).
 const STATE_NAMES = { IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KY: 'Kentucky', MI: 'Michigan', MO: 'Missouri', NY: 'New York', OH: 'Ohio', PA: 'Pennsylvania', TN: 'Tennessee', WI: 'Wisconsin' };
+// Words a family may type for a breed that its name does not hold (Alex, 2026-10-30). Added to a card's search text only.
+const BREED_NICKNAMES = {
+  'french-bulldog': 'frenchie french', 'english-bulldog': 'bulldog british bulldog', 'victorian-bulldog': 'bulldog victorian',
+  'miniature-dachshund': 'doxie dachshund wiener dog weiner dog', 'bernese-mountain-dog': 'berner bernese',
+  'cavalier-king-charles-spaniel': 'cavalier ckcs king charles', 'pembroke-welsh-corgi': 'corgi', 'yorkshire-terrier': 'yorkie',
+  'miniature-schnauzer': 'schnauzer mini schnauzer', 'saint-bernard': 'st bernard st. bernard', 'labrador-retriever': 'lab labrador',
+  'golden-retriever': 'golden', 'shih-tzu': 'shihtzu', 'doberman-pinscher': 'doberman dobie', 'great-dane': 'dane',
+  'miniature-poodle': 'mini poodle poodle', 'toy-poodle': 'poodle', 'boston-terrier': 'boston', 'cocker-spaniel': 'cocker',
+  'pomeranian': 'pom', 'basset-hound': 'basset', 'f1b-mini-goldendoodle': 'goldendoodle doodle f1b', 'mini-aussiedoodle': 'aussiedoodle doodle',
+  'mini-bernedoodle': 'bernedoodle doodle', 'munchkin-bernedoodle': 'bernedoodle doodle', 'shih-poo': 'shihpoo shipoo', 'teddy-bear-shihchon': 'shichon zuchon teddy bear',
+  'cavapoo': 'cavoodle cavapoo',
+};
 const place = (b) => (b.city ? [b.city, b.state].filter(Boolean).join(', ') : (STATE_NAMES[b.state] || b.state || ''));
 const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch { return ''; } };
 // Available first, then pending, then placed, and newest first within each.
@@ -804,7 +855,7 @@ ${mates.length ? `<section class="band band-warm">
   const breedCard = (b, w = 600, hh = 400) => {
     const lead = breedLead(b, D.puppies.filter((p) => p.b.slug === b.slug));
     const open = D.puppies.filter((p) => p.b.slug === b.slug && !p.placed).length;
-    return `<a class="card" href="${pageFor.breed(b.slug)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, w, hh)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">`
+    return `<a class="card" href="${pageFor.breed(b.slug)}" data-q="${esc(`${b.name} ${BREED_NICKNAMES[b.slug] || ''}`)}"><div class="card-media">${lead ? `<img ${fillAttrs(lead, w, hh)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">`
       : BREED_FALLBACK[b.slug] ? `<img src="${BREED_FALLBACK[b.slug].file}-800.webp" style="object-position:${BREED_FALLBACK[b.slug].pos}" alt="${esc(b.name)}" loading="lazy" decoding="async" width="${w}" height="${hh}">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${guidesFor(b.slug).length ? 'Guides' : ''}</span></div></div></a>`;
   };
@@ -972,7 +1023,9 @@ ${withGuides.map((b) => {
     const theirs = D.puppies.filter((p) => p.br === b);
     const lead = leadOf(theirs);
     const open = theirs.filter((p) => !p.placed).length;
-    return `<a class="card" href="${pageFor.breeder(b.slug)}"><div class="card-media${!lead && b.logo ? ' is-logo' : ''}">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : b.logo ? `<img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
+    const bslugs = new Set([...(b.breeds || []), ...theirs.map((p) => p.b.slug)]);
+    const bq = [b.name, b.city, b.state, STATE_NAMES[b.state], ...[...bslugs].map((x) => `${(D.breeds.find((y) => y.slug === x) || {}).name || x} ${BREED_NICKNAMES[x] || ''}`)].filter(Boolean).join(' ');
+    return `<a class="card" href="${pageFor.breeder(b.slug)}" data-q="${esc(bq)}"><div class="card-media${!lead && b.logo ? ' is-logo' : ''}">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : b.logo ? `<img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-breed">${esc(place(b) || host(b.website))}</div>`
       + `<div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${theirs.length} listed</span></div></div></a>`;
   };
@@ -1164,6 +1217,10 @@ ${others.length ? `<section class="band">
     : '';
 
   // ---- the two directory pages, static
+  const listSearch = (noun, placeholder, grid) => `<div class="list-search" role="search"><label for="listQ" class="list-search-label">${esc(placeholder)}</label>
+<div class="list-search-row"><input id="listQ" type="search" autocomplete="off" spellcheck="false" placeholder="${esc(placeholder)}" data-list-search="#${grid}" data-noun="${noun}"><button type="button" class="list-search-clear" aria-label="Clear search" hidden>&times;</button></div>
+<p class="list-search-count" role="status" aria-live="polite"></p></div>
+<p class="list-search-none" role="status" hidden>No ${noun} match &ldquo;<span class="list-search-q"></span>&rdquo;. <button type="button">Clear the search</button> to see them all.</p>`;
   write('breeds.html', {
     title: 'Breeds | Puppy Connection', current: 'breeds.html',
     desc: 'Every breed currently listed on Puppy Connection, with guides and what is available now.',
@@ -1176,7 +1233,8 @@ ${others.length ? `<section class="band">
 <p class="lede">Read all about your favorite breeds, find out which one best matches your family and lifestyle, then check out available puppies of that breed!</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">Listed here</p><h2>${listedBreeds.length} breeds</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
-<div class="grid grid-4">${listedBreeds.map((b) => breedCard(b)).join('')}</div></div></section>
+${listSearch('breeds', 'Search breeds by name, such as Frenchie or Lab', 'breedGrid')}
+<div class="grid grid-4" id="breedGrid">${listedBreeds.map((b) => breedCard(b)).join('')}</div></div></section>
 </main>`,
   });
   write('breeders.html', {
@@ -1192,7 +1250,8 @@ ${others.length ? `<section class="band">
 <p class="lede">${hubLede}</p>${byState}</div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2>${breedersShown.length} breeders</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
-<div class="grid grid-4">${breedersShown.map(breederCard).join('')}</div></div></section>
+${listSearch('breeders', 'Search breeders by name, town or breed', 'breederGrid')}
+<div class="grid grid-4" id="breederGrid">${breedersShown.map(breederCard).join('')}</div></div></section>
 </main>`,
   });
 

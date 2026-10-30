@@ -43,6 +43,15 @@ PHOTOS = {
     'havanese': ('4.jpg', .53, .55, (.55, .50, .92)),
 }
 
+# A breeder's own card and page photo (Alex, 2026-10-30): slug -> (original, focus x, focus y), written to
+# img/breeders/<slug>-photo-800.webp and -1600.webp.
+BREEDER_PHOTOS = {
+    'teapup': ('teapup-schnauzer.jpg', .50, .36),
+    'sweetpuppypaws': ('spp-labrador.jpg', .53, .27),
+}
+OUT_B = os.path.join(REPO, 'img', 'breeders')
+
+
 def window(img, ratio, fx, fy):
     w, h = img.size
     if w / h > ratio:
@@ -71,6 +80,18 @@ def main():
             if width == 1600:
                 table[slug] = {'file': f'img/breeds/{slug}', 'w': c.width, 'h': c.height, 'fx': fx, 'fy': fy}
     print(json.dumps(table, indent=1))
+    btable = {}
+    for slug, (f, fx, fy) in BREEDER_PHOTOS.items():
+        im = ImageOps.exif_transpose(Image.open(os.path.join(SRC, f))).convert('RGB')
+        for width in (800, 1600):
+            c = im.copy()
+            if c.width > width:
+                c = c.resize((width, round(c.height * width / c.width)), Image.LANCZOS)
+            c.save(os.path.join(OUT_B, f'{slug}-photo-{width}.webp'), 'WEBP', quality=82, method=6)
+            if width == 1600:
+                btable[slug] = {'w': c.width, 'h': c.height, 'fx': fx, 'fy': fy}
+    print('---breeders---')
+    print(json.dumps(btable, indent=1))
     if '--preview' in sys.argv:
         from PIL import ImageDraw
         d = os.environ['PREVIEW_DIR']

@@ -17,10 +17,10 @@ OUT = os.path.join(REPO, 'img', 'breeds')
 
 # slug: (original file, focus x, focus y)
 PHOTOS = {
-    'doberman-pinscher': ('20.jpg', .50, .55),
+    'doberman-pinscher': ('20.jpg', .38, .55),
     'french-bulldog': ('1.jpg', .52, .55),
     'toy-poodle': ('2.jpg', .45, .55),
-    'miniature-poodle': ('2_1.jpg', .65, .55),
+    'miniature-poodle': ('2_1.jpg', .50, .55),
     'yorkshire-terrier': ('Molly - Mom.jpg', .55, .55),
     'pomeranian': ('3.jpg', .45, .60),
     'basset-hound': ('IMG_4353.jpg', .45, .50),
@@ -29,15 +29,15 @@ PHOTOS = {
     'miniature-dachshund': ('14.jpg', .55, .60),
     'great-dane': ('8 - Copy.jpg', .55, .50),
     'shih-tzu': ('shih tzu1.jpeg', .55, .60),
-    'cocker-spaniel': ('cocker spaniel2.jpg', .50, .33),
-    'english-bulldog': ('bulldog.jpg', .45, .38),
-    'bernese-mountain-dog': ('1_1.jpg', .50, .45),
-    'boston-terrier': ('boston terrier.jpg', .50, .36),
+    'cocker-spaniel': ('ChatGPT Image Oct 30, 2026, 05_06_49 PM-4.png', .55, .50),
+    'english-bulldog': ('ChatGPT Image Oct 30, 2026, 05_06_48 PM-3.png', .53, .55),
+    'bernese-mountain-dog': ('1_1.jpg', .55, .45),
+    'boston-terrier': ('ChatGPT Image Oct 30, 2026, 05_06_47 PM-2.png', .55, .50),
     'golden-retriever': ('IMG_1830.jpg', .72, .55),
     'papillon': ('10.jpg', .50, .50),
-    'miniature-schnauzer': ('1_2.jpg', .50, .37),
+    'miniature-schnauzer': ('ChatGPT Image Oct 30, 2026, 05_06_46 PM-1.png', .52, .50),
     'saint-bernard': ('Benji1.jpg', .60, .45),
-    'labrador-retriever': ('Jo Jo 3.jpg', .50, .36),
+    'labrador-retriever': ('Jo Jo 3.jpg', .50, .31),
     'havanese': ('4.jpg', .50, .55),
 }
 
@@ -64,27 +64,21 @@ def main():
                 table[slug] = {'file': f'img/breeds/{slug}', 'w': c.width, 'h': c.height, 'fx': fx, 'fy': fy}
     print(json.dumps(table, indent=1))
     if '--preview' in sys.argv:
+        from PIL import ImageDraw
         d = os.environ['PREVIEW_DIR']
         names = list(PHOTOS)
-        for n, chunk in enumerate([names[:11], names[11:]]):
-            W, H = 4 * 300, 3 * 4 * 0 + 0
-            sheet = Image.new('RGB', (4 * 330, 11 * 0 + 3 * 560 // 1 + 0), 'white')
-            sheet = Image.new('RGB', (4 * 330, 3 * 300), 'white')
+        for n in range(0, len(names), 6):
+            chunk = names[n:n + 6]
+            sheet = Image.new('RGB', (2 * 720, 3 * 230), 'white')
+            dr = ImageDraw.Draw(sheet)
             for i, slug in enumerate(chunk):
                 im = Image.open(os.path.join(OUT, f'{slug}-1600.webp')).convert('RGB')
                 t = table[slug]
-                row = []
-                for ratio, size in ((1.5, (150, 100)), (0.8, (80, 100)), (1.0, (100, 100)), (4 / 3, (133, 100))):
-                    row.append(window(im, ratio, t['fx'], t['fy']).resize(size, Image.LANCZOS))
-                x0, y0 = (i % 4) * 330, (i // 4) * 300
+                x0, y0 = (i % 2) * 720, (i // 2) * 230
+                dr.text((x0 + 4, y0 + 2), slug, fill='black')
                 x = x0 + 4
-                for r in row:
-                    sheet.paste(r, (x, y0 + 20)); x += r.width + 4
-                # larger 3:2 below
-                big = window(im, 1.5, t['fx'], t['fy']).resize((300, 200), Image.LANCZOS)
-                sheet.paste(big, (x0 + 4, y0 + 125))
-                from PIL import ImageDraw
-                ImageDraw.Draw(sheet).text((x0 + 4, y0 + 4), slug, fill='black')
-            sheet.save(os.path.join(d, f'breed-crops-{n}.jpg'), quality=88)
+                for ratio, size in ((1.5, (300, 200)), (0.87, (174, 200)), (1.0, (200, 200))):
+                    sheet.paste(window(im, ratio, t['fx'], t['fy']).resize(size, Image.LANCZOS), (x, y0 + 22)); x += size[0] + 6
+            sheet.save(os.path.join(d, f'crops-{n // 6}.jpg'), quality=88)
 
 main()

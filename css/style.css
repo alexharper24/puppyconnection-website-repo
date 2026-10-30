@@ -221,18 +221,19 @@ p{margin:0 0 1rem;max-width:70ch}
 .card-media{position:relative;aspect-ratio:3/2;overflow:hidden;background:var(--paper-warm)}
 .card-media img{width:100%;height:100%;object-fit:cover;object-position:center top}
 /* portrait-only listing: show the whole dog rather than crop it */
-.list-search{margin:0 0 1.4rem;max-width:620px}
+.sec-tools{display:flex;align-items:center;gap:1.4rem;flex-wrap:wrap;justify-content:flex-end}
+.list-search{margin:0;width:19rem;max-width:100%}
 .list-search-label{position:absolute;left:-9999px}
-.list-search-row{position:relative;display:flex;align-items:stretch;height:3rem}
-.list-search input[type=search]{flex:1 1 0;min-width:0;height:100%;box-sizing:border-box;font-family:var(--sans);font-size:1rem;line-height:1;padding:0 2.9rem 0 1rem;border:1px solid var(--line-strong);background:#fff;color:var(--ink);border-radius:0;-webkit-appearance:none;appearance:none}
+.list-search-row{position:relative;display:flex;align-items:stretch;height:2.6rem}
+.list-search input[type=search]{flex:1 1 0;min-width:0;height:100%;box-sizing:border-box;font-family:var(--sans);font-size:1rem;line-height:1;padding:0 2.4rem 0 .9rem;border:1px solid var(--line-strong);background:#fff;color:var(--ink);border-radius:0;-webkit-appearance:none;appearance:none}
 .list-search input[type=search]::-webkit-search-cancel-button{-webkit-appearance:none;display:none}
 .list-search input[type=search]:focus-visible{outline:2px solid var(--sage);outline-offset:1px;border-color:var(--sage)}
-.list-search-clear{position:absolute;right:0;top:0;width:2.9rem;height:100%;border:0;background:none;color:var(--ink-soft);font-size:1.6rem;line-height:1;cursor:pointer;border-radius:0}
+.list-search-clear{position:absolute;right:0;top:0;width:2.4rem;height:100%;border:0;background:none;color:var(--ink-soft);font-size:1.6rem;line-height:1;cursor:pointer;border-radius:0}
 .list-search-clear:hover{color:var(--ink)}
 .list-search-clear:focus-visible{outline:2px solid var(--sage);outline-offset:-2px}
 .list-search-clear[hidden],.list-search-none[hidden]{display:none}
-.list-search-count{margin:.55rem 0 0;min-height:1.3em;font-size:.92rem;color:var(--muted)}
-.list-search-none{margin:0 0 1.4rem;font-size:1.05rem;color:var(--ink-soft)}
+.list-search-count{position:absolute;left:-9999px}
+.list-search-none{margin:-.4rem 0 1.4rem;font-size:1.05rem;color:var(--ink-soft)}
 .list-search-none button{border:0;background:none;padding:0;font:inherit;color:var(--olive);text-decoration:underline;cursor:pointer}
 .is-filtered{display:none!important}
 .card-media.is-logo{background:var(--paper-warm)}
@@ -893,3 +894,7 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
    photo is 3:2 again. The hub cards are 4:3 on a laptop for the same reason. */
 .gp-photo img{object-position:var(--pos,50% 50%)}
 @media(min-width:941px){.gp-photo img{aspect-ratio:1/1;object-position:var(--pos-sq,var(--pos,50% 50%))}}
+@media (max-width:640px){
+  .sec-tools{width:100%;justify-content:space-between}
+  .list-search{width:100%}
+}

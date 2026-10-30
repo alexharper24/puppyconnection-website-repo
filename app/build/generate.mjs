@@ -316,6 +316,8 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     var lsClear = document.querySelector('.list-search-clear');
     var lsNone = document.querySelector('.list-search-none');
     var lsCount = document.querySelector('.list-search-count');
+    var lsHead = document.querySelector('.list-count-h');
+    var lsHeadText = lsHead ? lsHead.textContent : '';
     var lsNorm = function (t) { return String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); };
     var lsText = lsCards.map(function (c) { return ' ' + lsNorm(c.getAttribute('data-q')); });
     var lsRun = function () {
@@ -329,6 +331,7 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
       });
       if (lsClear) lsClear.hidden = !raw;
       if (lsCount) lsCount.textContent = words.length ? shown + ' of ' + lsCards.length + ' ' + lsNoun : '';
+      if (lsHead) lsHead.textContent = words.length ? shown + ' of ' + lsCards.length + ' ' + lsNoun : lsHeadText;
       if (lsNone) {
         lsNone.hidden = !(words.length && !shown);
         var q = lsNone.querySelector('.list-search-q');
@@ -538,6 +541,18 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // A breed whose picture is a puppy's photo can name a better focus point than the detector found, where the
   // photo's own record is not the place to change it (Alex, 2026-10-30: the Maltese head was cut off at the top).
   const BREED_LEAD_FOCUS = { maltese: { fy: 0.3 } };
+  // The photo a breeder's card and page show in place of a puppy's (Alex, 2026-10-30), kept in img/breeders/ by
+  // ops/breed_photos.py. Same focus-point rules as the breed photos above.
+  const CHOSEN_BREEDER_PHOTO = {
+    'teapup': { w: 1600, h: 2135, fx: 0.5, fy: 0.36 },
+    'sweetpuppypaws': { w: 1600, h: 2059, fx: 0.53, fy: 0.27 },
+  };
+  const breederPhoto = (slug) => {
+    const t = CHOSEN_BREEDER_PHOTO[slug];
+    if (!t) return null;
+    const v = (w) => `img/breeders/${slug}-photo-${w}.webp?v=${hash(fs.readFileSync(path.join(T, `img/breeders/${slug}-photo-${w}.webp`)))}`;
+    return { src: v(1600), card: v(800), w: t.w, h: t.h, aspect: t.w / t.h, fx: t.fx, fy: t.fy, local: true };
+  };
   const breedLead = (b, list) => {
     if (breedPhoto(b.slug)) return breedPhoto(b.slug);
     let ph = null;
@@ -1021,7 +1036,7 @@ ${withGuides.map((b) => {
   // ---- breeders
   const breederCard = (b) => {
     const theirs = D.puppies.filter((p) => p.br === b);
-    const lead = leadOf(theirs);
+    const lead = breederPhoto(b.slug) || leadOf(theirs);
     const open = theirs.filter((p) => !p.placed).length;
     const bslugs = new Set([...(b.breeds || []), ...theirs.map((p) => p.b.slug)]);
     const bq = [b.name, b.city, b.state, STATE_NAMES[b.state], ...[...bslugs].map((x) => `${(D.breeds.find((y) => y.slug === x) || {}).name || x} ${BREED_NICKNAMES[x] || ''}`)].filter(Boolean).join(' ');
@@ -1055,8 +1070,9 @@ ${withGuides.map((b) => {
     const crumb = `<p class="eyebrow"><a href="breeders.html" style="color:inherit">Breeders</a></p>`;
     const head = `<div class="profile-head"><h1>${esc(b.name)}</h1>${place(b) ? `<p class="meta">${esc(place(b))}</p>` : ''}</div>
     ${b.phone || b.email || b.website ? `<div class="btn-row profile-actions">${b.phone ? `<a class="btn btn-primary" href="tel:${esc(tel(b.phone))}">Call ${esc(b.phone)}</a>` : ''}${b.email ? `<a class="btn btn-ghost" href="mailto:${esc(b.email)}">Email</a>` : ''}${b.website ? `<a class="btn btn-ghost" href="${esc(b.website)}" target="_blank" rel="noopener">Visit their website</a>` : ''}<a class="btn btn-ghost" href="#their">See their puppies</a></div>` : ''}`;
+    const kennelPhoto = breederPhoto(b.slug) || b.kennel_photo;
     const story = `<div class="prose">${paras(b.about)}${listedLine}</div>
-      ${b.kennel_photo ? `<figure class="breed-photo"><img src="${esc(b.kennel_photo.src)}" alt="${esc(b.name)}" loading="lazy" decoding="async"></figure>` : ''}
+      ${kennelPhoto ? `<figure class="breed-photo"><img src="${esc(kennelPhoto.local ? kennelPhoto.src : kennelPhoto.src)}"${kennelPhoto.local && objectPosition(kennelPhoto, 900, 600) ? ` style="object-position:${objectPosition(kennelPhoto, 900, 600)}"` : ''} alt="${esc(b.name)}" loading="lazy" decoding="async"></figure>` : ''}
       ${raised.length ? `<p class="eyebrow">Breeds they raise</p><ul class="includes">${raised.map((r) => `<li><a href="${pageFor.breed(r.slug)}">${esc(r.name)}</a></li>`).join('')}</ul>` : ''}`;
     const aside = `<aside>
       ${b.logo ? `<figure class="breeder-logo${b.logo.dark ? ' on-dark' : ''}"><img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" decoding="async"></figure>` : ''}
@@ -1113,8 +1129,8 @@ ${others.length ? `<section class="band">
     write(pageFor.breeder(b.slug), {
       title: `${b.name} | Puppy Connection`,
       desc: clip(b.about[0] || `Puppies listed by ${b.name}${place(b) ? ` in ${place(b)}` : ''}. Contact the breeder directly.`, 158),
-      body, trail: [['Breeders', `${base}breeders.html`], [b.name, `${base}${pageFor.breeder(b.slug)}`]], image: absolute(b.kennel_photo && b.kennel_photo.src),
-      images: [b.kennel_photo && absolute(b.kennel_photo.src)],
+      body, trail: [['Breeders', `${base}breeders.html`], [b.name, `${base}${pageFor.breeder(b.slug)}`]], image: absolute(kennelPhoto && kennelPhoto.src),
+      images: [kennelPhoto && absolute(kennelPhoto.src)],
     });
   }
 
@@ -1219,8 +1235,8 @@ ${others.length ? `<section class="band">
   // ---- the two directory pages, static
   const listSearch = (noun, placeholder, grid) => `<div class="list-search" role="search"><label for="listQ" class="list-search-label">${esc(placeholder)}</label>
 <div class="list-search-row"><input id="listQ" type="search" autocomplete="off" spellcheck="false" placeholder="${esc(placeholder)}" data-list-search="#${grid}" data-noun="${noun}"><button type="button" class="list-search-clear" aria-label="Clear search" hidden>&times;</button></div>
-<p class="list-search-count" role="status" aria-live="polite"></p></div>
-<p class="list-search-none" role="status" hidden>No ${noun} match &ldquo;<span class="list-search-q"></span>&rdquo;. <button type="button">Clear the search</button> to see them all.</p>`;
+<p class="list-search-count" role="status" aria-live="polite"></p></div>`;
+  const listNone = (noun) => `<p class="list-search-none" role="status" hidden>No ${noun} match &ldquo;<span class="list-search-q"></span>&rdquo;. <button type="button">Clear the search</button> to see them all.</p>`;
   write('breeds.html', {
     title: 'Breeds | Puppy Connection', current: 'breeds.html',
     desc: 'Every breed currently listed on Puppy Connection, with guides and what is available now.',
@@ -1232,8 +1248,8 @@ ${others.length ? `<section class="band">
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Breeds</p><h1>Find the breed that suits your family</h1>
 <p class="lede">Read all about your favorite breeds, find out which one best matches your family and lifestyle, then check out available puppies of that breed!</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
-<div class="sec-head"><div><p class="eyebrow">Listed here</p><h2>${listedBreeds.length} breeds</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
-${listSearch('breeds', 'Search breeds by name, such as Frenchie or Lab', 'breedGrid')}
+<div class="sec-head"><div><p class="eyebrow">Listed here</p><h2 class="list-count-h">${listedBreeds.length} breeds</h2></div><div class="sec-tools">${listSearch('breeds', 'Search breeds, such as Frenchie or Lab', 'breedGrid')}<a class="link-more" href="puppies.html">Browse all puppies</a></div></div>
+${listNone('breeds')}
 <div class="grid grid-4" id="breedGrid">${listedBreeds.map((b) => breedCard(b)).join('')}</div></div></section>
 </main>`,
   });
@@ -1249,8 +1265,8 @@ ${listSearch('breeds', 'Search breeds by name, such as Frenchie or Lab', 'breedG
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Directory</p><h1>Dog breeders in Indiana and the Midwest</h1>
 <p class="lede">${hubLede}</p>${byState}</div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
-<div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2>${breedersShown.length} breeders</h2></div><a class="link-more" href="puppies.html">Browse all puppies</a></div>
-${listSearch('breeders', 'Search breeders by name, town or breed', 'breederGrid')}
+<div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2 class="list-count-h">${breedersShown.length} breeders</h2></div><div class="sec-tools">${listSearch('breeders', 'Search by name, town or breed', 'breederGrid')}<a class="link-more" href="puppies.html">Browse all puppies</a></div></div>
+${listNone('breeders')}
 <div class="grid grid-4" id="breederGrid">${breedersShown.map(breederCard).join('')}</div></div></section>
 </main>`,
   });

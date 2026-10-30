@@ -222,7 +222,7 @@ p{margin:0 0 1rem;max-width:70ch}
 .card-media img{width:100%;height:100%;object-fit:cover;object-position:center top}
 /* portrait-only listing: show the whole dog rather than crop it */
 .card-media.is-logo{background:var(--paper-warm)}
-.card-media.is-logo img{object-fit:contain;object-position:center;padding:1.2rem}
+.card-media.is-logo img{object-fit:contain;object-position:center;padding:1.2rem;mix-blend-mode:multiply}
 .card-media.is-whole{background:var(--cream)}
 .card-media.is-whole::before{
   content:'';position:absolute;inset:0;z-index:0;

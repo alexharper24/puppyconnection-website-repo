@@ -1192,6 +1192,18 @@ ${withPhoto(pg)}
     if (GUIDES.length) s = s.replace('<li><a href="breeds.html">Breeds</a></li>', '<li><a href="breeds.html">Breeds</a></li><li><a href="guides.html">Breed guides</a></li>');
     fs.writeFileSync(path.join(out, f), s);
     pages.push(f);
+    // Preview for Amber (2026-10-30): the homepage with a lighter gray header, footer and brand band.
+    // Always noindex and kept out of the sitemap. Delete this block and css/home-light-preview.css once decided.
+    if (f === 'index.html') {
+      let p = s.replace(/<meta name="robots"[^>]*>\n/, '').replace('<head>', '<head>\n<meta name="robots" content="noindex, nofollow">');
+      p = p.replace(/<link rel="canonical"[^>]*>\n?/, '').replace(/<meta property="og:url"[^>]*>\n?/, '');
+      p = p.replace(/<title>[^<]*<\/title>/, '<title>Homepage preview, lighter header and footer | Puppy Connection</title>');
+      p = p.replace(/(<link rel="stylesheet" href="css\/style\.css\?v=\d+">)/, '$1\n<link rel="stylesheet" href="css/home-light-preview.css?v=1">');
+      p = p.replace(/<picture><source[^>]*logo-white[^>]*><img src="img\/brand\/logo-white\.png"([^>]*)><\/picture>/, '<img src="img/brand/logo-charcoal-trim.png"$1>');
+      p = p.replace('<body>', '<body>\n<div class="preview-note">Preview of a lighter header and footer. <a href="index.html">See the current homepage</a></div>');
+      fs.writeFileSync(path.join(out, 'home-light.html'), p);
+      unlisted.add('home-light.html');
+    }
   }
 
   // ---- the old query-string addresses send visitors to the new pages

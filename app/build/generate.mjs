@@ -464,18 +464,18 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     'cavalier-king-charles-spaniel': { w: 1600, h: 1066, fx: 0.5, fy: 0.55 },
     'pembroke-welsh-corgi': { w: 1600, h: 1067, fx: 0.6, fy: 0.55 },
     'miniature-dachshund': { w: 1600, h: 1066, fx: 0.55, fy: 0.6 },
-    'great-dane': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
+    'great-dane': { w: 1600, h: 1067, fx: 0.47, fy: 0.5 },
     'shih-tzu': { w: 604, h: 402, fx: 0.55, fy: 0.6 },
     'cocker-spaniel': { w: 1448, h: 1086, fx: 0.55, fy: 0.5 },
     'english-bulldog': { w: 1448, h: 1086, fx: 0.53, fy: 0.55 },
-    'bernese-mountain-dog': { w: 1600, h: 634, fx: 0.55, fy: 0.45 },
+    'bernese-mountain-dog': { w: 1600, h: 634, fx: 0.52, fy: 0.45 },
     'boston-terrier': { w: 1448, h: 1086, fx: 0.55, fy: 0.5 },
     'golden-retriever': { w: 1600, h: 1066, fx: 0.72, fy: 0.55 },
-    'papillon': { w: 1600, h: 1066, fx: 0.5, fy: 0.5 },
+    'papillon': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
     'miniature-schnauzer': { w: 1448, h: 1086, fx: 0.52, fy: 0.5 },
-    'saint-bernard': { w: 1600, h: 1410, fx: 0.6, fy: 0.45 },
-    'labrador-retriever': { w: 683, h: 1024, fx: 0.5, fy: 0.31 },
-    'havanese': { w: 1600, h: 1067, fx: 0.5, fy: 0.55 },
+    'saint-bernard': { w: 1600, h: 1409, fx: 0.58, fy: 0.45 },
+    'labrador-retriever': { w: 587, h: 881, fx: 0.5, fy: 0.25 },
+    'havanese': { w: 1600, h: 1067, fx: 0.53, fy: 0.55 },
   };
   const breedPhoto = (slug) => {
     const t = CHOSEN_BREED_PHOTO[slug];
@@ -484,10 +484,15 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const v = (w) => `img/breeds/${slug}-${w}.webp?v=${hash(fs.readFileSync(path.join(T, `img/breeds/${slug}-${w}.webp`)))}`;
     return { src: v(1600), card: v(800), w: t.w, h: t.h, aspect: t.w / t.h, fx: t.fx, fy: t.fy, local: true };
   };
+  // A breed whose picture is a puppy's photo can name a better focus point than the detector found, where the
+  // photo's own record is not the place to change it (Alex, 2026-10-30: the Maltese head was cut off at the top).
+  const BREED_LEAD_FOCUS = { maltese: { fy: 0.3 } };
   const breedLead = (b, list) => {
     if (breedPhoto(b.slug)) return breedPhoto(b.slug);
-    if (b.photo) for (const p of list) { const ph = p.photos.find((x) => x.src === b.photo); if (ph) return ph; }
-    return leadOf(list);
+    let ph = null;
+    if (b.photo) for (const p of list) { ph = p.photos.find((x) => x.src === b.photo) || null; if (ph) break; }
+    ph = ph || leadOf(list);
+    return ph && BREED_LEAD_FOCUS[b.slug] ? { ...ph, ...BREED_LEAD_FOCUS[b.slug] } : ph;
   };
   const listedBreeds = D.breeds.filter((b) => breedCounts[b.slug] || b.guide.length);
   const pcListings = D.puppies.map((p) => ({

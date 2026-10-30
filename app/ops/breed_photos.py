@@ -15,7 +15,9 @@ REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
 SRC = os.path.join(REPO, '_harvest', 'webedits')
 OUT = os.path.join(REPO, 'img', 'breeds')
 
-# slug: (original file, focus x, focus y)
+# slug: (original file, focus x, focus y[, crop]). crop is (cx, cy, scale): the part of the original to keep, centered on
+# (cx, cy) as fractions and scale times its width and height, for a photo whose dog sits off-center in a frame that already
+# has the card's shape. The focus point is then read against the cropped photo.
 PHOTOS = {
     'doberman-pinscher': ('20.jpg', .38, .55),
     'french-bulldog': ('1.jpg', .52, .55),
@@ -27,18 +29,18 @@ PHOTOS = {
     'cavalier-king-charles-spaniel': ('9.jpg', .50, .55),
     'pembroke-welsh-corgi': ('9_1.jpg', .60, .55),
     'miniature-dachshund': ('14.jpg', .55, .60),
-    'great-dane': ('8 - Copy.jpg', .55, .50),
+    'great-dane': ('8 - Copy.jpg', .47, .50, (.41, .52, .88)),
     'shih-tzu': ('shih tzu1.jpeg', .55, .60),
     'cocker-spaniel': ('ChatGPT Image Oct 30, 2026, 05_06_49 PM-4.png', .55, .50),
     'english-bulldog': ('ChatGPT Image Oct 30, 2026, 05_06_48 PM-3.png', .53, .55),
-    'bernese-mountain-dog': ('1_1.jpg', .55, .45),
+    'bernese-mountain-dog': ('1_1.jpg', .52, .45),
     'boston-terrier': ('ChatGPT Image Oct 30, 2026, 05_06_47 PM-2.png', .55, .50),
     'golden-retriever': ('IMG_1830.jpg', .72, .55),
-    'papillon': ('10.jpg', .50, .50),
+    'papillon': ('10.jpg', .55, .50, (.62, .47, .85)),
     'miniature-schnauzer': ('ChatGPT Image Oct 30, 2026, 05_06_46 PM-1.png', .52, .50),
-    'saint-bernard': ('Benji1.jpg', .60, .45),
-    'labrador-retriever': ('Jo Jo 3.jpg', .50, .31),
-    'havanese': ('4.jpg', .50, .55),
+    'saint-bernard': ('Benji1.jpg', .58, .45, (.56, .50, .88)),
+    'labrador-retriever': ('Jo Jo 3.jpg', .50, .25, (.57, .50, .86)),
+    'havanese': ('4.jpg', .53, .55, (.55, .50, .92)),
 }
 
 def window(img, ratio, fx, fy):
@@ -53,8 +55,14 @@ def window(img, ratio, fx, fy):
 
 def main():
     table = {}
-    for slug, (f, fx, fy) in PHOTOS.items():
+    for slug, (f, fx, fy, *crop) in PHOTOS.items():
         im = ImageOps.exif_transpose(Image.open(os.path.join(SRC, f))).convert('RGB')
+        if crop:
+            cx, cy, k = crop[0]
+            cw, ch = round(im.width * k), round(im.height * k)
+            x = min(max(round(cx * im.width - cw / 2), 0), im.width - cw)
+            y = min(max(round(cy * im.height - ch / 2), 0), im.height - ch)
+            im = im.crop((x, y, x + cw, y + ch))
         for width in (800, 1600):
             c = im.copy()
             if c.width > width:

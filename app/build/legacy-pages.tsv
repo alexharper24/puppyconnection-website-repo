@@ -2,7 +2,7 @@
 # Built from hs-seo-data/puppyconnection/2026-10-10/technical/proposed-page-map.tsv. The rows that map left as
 # decisions take its recommended defaults. build/generate.mjs appends these after the per-puppy lines and
 # stops the build if a target page is missing. {portal} is the portal origin. A trailing * matches the rest.
-# The old breeder addresses are mislabeled (copy-of-breeder-perry is titled Cozy Pine Canine), so each breeder row goes by the title the old page shows, checked 2026-10-28. The rows still to /breeders.html wait on Amber saying which kennel each page was.
+# The old breeder addresses are mislabeled (copy-of-breeder-perry is titled Cozy Pine Canine), so each breeder row goes by the title the old page shows, checked 2026-10-28. Amber named the kennels on 2026-10-31: Philip Imhoff is Riverdale Paw Pals, Perry Kuhns is Chain O'Lakes Companions (the page titled Perry is copy-of-breeder-marcus-and-elaine), Marcus and Elaine are Heartland Mini Schnauzers (titled on copy-of-breeder-mervin-yutzy), Lonnie Miller is Maple Lane Pets. Tyler and Eileen have no kennel name yet, and Marvin, Mervin and Edward and Malinda have no puppies for a while, so those rows stay on /breeders.html.
 # legacy path<TAB>target
 /puppies-for-sale	/puppies.html
 /breed-info	/breeds.html
@@ -43,9 +43,9 @@
 /breeder-mervin-y	/breeders.html
 /breeder-tmcountrysidek9	/breeder-tmcountrysidek9.html
 /breeder-perfectmatchpoodles	/breeder-perfectmatchpoodles.html
-/breeder-philip	/breeders.html
-/copy-of-breeder-marcus-and-elaine	/breeders.html
-/copy-of-breeder-mervin-yutzy	/breeders.html
+/breeder-philip	/breeder-riverdale-paw-pals.html
+/copy-of-breeder-marcus-and-elaine	/breeder-chainolakescompanions.html
+/copy-of-breeder-mervin-yutzy	/breeder-heartlandminischnauzers.html
 /copy-of-breeder-perry	/breeder-cozy-pine-canine.html
 /copy-of-breeder-edward-and-malinda	/breeders.html
 /copy-of-breeder-tyler-and-eileen	/breeder-maplelanepets.html

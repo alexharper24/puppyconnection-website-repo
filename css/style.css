@@ -942,3 +942,5 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 /* Furry Freight: the service list stands apart from the paragraphs either side (Alex, 2026-10-31) */
 .partner-copy .includes{margin:1.6rem 0 1.8rem}
 .faq-list{max-width:46rem}
+/* The puppy grid is drawn by js/main.js after load; until then it holds the space, so the footer does not jump down (Lighthouse CLS 0.196, audit 2026-10-31). The no-matches message is drawn inside it, so a drawn grid is never :empty. */
+#results:empty{min-height:150vh}

@@ -1354,7 +1354,7 @@ ${listNone('breeders')}
         : pg.faq ? [{ '@type': 'FAQPage', mainEntity: pg.faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a.join(' ') } })) }] : [],
       body: `<main id="info-page">
 <span id="content" tabindex="-1"></span>
-${withPhoto(pg)}
+${withPhoto(pg).replaceAll('{{PORTAL}}', portal)}
 </main>` });
   }
 

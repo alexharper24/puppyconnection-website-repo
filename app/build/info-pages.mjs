@@ -305,7 +305,7 @@ ${HIW_FAQ.map(([q, a]) => `<h3>${q}</h3>\n${a.map((x) => `<p>${x}</p>`).join('\n
 <li><a href="https://www.instagram.com/puppy_connection_in/" target="_blank" rel="noopener"><b>Instagram</b> @puppy_connection_in</a></li>
 </ul>
 <p>Reach out whichever way suits you best, and we'll get back to you as soon as we can.</p>
-<p>Already listing with us? Sign in to the <a href="https://portal.puppyconnection.workers.dev/">breeder portal</a> anytime to update a listing, see how many families have viewed your puppies, or pay to list.</p>
+<p>Already listing with us? Sign in to the <a href="{{PORTAL}}/">breeder portal</a> anytime to update a listing, see how many families have viewed your puppies, or pay to list.</p>
 </div>
 </div>
 <aside><div class="breeder-box"><p class="eyebrow">Breeders</p><p class="breeder-note">$14.99 per puppy, paid once, and every family's inquiry comes straight to you.</p><div class="btn-row"><a class="btn btn-primary" href="list-with-us.html">List your puppies</a></div></div></aside>

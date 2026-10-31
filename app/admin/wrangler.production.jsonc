@@ -8,8 +8,7 @@
 // (and on the portal STRIPE_WEBHOOK_SECRET for webhook we_1UT6dbCVXPZ95g1DTrAn6V7W) immediately
 // before deploying this file, never while wrangler.hosted.jsonc is deployed.
 // WARNING: deploying this takes real money and sends real email. Clear the test data first.
-// At cutover (E2) change the three *_ORIGIN values to the puppy-connection.com
-// hostnames and add the custom domains; until then it runs on the workers.dev addresses.
+// Cutover (E2), 2026-10-31: the origins name the puppy-connection.com hostnames and the custom domain is in routes.
 // Deploy from app/admin:  wrangler deploy --config wrangler.production.jsonc
 {
   "name": "admin",
@@ -19,6 +18,8 @@
   "observability": { "enabled": true },
   "workers_dev": true,
   "preview_urls": false,
+  // The real address since launch, 2026-10-31. workers.dev stays on so Stripe webhooks and the site build keep reaching it.
+  "routes": [{ "pattern": "admin.puppy-connection.com", "custom_domain": true }],
   "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true, "html_handling": "none" },
   "d1_databases": [
     { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
@@ -30,10 +31,10 @@
   "services": [{ "binding": "PORTAL", "service": "portal" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
   "vars": {
-    "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
+    "PORTAL_ORIGIN": "https://portal.puppy-connection.com",
     // Workplan A11. The public site, for the Visit site link. https://puppy-connection.com at cutover (E2).
-    "SITE_ORIGIN": "https://site.puppyconnection.workers.dev",
-    "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
+    "SITE_ORIGIN": "https://www.puppy-connection.com",
+    "ADMIN_ORIGIN": "https://admin.puppy-connection.com",
     "PUBLISH_MODE": "hook",
     // Real email through Resend on Puppy Connection's verified domain (workplan B3 and B7, Alex
     // receive mail, list sends included, and /dev/mail is gone while EMAIL_MODE is resend.

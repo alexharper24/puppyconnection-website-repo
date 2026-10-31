@@ -29,6 +29,14 @@ tasks:
   - {id: t18-parent-form, status: done, deployed: "PR 81, portal a02c9754, admin ba257173", note: "one-page add for puppies, moms and dads; Comes with checklist; Pay to list step; photos newest first, Make cover, position menu, drag and drop; panels keep their place", asked: "Alex 2026-10-31: one page for a mom or dad with photos and documents, and an uploaded health or pedigree document that fills in what it can for the breeder to review", item: "Choose whether to build the one-page parent and puppy form and the document prefill"}
   - {id: t19-doc-prefill, status: open, item: "Read an uploaded health record or pedigree with Workers AI (toMarkdown, then a text model for the fields), fill the mom, dad or puppy form, and mark the filled fields for the breeder to check before saving"}
   - {id: t20-stripe-logo, status: open, blocked_on: alex, item: "Upload the transparent white logo to Stripe Branding with the sage background, so the checkout has no black box (Stripe settings are Alex's)"}
+  - {id: t28-faster-publish, status: done, deployed: "PR 83, portal 93a91045 with crons * * * * *, */15 and 0 13, admin b8c4f46d", note: "Workers Paid confirmed from the 2026-10-25 record; builds measured 32 s to 1 min 44 s; publish after 45 s settle, 120 s gap"}
+  - {id: t21-portal-search, status: open, asked: "Alex 2026-10-31", item: "Search the breeder portal for a puppy by name and other useful fields, for breeders with many puppies"}
+  - {id: t22-topbar-overflow, status: open, asked: "Alex 2026-10-31", item: "The portal top bar (Sign out) runs past the right edge of the page content; bring it in line"}
+  - {id: t23-andre-litter, status: open, asked: "Alex 2026-10-31", item: "Andre is not a littermate of Fox and the other puppy: same birthday, different parents. Move him to his own litter"}
+  - {id: t24-retro-parents, status: open, asked: "Alex 2026-10-31", item: "Let breeders set a mom and dad on puppies and litters added before parents were required, and regroup litters by same mom, same dad and a birth date within a few days"}
+  - {id: t25-puppy-box-border, status: open, asked: "Alex 2026-10-31", item: "Darker border on the puppy boxes inside the litter sections of the portal"}
+  - {id: t26-precious-paws-logo, status: open, asked: "Alex 2026-10-31", item: "Precious Paws Companions logo sits as a box inside its tile on the site; make it transparent or fill the tile with the logo's green"}
+  - {id: t27-hide-empty-breeders, status: open, asked: "Alex 2026-10-31", item: "On the site, breeders with no current puppies (Cozy Pine Canine, Ibar Canine Companions, Precious Paws Companions and any others) leave the breeder listings until they list again; their pages stay"}
 excluded: []
 ---
 

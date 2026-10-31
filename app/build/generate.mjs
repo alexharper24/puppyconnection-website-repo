@@ -545,7 +545,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // ops/breed_photos.py. Same focus-point rules as the breed photos above.
   const CHOSEN_BREEDER_PHOTO = {
     'teapup': { w: 1600, h: 2135, fx: 0.5, fy: 0.36 },
-    'sweetpuppypaws': { w: 1600, h: 2059, fx: 0.55, fy: 0.33 },
+    'sweetpuppypaws': { w: 1600, h: 1561, fx: 0.5, fy: 0.38 },
   };
   const breederPhoto = (slug) => {
     const t = CHOSEN_BREEDER_PHOTO[slug];

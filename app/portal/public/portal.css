@@ -55,7 +55,7 @@ code { font-size: .88em; background: var(--info-bg); padding: .05rem .3rem; bord
 label { display: block; font-weight: 500; font-size: .9rem; margin: 0 0 .3rem; }
 .field { margin-bottom: .9rem; }
 .hint { font-size: .82rem; color: var(--muted); margin-top: .25rem; }
-input[type=text], input[type=email], input[type=url], input[type=tel], input[type=date], input[type=number], input[type=search],
+input[type=text], input[type=email], input[type=password], input[type=url], input[type=tel], input[type=date], input[type=number], input[type=search],
 select, textarea { width: 100%; min-height: var(--tap); padding: .5rem .7rem; border: 1px solid var(--line-strong);
   border-radius: var(--radius); background: #fff; color: var(--ink); font: 1rem var(--sans); }
 textarea { min-height: 110px; resize: vertical; }
@@ -496,6 +496,40 @@ fieldset.field .check { margin: .3rem 0; }
 .btn.is-busy::before { content: ""; width: .9em; height: .9em; flex: none; border-radius: 50%;
   border: 2px solid currentColor; border-right-color: transparent; }
 @media (prefers-reduced-motion: no-preference) { .btn.is-busy::before { animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } } }
+
+/* Signed-out pages in the brand of the site and the emails (Alex, 2026-10-31: the password page
+   "looks like it's from the 1900s"). Playfair Display and Barlow as on the site, the sage band with
+   a gold rule as in the emails, a warm ground, roomier fields and the gold main button. */
+body.plain { --serif: 'Playfair Display', Georgia, serif; --sans: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--sans); font-size: 16px; background: #f5f2ea; padding-top: 3rem; }
+body.plain h1 { font-size: 1.65rem; font-weight: 600; letter-spacing: -.005em; margin-bottom: .5rem; }
+body.plain .plain-card { width: min(480px, 100%); border: 0; border-radius: 10px; padding: 0 2rem 2rem; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(38, 38, 38, .06), 0 12px 32px rgba(74, 90, 75, .12); }
+body.plain .plain-card.plain-wide { width: min(760px, 100%); }
+body.plain .plain-mark { margin: 0 -2rem 1.8rem; border-radius: 0; background: #4a5a4b; padding: 1.4rem 1rem 1.2rem; border-bottom: 4px solid var(--gold); }
+body.plain .plain-mark img { width: 9.5rem; }
+body.plain .plain-card > p, body.plain .plain-card form > p { color: var(--ink-soft); }
+body.plain label { font-weight: 600; font-size: .92rem; color: var(--ink); }
+body.plain input[type=text], body.plain input[type=email], body.plain input[type=password] {
+  min-height: 48px; border-radius: 6px; border-color: #d6cfbf; background: #fff; font-size: 1rem; padding: .6rem .8rem; }
+body.plain input:focus { outline: none; border-color: var(--bronze); box-shadow: 0 0 0 3px rgba(247, 213, 127, .55); }
+body.plain .btn { min-height: 48px; border-radius: 6px; font-size: 1rem; }
+body.plain .btn-primary { background: var(--gold); border-color: #e6c264; color: var(--ink); font-weight: 600; }
+body.plain .btn-primary:hover { background: #f3cb62; }
+body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
+@media (max-width: 520px) {
+  body.plain { padding: 1rem .75rem; }
+  body.plain .plain-card { padding: 0 1.2rem 1.5rem; }
+  body.plain .plain-mark { margin: 0 -1.2rem 1.4rem; }
+  body.plain .plain-site { position: static; justify-self: end; margin: 0 0 .4rem; }
+}
+/* The Show button inside every password box, from show-password.js. */
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 4.6rem !important; }
+.pw-show { position: absolute; top: 50%; right: .35rem; transform: translateY(-50%); min-height: 36px; min-width: 3.9rem; padding: 0 .6rem;
+  border: 0; border-radius: 4px; background: transparent; color: var(--olive); font: 600 .85rem var(--sans); cursor: pointer; }
+.pw-show:hover { background: var(--row-hover); color: var(--ink); }
+.pw-show:focus-visible { outline: 3px solid var(--bronze); outline-offset: 0; }
 
 /* Grouped panel sections with one right-hand button column (Alex, 2026-10-31). Each part of a
    panel sits in its own box, a status sits beside its heading, and the everyday actions share one

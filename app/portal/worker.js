@@ -345,9 +345,9 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="stylesheet" href="/portal.css?v=25"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=26"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
-<footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></body></html>`;
+<footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
 
 // ------------------------------------------------------------------ set a password (A25, A26)
@@ -401,8 +401,8 @@ ${error ? `<p class="error" role="alert">${esc(error)}</p>` : ''}
 <input type="email" name="username" value="${esc(email)}" autocomplete="username" readonly hidden>
 <p class="muted small">Signing in as <b>${esc(email)}</b></p>
 <div class="field"><label for="pw1">New password</label><input id="pw1" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></div>
-<div class="field"><label for="pw2">The same password again</label><input id="pw2" name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></div>
-<p class="hint">At least 10 characters. A few words together is easy to remember and hard to guess.</p>
+<div class="field"><label for="pw2">Confirm password</label><input id="pw2" name="confirm" type="password" autocomplete="new-password" minlength="10" maxlength="200" required></div>
+<p class="hint">At least 10 characters.</p>
 ${needCode ? '<div class="field"><label for="code">Code from your authenticator app</label><input id="code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required><p class="hint">Lost your phone? Type one of your recovery codes instead.</p></div>' : ''}
 <button class="btn btn-primary" type="submit">Save password and sign in</button></form>`), error ? 400 : 200);
 }

@@ -27,10 +27,16 @@ function signOff() {
   return `\n\n${SITE}\nThis is an automatic message from the breeder portal.`;
 }
 
-// Alex, 2026-10-31: the one-password note for someone invited to more than one kennel.
+// Alex, 2026-10-31: the one-password note for someone invited to more than one kennel. Since the same day a person
+// with no password yet is never held back on a kennel, so the one password they choose here opens every kennel named.
 const oneAccount = (business, others) => (others && others.length
-  ? `\n\nYou have also been invited to manage ${others.join(' and ')}. It is one account with one password for all of your kennels, so choose your password from whichever email you open first. Then open each other invitation and sign in with that same password, and every kennel sits under the one sign-in.\n\n`
+  ? `\n\nThis address is also set up to manage ${others.join(' and ')}. It is one account with one password for all of your kennels, so once you choose your password, every kennel sits under the one sign-in and any other invitation can be ignored.\n\n`
   : '');
+
+// Alex, 2026-10-31: one email for several kennels given in one step. The subject counts them and the body lists them.
+const several = (kennels) => kennels && kennels.length > 1;
+const whatKennels = (business, kennels) => (several(kennels) ? `${kennels.length} kennels` : business);
+const kennelLines = (kennels) => (several(kennels) ? `\n\n${kennels.map((k) => `  ${k}`).join('\n')}` : '');
 
 export const TEMPLATES = {
   // Launch workplan A26. Email carries only invitations and password resets. Sign-in is a
@@ -49,11 +55,13 @@ export const TEMPLATES = {
     link,
   }),
   // Workplan A25. Puppy Connection invites someone to a kennel from the admin.
-  invitation: ({ business, link, days, others }) => ({
-    subject: `You are invited to manage ${business} on Puppy Connection`,
-    text: `Puppy Connection has invited you to manage ${business} in the breeder portal, where you can keep its profile, litters and puppies up to date.\n\n` +
+  invitation: ({ business, kennels, link, days, others }) => ({
+    subject: `You are invited to manage ${whatKennels(business, kennels)} on Puppy Connection`,
+    text: `Puppy Connection has invited you to manage ${several(kennels) ? 'these kennels' : business} in the breeder portal, where you can keep ${several(kennels) ? 'each one\'s' : 'its'} profile, litters and puppies up to date.` +
+      kennelLines(kennels) + '\n\n' +
       `Open this link to choose your password and sign in.\n\n${link}\n\nThe link works once and stops working after ${days} days. ` +
       'After that you sign in with this email address and your password, or with Continue with Google if this address is a Google account. ' +
+      (several(kennels) ? 'One password covers every kennel above, and each time you sign in you choose which one to open. ' : '') +
       oneAccount(business, others) +
       'If you were not expecting this, you can ignore it, or reply and let us know.' + signOff(),
     link,
@@ -76,6 +84,16 @@ export const TEMPLATES = {
       `Open this link and confirm with your current password, or with your authenticator code if you set one up, to add ${business} to your sign-in.\n\n${link}\n\n` +
       `The link works once and stops working after ${days} days. After that, each time you sign in you choose which kennel to open. ` +
       'If you were not expecting this, you can ignore it, or reply and let us know.' + signOff(),
+    link,
+  }),
+  // Alex, 2026-10-31. Puppy Connection gave someone who already has a password one or more kennels, which open at
+  // once. Nothing to confirm, so the link is the portal's front door rather than a one-time link.
+  kennel_access: ({ business, kennels, by, link }) => ({
+    subject: `You can now manage ${whatKennels(business, kennels)} on Puppy Connection`,
+    text: `${by} has added ${several(kennels) ? 'these kennels' : business} to your Puppy Connection sign-in, so you can manage ${several(kennels) ? 'each one\'s' : 'its'} profile, litters and puppies with the email address and password you already use.` +
+      kennelLines(kennels) + '\n\n' +
+      `There is nothing to confirm. Next time you sign in, choose ${several(kennels) ? 'a kennel' : business} from your list of kennels, or use Switch kennel at the top of the portal if you are already signed in.\n\n${link}\n\n` +
+      'If you were not expecting this, reply and let us know.' + signOff(),
     link,
   }),
   // Plan P6.6. Sent to the sign-in address, so the real owner hears about a change they did not make.

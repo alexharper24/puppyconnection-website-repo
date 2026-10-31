@@ -25,8 +25,10 @@ if (!fs.existsSync(WRANGLER)) {
 }
 
 // A staging backup (app/.state/staging-*.sql) is the only copy of staging taken before a schema
-// change, so a reset keeps those files and removes everything else under app/.state.
-const KEEP = /^staging-.*\.sql$/;
+// change, so a reset keeps those files and removes everything else under app/.state. Since 2026-10-31
+// it also keeps production-*.sql backups and applied-*.sql migrations kept out of git for privacy,
+// because those are the only copies too.
+const KEEP = /^(staging|production|applied)-.*\.sql$/;
 if (process.argv.includes('--reset')) {
   const kept = [];
   for (const name of fs.existsSync(STATE) ? fs.readdirSync(STATE) : []) {

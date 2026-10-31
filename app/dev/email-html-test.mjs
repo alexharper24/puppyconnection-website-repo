@@ -39,6 +39,7 @@ const DATA = {
   password_reset: { link: `${P}/auth/set-password?t=sample-reset-token` },
   invitation: { business: 'Sample Kennel', link: `${P}/auth/set-password?t=sample-invite-token`, days: 7 },
   member_added: { business: EVIL, by: '<img src=x onerror=alert(1)>', link: `${P}/auth/set-password?t=member-token`, days: 7 },
+  kennel_access: { business: EVIL, kennels: [EVIL, 'Ibar Canine Companions'], by: 'Puppy Connection', link: `${P}/` },
   kennel_added: { business: EVIL, by: '<img src=x onerror=alert(1)>', link: `${P}/auth/set-password?t=kennel-token`, days: 7 },
   contact_changed: { business: EVIL, by: 'operator', portalUrl: `${P}/`, changes: [{ label: 'Phone', from: '<b>555</b>', to: '574 555 0100' }, { label: 'Email', from: '', to: 'new@example.com' }] },
   profile_submitted: { business: EVIL, adminUrl: 'https://admin.puppyconnection.workers.dev/#/breeders/b1' },

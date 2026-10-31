@@ -553,8 +553,11 @@
     }).join('') + '</ul><div id="main-choice"></div>' +
       (extra < 5 ? '<form id="person-form" class="member-form" novalidate><div class="field"><label for="pp-name">Name</label><input id="pp-name" type="text" maxlength="120" autocomplete="off"></div>' +
         '<div class="field"><label for="pp-email">Email address</label><input id="pp-email" type="email" maxlength="200" autocomplete="off" required></div>' +
+        '<details class="also-kennels" id="pp-also"><summary>Give them more kennels in the same step</summary>' +
+        '<div class="field"><label for="pp-also-q">Find a kennel</label><input id="pp-also-q" type="search" autocomplete="off"></div>' +
+        '<div class="also-list" id="pp-also-list"><p class="small muted">Loading kennels</p></div></details>' +
         '<button class="btn btn-sm btn-primary" type="submit">Add and invite</button></form>' +
-        '<p class="hint">An invitation is a link that works once for 7 days and lands the person on the page that sets their password. Sending again stops the earlier link working. Someone who already signs in to another kennel keeps their one password, and the link asks for it to add this kennel.</p>'
+        '<p class="hint">Someone with no password yet gets one invitation that names every kennel added, a link that works once for 7 days to choose their password, and that one password opens all of them. Someone who already has a password gets the kennels at once, with an email saying so and nothing to confirm.</p>'
         : '<p class="hint">This kennel has the most extra people it can have, five. Remove someone to add another.</p>');
   }
 
@@ -610,10 +613,32 @@
       });
     });
     var pf = $('#person-form', d);
+    // Alex, 2026-10-31. The other kennels load when the picker first opens, so the page itself does not wait on them.
+    var also = $('#pp-also', d);
+    if (also) also.addEventListener('toggle', function () {
+      if (!also.open || also.dataset.loaded) return;
+      also.dataset.loaded = '1';
+      api('GET', '/api/breeders').then(function (rows) {
+        var list = $('#pp-also-list', d);
+        rows = rows.filter(function (r) { return r.id !== b.id && r.status !== 'closed'; })
+          .sort(function (x, y) { return String(x.business_name || x.email).localeCompare(String(y.business_name || y.email)); });
+        list.innerHTML = rows.map(function (r) {
+          return '<label class="check" data-name="' + esc(String(r.business_name || r.email).toLowerCase()) + '"><input type="checkbox" value="' + esc(r.id) + '"> ' +
+            esc(r.business_name || r.email) + (r.status !== 'approved' ? ' <span class="muted small">(' + esc(r.status) + ')</span>' : '') + '</label>';
+        }).join('') || '<p class="small muted">There are no other kennels.</p>';
+      }).catch(function (err) { $('#pp-also-list', d).innerHTML = '<p class="small">' + esc(err.message) + '</p>'; });
+    });
+    var aq = $('#pp-also-q', d);
+    if (aq) aq.addEventListener('input', function () {
+      var t = aq.value.trim().toLowerCase();
+      $$('#pp-also-list label', d).forEach(function (l) { l.hidden = !!t && l.dataset.name.indexOf(t) < 0; });
+    });
     if (pf) pf.addEventListener('submit', function (e) {
       e.preventDefault();
-      api('POST', '/api/breeders/' + b.id + '/people', { name: $('#pp-name', d).value, email: $('#pp-email', d).value })
-        .then(function () { toast('Person added and invited'); again(); }).catch(function (err) { showError(pf, err); });
+      var ids = $$('#pp-also-list input:checked', d).map(function (x) { return x.value; });
+      api('POST', '/api/breeders/' + b.id + '/people', { name: $('#pp-name', d).value, email: $('#pp-email', d).value, also: ids })
+        .then(function () { toast(ids.length ? 'Added to ' + (ids.length + 1) + ' kennels, one email sent' : 'Person added and emailed'); again(); })
+        .catch(function (err) { showError(pf, err); });
     });
   }
 

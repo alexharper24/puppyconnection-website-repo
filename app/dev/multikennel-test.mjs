@@ -66,13 +66,15 @@ async function main() {
   const first = await usePasswordLink(N1, inv1);
   check('a new person sets a password from their first invitation and lands on that kennel', first.status === 303 && first.location === '/' && (await N1.get('/api/me')).data.id === K1.id, JSON.stringify(first));
 
-  // The admin adds the same address to K2, and K3's main contact adds it in the portal.
-  const addK2 = await admin.post(`/api/breeders/${K2.id}/people`, { email: N, name: 'Network' });
-  check('the admin accepts an address that already belongs to another kennel', addK2.status === 200 && addK2.data.people.some((p) => p.email === N && p.awaiting && p.other_kennels === 1), JSON.stringify(addK2.data.people || addK2.data).slice(0, 300));
+  // K2's and K3's main contacts add the same address in the portal. A breeder's add waits for the person to
+  // confirm it, while an add by Puppy Connection opens at once (Alex, 2026-10-31, tested further down).
+  const addK2 = await K2.c.post('/api/account/members', { email: N, name: 'Network' });
+  check('the portal accepts an address that already belongs to another kennel', addK2.status === 200 && addK2.data.members.some((m) => m.email === N)
+    && (await admin.get(`/api/breeders/${K2.id}`)).data.people.some((p) => p.email === N && p.awaiting && p.other_kennels === 1), JSON.stringify(addK2.data).slice(0, 300));
   const addK3 = await K3.c.post('/api/account/members', { email: N, name: 'Network' });
   check('the portal accepts it too', addK3.status === 200 && addK3.data.members.some((m) => m.email === N), JSON.stringify(addK3.data).slice(0, 300));
   check('adding twice to the same kennel is still refused', (await admin.post(`/api/breeders/${K2.id}/people`, { email: N })).status === 400);
-  check('the adds are in the audit log, naming the person and the kennel', audits('member.add', K2.id).some((a) => JSON.parse(a.after_json).email === N && a.actor === OPERATOR)
+  check('the adds are in the audit log, naming the person and the kennel', audits('member.add', K2.id).some((a) => JSON.parse(a.after_json).email === N && a.actor === K2.email)
     && audits('member.add', K3.id).some((a) => JSON.parse(a.after_json).email === N && a.actor === K3.email));
 
   const inv2 = await mailLink(N, new RegExp(`You can now manage ${K2.name}`));
@@ -193,7 +195,7 @@ async function main() {
 
   // An invitation to a person with an authenticator asks for its code instead of the password.
   const K4 = await kennel('four');
-  await admin.post(`/api/breeders/${K4.id}/people`, { email: N });
+  await K4.c.post('/api/account/members', { email: N });
   const inv4 = await mailLink(N, new RegExp(`You can now manage ${K4.name}`));
   const page4 = await new Client(PORTAL).get(`/auth/set-password?t=${encodeURIComponent(tokenOf(inv4))}`);
   check('for a person with an authenticator, the invitation asks for its code', /Code from your authenticator app/.test(page4.data) && !/Your current password/.test(page4.data));
@@ -204,6 +206,44 @@ async function main() {
   check('the authenticator code adds it and signs in to it', acc4.status === 303 && (await N4.get('/api/me')).data.id === K4.id
     && audits('member.join', K4.id).some((a) => JSON.parse(a.after_json).confirmed_with === 'authenticator'));
   sql(`DELETE FROM signin_failures WHERE email = ${q(N)}`);
+
+  // ---------------------------------------------------------------- Puppy Connection gives kennels in one step
+  // Alex, 2026-10-31: the network manages several kennels, so the admin adds one person to many kennels with one
+  // email, and a kennel added later to someone who already has a password opens at once with a notice.
+  const K5 = await kennel('five'), K6 = await kennel('six'), K7 = await kennel('seven');
+  const M = addr('manager');
+  const many = await admin.post(`/api/breeders/${K5.id}/people`, { email: M, name: 'Kennel Manager', also: [K6.id, K7.id, K5.id] });
+  const mMail = () => sql(`SELECT subject, body, link FROM dev_mailbox WHERE to_addr = ${q(M)} ORDER BY id`);
+  check('the admin adds one new person to three kennels in one step', many.status === 200
+    && sql(`SELECT COUNT(*) AS n FROM breeder_members WHERE email = ${q(M)} AND awaiting_accept = 0 AND breeder_id IN (${[K5, K6, K7].map((k) => q(k.id)).join(',')})`)[0].n === 3, JSON.stringify(many.data).slice(0, 300));
+  check('and sends one email, an invitation naming all three', mMail().length === 1 && /invited to manage 3 kennels/.test(mMail()[0].subject)
+    && [K5, K6, K7].every((k) => mMail()[0].body.includes(k.name)) && /One password covers every kennel above/.test(mMail()[0].body), JSON.stringify(mMail()).slice(0, 400));
+  check('with one open link', sql(`SELECT COUNT(*) AS n FROM auth_tokens WHERE email = ${q(M)} AND purpose = 'invite' AND used_at IS NULL`)[0].n === 1);
+  check('the three adds are in the audit log', [K5, K6, K7].every((k) => audits('member.add', k.id).some((a) => JSON.parse(a.after_json).email === M && a.actor === OPERATOR)));
+  await usePasswordLink(new Client(PORTAL), mMail()[0].link);
+  const MS = await signIn(M);
+  const mList = await MS.c.get('/choose');
+  check('the one password opens all three kennels', MS.r.data.choose === '/choose' && [K5, K6, K7].every((k) => mList.data.includes(k.name))
+    && (mList.data.match(/class="kennel-pick/g) || []).length === 3, String(mList.data).slice(0, 300));
+
+  const later = await admin.post(`/api/breeders/${K9.id}/people`, { email: M });
+  const notice = mMail().slice(-1)[0];
+  check('a kennel added later to someone with a password opens at once', later.status === 200 && later.data.people.some((p) => p.email === M && !p.awaiting)
+    && (await choose(MS.c, K9.id)).status === 303 && (await MS.c.get('/api/me')).data.id === K9.id);
+  check('and the email is a notice with nothing to confirm and no one-time link', mMail().length === 2 && notice.subject === `You can now manage ${K9.name} on Puppy Connection`
+    && /nothing to confirm/.test(notice.body) && !/set-password/.test(notice.body)
+    && sql(`SELECT COUNT(*) AS n FROM auth_tokens WHERE email = ${q(M)} AND purpose = 'invite' AND breeder_id = ${q(K9.id)}`)[0].n === 0, JSON.stringify(notice).slice(0, 300));
+  check('the notice is in the audit log', audits('member.notify', K9.id).some((a) => a.actor === OPERATOR && JSON.parse(a.after_json).email === M));
+  const resend = await admin.post(`/api/breeders/${K9.id}/people/invite`, { email: M });
+  check('Send invitation again sends the same notice rather than a link', resend.status === 200 && mMail().length === 3 && /nothing to confirm/.test(mMail()[2].body));
+  const twoMore = await admin.post(`/api/breeders/${K4.id}/people`, { email: M, also: [K3.id] });
+  check('two kennels added later to someone with a password come in one notice listing both', twoMore.status === 200 && mMail().length === 4
+    && /manage 2 kennels/.test(mMail()[3].subject) && mMail()[3].body.includes(K4.name) && mMail()[3].body.includes(K3.name), JSON.stringify(mMail()[3]).slice(0, 300));
+  const dup = await admin.post(`/api/breeders/${K1.id}/people`, { email: M, also: [K5.id] });
+  check('a kennel they are already on is skipped rather than refused', dup.status === 200 && sql(`SELECT COUNT(*) AS n FROM breeder_members WHERE email = ${q(M)} AND breeder_id = ${q(K5.id)}`)[0].n === 1);
+  check('an unknown kennel in the list is refused and nothing is added', (await admin.post(`/api/breeders/${K2.id}/people`, { email: M, also: ['no-such-kennel'] })).status === 404
+    && sql(`SELECT COUNT(*) AS n FROM breeder_members WHERE email = ${q(M)} AND breeder_id = ${q(K2.id)}`)[0].n === 0);
+  await MS.c.post('/auth/signout');
 
   // ---------------------------------------------------------------- Make main contact with a shared sign-in
   const nOnK1 = (await admin.get(`/api/breeders/${K1.id}`)).data.people.find((p) => p.email === N);

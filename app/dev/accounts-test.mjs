@@ -170,11 +170,11 @@ async function main() {
   check('the admin adds a person and sends an invitation', added.status === 200 && added.data.people.some((p) => p.email === P1 && p.invite_open_until) && !!inv1, JSON.stringify(added.data.people || added.data));
   const invRow = sql(`SELECT expires_at, created_at FROM auth_tokens WHERE email = ${q(P1)} AND purpose = 'invite'`)[0];
   check('an invitation lasts 7 days', Math.round((Date.parse(invRow.expires_at) - Date.parse(invRow.created_at)) / 86400000) === 7);
-  // Workplan A27 (Alex, 2026-10-25). An address with its own account can now be added. It waits for
-  // that person to confirm from their invitation, and multikennel-test.mjs covers the rest.
+  // Workplan A27 (Alex, 2026-10-25). An address with its own account can now be added. Since Alex,
+  // 2026-10-31, a kennel Puppy Connection adds opens at once, and multikennel-test.mjs covers the rest.
   const dupe = await admin.post(`/api/breeders/${B.id}/people`, { email: A.email, invite: false });
   const dupeRow = dupe.status === 200 && dupe.data.people.find((p) => p.email === A.email);
-  check('an address with its own account is added, waiting for that person to confirm', !!dupeRow && dupeRow.awaiting === true && dupeRow.other_kennels === 1, JSON.stringify(dupe.data).slice(0, 300));
+  check('an address with its own account is added by the admin and opens at once', !!dupeRow && dupeRow.awaiting === false && dupeRow.other_kennels === 1, JSON.stringify(dupe.data).slice(0, 300));
   if (dupeRow) await admin.req('DELETE', `/api/breeders/${B.id}/people/${dupeRow.member_id}`);
   check('and removing it again leaves that person signing in to their own kennel', (await signIn(A.email, 'another long password')).r.data.ok === true);
   await admin.post(`/api/breeders/${B.id}/people/invite`, { email: P1 });

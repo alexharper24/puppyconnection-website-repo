@@ -61,7 +61,8 @@ const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 8);
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const longDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d\d)-(\d\d)/); return m ? `${MONTHS[+m[2] - 1]} ${+m[3]}, ${m[1]}` : null; };
 const shortDate = (iso) => (longDate(iso) || '').replace(/,? \d{4}$/, '');
-const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : `${t.slice(0, t.lastIndexOf(' ', n - 1) > 40 ? t.lastIndexOf(' ', n - 1) : n - 1)}...`; };
+// The three dots count toward n, so a clipped meta description stays within its limit (audit 2026-10-31).
+const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : `${t.slice(0, t.lastIndexOf(' ', n - 4) > 40 ? t.lastIndexOf(' ', n - 4) : n - 3)}...`; };
 
 // The concept's image helpers, for photos still on Wix. A photo in R2 is served by the site Worker
 // at media/<id>, and a slot 640 px wide or less takes its card copy at media/<id>/card.
@@ -839,7 +840,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}
       ${videos.length ? `<section class="about-block puppy-videos"><p class="eyebrow">${videos.length === 1 ? 'Video' : 'Videos'}</p>${videos.map((v, i) => `<div class="video-frame" style="position:relative;padding-top:56.25%;margin:0 0 .8rem"><iframe src="${esc(v.iframe)}${v.poster ? `?poster=${encodeURIComponent(v.poster)}` : ''}" title="Video ${i + 1} of ${esc(p.name)}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`).join('')}</section>` : ''}
       ${parents.length ? `<section class="about-block puppy-parents"><p class="eyebrow">${parents.length === 2 ? 'The parents' : 'Parent'}</p><div class="parent-grid">${parents.map((x) => parentCard(x[0], x[1], x[2], p.name)).join('')}</div></section>` : ''}
-      ${health.length ? `<section class="about-block puppy-health"><p class="eyebrow">Health and care</p>${health.map((h) => `<h3>${esc(h[0])}</h3>${paras(h[1])}`).join('')}</section>` : ''}
+      ${health.length ? `<section class="about-block puppy-health"><h2 class="eyebrow">Health and care</h2>${health.map((h) => `<h3>${esc(h[0])}</h3>${paras(h[1])}`).join('')}</section>` : ''}
       ${docs.length ? `<section class="about-block puppy-docs"><p class="eyebrow">Documents from the breeder</p>${docList(docs)}</section>` : ''}
     </div>
     <div class="d-detail">
@@ -873,7 +874,7 @@ ${mates.length ? `<section class="band band-warm">
       noindex: p.placed && !!p.unlist_after && Date.parse(p.unlist_after) <= now,
       // SEO plan P11. "for sale" only while the puppy is, since an adopted puppy's page stays up.
       title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
-      desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 158),
+      desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 155),
       body, trail: [['Available puppies', `${base}puppies.html`], [p.name, `${base}${pageFor.puppy(p.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       // Product snippet markup (Alex, 2026-10-11). Puppy Connection is not the seller, so this
       // is not merchant listing markup: the Offer names the breeder as seller, and a puppy with
@@ -979,7 +980,7 @@ ${others.length ? `<section class="band">
       title: `${b.name} Puppies for Sale${where ? ` in ${where}` : ''} | Puppy Connection`,
       desc: clip(n
         ? `${n} ${b.name} ${n === 1 ? 'puppy' : 'puppies'} for sale from ${by.length === 1 ? 'a small family breeder' : 'small family breeders'}${where ? ` in ${where}` : ''}${priceRange(open)}. See each puppy and contact its breeder directly.`
-        : `${b.name} puppies from small family breeders. None are listed right now, so see recent litters here or browse the other breeds.`, 158),
+        : `${b.name} puppies from small family breeders. None are listed right now, so see recent litters here or browse the other breeds.`, 155),
       body, trail: [['Breeds', `${base}breeds.html`], [b.name, `${base}${pageFor.breed(b.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       // SEO plan P14. The puppies the page lists, in the order it shows them.
       ld: [{ '@type': 'ItemList', name: `${b.name} puppies`, numberOfItems: shown.length,
@@ -1150,7 +1151,7 @@ ${others.length ? `<section class="band">
 </main>`;
     write(pageFor.breeder(b.slug), {
       title: `${b.name} | Puppy Connection`,
-      desc: clip(b.about[0] || `Puppies listed by ${b.name}${place(b) ? ` in ${place(b)}` : ''}. Contact the breeder directly.`, 158),
+      desc: clip(b.about[0] || `Puppies listed by ${b.name}${place(b) ? ` in ${place(b)}` : ''}. Contact the breeder directly.`, 155),
       body, trail: [['Breeders', `${base}breeders.html`], [b.name, `${base}${pageFor.breeder(b.slug)}`]], image: absolute(kennelPhoto && kennelPhoto.src),
       images: [kennelPhoto && absolute(kennelPhoto.src)],
     });
@@ -1206,7 +1207,7 @@ ${others.length ? `<section class="band">
 </main>`;
     write(pageFor.statePuppies(S), {
       title: `Puppies for Sale in ${S} | Puppy Connection`,
-      desc: clip(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from small family breeders in ${S}${price ? `, priced ${price}` : ''}. See each puppy and contact its breeder directly.`, 158),
+      desc: clip(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from small family breeders in ${S}${price ? `, priced ${price}` : ''}. See each puppy and contact its breeder directly.`, 155),
       body: pupBody, trail: [['Available puppies', `${base}puppies.html`], [`Puppies in ${S}`, `${base}${pageFor.statePuppies(S)}`]],
       image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       ld: [{ '@type': 'ItemList', name: `Puppies for sale in ${S}`, numberOfItems: shown.length,
@@ -1236,7 +1237,7 @@ ${others.length ? `<section class="band">
 </main>`;
     write(pageFor.stateBreeders(S), {
       title: `Dog Breeders in ${S} | Puppy Connection`,
-      desc: clip(`The small family dog breeders in ${S} who list puppies on Puppy Connection. See each breeder's puppies and contact them directly.`, 158),
+      desc: clip(`The small family dog breeders in ${S} who list puppies on Puppy Connection. See each breeder's puppies and contact them directly.`, 155),
       body: brBody, trail: [['Breeders', `${base}breeders.html`], [`Breeders in ${S}`, `${base}${pageFor.stateBreeders(S)}`]],
       ld: [{ '@type': 'ItemList', name: `Dog breeders in ${S}`, numberOfItems: brs.length,
         itemListElement: brs.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],

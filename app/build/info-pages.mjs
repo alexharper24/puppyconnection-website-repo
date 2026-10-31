@@ -137,7 +137,7 @@ export const INFO_PAGES = [
     file: 'how-it-works.html', name: 'How it works',
     faq: HIW_FAQ,
     title: 'How Puppy Connection Works | Find a Puppy from a Family Breeder',
-    desc: 'How to find a puppy on Puppy Connection: browse by breed or state, see each puppy and its breeder, and contact the breeder directly. How breeders list, too.',
+    desc: 'How to find a puppy on Puppy Connection: browse by breed or state, see each puppy and its breeder, then contact the breeder directly. How breeders list.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">How it works</p><h1>How Puppy Connection works</h1>
 <p class="lede">Finding the right puppy begins with finding the right breeder.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split intro-split"><div class="intro-block">

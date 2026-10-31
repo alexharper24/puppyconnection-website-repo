@@ -603,7 +603,8 @@
         if (q && !listingMatches(l, q)) return false;
         return true;
       });
-      current.sort(function (a, b) { return (a.price || 0) - (b.price || 0); });
+      // Newest listing first (Alex, 2026-10-31), then by price.
+      current.sort(function (a, b) { return String(b.listed || '').localeCompare(String(a.listed || '')) || (a.price || 0) - (b.price || 0); });
       shown = PAGE;
       paint();
       var label = current.length + (current.length === 1 ? ' puppy' : ' puppies');

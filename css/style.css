@@ -243,6 +243,8 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
 .is-filtered{display:none!important}
 .card-media.is-logo{background:var(--paper-warm)}
 .card-media.is-logo img{object-fit:contain;object-position:center;padding:1.2rem;mix-blend-mode:multiply}
+/* A logo on its own solid color fills the tile with that color (LOGO_FILL in the generator, Alex 2026-10-31) */
+.card-media.is-logo[data-fill] img,.breeder-logo[data-fill] img{mix-blend-mode:normal}
 .card-media.is-whole{background:var(--cream)}
 .card-media.is-whole::before{
   content:'';position:absolute;inset:0;z-index:0;

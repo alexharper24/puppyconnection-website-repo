@@ -428,6 +428,10 @@ export function loadData(dataDir) {
 }
 
 const realBreeder = (b) => b && b.slug !== 'unassigned';
+// A logo drawn on a solid square of color shows as a box inside its tile, so the tile takes that color instead
+// (Alex, 2026-10-31). The color is the logo file's own edge, sampled from the uploaded file.
+const LOGO_FILL = { preciouspawscompanions: '#8fa17b' };
+const logoFill = (b) => (LOGO_FILL[b.slug] ? ` style="background:${LOGO_FILL[b.slug]}" data-fill` : '');
 // A breeder with a state and no town shows the state's name, since a bare "IN" under the name reads
 // as a stray mark (Alex, 2026-10-19).
 const STATE_NAMES = { IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KY: 'Kentucky', MI: 'Michigan', MO: 'Missouri', NY: 'New York', OH: 'Ohio', PA: 'Pennsylvania', TN: 'Tennessee', WI: 'Wisconsin' };
@@ -599,7 +603,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   };
   const listedBreeds = D.breeds.filter((b) => breedCounts[b.slug] || b.guide.length);
   const pcListings = D.puppies.map((p) => ({
-    slug: p.slug, name: `${p.name} - ${p.b.name}`, price: p.price, in_stock: !p.placed,
+    slug: p.slug, name: `${p.name} - ${p.b.name}`, price: p.price, in_stock: !p.placed, listed: p.published_at || null,
     birthdate: longDate(p.l.born_on), ready_date: longDate(p.l.ready_on), deposit: p.deposit,
     mom_weight: p.l.mom_weight_lb != null ? `${p.l.mom_weight_lb} lbs` : null, dad_weight: p.l.dad_weight_lb != null ? `${p.l.dad_weight_lb} lbs` : null,
     color: p.color || null, coat: p.coat || null,
@@ -807,6 +811,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
 
   // ---- puppies
   const breedersShown = D.breeders.filter(realBreeder);
+  // Alex, 2026-10-31. A breeder with no puppy on offer leaves the breeder lists, the state pages and the other
+  // breeders on each breeder page, and comes back when they list again. Their own page stays at its address.
+  const breedersListing = breedersShown.filter((b) => D.puppies.some((p) => p.br === b && !p.placed));
   for (const p of D.allPuppies) {
     const b = realBreeder(p.br) ? p.br : null;
     const mates = D.allPuppies.filter((x) => x.litter === p.litter && x.slug !== p.slug).sort(byStanding);
@@ -1077,7 +1084,7 @@ ${withGuides.map((b) => {
     const open = theirs.filter((p) => !p.placed).length;
     const bslugs = new Set([...(b.breeds || []), ...theirs.map((p) => p.b.slug)]);
     const bq = [b.name, b.city, b.state, STATE_NAMES[b.state], ...[...bslugs].map((x) => `${(D.breeds.find((y) => y.slug === x) || {}).name || x} ${BREED_NICKNAMES[x] || ''}`)].filter(Boolean).join(' ');
-    return `<a class="card" href="${pageFor.breeder(b.slug)}" data-q="${esc(bq)}"><div class="card-media${!lead && b.logo ? ' is-logo' : ''}">${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : b.logo ? `<img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
+    return `<a class="card" href="${pageFor.breeder(b.slug)}" data-q="${esc(bq)}"><div class="card-media${!lead && b.logo ? ' is-logo' : ''}"${!lead && b.logo ? logoFill(b) : ''}>${lead ? `<img ${fillAttrs(lead, 600, 400)} alt="${esc(b.name)}" loading="lazy" decoding="async" width="600" height="400">` : b.logo ? `<img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" loading="lazy" decoding="async" width="600" height="400">` : ''}</div>`
       + `<div class="card-body"><div class="card-name">${esc(b.name)}</div><div class="card-breed">${esc(place(b) || host(b.website))}</div>`
       + `<div class="card-foot"><span class="card-ready">${open} available</span><span class="card-ready">${theirs.length} listed</span></div></div></a>`;
   };
@@ -1098,7 +1105,7 @@ ${withGuides.map((b) => {
       b.email ? `<li><a href="mailto:${esc(b.email)}"><b>Email</b> ${mailBreak(b.email)}</a></li>` : '',
       b.facebook ? `<li><a href="${esc(b.facebook)}" target="_blank" rel="noopener"><b>Facebook</b> ${esc(b.name)}</a></li>` : '',
     ].join('');
-    const others = breedersShown.filter((x) => x !== b).slice(0, 6);
+    const others = breedersListing.filter((x) => x !== b).slice(0, 6);
     // SEO plan P13: the breeds this breeder lists, from their own listings, linked from a sentence.
     const listedBreedsOf = [...new Map(theirs.filter((p) => !p.placed).map((p) => [p.b.slug, p.b])).values()];
     const listedLine = listedBreedsOf.length
@@ -1112,7 +1119,7 @@ ${withGuides.map((b) => {
       ${kennelPhoto ? `<figure class="breed-photo"><img src="${esc(kennelPhoto.local ? kennelPhoto.src : kennelPhoto.src)}"${kennelPhoto.local && objectPosition(kennelPhoto, 900, 600) ? ` style="object-position:${objectPosition(kennelPhoto, 900, 600)}"` : ''} alt="${esc(b.name)}" loading="lazy" decoding="async"></figure>` : ''}
       ${raised.length ? `<p class="eyebrow">Breeds they raise</p><ul class="includes">${raised.map((r) => `<li><a href="${pageFor.breed(r.slug)}">${esc(r.name)}</a></li>`).join('')}</ul>` : ''}`;
     const aside = `<aside>
-      ${b.logo ? `<figure class="breeder-logo${b.logo.dark ? ' on-dark' : ''}"><img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" decoding="async"></figure>` : ''}
+      ${b.logo ? `<figure class="breeder-logo${b.logo.dark ? ' on-dark' : ''}"${logoFill(b)}><img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" decoding="async"></figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">Talk to this breeder</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
@@ -1195,7 +1202,7 @@ ${others.length ? `<section class="band">
     const pups = D.puppies.filter((p) => stateOf(p.br) === S).sort(byStanding);
     const open = pups.filter((p) => !p.placed);
     const shown = open.length ? open : pups;
-    const brs = breedersShown.filter((b) => stateOf(b) === S);
+    const brs = breedersListing.filter((b) => stateOf(b) === S);
     const breedsHere = [...new Map(shown.map((p) => [p.b.slug, p.b])).values()].sort((a, c) => a.name.localeCompare(c.name));
     const towns = [...new Set(brs.map((b) => String(b.city || '').trim()).filter(Boolean))];
     const lead = leadOf(shown);
@@ -1264,10 +1271,10 @@ ${others.length ? `<section class="band">
   // The state pages need a link from the hub. With one state, a "By state" line read oddly (Alex,
   // 2026-10-10), so the state is named in the opening sentence, with "all" or "most" only when the
   // breeders' own records say so. A list of states returns once a second state lists.
-  const inState = statesListed.length === 1 ? breedersShown.filter((b) => stateName(b.state) === statesListed[0]).length : 0;
+  const inState = statesListed.length === 1 ? breedersListing.filter((b) => stateName(b.state) === statesListed[0]).length : 0;
   const stateLink = (S) => `<a href="${pageFor.stateBreeders(S)}">${esc(S)}</a>`;
   const hubLede = statesListed.length === 1 && inState
-    ? `Every puppy on this site is raised and sold by one of these breeders, ${inState === breedersShown.length ? 'all of them' : inState * 2 > breedersShown.length ? 'most of them' : 'including breeders'} in ${stateLink(statesListed[0])}. They list their puppies on our site and they handle the sale, the paperwork and the conversation with your family.`
+    ? `Every puppy on this site is raised and sold by one of these breeders, ${inState === breedersListing.length ? 'all of them' : inState * 2 > breedersListing.length ? 'most of them' : 'including breeders'} in ${stateLink(statesListed[0])}. They list their puppies on our site and they handle the sale, the paperwork and the conversation with your family.`
     : 'Every puppy on this site is raised and sold by one of these breeders. They list their puppies on our site and they handle the sale, the paperwork and the conversation with your family.';
   const byState = statesListed.length > 1
     ? `<p class="lede" style="margin-top:.8rem">Find breeders by state: ${linkList(statesListed.map((S) => [pageFor.stateBreeders(S), S]))}.</p>`
@@ -1299,16 +1306,16 @@ ${listNone('breeds')}
     // Indiana and the Midwest and grows from there (Alex, 2026-10-07).
     title: 'Dog Breeders in Indiana and the Midwest | Puppy Connection', current: 'breeders.html',
     desc: 'The small family dog breeders in Indiana and the Midwest who list their puppies on Puppy Connection. See each breeder\'s puppies and contact them directly.',
-    ld: [{ '@type': 'ItemList', name: 'Dog breeders on Puppy Connection', numberOfItems: breedersShown.length,
-      itemListElement: breedersShown.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
+    ld: [{ '@type': 'ItemList', name: 'Dog breeders on Puppy Connection', numberOfItems: breedersListing.length,
+      itemListElement: breedersListing.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
     trail: [['Breeders', `${base}breeders.html`]],
     body: `<main id="breederIndex-page">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Directory</p><h1>Dog breeders in Indiana and the Midwest</h1>
 <p class="lede">${hubLede}</p>${byState}</div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
-<div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2 class="list-count-h">${breedersShown.length} breeders</h2></div><div class="sec-tools">${listSearch('breeders', 'Search by name, town or breed', 'breederGrid')}<a class="link-more" href="puppies.html">Browse all puppies</a></div></div>
+<div class="sec-head"><div><p class="eyebrow">Currently listing</p><h2 class="list-count-h">${breedersListing.length} breeders</h2></div><div class="sec-tools">${listSearch('breeders', 'Search by name, town or breed', 'breederGrid')}<a class="link-more" href="puppies.html">Browse all puppies</a></div></div>
 ${listNone('breeders')}
-<div class="grid grid-4" id="breederGrid">${breedersShown.map(breederCard).join('')}</div></div></section>
+<div class="grid grid-4" id="breederGrid">${breedersListing.map(breederCard).join('')}</div></div></section>
 </main>`,
   });
 
@@ -1416,7 +1423,7 @@ ${withPhoto(pg)}
   // breeders' dashes taken out and strictCopy set, and runs every check.
   if (!strictCopy) fs.writeFileSync(path.join(out, '.sitecheck.json'), `${JSON.stringify({ ignore_checks: ['dashes'] }, null, 2)}\n`);
 
-  return { pages: pages.length, puppies: D.allPuppies.length, finished: D.allPuppies.length - D.puppies.length, breeds: listedBreeds.length, breeders: breedersShown.length, states: statesListed.length, guides: GUIDES.length, redirects: redirects.length };
+  return { pages: pages.length, puppies: D.allPuppies.length, finished: D.allPuppies.length - D.puppies.length, breeds: listedBreeds.length, breeders: breedersListing.length, breederPages: breedersShown.length, states: statesListed.length, guides: GUIDES.length, redirects: redirects.length };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

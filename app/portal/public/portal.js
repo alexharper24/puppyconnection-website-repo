@@ -582,7 +582,7 @@
     var r = me.reference || {};
     var roles = me.reference_roles || {};
     return '<fieldset class="reference"><legend>Your reference</legend>' +
-      '<p class="hint">Name one person who can confirm you are a real breeder: an AKC representative, a board member of your local animal welfare council (such as ICAW), another respected breeder, or your veterinarian. Only Puppy Connection sees this, and may contact them before approving your account.</p>' +
+      '<p class="hint">Name one person who can confirm you are a real breeder: an AKC representative, a board member of your local animal welfare council (such as ICAW), another respected breeder, or your veterinarian. Only Puppy Connection sees this.</p>' +
       '<div class="field"><label for="r-role">Who they are</label><select id="r-role" name="ref_role" required><option value="">Choose one</option>' +
       Object.keys(roles).map(function (k) { return '<option value="' + esc(k) + '"' + (r.role === k ? ' selected' : '') + '>' + esc(roles[k]) + '</option>'; }).join('') + '</select></div>' +
       '<div class="grid-2"><div class="field"><label for="r-name">Their name</label><input id="r-name" name="ref_name" type="text" autocomplete="off" required value="' + esc(r.name || '') + '"></div>' +
@@ -663,7 +663,7 @@
           '<input id="in-' + kind + '" type="file" accept="image/*" hidden>' + (url ? '<button type="button" class="btn btn-sm btn-quiet" data-unbrand="' + kind + '">Remove</button>' : '') + '</div>' : '') +
         '<p class="error" hidden></p></div>';
     }
-    slot.innerHTML = '<section class="card" id="extras"><h2>Extras for your page</h2><p class="muted small">All optional. Add any of these if you have them, and leave the rest blank.</p>' +
+    slot.innerHTML = '<section class="card" id="extras"><h2>Extras for your page</h2><p class="muted small">All optional.</p>' +
       '<div class="brand-grid">' + pic('logo', 'Logo', x.logo_url, 'Shown on your breeder page.') + pic('kennel', 'Kennel photo', x.kennel_url, 'One photo of your home, kennel or family with the dogs.') + '</div>' +
       '<form id="extras-form" novalidate><fieldset class="breed-picks"><legend>Breeds you raise</legend>' + state.breeds.map(function (b) {
         return '<label class="check"><input type="checkbox" name="breed" value="' + esc(b.id) + '"' + (mine[b.id] ? ' checked' : '') + dis + '> ' + esc(b.name) + '</label>';
@@ -1103,7 +1103,7 @@
     return '<section id="photo-step" style="margin-top:1.4rem"><h3>Photos</h3>' +
       (x.operator_hold && x.hold_kind === 'photos' ? '<p class="error">Taken off the site until new photos are uploaded.' + (x.hold_reason ? ' ' + esc(x.hold_reason) : '') + ' A new photo that passes the photo check brings it back.</p>' : '') +
       '<p class="photo-standard"><b>Photo standard.</b> ' + esc(PHOTO_STANDARD) + '</p>' +
-      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. The first photo is the cover. Location and camera details are removed when a photo is uploaded.</p>' +
+      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. The first photo is the cover.</p>' +
       '<div class="photos" id="photos">' + x.photos.map(function (ph, i) {
         var flag = ph.quality === 'sent_back' ? '<span class="pill pill-alert cover" title="' + esc((ph.messages || []).join(' ')) + '">Sent back</span>'
           : ph.quality === 'review' ? '<span class="pill pill-warn cover">Being looked at</span>' : ph.quality === 'pending' ? '<span class="pill pill-warn cover">Checking</span>' : '';
@@ -1539,7 +1539,7 @@
           }).join('') + '<tr class="total-row"><td><b>Total</b></td><td class="num"><b>' + t.views + '</b></td><td class="num"><b>' + t.clicks + '</b></td>' +
           '<td class="num hide-sm"><b>' + t.views_all + '</b></td><td class="num hide-sm"><b>' + t.clicks_all + '</b></td></tr></tbody></table></div>'
           : empty('No views yet', 'Counts appear here once your puppies are listed and buyers start opening their pages.', '<a class="btn" href="#/litters">Litters and puppies</a>')) + '</section>' +
-        '<p class="hint">A view is counted when a puppy\'s page opens, and a click when someone follows your website, phone or email link from it. Repeat visits within a minute count once, and search engines and other automated visitors are left out.</p>');
+        '<p class="hint">A view is counted when a puppy\'s page opens, and a click when someone follows your website, phone or email link from it.</p>');
     });
   }
 
@@ -1617,7 +1617,7 @@
       var req = A.close_request, op = A.operator, S = A.security || {}, acc = A.access || {};
       var howAccess = acc.how === 'existing_arrangement' ? 'recorded by Puppy Connection from the arrangement you already had' : acc.how === 'breeder' ? 'by ' + esc(acc.by) : 'by Puppy Connection';
       shell(head('Account', 'How you sign in, and the choices you have about your account.') +
-        (op ? '<p class="notice">You are managing this kennel as Puppy Connection. Passwords, the authenticator, access, the people on the account and closing it are the breeder\'s own, so they cannot be changed here. Use the admin for people and access.</p>' : '') +
+        (op ? '<p class="notice">You are managing this kennel as Puppy Connection. Passwords, the authenticator, people, access and closing the account stay with the breeder.</p>' : '') +
         '<section class="card"><h2>Signing in</h2><table class="kv"><tbody><tr><td>Main contact email</td><td><b>' + esc(A.email) + '</b></td></tr>' +
         '<tr><td>Signed in on</td><td>' + plural(A.sessions, 'device or browser', 'devices or browsers') + '</td></tr>' +
         (!op && A.signed_in_as && A.signed_in_as.toLowerCase() !== A.email.toLowerCase() ? '<tr><td>You signed in as</td><td><b>' + esc(A.signed_in_as) + '</b></td></tr>' : '') + '</tbody></table>' +
@@ -1629,7 +1629,7 @@
           (S.password_set ? '<div class="field"><label for="pw-cur">Current password</label><input id="pw-cur" name="current" type="password" autocomplete="current-password" required></div>' : '') +
           '<div class="field"><label for="pw-new">New password</label><input id="pw-new" name="password" type="password" autocomplete="new-password" minlength="10" required></div>' +
           '<div class="field"><label for="pw-again">The same password again</label><input id="pw-again" name="confirm" type="password" autocomplete="new-password" minlength="10" required></div>' +
-          '<p class="hint">At least 10 characters. A few words together is easy to remember and hard to guess.</p>' +
+          '<p class="hint">At least 10 characters.</p>' +
           '<button class="btn btn-primary" type="submit">' + (S.password_set ? 'Change password' : 'Set password') + '</button></form></section>' +
           '<section class="card" id="totp-card"><h2>Authenticator app <span class="muted small">(recommended)</span></h2>' +
           (S.authenticator

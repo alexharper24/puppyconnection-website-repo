@@ -3,6 +3,16 @@
    so the demo runs from the filesystem with no server and no fetch. */
 
 (function () {
+  // Amber, 2026-10-31. Ready now once the ready date is today or past, otherwise Ready and the date.
+  // Takes "November 22, 2026" or "2026-11-22".
+  function readyText(when) {
+    var m = String(when).match(/^(\d{4})-(\d\d)-(\d\d)/), d = m ? new Date(+m[1], +m[2] - 1, +m[3]) : new Date(when);
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    if (isNaN(d)) return 'Ready ' + String(when).replace(/,? \d{4}$/, '');
+    return d <= today ? 'Ready now' : 'Ready ' + ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][d.getMonth()] + ' ' + d.getDate();
+  }
+  document.querySelectorAll('.card-ready[data-ready]').forEach(function (el) { el.textContent = readyText(el.getAttribute('data-ready')); });
+
   'use strict';
 
   /* Logos pulled from each breeder's own site, trimmed and converted to webp.
@@ -119,7 +129,7 @@
           '<div class="card-breed">' + esc(l.breed || '') + '</div>' +
           '<div class="card-foot">' +
             '<span class="price">' + money(l.price) + '</span>' +
-            '<span class="card-ready">' + (l.ready_date ? 'Ready ' + esc(l.ready_date.replace(/,? \d{4}$/, '')) : '') + '</span>' +
+            '<span class="card-ready">' + (l.ready_date ? esc(readyText(l.ready_date)) : '') + '</span>' +
           '</div>' +
         '</div>' +
       '</a>';

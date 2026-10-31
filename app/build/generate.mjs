@@ -61,6 +61,12 @@ const hash = (s) => createHash('sha1').update(s).digest('hex').slice(0, 8);
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const longDate = (iso) => { const m = String(iso || '').match(/^(\d{4})-(\d\d)-(\d\d)/); return m ? `${MONTHS[+m[2] - 1]} ${+m[3]}, ${m[1]}` : null; };
 const shortDate = (iso) => (longDate(iso) || '').replace(/,? \d{4}$/, '');
+// Amber, 2026-10-31. A card says Ready now once the ready date is today or past, and the date while
+// it is still ahead. The site script redoes this on each visit, so a card never goes stale between builds.
+const readyLabel = (iso, nowMs) => {
+  const t = new Date(nowMs); const today = `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
+  return String(iso).slice(0, 10) <= today ? 'Ready now' : `Ready ${shortDate(iso)}`;
+};
 // The three dots count toward n, so a clipped meta description stays within its limit (audit 2026-10-31).
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : `${t.slice(0, t.lastIndexOf(' ', n - 4) > 40 ? t.lastIndexOf(' ', n - 4) : n - 3)}...`; };
 
@@ -199,7 +205,7 @@ const SEARCH_JS = `/* Puppy Connection breed search counts. Written by app/build
 
 // The delivery band under the Raised by box on every puppy still for sale (Alex, 2026-10-17). A van
 // mark, since the Furry Freight logo does not read at this size.
-const DELIVERY_BAND = '<div class="dv-band"><svg viewBox="0 0 48 28" aria-hidden="true"><path d="M2 4h28v16H2zM30 10h9l6 6v4H30z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><circle cx="10" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/><circle cx="37" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/></svg><p><span><b>Not local?</b> Furry Freight delivers puppies by ground or air.</span> <a class="dv-quote" href="transportation.html">Get a quote</a></p></div>';
+const DELIVERY_BAND = '<div class="dv-band"><svg viewBox="0 0 48 28" aria-hidden="true"><path d="M2 4h28v16H2zM30 10h9l6 6v4H30z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><circle cx="10" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/><circle cx="37" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/></svg><p><span><b>Not local?</b> Furry Freight delivers puppies by ground or air.</span> <a class="dv-quote" href="https://www.furryfreightdelivery.com/schedule-a-delivery" target="_blank" rel="noopener">Get a quote</a></p></div>';
 
 // Opens the For families menu on hover on a wide screen, closes it on a click outside or on Escape.
 const NAV_DROP_JS = `
@@ -438,6 +444,7 @@ const order = { available: 0, pending: 1, placed: 2 };
 const byStanding = (a, b) => (order[a.availability] - order[b.availability]) || String(b.published_at).localeCompare(String(a.published_at)) || a.slug.localeCompare(b.slug);
 
 export function build({ now = Date.now(), dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), highlights = path.resolve(HERE, '../content/breeds'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
+  const buildNow = now;
   if (!base.endsWith('/')) base += '/';
   const T = templatesDir(templates);
   const D = loadData(dataDir);
@@ -769,7 +776,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       + (label ? `<span class="tag ${p.placed ? 'tag-sold' : 'tag-pending'}">${label}</span>` : '')
       + (p.mates > 1 ? `<span class="tag tag-litter">Litter of ${p.mates}</span>` : '')
       + `</div><div class="card-body"><div class="card-name">${esc(p.name)}</div><div class="card-breed">${esc(p.b.name)}</div>`
-      + `<div class="card-foot"><span class="price">${money(p.price)}</span><span class="card-ready">${p.l.ready_on ? `Ready ${esc(shortDate(p.l.ready_on))}` : ''}</span></div></div></a>`;
+      + `<div class="card-foot"><span class="price">${money(p.price)}</span><span class="card-ready"${p.l.ready_on ? ` data-ready="${esc(String(p.l.ready_on).slice(0, 10))}">${esc(readyLabel(p.l.ready_on, buildNow))}` : '>'}</span></div></div></a>`;
   }
   const grid = (list, empty, cls = 'grid grid-4') => { cardN = 0; return list.length ? `<div class="${cls}">${list.map(card).join('')}</div>` : `<p class="empty">${empty}</p>`; };
   const paras = (list) => list.map((t) => `<p>${esc(t)}</p>`).join('');

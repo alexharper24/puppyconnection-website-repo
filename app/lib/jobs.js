@@ -1,7 +1,10 @@
 // The scheduled jobs (spec section 10), shared so the portal's cron and the admin's
 // "Run now" button run exactly the same code.
 //
-// The free Workers plan allows five cron triggers per account, so the portal uses two:
+// The portal uses three cron triggers. The account is on Workers Paid since 2026-10-25.
+//   * * * * *      publish     only, so a change reaches the site in a few minutes (Alex, 2026-10-31).
+//                              It waits until the first change is 45 seconds old, so a burst of edits
+//                              goes out as one build, and starts no build within two minutes of the last.
 //   */15 * * * *   reconcile   checkouts left open or paid without a listing
 //                  videos      puppy videos Stream has finished with (lib/stream.js)
 //                  photos      photos still waiting for the quality check (lib/photocheck.js)
@@ -241,8 +244,11 @@ export async function scheduled(event, env) {
   // because only the portal holds the GitHub token.
   // The build check reads whether the last site build finished (lib/publish.js), and the held
   // alerts go out last, once their hour is up.
+  if (event.cron === '* * * * *') return [await record(env, 'publish', () => publishIfDue(env, { minAgeMs: 45000 }))];
   if (event.cron === '*/15 * * * *') return [await runJob(env, 'reconcile'), await runJob(env, 'videos'), await runJob(env, 'photos'), await record(env, 'publish', () => publishIfDue(env)),
     await record(env, 'build', () => checkBuild(env)), await runJob(env, 'campaigns'), await record(env, 'alerts', () => flushHeldAlerts(env))];
+  // Only the daily trigger runs the daily jobs, so a trigger added later can never run them by accident.
+  if (event.cron !== '0 13 * * *') return [];
   const out = [];
   for (const j of ['expiry', 'inactivity', 'housekeeping', 'retention', 'backup', 'links']) out.push(await runJob(env, j));
   return out;

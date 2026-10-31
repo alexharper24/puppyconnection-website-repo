@@ -25,7 +25,7 @@ PHOTOS = {
     'toy-poodle': ('2.jpg', .45, .55),
     'miniature-poodle': ('2_1.jpg', .50, .55),
     'yorkshire-terrier': ('Molly - Mom.jpg', .55, .55),
-    'pomeranian': ('3.jpg', .45, .60),
+    'pomeranian': ('pomeranian-source.webp', .45, .60),  # 3.jpg was overwritten by a new 3.JPG on 2026-10-31, so this is the processed copy
     'basset-hound': ('IMG_4353.jpg', .45, .50),
     'cavalier-king-charles-spaniel': ('9.jpg', .50, .55),
     'pembroke-welsh-corgi': ('9_1.jpg', .60, .55),

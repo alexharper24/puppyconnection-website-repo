@@ -919,3 +919,5 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
   .nav-drop-menu{position:static;min-width:0;margin:0 0 .6rem;padding:0;background:none;border:0;box-shadow:none}
   .nav .nav-drop-menu a{padding:.75rem 0 .75rem 1.1rem;font-size:1.1rem;border-bottom:0;border-top:0}
 }
+/* Reviews: on a phone the three buttons stack at the width of the longest, text centered (Alex, 2026-10-31) */
+@media(max-width:940px){.head-row .head-actions{display:inline-grid;grid-template-columns:1fr;gap:.7rem}.head-row .head-actions .btn{justify-content:center;text-align:center}}

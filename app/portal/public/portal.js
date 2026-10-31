@@ -252,7 +252,7 @@
         '<div class="field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>' +
         '<button class="btn btn-primary" type="submit">Sign in</button></form>' +
         '<p class="small"><a href="/" data-mode="forgot">Forgot password?</a></p>' +
-        '<p class="notice small">Already list with us but never set a password? Use <a href="/" data-mode="forgot">Forgot password</a> and we will email you a link to set one. Signing in with an emailed code has stopped.</p>' +
+        '<p class="notice small">Already list with us but never set a password? Use <a href="/" data-mode="forgot">Forgot password</a> and we will email you a link to set one.</p>' +
         '<p class="small">New to Puppy Connection? <a href="/" data-mode="signup">Create an account</a></p>' +
         (c.local && c.notices ? '<p class="sim-flag" style="margin-top:1rem">This is the test version. Email is shown in the <a href="/dev/mail">test mailbox</a> and payments use a practice checkout.</p>' : '');
     }
@@ -1318,7 +1318,7 @@
       '<div class="field"><label for="pa-regno">Registration number</label><input id="pa-regno" name="registration" type="text" value="' + esc(p ? p.registration : '') + '"' + dis + '></div></div>' +
       '<div id="pa-tests-slot">' + testPicks(p ? p.breed : '', p ? p.health_tests : [], dis) + '</div>' +
       '<div class="field"><label for="pa-other">Other health testing</label><textarea id="pa-other" name="health_other" style="min-height:70px"' + dis + '>' + esc(p ? p.health_other : '') + '</textarea><div class="hint">Any test not on the list, and results if you want families to see them.</div></div>' +
-      '<div class="field"><label for="pa-ped">Pedigree</label><textarea id="pa-ped" name="pedigree" style="min-height:70px"' + dis + '>' + esc(p ? p.pedigree : '') + '</textarea><div class="hint">The ' + word + '\'s parents and lines, as you would tell a family. You can also upload the pedigree below.</div></div>' +
+      '<div class="field"><label for="pa-ped">Pedigree</label><textarea id="pa-ped" name="pedigree" style="min-height:70px"' + dis + '>' + esc(p ? p.pedigree : '') + '</textarea><div class="hint">The ' + word + '\'s parents and lines, as you would tell a family. You can also upload it under Documents.</div></div>' +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (p ? 'Save ' + word : 'Add ' + word) + '</button>' +
         (p ? '<button class="btn btn-quiet" type="button" id="archive-parent">' + (p.archived_at ? 'Put back on the litter picker' : 'Remove from the litter picker') + '</button>' : '') + '</div>' : '') +
       '</form>' + (p ? SPLIT + parentPhotoSection(p, canEdit) + docSection(p.documents, canEdit, 'parent') : '<p class="hint" style="margin-top:1rem">Add a photo and documents after the ' + word + ' is saved.</p>'),
@@ -1628,7 +1628,7 @@
           '<form id="pw-form" class="pw-form" novalidate><input type="email" name="username" value="' + esc(A.signed_in_as || A.email) + '" autocomplete="username" hidden readonly>' +
           (S.password_set ? '<div class="field"><label for="pw-cur">Current password</label><input id="pw-cur" name="current" type="password" autocomplete="current-password" required></div>' : '') +
           '<div class="field"><label for="pw-new">New password</label><input id="pw-new" name="password" type="password" autocomplete="new-password" minlength="10" required></div>' +
-          '<div class="field"><label for="pw-again">The same password again</label><input id="pw-again" name="confirm" type="password" autocomplete="new-password" minlength="10" required></div>' +
+          '<div class="field"><label for="pw-again">Confirm password</label><input id="pw-again" name="confirm" type="password" autocomplete="new-password" minlength="10" required></div>' +
           '<p class="hint">At least 10 characters.</p>' +
           '<button class="btn btn-primary" type="submit">' + (S.password_set ? 'Change password' : 'Set password') + '</button></form></section>' +
           '<section class="card" id="totp-card"><h2>Authenticator app <span class="muted small">(recommended)</span></h2>' +

@@ -563,7 +563,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     'cocker-spaniel': { w: 1448, h: 1086, fx: 0.55, fy: 0.5 },
     'english-bulldog': { w: 1448, h: 1086, fx: 0.53, fy: 0.55 },
     'bernese-mountain-dog': { w: 1600, h: 634, fx: 0.52, fy: 0.45 },
-    'boston-terrier': { w: 1600, h: 2400, fx: 0.5, fy: 0.46 },
+    'boston-terrier': { w: 1600, h: 1067, fx: 0.5, fy: 0.5 },
     'golden-retriever': { w: 1600, h: 1067, fx: 0.5, fy: 0.5 },
     'papillon': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
     'miniature-schnauzer': { w: 1600, h: 1948, fx: 0.5, fy: 0.36 },
@@ -601,7 +601,11 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     ph = ph || leadOf(list);
     return ph && BREED_LEAD_FOCUS[b.slug] ? { ...ph, ...BREED_LEAD_FOCUS[b.slug] } : ph;
   };
-  const listedBreeds = D.breeds.filter((b) => breedCounts[b.slug] || b.guide.length);
+  // A breed with no photo of its own stays off the site until one of its puppies is listed (Alex, 2026-10-31).
+  const HOLD_BREEDS = new Set(['mini-aussiedoodle']);
+  const forSale = (slug) => D.allPuppies.some((p) => p.b.slug === slug && !p.placed);
+  const listedBreeds = D.breeds.filter((b) => (breedCounts[b.slug] || b.guide.length) && !(HOLD_BREEDS.has(b.slug) && !forSale(b.slug)));
+  const breedName = (b) => listedBreeds.includes(b) ? `<a href="${pageFor.breed(b.slug)}" style="color:inherit">${esc(b.name)}</a>` : esc(b.name);
   const pcListings = D.puppies.map((p) => ({
     slug: p.slug, name: `${p.name} - ${p.b.name}`, price: p.price, in_stock: !p.placed, listed: p.published_at || null,
     birthdate: longDate(p.l.born_on), ready_date: longDate(p.l.ready_on), deposit: p.deposit,
@@ -844,7 +848,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
 <section class="band">
   <div class="wrap detail-grid">
     <div class="d-title">
-      <p class="eyebrow" id="dBreed"><a href="${pageFor.breed(p.b.slug)}" style="color:inherit">${esc(p.b.name)}</a></p>
+      <p class="eyebrow" id="dBreed">${breedName(p.b)}</p>
       <div class="name-row"><h1 id="dName">${esc(p.name)}</h1><span class="price" id="dPrice">${money(p.price)}</span></div>
       ${outBtn || (b && !p.placed) ? `<div class="btn-row d-actions">${outBtn}${b && !p.placed ? `<a class="btn btn-ghost" href="#dBreeder">Contact the breeder</a>` : ''}</div>` : ''}
       ${p.placed ? '<p class="meta">Adopted. This puppy has gone home and stays here so its litter can be seen.</p>' : p.availability === 'pending' ? '<p class="meta">Pending. Ask the breeder whether this puppy is still open.</p>' : ''}
@@ -1117,7 +1121,7 @@ ${withGuides.map((b) => {
     const kennelPhoto = breederPhoto(b.slug) || b.kennel_photo;
     const story = `<div class="prose">${paras(b.about)}${listedLine}</div>
       ${kennelPhoto ? `<figure class="breed-photo"><img src="${esc(kennelPhoto.local ? kennelPhoto.src : kennelPhoto.src)}"${kennelPhoto.local && objectPosition(kennelPhoto, 900, 600) ? ` style="object-position:${objectPosition(kennelPhoto, 900, 600)}"` : ''} alt="${esc(b.name)}" loading="lazy" decoding="async"></figure>` : ''}
-      ${raised.length ? `<p class="eyebrow">Breeds they raise</p><ul class="includes">${raised.map((r) => `<li><a href="${pageFor.breed(r.slug)}">${esc(r.name)}</a></li>`).join('')}</ul>` : ''}`;
+      ${raised.length ? `<p class="eyebrow">Breeds they raise</p><ul class="includes">${raised.map((r) => `<li>${listedBreeds.includes(r) ? `<a href="${pageFor.breed(r.slug)}">${esc(r.name)}</a>` : esc(r.name)}</li>`).join('')}</ul>` : ''}`;
     const aside = `<aside>
       ${b.logo ? `<figure class="breeder-logo${b.logo.dark ? ' on-dark' : ''}"${logoFill(b)}><img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" decoding="async"></figure>` : ''}
       <div class="breeder-box">

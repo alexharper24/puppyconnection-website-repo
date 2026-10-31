@@ -57,6 +57,13 @@
      starts, and WIDE widens a drawer without columns. Under 1,200px wide the drawer keeps its
      narrow width and the columns stack. */
   var SPLIT = '<i data-split hidden></i>', WIDE = '<i data-wide hidden></i>';
+  /* Alex, 2026-10-31. One boxed part of a panel: its heading with anything that belongs beside it
+     (a status, a count), the body, and its actions in a row on the right. */
+  function sec(title, body, opts) {
+    opts = opts || {};
+    return '<section class="dsec"' + (opts.id ? ' id="' + opts.id + '"' : '') + '><div class="dsec-head"><h3>' + esc(title) + '</h3>' + (opts.side || '') + '</div>' +
+      body + (opts.foot ? '<div class="dsec-foot">' + opts.foot + '</div>' : '') + '</section>';
+  }
   function splitColumns(body) {
     var mark = $('[data-split]', body);
     if (!mark || mark.parentNode !== body) return;
@@ -407,16 +414,16 @@
   }
   function parentsAdmin(parents, pups) {
     var pupDocs = pups.filter(function (p) { return (p.documents || []).length; });
-    return (parents.length ? '<h3>Moms and dads (' + parents.length + ')</h3>' + parents.map(function (p) {
+    return (parents.length ? sec('Moms and dads (' + parents.length + ')', parents.map(function (p) {
       return '<div class="puppy-row">' + (p.photo_url ? '<img class="thumb" src="' + esc(p.photo_url.replace('?', '/card?')) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
         '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + (p.sex === 'female' ? 'Mom' : 'Dad') + (p.registry ? ', ' + esc(p.registry) + (p.registration ? ' ' + esc(p.registration) : '') : '') +
         (p.archived_at ? ', removed from the picker' : '') + '</span>' +
         '<span class="small">' + (p.test_labels.length ? esc(p.test_labels.join(', ')) : 'No tests picked') + (p.health_other ? '. Other: ' + esc(p.health_other) : '') + '</span>' +
         (p.documents.length ? '<ul class="small" style="margin:.3rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul>' : '') + '</div></div>';
-    }).join('') : '') +
-      (pupDocs.length ? '<h3>Puppy documents</h3>' + pupDocs.map(function (p) {
+    }).join('')) : '') +
+      (pupDocs.length ? sec('Puppy documents', pupDocs.map(function (p) {
         return '<div class="small" style="padding:.3rem 0;border-top:1px solid var(--line)"><b>' + esc(p.name) + '</b><ul style="margin:.2rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul></div>';
-      }).join('') : '');
+      }).join('')) : '');
   }
 
   function breederDrawer(id) {
@@ -425,64 +432,68 @@
       var pups = []; data.litters.forEach(function (l) { l.puppies.forEach(function (p) { if (p.publication_state !== 'archived') { p.breed = l.breed_name; pups.push(p); } }); });
       var litters = data.litters.filter(function (l) { return !l.archived_at; });
       var actions = {
-        pending: b.profile_submitted_at ? '<button class="btn btn-primary" data-do="approve">Approve</button><button class="btn btn-danger" data-do="decline">Decline</button>' : '<p class="muted small">Still signing up. Approval opens when they submit their profile.</p>',
-        approved: '<button class="btn btn-danger" data-do="suspend">Suspend</button>',
-        suspended: '<button class="btn btn-primary" data-do="reinstate">Reinstate</button>',
-        declined: '<button class="btn" data-do="reopen">Reopen application</button>',
+        pending: b.profile_submitted_at ? '<button class="btn btn-sm btn-act btn-danger" data-do="decline">Decline</button><button class="btn btn-sm btn-act btn-primary" data-do="approve">Approve</button>' : '<p class="muted small">Still signing up. Approval opens when they submit their profile.</p>',
+        approved: '<button class="btn btn-sm btn-act btn-danger" data-do="suspend">Suspend</button>',
+        suspended: '<button class="btn btn-sm btn-act btn-primary" data-do="reinstate">Reinstate</button>',
+        declined: '<button class="btn btn-sm btn-act" data-do="reopen">Reopen application</button>',
       }[b.status];
       var t = data.terms;
       var termsLine = !b.profile_submitted_at ? '' : t.accepted === t.current ? esc(t.accepted) + ' (current)'
         : esc(t.accepted || 'none') + ' <span class="pill pill-warn">Asked to accept ' + esc(t.current) + '</span>';
       function row(k, v) { return v ? '<tr><td>' + esc(k) + '</td><td>' + v + '</td></tr>' : ''; }
       openDrawer(b.business_name || b.email,
-        '<p>' + breederPill(b) + (b.status_reason ? ' <span class="muted small">Reason on record: ' + esc(b.status_reason) + '</span>' : '') + '</p>' +
-        '<table class="kv"><tbody>' +
-        row('Sign-in email', esc(b.email)) + row('Also signs in', (data.members || []).map(function (m) { return esc(m.name ? m.name + ' (' + m.email + ')' : m.email) + (m.joined_at ? '' : ' <span class="muted small">not signed in yet</span>'); }).join('<br>')) + row('Contact name', esc(b.contact_name)) + row('Public phone', esc(b.public_phone)) +
-        row('Public email', esc(b.public_email)) + row('Where', esc([b.city, b.state].filter(Boolean).join(', '))) +
-        row('Website', b.website_url ? '<a href="' + esc(b.website_url) + '" target="_blank" rel="noopener">' + esc(b.website_url) + '</a>' : '') +
-        row('Joined', esc(day(b.created_at))) + row('Submitted', esc(day(b.profile_submitted_at))) + row('Terms', termsLine) +
-        // Workplan A6. The date the breeder confirmed they are the seller, ticked once with the terms.
-        row('Confirmed seller', b.profile_submitted_at ? (b.seller_confirmed_at ? esc(day(b.seller_confirmed_at)) : '<span class="pill pill-warn">Not yet</span>') : '') +
-        row('Decided', b.decided_at ? esc(day(b.decided_at)) + ' by ' + esc(b.decided_by) : '') +
-        row('Facebook', x.facebook_url ? '<a href="' + esc(x.facebook_url) + '" target="_blank" rel="noopener">' + esc(x.facebook_url) + '</a>' : '') +
-        row('Breeds raised', esc(x.breeds.map(function (r) { return r.name; }).join(', '))) + '</tbody></table>' +
-        '<div class="btn-row" style="margin-top:-.4rem"><button class="btn btn-sm" id="edit-profile">Edit profile for them</button></div>' +
+        // Alex, 2026-10-31. The panel is grouped into boxed parts, each with its actions on the right.
+        sec('Profile',
+          (b.status_reason ? '<p class="muted small">Reason on record: ' + esc(b.status_reason) + '</p>' : '') +
+          '<table class="kv"><tbody>' +
+          row('Sign-in email', esc(b.email)) + row('Contact name', esc(b.contact_name)) + row('Public phone', esc(b.public_phone)) +
+          row('Public email', esc(b.public_email)) + row('Where', esc([b.city, b.state].filter(Boolean).join(', '))) +
+          row('Website', b.website_url ? '<a href="' + esc(b.website_url) + '" target="_blank" rel="noopener">' + esc(b.website_url) + '</a>' : '') +
+          row('Joined', esc(day(b.created_at))) + row('Submitted', esc(day(b.profile_submitted_at))) + row('Terms', termsLine) +
+          // Workplan A6. The date the breeder confirmed they are the seller, ticked once with the terms.
+          row('Confirmed seller', b.profile_submitted_at ? (b.seller_confirmed_at ? esc(day(b.seller_confirmed_at)) : '<span class="pill pill-warn">Not yet</span>') : '') +
+          row('Decided', b.decided_at ? esc(day(b.decided_at)) + ' by ' + esc(b.decided_by) : '') +
+          row('Facebook', x.facebook_url ? '<a href="' + esc(x.facebook_url) + '" target="_blank" rel="noopener">' + esc(x.facebook_url) + '</a>' : '') +
+          row('Breeds raised', esc(x.breeds.map(function (r) { return r.name; }).join(', '))) + '</tbody></table>',
+          { side: breederPill(b), foot: '<button class="btn btn-sm" id="edit-profile">Edit profile for them</button>' }) +
         accessSection(data) + peopleSection(data) +
-        (x.logo_url || x.kennel_url ? '<div class="brand-pics">' + (x.logo_url ? '<figure><img src="' + esc(x.logo_url) + '&size=card" alt="' + esc(b.business_name) + ' logo"><figcaption>Logo</figcaption></figure>' : '') +
-          (x.kennel_url ? '<figure><img src="' + esc(x.kennel_url) + '&size=card" alt="' + esc(b.business_name) + ' kennel photo"><figcaption>Kennel photo</figcaption></figure>' : '') + '</div>' : '') +
-        (b.description ? '<div class="card"><h3 style="margin-top:0">About</h3>' + String(b.description).split(/\n\s*\n/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div>' : '') +
-        (data.close_request ? '<div class="notice notice-alert" id="close-req"><p><b>Asked to close their account</b> on ' + esc(day(data.close_request.created_at)) + '.' +
-          (data.close_request.reason ? ' Their reason: ' + esc(data.close_request.reason) : '') + '</p><p class="small">Nothing has been removed. Follow up with them first. Once you mark it closed, the daily job removes their profile, photos, videos, documents, listings, saved parents, people and sessions 30 days later, and keeps their payment records and activity record.</p>' +
-          '<div class="btn-row"><button class="btn btn-sm" id="close-handled">Mark closed</button></div></div>' : '') +
-        (data.closed ? '<div class="notice" id="closed-note"><p><b>Account closed</b> on ' + esc(day(data.closed.resolved_at)) + ' by ' + esc(data.closed.resolved_by || 'an operator') + '. ' +
-          (data.closed.removed_at ? 'Its information was removed on ' + esc(day(data.closed.removed_at)) + '.' : 'Its information is removed by the daily job on or after ' + esc(day(data.closed.remove_after)) + '.') + '</p></div>' : '') +
-        // Workplan A13. The reference a new breeder names, beside Approve, so it can be checked first.
-        (b.status === 'pending' && b.profile_submitted_at ? referenceCard(data.reference) : '') +
-        '<div id="decide"><div class="btn-row">' + actions + '</div></div>' +
+        sec('Kennel',
+          (x.logo_url || x.kennel_url ? '<div class="brand-pics">' + (x.logo_url ? '<figure><img src="' + esc(x.logo_url) + '&size=card" alt="' + esc(b.business_name) + ' logo"><figcaption>Logo</figcaption></figure>' : '') +
+            (x.kennel_url ? '<figure><img src="' + esc(x.kennel_url) + '&size=card" alt="' + esc(b.business_name) + ' kennel photo"><figcaption>Kennel photo</figcaption></figure>' : '') + '</div>' : '') +
+          (b.description ? '<div class="kennel-about">' + String(b.description).split(/\n\s*\n/).map(function (p) { return '<p>' + esc(p) + '</p>'; }).join('') + '</div>' : '') +
+          (data.close_request ? '<div class="notice notice-alert" id="close-req"><p><b>Asked to close their account</b> on ' + esc(day(data.close_request.created_at)) + '.' +
+            (data.close_request.reason ? ' Their reason: ' + esc(data.close_request.reason) : '') + '</p><p class="small">Nothing has been removed. Once you mark it closed, the daily job removes their profile, photos, videos, documents, listings, saved parents, people and sessions 30 days later, and keeps their payment records and activity record.</p>' +
+            '<div class="btn-row"><button class="btn btn-sm" id="close-handled">Mark closed</button></div></div>' : '') +
+          (data.closed ? '<div class="notice" id="closed-note"><p><b>Account closed</b> on ' + esc(day(data.closed.resolved_at)) + ' by ' + esc(data.closed.resolved_by || 'an operator') + '. ' +
+            (data.closed.removed_at ? 'Its information was removed on ' + esc(day(data.closed.removed_at)) + '.' : 'Its information is removed by the daily job on or after ' + esc(day(data.closed.remove_after)) + '.') + '</p></div>' : '') +
+          // Workplan A13. The reference a new breeder names, beside Approve, so it can be checked first.
+          (b.status === 'pending' && b.profile_submitted_at ? referenceCard(data.reference) : '') +
+          '<div id="decide" class="dsec-foot">' + actions + '</div>') +
         // Plan P3.2. Private notes, never shown to the breeder.
-        '<h3>Private notes</h3><p class="hint" style="margin-top:-.3rem">Only operators see these. The breeder never does, and they are in no export or report.</p>' +
-        '<form id="note-form"><label class="sr" for="note-body">New note</label><textarea id="note-body" name="body" style="min-height:70px" placeholder="Add a note about this breeder"></textarea>' +
-        '<div class="btn-row" style="margin-top:.5rem"><button class="btn btn-sm" type="submit">Add note</button></div></form>' +
-        '<div id="notes">' + notesHtml(data.notes) + '</div>' +
-        '<h3>Change sign-in email</h3><form id="email-form" class="btn-row" style="margin:0"><input type="email" name="email" aria-label="Sign-in email" value="' + esc(b.email) + '" style="flex:1 1 220px"><button class="btn btn-sm" type="submit">Change</button></form>' +
-        '<p class="hint">Changing it signs the breeder out everywhere. The new address then needs an invitation, from Who signs in above, to set its password. To hand the kennel to a person already on it, use Make main contact.</p>' +
+        sec('Private notes',
+          '<form id="note-form"><label class="sr" for="note-body">New note</label><textarea id="note-body" name="body" style="min-height:70px" placeholder="Add a note about this breeder"></textarea>' +
+          '<div class="dsec-foot"><button class="btn btn-sm btn-act" type="submit">Add note</button></div></form>' +
+          '<div id="notes">' + notesHtml(data.notes) + '</div>') +
+        sec('Change sign-in email',
+          '<form id="email-form" class="dsec-line"><input type="email" name="email" aria-label="Sign-in email" value="' + esc(b.email) + '"><button class="btn btn-sm btn-act" type="submit">Change</button></form>' +
+          '<p class="hint">This signs them out everywhere. Send the new address an invitation from Who signs in.</p>') +
         SPLIT +
-        (litters.length ? '<h3>Litters (' + litters.length + ')</h3>' + litters.map(function (l) {
+        (litters.length ? sec('Litters (' + litters.length + ')', litters.map(function (l) {
           var n = l.puppies.filter(function (p) { return p.publication_state !== 'archived'; }).length;
           return '<div class="pay-row"><span><b>' + esc(l.breed_name) + '</b></span><span class="muted small">' + (l.born_on ? 'born ' + esc(day(l.born_on)) + ', ' : '') + plural(n, 'puppy', 'puppies') + '</span>' +
             '<button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button></div>';
-        }).join('') : '') +
+        }).join('')) : '') +
         // Workplan A19 and A20. The saved moms and dads, and every document, private ones included.
         parentsAdmin(data.parents || [], pups) +
-        '<h3>Puppies (' + pups.length + ')</h3>' + (pups.length ? pups.map(function (p) {
+        sec('Puppies (' + pups.length + ')', pups.length ? pups.map(function (p) {
           return '<div class="puppy-row">' + (p.photos[0] ? '<img class="thumb" src="' + esc(thumb(p.photos[0].url)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
             '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + esc(p.breed) + ', ' + esc(money(p.price_cents)) + '</span><div class="chips">' + listingChips(p) + '</div></div>' +
             '<div class="btn-row"><button class="btn btn-sm" data-edit-puppy="' + esc(p.id) + '">Edit</button><button class="btn btn-sm" data-photos-puppy="' + esc(p.id) + '">Photos</button>' + holdButton(p) + '</div></div>';
         }).join('') : '<p class="muted small">None yet.</p>') +
-        '<h3>Payments</h3>' + (data.checkouts.length ? data.checkouts.map(function (c) {
+        sec('Payments', data.checkouts.length ? data.checkouts.map(function (c) {
           return '<div class="pay-row"><span>' + esc(day(c.created_at)) + '</span><span>' + plural(c.quantity, 'listing') + ', ' + esc(money(c.amount_total_cents)) + '</span><span class="pill">' + esc(c.status) + '</span></div>';
         }).join('') : '<p class="muted small">None yet.</p>') +
-        '<h3>Activity</h3>' + (data.audit.length ? data.audit.slice(0, 20).map(function (a) {
+        sec('Activity', data.audit.length ? data.audit.slice(0, 20).map(function (a) {
           return '<div class="small" style="padding:.3rem 0;border-top:1px solid var(--line)">' + esc(when(a.at)) + ', ' + esc(a.action) + ' <span class="muted">by ' + esc(a.actor) + '</span></div>';
         }).join('') : '<p class="muted small">Nothing yet.</p>'),
         function (d) {
@@ -522,16 +533,13 @@
 
   /* Launch workplan A24. Whether Puppy Connection may open the portal as this kennel, and the way in. */
   function accessSection(data) {
-    var a = data.access || {}, b = data.breeder;
+    var a = data.access || {};
     var how = a.how === 'existing_arrangement' ? 'recorded from the existing management arrangement' : a.how === 'breeder' ? 'set by the breeder' : 'turned off by Puppy Connection';
-    return '<h3>Puppy Connection access</h3><div id="access-box">' + (a.on
-      ? '<p><span class="pill pill-ok">On</span> <span class="small muted">since ' + esc(day(a.at)) + ', ' + esc(how) + (a.by ? ' (' + esc(a.by) + ')' : '') + '.</span></p>' +
-        '<p class="hint">Manage as this breeder opens the real portal as this kennel for eight hours, with a banner, and every change is recorded as yours acting for them.</p>' +
-        '<div class="btn-row"><button class="btn btn-sm btn-primary" type="button" id="manage-as">Manage as this breeder</button>' +
-        '<button class="btn btn-sm btn-quiet" type="button" data-access="off">Turn access off</button></div>'
-      : '<p><span class="pill">Off</span>' + (a.at ? ' <span class="small muted">since ' + esc(day(a.at)) + ', ' + esc(how) + '.</span>' : '') + '</p>' +
-        '<p class="hint">The breeder turns this on from their Account screen. For a breeder Puppy Connection already managed before launch, record that arrangement here instead, which needs no new consent (Alex, 2026-10-24).</p>' +
-        '<div class="btn-row"><button class="btn btn-sm" type="button" data-access="on">Record existing management arrangement</button></div>') + '</div>';
+    return '<div id="access-box">' + sec('Puppy Connection access',
+      '<div class="dsec-foot dsec-row">' + (a.at ? '<p class="small muted">Since ' + esc(day(a.at)) + ', ' + esc(how) + (a.on && a.by ? ' (' + esc(a.by) + ')' : '') + '.</p>' : '<p class="small muted">The breeder turns this on from their Account screen.</p>') +
+        (a.on ? '<button class="btn btn-sm btn-quiet" type="button" data-access="off">Turn access off</button><button class="btn btn-sm btn-primary" type="button" id="manage-as">Manage as this breeder</button>'
+          : '<button class="btn btn-sm" type="button" data-access="on">Record existing management arrangement</button>') + '</div>',
+      { side: a.on ? '<span class="pill pill-ok">On</span>' : '<span class="pill">Off</span>' }) + '</div>';
   }
 
   /* Launch workplan A25 and A26. Everyone who signs in to the kennel, their invitation and
@@ -539,7 +547,7 @@
   function peopleSection(data) {
     var people = data.people || [];
     var extra = people.filter(function (p) { return !p.main; }).length;
-    return '<h3>Who signs in</h3><ul class="member-list people-admin">' + people.map(function (p) {
+    return sec('Who signs in', '<ul class="member-list people-admin">' + people.map(function (p) {
       var state = p.awaiting ? (p.invite_open_until ? 'Signs in to another kennel. Invited, link open until ' + day(p.invite_open_until) + ', and this kennel opens once they confirm with their password' : 'Signs in to another kennel. Waiting for them to use an invitation to this one')
         : p.password_set ? 'Has a password' : p.invite_open_until ? 'Invited, link open until ' + day(p.invite_open_until) : p.joined_at ? 'Signed in before, no password yet' : p.invited_at ? 'Invitation expired or used' : 'Not invited yet';
       var others = p.other_kennels ? ', also signs in to ' + p.other_kennels + ' other kennel' + (p.other_kennels === 1 ? '' : 's') : '';
@@ -553,12 +561,12 @@
     }).join('') + '</ul><div id="main-choice"></div>' +
       (extra < 5 ? '<form id="person-form" class="member-form" novalidate><div class="field"><label for="pp-name">Name</label><input id="pp-name" type="text" maxlength="120" autocomplete="off"></div>' +
         '<div class="field"><label for="pp-email">Email address</label><input id="pp-email" type="email" maxlength="200" autocomplete="off" required></div>' +
-        '<details class="also-kennels" id="pp-also"><summary>Give them more kennels in the same step</summary>' +
+        '<button class="btn btn-sm btn-primary" type="submit">Add and invite</button>' +
+        '<details class="also-kennels" id="pp-also"><summary>Add them to more kennels</summary>' +
+        '<p class="hint">They get one email for every kennel ticked. Someone who already has a password gets access at once.</p>' +
         '<div class="field"><label for="pp-also-q">Find a kennel</label><input id="pp-also-q" type="search" autocomplete="off"></div>' +
-        '<div class="also-list" id="pp-also-list"><p class="small muted">Loading kennels</p></div></details>' +
-        '<button class="btn btn-sm btn-primary" type="submit">Add and invite</button></form>' +
-        '<p class="hint">Someone with no password yet gets one invitation that names every kennel added, a link that works once for 7 days to choose their password, and that one password opens all of them. Someone who already has a password gets the kennels at once, with an email saying so and nothing to confirm.</p>'
-        : '<p class="hint">This kennel has the most extra people it can have, five. Remove someone to add another.</p>');
+        '<div class="also-list" id="pp-also-list"><p class="small muted">Loading kennels</p></div></details></form>'
+        : '<p class="hint">A kennel can have five extra people. Remove someone to add another.</p>'));
   }
 
   function wirePeople(d, data, again) {
@@ -681,8 +689,7 @@
   function photoDrawer(data, p) {
     api('GET', '/api/puppies/' + p.id + '/photos').then(function (photos) {
       openDrawer('Photos of ' + p.name, WIDE +
-        '<p class="notice small">You are changing this on behalf of ' + esc(data.breeder.business_name || data.breeder.email) + '. The change is recorded in the activity log under your name.</p>' +
-        (photos.length ? '<ul class="admin-photos">' + photos.map(function (ph, i) {
+                (photos.length ? '<ul class="admin-photos">' + photos.map(function (ph, i) {
           return '<li data-id="' + esc(ph.id) + '"><img src="' + esc(photoThumb(ph.card || ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(p.name) + '" decoding="async">' +
             '<div class="btn-row"><button class="btn btn-sm" data-move="-1"' + (i ? '' : ' disabled') + ' aria-label="Move earlier">Earlier</button>' +
             '<button class="btn btn-sm" data-move="1"' + (i < photos.length - 1 ? '' : ' disabled') + ' aria-label="Move later">Later</button>' +
@@ -751,8 +758,7 @@
     return out;
   }
   function editorDrawer(title, data, html, submit) {
-    openDrawer(title, '<p class="notice small">You are changing this on behalf of ' + esc(data.breeder.business_name || data.breeder.email) +
-      '. The change is recorded in the activity log under your name.</p><form id="edit-form" novalidate>' + html +
+    openDrawer(title, '<form id="edit-form" novalidate>' + html +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">Save</button><button class="btn btn-quiet" type="button" data-back>Back to the breeder</button></div></form>',
     function (d) {
       var f = $('#edit-form', d);
@@ -815,16 +821,16 @@
   }
 
   function referenceCard(r) {
-    if (!r) return '<div class="card ref-card"><h3>Reference</h3><p class="muted small">None given. They submitted before references were asked for, and the portal asks them for one. You can still approve them.</p></div>';
+    if (!r) return '<div class="card ref-card"><h3>Reference</h3><p class="muted small">None given. You can still approve them.</p></div>';
     var contact = /@/.test(r.contact) ? '<a href="mailto:' + esc(r.contact) + '">' + esc(r.contact) + '</a>' : '<a href="tel:' + esc(r.contact.replace(/[^\d+]/g, '')) + '">' + esc(r.contact) + '</a>';
-    return '<div class="card ref-card"><h3>Reference</h3><p><b>' + esc(r.name) + '</b><br><span class="muted small">' + esc(r.role_label) + '</span><br>' + contact + '</p>' +
-      '<p class="hint" style="margin:0">Someone who can confirm this is a real breeder. Contact them before approving if you need to.</p></div>';
+    return '<div class="card ref-card"><h3>Reference</h3><p><b>' + esc(r.name) + '</b><br><span class="muted small">' + esc(r.role_label) + '</span><br>' + contact + '</p></div>';
   }
   function decide(d, b, action) {
     var box = $('#decide', d);
     var needsReason = action === 'decline' || action === 'suspend';
     var verb = { approve: 'Approve', decline: 'Decline', suspend: 'Suspend', reinstate: 'Reinstate', reopen: 'Reopen' }[action];
     if (!needsReason && action !== 'approve') { run({}); return; }
+    box.className = '';
     box.innerHTML = '<form id="decide-form" class="card">' +
       (action === 'approve' ? '<p><b>Approve ' + esc(b.business_name) + '?</b> They will be emailed and can start listing right away, and their listings go live without review.</p>'
         : '<div class="field"><label for="d-reason">Private reason, for the record</label><textarea id="d-reason" name="reason" style="min-height:70px"></textarea></div>' +
@@ -1005,7 +1011,7 @@
   function breedDrawer(b) {
     openDrawer(b ? b.name : 'Add a breed',
       '<form id="breed-form" novalidate>' + field('name', 'Breed name', b ? b.name : '') +
-      (b ? '<p class="hint">Its page on the site is at /' + esc(b.slug) + '. The address stays the same when the breed is renamed, so links to it keep working.</p>'
+      (b ? '<p class="hint">Its page is at /' + esc(b.slug) + ', and that address stays the same if the breed is renamed.</p>'
         : field('slug', 'Web address (optional)', '', { hint: 'Made from the name when left blank. It must be different from every other breed.' })) +
       field('colors', 'Suggested colors', b ? (b.colors || '') : '', { hint: 'Separated by commas. Breeders pick from these when they add a puppy, and can still type their own.' }) +
       field('coats', 'Coat types', b ? (b.coats || '') : '', { hint: 'Separated by commas, such as Smooth, Long-haired, Wire-haired. Leave blank when the breed has one coat.' }) +
@@ -1126,7 +1132,7 @@
             return '<div class="pay-row"><span class="when small">' + esc(when(p.at)) + '</span><span class="small">' + esc(p.actor) + '</span>' +
               (p.ok ? '<span class="pill pill-ok">Published</span>' : '<span class="pill pill-alert">Failed</span>') + '</div>';
           }).join('') : '') + '</section>' +
-        '<section class="card"><h2>Scheduled jobs</h2><p class="muted small">These run on their own. Run now does the same thing straight away, which is handy when showing how expiry works.</p>' +
+        '<section class="card"><h2>Scheduled jobs</h2><p class="muted small">These run on their own. Run now runs one straight away.</p>' +
         '<div class="table-wrap"><table class="list"><thead><tr><th>Job</th><th class="hide-sm">Last run</th><th>Result</th><th class="act"></th></tr></thead><tbody>' +
         r[2].map(function (j) {
           var L = jobLabel(j.job);
@@ -1175,7 +1181,7 @@
           return '<div class="field"><label for="s-' + esc(s.key) + '">' + esc(l[0]) + '</label><input id="s-' + esc(s.key) + '" name="' + esc(s.key) + '" type="' + l[1] + '" value="' + esc(s.value) + '"></div>';
         }).join('') + '<button class="btn btn-primary" type="submit">Save settings</button></form>' +
         '<section class="card"><h2>Set elsewhere</h2>' + fixed.map(function (s) { return '<p class="small"><b>' + esc(s.key) + '</b>: ' + esc(s.value) + '</p>'; }).join('') +
-        '<p class="hint">The listing fee is the Price in Stripe, so it is changed there and in fee_cents together. The terms version changes when new terms are published on the <a href="#/terms">Terms</a> screen. Publishing and the scheduled jobs are on the <a href="#/publish">Publish</a> screen.</p></section>' +
+        '<p class="hint">The listing fee is the Price in Stripe, so it is changed there and in fee_cents together. The terms version changes when new terms are published on the <a href="#/terms">Terms</a> screen.</p></section>' +
         demoCard(), true);
       wireDemo();
       var f = $('#settings');
@@ -1357,7 +1363,7 @@
         '<div class="stat"><b>' + n('subscribed', 'site').toLocaleString('en-US') + '</b><span>Signed up on the site</span></div></div>' +
         emailsPanel(cmp) +
         '<div class="cols">' +
-        '<section class="card" id="import-card"><h2>Import a list</h2><p class="small muted">A CSV with an email column, such as the contacts export from Wix. Each Wix contact keeps its email state: subscribers join the list, anyone who unsubscribed stays off, and contacts who never subscribed are kept but get no list email. A file with no status column is taken as a list of subscribers.</p>' +
+        '<section class="card" id="import-card"><h2>Import a list</h2><p class="small muted">A CSV with an email column, such as the Wix contacts export. Anyone who unsubscribed stays off the list.</p>' +
         '<form id="import-form" novalidate><div class="field"><label for="import-file">CSV file</label><input id="import-file" type="file" accept=".csv,text/csv"></div>' +
         '<button class="btn btn-primary" type="submit">Import</button></form><div id="import-result"></div></section>' +
         '<section class="card" id="add-card"><h2>Add one person</h2><p class="small muted">Only add someone who asked to be on the list.</p>' +
@@ -1434,7 +1440,7 @@
     return '<fieldset class="field" style="border:0;padding:0;margin:0 0 1rem;display:grid;gap:.4rem"><legend style="font-weight:600;padding:0;margin-bottom:.3rem">Send to</legend>' +
       '<label class="check"><input type="radio" name="camp-audience" value="subscribers" checked> Subscribers only, ' + n.subscribers.toLocaleString('en-US') + ' people</label>' +
       '<label class="check"><input type="radio" name="camp-audience" value="all"> All contacts who have not unsubscribed, ' + n.all.toLocaleString('en-US') + ' people</label>' +
-      '<div class="hint">All contacts adds the imported contacts who never subscribed, for announcements such as the new site. Nobody who unsubscribed is ever sent to, and every email carries an unsubscribe link.</div></fieldset>';
+      '<div class="hint">All contacts adds imported contacts who never subscribed, for announcements such as the new site.</div></fieldset>';
   }
   function emailsPanel(c) {
     var drafts = c.campaigns.filter(function (x) { return x.status === 'draft'; });
@@ -1533,7 +1539,7 @@
         table('r-sales', 'Sales breeders reported', '<th>Month</th><th class="num">Marked placed</th><th class="num hide-sm">Imported listings</th>', d.sales, function (m) {
           return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.placed + '</td><td class="num hide-sm">' + m.imported + '</td></tr>';
         }, 'No puppies have been marked placed yet.', 'sales') +
-        '<p class="hint">Sales are what breeders report by marking a puppy placed. Puppy Connection does not see the sale, so they are kept apart from paid listings above. Imported listings are dated at the import.</p>');
+        '<p class="hint">Sales are puppies breeders mark placed, kept apart from paid listings.</p>');
     });
   }
 

@@ -434,7 +434,6 @@ table.list .row-acts { margin-top: .4rem; }
 @media (max-width: 640px) { .member-form { grid-template-columns: 1fr; } }
 /* Alex, 2026-10-31. Give one person more kennels in the same step, under Add a person. */
 .member-form .also-kennels { grid-column: 1 / -1; order: 1; }
-.also-kennels summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; }
 .also-list { max-height: 18rem; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: .5rem .75rem; margin-top: .5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .1rem 1rem; background: var(--surface); }
 .also-list .check { min-height: 36px; align-items: center; }
 .also-list .check[hidden] { display: none; }
@@ -497,6 +496,46 @@ fieldset.field .check { margin: .3rem 0; }
 .btn.is-busy::before { content: ""; width: .9em; height: .9em; flex: none; border-radius: 50%;
   border: 2px solid currentColor; border-right-color: transparent; }
 @media (prefers-reduced-motion: no-preference) { .btn.is-busy::before { animation: spin .8s linear infinite; } @keyframes spin { to { transform: rotate(360deg); } } }
+
+/* Grouped panel sections with one right-hand button column (Alex, 2026-10-31). Each part of a
+   panel sits in its own box, a status sits beside its heading, and the everyday actions share one
+   width so they line up down the right edge. Longer one-off actions keep their own width. */
+:root { --act-w: 11.5rem; }
+.dsec { border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); padding: .9rem 1rem 1rem; margin: 0 0 1rem; min-width: 0; }
+.dsec > h3:first-child { margin-top: 0; }
+.dsec-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .4rem 1rem; margin: 0 0 .6rem; }
+.dsec-head h3 { margin: 0; }
+.dsec-head .pill { margin: 0; }
+.dsec p:last-child, .dsec .kv:last-child, .dsec .member-list:last-child { margin-bottom: 0; }
+.dsec-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .5rem; margin-top: .8rem; }
+.dsec-foot > .muted { margin: 0 auto 0 0; }
+.dsec-foot.dsec-row { margin-top: 0; }
+.dsec-row > p { flex: 1 1 12rem; }
+.dsec-line { display: grid; grid-template-columns: minmax(0, 1fr) var(--act-w); gap: .75rem; align-items: center; }
+.btn-act { width: var(--act-w); }
+.dsec .member-list li .btn-row { flex-direction: column; align-items: flex-end; flex-wrap: nowrap; gap: .4rem; }
+.dsec .member-list li .btn-row .btn { width: var(--act-w); }
+.dsec .member-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) var(--act-w); }
+.dsec .member-form > .btn { width: 100%; }
+.dsec .kennel-about p { margin: 0 0 .7rem; }
+.dsec .pay-row:first-of-type, .dsec .puppy-row:first-of-type { border-top: 0; }
+.also-kennels > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; gap: .45rem; min-height: 36px; padding: .3rem .75rem;
+  border: 1px dashed var(--line-strong); border-radius: var(--radius); background: var(--paper); font: 500 .85rem var(--sans); color: var(--ink); }
+.also-kennels > summary::-webkit-details-marker { display: none; }
+.also-kennels > summary::before { content: "+"; font-weight: 700; font-size: 1rem; line-height: 1; color: var(--olive); }
+.also-kennels[open] > summary::before { content: "\2212"; }
+.also-kennels > summary:hover { border-color: var(--bronze); border-style: solid; }
+/* The save row at the foot of every edit panel: the main action on the right at the shared width,
+   and a remove or delete action, where there is one, at the far left away from it. */
+.drawer-body form > .btn-row:last-child { flex-direction: row-reverse; justify-content: flex-start; }
+.drawer-body form > .btn-row:last-child > .btn { min-width: var(--act-w); }
+.drawer-body form > .btn-row:last-child > .btn-danger { margin-right: auto; }
+@media (max-width: 560px) {
+  .dsec-line, .dsec .member-form { grid-template-columns: 1fr; }
+  .btn-act, .dsec .member-list li .btn-row .btn { width: auto; }
+  .dsec .member-list li .btn-row { flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .dsec-foot { justify-content: flex-start; }
+}
 
 /* Wide record drawers (Alex, 2026-10-27, after Teapup's editor). From 1,200px a record opens at
    about two thirds of the window, never over the menu and never past 1,400px, with its details

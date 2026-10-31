@@ -845,6 +845,9 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 .photo-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(.6rem,1.6vw,1.2rem)}
 @media(max-width:700px){.photo-strip{grid-template-columns:1fr 1fr}.photo-strip .photo-fig:first-child{grid-column:1 / -1}}
 .photo-side{margin-bottom:1.2rem}
+/* Text beside a photo, the photo under the text on a phone (Amber, 2026-10-31, List with us and Transportation) */
+.split-photo{align-items:center}
+.split-photo .photo-fig{margin:0}
 .photo-dark{max-width:420px;margin-bottom:1.2rem;border-color:var(--gold)}
 .photo-narrow{max-width:640px;margin-top:1.6rem}
 /* List with us top band: the text column centered against the photo and the price card */

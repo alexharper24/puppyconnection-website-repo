@@ -23,7 +23,8 @@
 // second photo on Tips (her choices). 10, 11 and 14 had their watermark removed by Alex, and 15 is
 // cropped clear of its watermark.
 const PHOTO_SIZE = { 1: [1600, 1066], 2: [1600, 1066], 3: [1600, 1066], 4: [1600, 1067], 5: [1600, 1329], 6: [1600, 1066], 8: [1600, 1067], 9: [1600, 1066],
-  10: [1448, 1086], 11: [1448, 1086], 12: [1600, 1067], 13: [1600, 851], 14: [1448, 1086], 15: [1600, 1199], 16: [1600, 1067], 17: [1600, 1067] };
+  10: [1448, 1086], 11: [1448, 1086], 12: [1600, 1067], 13: [1600, 851], 14: [1448, 1086], 15: [1600, 1199], 16: [1600, 1067], 17: [1600, 1067],
+  18: [1600, 1067], 19: [1600, 1066] };
 export const PHOTO_ALT = 'Puppy Connection breeders with their puppies';
 // The img for photo n, with its 800 and 1600 copies. wh false leaves out width and height, for a
 // slot whose CSS sets the shape, such as the breed page's main picture.
@@ -251,12 +252,14 @@ ${HIW_FAQ.map(([q, a]) => `<h3>${q}</h3>\n${a.map((x) => `<p>${x}</p>`).join('\n
 <p>Puppy Connection does not transport puppies, arrange transportation, schedule deliveries, collect transportation fees, or act as a transportation broker.</p>
 <p>Transportation is arranged solely between the buyer, the breeder, and the transportation provider selected by the buyer. Any transportation agreement, pricing, scheduling, or services are independent of Puppy Connection.</p></div>
 </div></section>
-<section class="band band-warm"><div class="wrap wrap-mid">
+<section class="band band-warm"><div class="wrap split split-photo"><div>
 <h2>Safe travels, happy arrivals</h2>
 <p>Whether you decide to drive to your breeder or work with a professional transporter, our hope is that your puppy arrives safely and begins a lifetime of wonderful memories with your family.</p>
 <p>We encourage every family to choose the transportation option that best fits their needs while prioritizing the health, comfort, and safety of their new puppy.</p>
 <p class="brand-line">Because they're more than just precious paws and puppy breath. They're family.</p>
 <div class="btn-row"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div>
+</div>
+<figure class="photo-fig">${photoImg(19, '(max-width:940px) 92vw, 600px', { lazy: true })}</figure>
 </div></section>`,
   },
   {

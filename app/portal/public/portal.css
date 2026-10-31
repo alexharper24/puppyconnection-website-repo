@@ -122,6 +122,13 @@ input:focus, select:focus, textarea:focus { border-color: var(--bronze); outline
 .work { flex: 1; padding: 1.6rem clamp(1rem, 2.5vw, 2.25rem) 4rem; }
 .view { max-width: 92rem; margin-inline: auto; }
 .view-narrow { max-width: 56rem; }
+.pup-search { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; margin: 0 0 1rem; }
+.pup-search input { flex: 1 1 18rem; }
+.pup-search select { flex: 0 1 12rem; width: auto; }
+.puppy-card[hidden], [data-litter-card][hidden] { display: none !important; }
+/* Alex, 2026-10-31. The top bar's ends line up with the page content below it, on wide windows and on the narrow screens. */
+.topbar { padding-inline: max(clamp(1rem, 2.5vw, 2.25rem), calc((100% - 92rem) / 2)); }
+.topbar.narrow { padding-inline: max(clamp(1rem, 2.5vw, 2.25rem), calc((100% - 56rem) / 2)); }
 
 /* page header: title, one line of purpose, actions */
 .page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: .8rem 1rem; margin-bottom: 1.2rem; }
@@ -200,7 +207,7 @@ table.list tr.clickable:focus-visible { outline: 3px solid var(--bronze); outlin
    sat at different heights). Edit sits top right beside the name, the standing line runs the
    full width, and the actions are a ruled row pinned to the bottom, so in a row of cards the
    actions line up whatever each card holds. */
-.puppy-card { display: flex; flex-direction: column; gap: .5rem; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-lg); padding: .75rem .8rem .5rem; background: #fff; }
+.puppy-card { display: flex; flex-direction: column; gap: .5rem; min-width: 0; border: 1px solid #b3a990; border-radius: var(--r-lg); padding: .75rem .8rem .5rem; background: #fff; box-shadow: 0 1px 2px rgba(38, 38, 38, .05); }
 .pc-top { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: .8rem; align-items: start; }
 .pc-top .thumb, .pc-top .thumb-empty { width: 72px; height: 72px; }
 .pc-top .meta { min-width: 0; }
@@ -547,6 +554,9 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .pay-next p { margin: 0; flex: 1 1 16rem; }
 .pay-next .btn { flex: none; }
 .new-upload-note { margin: 0 0 .4rem; }
+.move-litter { margin: 1rem 0 0; border: 1px solid var(--line); border-radius: var(--r-lg); padding: .5rem .9rem; background: #fff; }
+.move-litter summary { cursor: pointer; font-weight: 600; min-height: 36px; display: flex; align-items: center; }
+.move-litter form { align-items: end; margin-top: .4rem; }
 .d-side .new-upload-note + section { margin-top: .4rem !important; }
 
 /* Grouped panel sections with one right-hand button column (Alex, 2026-10-31). Each part of a

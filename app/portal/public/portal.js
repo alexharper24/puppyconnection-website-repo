@@ -395,7 +395,7 @@
         }).join('');
       }).join('') + (me.status === 'pending' ? '<p class="nav-note">Litters, puppies and payments open once Puppy Connection approves your account.</p>' : '') + '</nav>' +
       '<div class="rail-foot"><span class="dot' + (me.status === 'approved' ? '' : ' wait') + '"></span><div><b>' + esc(foot[0]) + '</b><span>' + esc(foot[1]) + '</span></div></div></aside>' +
-      '<div class="main"><header class="topbar"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
+      '<div class="main"><header class="topbar' + (narrow ? ' narrow' : '') + '"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
       // Plan P2.2. The breeder's own page on the public site, once they are public.
       (me.site_url ? '<a class="btn btn-sm" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') +
       // Workplan A11. A quiet way back to the public site, in the same tab.
@@ -773,6 +773,23 @@
     var needs = (x.needs && x.needs.length) ? 'Before it can be paid for, it needs ' + x.needs.join(' and ') + '.' : x.pay_block;
     return { tone: '', text: needs };
   }
+  /* Alex, 2026-10-31. Littermates share a mom, a dad and a birth date. A puppy in the wrong litter moves to
+     another litter of the same breed, or to a new one of its own, keeping its photos and documents. */
+  function moveBox(x) {
+    var here = findLitter(x.litter_id);
+    if (!here) return '';
+    var others = (state.listings.litters || []).filter(function (l) { return !l.archived_at && l.id !== here.id && l.breed_id === here.breed_id; });
+    var label = function (l) {
+      var mom = l.mom_id ? parentName(l.mom_id) : '', dad = l.dad_id ? parentName(l.dad_id) : '';
+      return (l.born_on ? 'Born ' + day(l.born_on) : 'No birth date') + (mom || dad ? ', ' + [mom, dad].filter(Boolean).join(' and ') : ', no parents picked') + ', ' + plural(l.puppies.filter(function (p) { return p.publication_state !== 'archived'; }).length, 'puppy', 'puppies');
+    };
+    return '<details class="move-litter"><summary>Not in the right litter?</summary>' +
+      '<form id="move-litter" class="dsec-line" novalidate><div class="field" style="margin:0"><label for="move-to">Move ' + esc(x.name) + ' to</label><select id="move-to"><option value="">Choose a litter</option>' +
+      others.map(function (l) { return '<option value="' + esc(l.id) + '">' + esc(label(l)) + '</option>'; }).join('') +
+      '<option value="new">A new litter of its own (same breed and dates)</option></select></div>' +
+      '<button class="btn btn-sm btn-act" type="submit">Move</button></form>' +
+      '<p class="hint">Littermates share a mom, a dad and a birth date. Photos and documents move with the puppy.</p></details>';
+  }
   /* Alex, 2026-10-31. The next step for a saved puppy that can be listed, at the foot of its form. */
   function payNext(x) {
     var s = standing(x), fee = money((state.listings && state.listings.fee_cents) || 0);
@@ -800,9 +817,14 @@
       var html = head('Litters and puppies', 'Each litter holds its puppies. Add photos to a puppy, then pay to list it.', canEdit ? '<button class="btn btn-primary" id="add-litter">Add a litter</button>' : '');
       if (!canEdit) html += '<p class="notice">' + (me.status === 'suspended' ? 'Your account is paused, so this is read only.' : 'Litters open once your account is approved.') + '</p>';
       if (!active.length) html += '<div class="card">' + empty('No litters yet', canEdit ? 'Start with a litter, then add each puppy to it.' : '', canEdit ? '<button class="btn btn-primary" data-first-litter>Add a litter</button>' : '') + '</div>';
+      // Alex, 2026-10-31. Find a puppy by name, breed, color or sex, and narrow by status, for kennels with many puppies.
+      var total = active.reduce(function (n, l) { return n + l.puppies.filter(function (x) { return x.publication_state !== 'archived'; }).length; }, 0);
+      if (total > 1) html += '<div class="pup-search"><label class="sr" for="pup-q">Find a puppy</label><input id="pup-q" type="search" placeholder="Find a puppy by name, breed, color or sex" autocomplete="off">' +
+        '<label class="sr" for="pup-st">Show</label><select id="pup-st"><option value="">All puppies</option><option value="available">Available</option><option value="pending">Pending</option><option value="placed">Placed</option>' +
+        '<option value="listed">On the site</option><option value="unlisted">Not on the site</option></select><span class="muted small" id="pup-count" aria-live="polite"></span></div>';
       active.forEach(function (l) {
         var pups = l.puppies.filter(function (x) { return x.publication_state !== 'archived'; });
-        html += '<section class="card" aria-label="' + esc(l.breed_name) + ' litter"><div class="card-head"><div><h2>' + esc(l.breed_name) + '</h2>' +
+        html += '<section class="card" data-litter-card aria-label="' + esc(l.breed_name) + ' litter"><div class="card-head"><div><h2>' + esc(l.breed_name) + '</h2>' +
           '<div class="muted small">' + (l.born_on ? 'Born ' + esc(day(l.born_on)) : 'Birth date not set') + (l.ready_on ? ', ready ' + esc(day(l.ready_on)) : '') +
           (l.mom_weight_lb || l.dad_weight_lb ? '. Parents ' + (l.mom_weight_lb ? esc(l.mom_weight_lb) + ' lb mom' : '') + (l.mom_weight_lb && l.dad_weight_lb ? ', ' : '') + (l.dad_weight_lb ? esc(l.dad_weight_lb) + ' lb dad' : '') : '') +
           // Workplan A19. The saved mom and dad, by name.
@@ -811,7 +833,7 @@
           (pups.length ? '<div class="puppy-grid">' + pups.map(function (x) {
             var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
             var live = x.availability === 'placed' ? ['available', 'Mark available'] : ['placed', 'Mark placed'];
-            return '<div class="puppy-card"><div class="pc-top">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + (x.price_cents == null ? 'No price yet' : esc(money(x.price_cents))) +
+            return '<div class="puppy-card" data-q="' + esc([x.name, l.breed_name, x.color, x.sex].filter(Boolean).join(' ').toLowerCase()) + '" data-st="' + esc(x.availability + ' ' + (x.is_public ? 'listed' : 'unlisted')) + '"><div class="pc-top">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + (x.price_cents == null ? 'No price yet' : esc(money(x.price_cents))) +
               (x.sex ? ', ' + esc(x.sex) : '') + (x.color ? ', ' + esc(x.color) : '') + '. ' + plural(x.photos.length, 'photo') +
               (x.is_public ? '. ' + plural(x.views || 0, 'view') + ', ' + plural(x.clicks || 0, 'click') + ' in 30 days' : '') + '</span>' +
               '<div class="chips">' + puppyChips(x) + '</div></div>' +
@@ -823,6 +845,24 @@
           }).join('') + '</div>' : '<p class="muted small">No puppies in this litter yet.</p>') + '</section>';
       });
       shell(html);
+      var pq = $('#pup-q'), pst = $('#pup-st');
+      function findPups() {
+        var words = String(pq.value || '').toLowerCase().split(/\s+/).filter(Boolean), st = pst.value, shown = 0, on = words.length || st;
+        state.pupFilter = { q: pq.value, st: st };
+        $$('[data-litter-card]').forEach(function (sec) {
+          var any = false;
+          $$('.puppy-card', sec).forEach(function (c) {
+            var ok = words.every(function (w) { return c.dataset.q.indexOf(w) >= 0; }) && (!st || (' ' + c.dataset.st + ' ').indexOf(' ' + st + ' ') >= 0);
+            c.hidden = !ok; if (ok) { any = true; shown += 1; }
+          });
+          sec.hidden = on && !any;
+        });
+        $('#pup-count').textContent = on ? (shown ? plural(shown, 'puppy', 'puppies') + ' found' : 'No puppy matches') : '';
+      }
+      if (pq) {
+        if (state.pupFilter) { pq.value = state.pupFilter.q || ''; pst.value = state.pupFilter.st || ''; findPups(); }
+        pq.addEventListener('input', findPups); pst.addEventListener('change', findPups);
+      }
       $$('#add-litter, [data-first-litter]').forEach(function (b) { b.addEventListener('click', function () { litterDrawer(null); }); });
       $$('[data-edit-litter]').forEach(function (b) { b.addEventListener('click', function () { litterDrawer(findLitter(b.dataset.editLitter)); }); });
       $$('[data-add-puppy]').forEach(function (b) { b.addEventListener('click', function () { puppyDrawer(null, b.dataset.addPuppy); }); });
@@ -1039,7 +1079,7 @@
       detailFields(x, dis) +
       (canEdit ? '<div id="quality" aria-live="polite">' + qualityBox(x, findLitter(x ? x.litter_id : litterId), null) + '</div>' : '') +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + (x ? '<button class="btn btn-danger" type="button" id="archive-puppy">Remove puppy</button>' : '') + '</div>' : '') +
-      '</form>' + (canEdit && x ? payNext(x) : '') +
+      '</form>' + (canEdit && x ? payNext(x) + moveBox(x) : '') +
       (x ? SPLIT + photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy')
         : canEdit ? SPLIT + NEW_UPLOAD_NOTE + photoSection({ photos: [], name: 'this puppy' }, true) + docSection([], true, 'puppy') + '<p class="hint">Add videos once the puppy is saved.</p>' : ''),
       function (d) {
@@ -1073,6 +1113,17 @@
         });
         if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); wireDocs(d, canEdit, '/api/puppies/' + x.id + '/documents', function () { return loadListings().then(function () { puppyDrawer(findPuppy(x.id)); litters(); }); }); carryUpload(d); }
         var pn = $('[data-pay-next]', d); if (pn) pn.addEventListener('click', closeDrawer);
+        var mv = $('#move-litter', d);
+        if (mv) mv.addEventListener('submit', function (e) {
+          e.preventDefault();
+          var v = $('#move-to', mv).value;
+          if (!v) return;
+          var body = v === 'new' ? { new_litter: true } : { litter_id: v };
+          api('POST', '/api/puppies/' + x.id + '/move', body).then(function () {
+            toast(v === 'new' ? x.name + ' has a litter of their own. Pick the mom and dad on it.' : x.name + ' moved');
+            return loadListings().then(function () { puppyDrawer(findPuppy(x.id)); litters(); });
+          }).catch(function (err) { showError(mv, err); });
+        });
         // Workplan A21. The prompts follow the form as the breeder types.
         var qbox = $('#quality', d), qlit = findLitter(x ? x.litter_id : litterId);
         if (qbox) form.addEventListener('input', function () { qbox.innerHTML = qualityBox(x, qlit, form); });

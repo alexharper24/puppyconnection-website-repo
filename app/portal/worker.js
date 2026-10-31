@@ -345,7 +345,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=28"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=30"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
@@ -1474,6 +1474,42 @@ async function archivePuppy(request, env, ctx, id) {
   return json({ ok: true });
 }
 
+/**
+ * Alex, 2026-10-31. Littermates share a mom, a dad and a birth date, so a puppy that was put in the wrong litter
+ * moves to another of the kennel's litters of the same breed, or to a new litter of its own with the same breed
+ * and dates, where its own mom and dad can then be picked. Photos and documents stay with the puppy.
+ */
+async function movePuppy(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const puppy = await owned(env, 'puppy', id, breeder.id);
+  const from = await owned(env, 'litter', puppy.litter_id, breeder.id);
+  const body = await readJson(request);
+  const t = now();
+  const stmts = [];
+  let to;
+  if (body.new_litter) {
+    to = ulid();
+    stmts.push(env.DB.prepare(
+      'INSERT INTO litters (id, breeder_id, breed_id, born_on, ready_on, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    ).bind(to, breeder.id, from.breed_id, from.born_on, from.ready_on, t, t));
+    stmts.push(auditStmt(env, ...who(breeder), 'litter.create', 'litter', to, null, { split_from: from.id, for_puppy: id }));
+  } else {
+    const target = await owned(env, 'litter', body.litter_id, breeder.id);
+    if (target.archived_at) throw bad('That litter has been removed.');
+    if (target.breed_id !== from.breed_id) throw bad('A puppy can only move to a litter of the same breed.');
+    if (target.id === from.id) return json({ ok: true, litter_id: from.id });
+    to = target.id;
+  }
+  const wasPublic = await hasPublic(env, 'id = ?', id);
+  stmts.push(env.DB.prepare('UPDATE puppies SET litter_id = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(to, t, id, breeder.id));
+  stmts.push(auditStmt(env, ...who(breeder), 'puppy.move_litter', 'puppy', id, { litter: from.id }, { litter: to }));
+  if (wasPublic) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true, litter_id: to });
+}
+
 // ------------------------------------------------------------------ photos
 
 async function uploadPhoto(request, env, ctx, puppyId) {
@@ -2270,6 +2306,7 @@ const ROUTES = [
   ['PUT', /^\/api\/puppies\/([\w-]+)\/availability$/, setAvailability],
   ['PUT', /^\/api\/puppies\/([\w-]+)$/, updatePuppy],
   ['POST', /^\/api\/puppies\/([\w-]+)\/archive$/, archivePuppy],
+  ['POST', /^\/api\/puppies\/([\w-]+)\/move$/, movePuppy],
   ['POST', /^\/api\/puppies\/([\w-]+)\/photos$/, uploadPhoto],
   ['PUT', /^\/api\/puppies\/([\w-]+)\/photo-order$/, orderPhotos],
   ['DELETE', /^\/api\/photos\/([\w-]+)$/, deletePhoto],

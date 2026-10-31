@@ -548,9 +548,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     'boston-terrier': { w: 1448, h: 1086, fx: 0.55, fy: 0.5 },
     'golden-retriever': { w: 1600, h: 1066, fx: 0.72, fy: 0.55 },
     'papillon': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
-    'miniature-schnauzer': { w: 1600, h: 2135, fx: 0.5, fy: 0.36 },
+    'miniature-schnauzer': { w: 1448, h: 1086, fx: 0.52, fy: 0.5 },
     'saint-bernard': { w: 1600, h: 1409, fx: 0.58, fy: 0.45 },
-    'labrador-retriever': { w: 1600, h: 2059, fx: 0.55, fy: 0.33 },
+    'labrador-retriever': { w: 587, h: 881, fx: 0.5, fy: 0.25 },
     'havanese': { w: 1600, h: 1067, fx: 0.53, fy: 0.55 },
   };
   const breedPhoto = (slug) => {

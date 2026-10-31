@@ -20,12 +20,13 @@ OUT = os.path.join(REPO, 'img', 'breeds')
 # (cx, cy) as fractions and scale times its width and height, for a photo whose dog sits off-center in a frame that already
 # has the card's shape. The focus point is then read against the cropped photo.
 PHOTOS = {
+    'f1b-mini-goldendoodle': ('20230527_183935 (1).jpg', .50, .50),  # Amber's new photo, 2026-10-31
     'doberman-pinscher': ('20.jpg', .38, .55),
     'french-bulldog': ('1.jpg', .52, .55),
     'toy-poodle': ('2.jpg', .45, .55),
     'miniature-poodle': ('2_1.jpg', .50, .55),
     'yorkshire-terrier': ('Molly - Mom.jpg', .55, .55),
-    'pomeranian': ('pomeranian-source.webp', .45, .60),  # 3.jpg was overwritten by a new 3.JPG on 2026-10-31, so this is the processed copy
+    'pomeranian': ('IMG_5814-2.jpg', .50, .50),  # Amber's new photo, 2026-10-31
     'basset-hound': ('IMG_4353.jpg', .45, .50),
     'cavalier-king-charles-spaniel': ('9.jpg', .50, .55),
     'pembroke-welsh-corgi': ('9_1.jpg', .60, .55),
@@ -35,10 +36,10 @@ PHOTOS = {
     'cocker-spaniel': ('ChatGPT Image Oct 30, 2026, 05_06_49 PM-4.png', .55, .50),
     'english-bulldog': ('ChatGPT Image Oct 30, 2026, 05_06_48 PM-3.png', .53, .55),
     'bernese-mountain-dog': ('1_1.jpg', .52, .45),
-    'boston-terrier': ('ChatGPT Image Oct 30, 2026, 05_06_47 PM-2.png', .55, .50),
-    'golden-retriever': ('IMG_1830.jpg', .72, .55),
+    'boston-terrier': ('brian1.JPG', .50, .38),  # Amber's new photo, 2026-10-31
+    'golden-retriever': ('ruthie-6.jpg', .50, .50),  # Amber's new photo, 2026-10-31
     'papillon': ('10.jpg', .55, .50, (.62, .47, .85)),
-    'miniature-schnauzer': ('ChatGPT Image Oct 30, 2026, 05_06_46 PM-1.png', .52, .50),
+    'miniature-schnauzer': ('popper1.jpg', .50, .36),  # Amber's new photo, 2026-10-31
     'saint-bernard': ('Benji1.jpg', .58, .45, (.56, .50, .88)),
     'labrador-retriever': ('Jo Jo 3.jpg', .50, .25, (.57, .50, .86)),
     'havanese': ('4.jpg', .53, .55, (.55, .50, .92)),

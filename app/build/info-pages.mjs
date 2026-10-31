@@ -23,7 +23,7 @@
 // second photo on Tips (her choices). 10, 11 and 14 had their watermark removed by Alex, and 15 is
 // cropped clear of its watermark.
 const PHOTO_SIZE = { 1: [1600, 1066], 2: [1600, 1066], 3: [1600, 1066], 4: [1600, 1067], 5: [1600, 1329], 6: [1600, 1066], 8: [1600, 1067], 9: [1600, 1066],
-  10: [1448, 1086], 11: [1448, 1086], 12: [1600, 1067], 13: [1600, 851], 14: [1448, 1086], 15: [1600, 1199], 16: [1600, 1067] };
+  10: [1448, 1086], 11: [1448, 1086], 12: [1600, 1067], 13: [1600, 851], 14: [1448, 1086], 15: [1600, 1199], 16: [1600, 1067], 17: [1600, 1067] };
 export const PHOTO_ALT = 'Puppy Connection breeders with their puppies';
 // The img for photo n, with its 800 and 1600 copies. wh false leaves out width and height, for a
 // slot whose CSS sets the shape, such as the breed page's main picture.
@@ -140,13 +140,14 @@ export const INFO_PAGES = [
     desc: 'How to find a puppy on Puppy Connection: browse by breed or state, see each puppy and its breeder, and contact the breeder directly. How breeders list, too.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">How it works</p><h1>How Puppy Connection works</h1>
 <p class="lede">Finding the right puppy begins with finding the right breeder.</p></div></section>
-<section class="band" style="padding-top:0"><div class="wrap"><div class="intro-block">
+<section class="band" style="padding-top:0"><div class="wrap split intro-split"><div class="intro-block">
 <h2>Connecting breeders with loving families</h2>
 <p>Puppy Connection is a place where families can discover breeders, learn about breeds and puppy ownership, and connect directly with breeders they feel are a good fit.</p>
 <p>For breeders, Puppy Connection provides a place to showcase their breeding programs, share their puppies, and connect with families who are searching for their next companion.</p>
 <p>Puppy Connection does not sell or own puppies, and we don't act as a broker or intermediary between breeders and families. Instead, we provide the platform that brings them together. Breeders can share their programs and available puppies, while families can explore, learn, and connect directly with the breeder.</p>
 <p>Once a family connects with a breeder, the relationship continues directly between them.</p>
-</div></div></section>
+</div>
+<figure class="photo-fig intro-photo">${photoImg(17, '(max-width:940px) 92vw, 600px')}</figure></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">For families</p><h2>Simple steps. A lifetime of memories.</h2></div></div>
 <!-- Amber, 2026-10-28: her four steps as photo cards, with her photos, after the layout of a template she sent. -->

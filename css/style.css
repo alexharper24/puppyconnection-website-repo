@@ -929,6 +929,9 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 /* Amber's content pages (2026-10-31) */
 .intro-block{max-width:46rem}
 .intro-block p{color:var(--ink-soft)}
+/* How it works: the photo beside the opening section starts level with its heading (Alex, 2026-10-31) */
+.intro-split{align-items:start}
+.intro-split .intro-photo{margin:0}
 @media(min-width:900px){.steps.steps-4{grid-template-columns:repeat(4,minmax(0,1fr))}}
 .options-split{margin-top:1.4rem}
 /* Furry Freight: the service list stands apart from the paragraphs either side (Alex, 2026-10-31) */

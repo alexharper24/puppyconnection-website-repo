@@ -563,7 +563,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     'cocker-spaniel': { w: 1448, h: 1086, fx: 0.55, fy: 0.5 },
     'english-bulldog': { w: 1448, h: 1086, fx: 0.53, fy: 0.55 },
     'bernese-mountain-dog': { w: 1600, h: 634, fx: 0.52, fy: 0.45 },
-    'boston-terrier': { w: 1600, h: 2400, fx: 0.5, fy: 0.38 },
+    'boston-terrier': { w: 1600, h: 2400, fx: 0.5, fy: 0.46 },
     'golden-retriever': { w: 1600, h: 1067, fx: 0.5, fy: 0.5 },
     'papillon': { w: 1600, h: 1066, fx: 0.55, fy: 0.5 },
     'miniature-schnauzer': { w: 1600, h: 1948, fx: 0.5, fy: 0.36 },
@@ -955,7 +955,7 @@ ${hl ? `<section class="band" style="padding-top:0">
       ${seeAlso}
     </div>
     ${BREED_PHOTO[b.slug] ? `<figure class="breed-photo bt-photo">${photoImg(BREED_PHOTO[b.slug], '(max-width:940px) 1px, 40vw', { wh: false })}</figure>`
-      : lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async"><span class="photo-cap">A ${esc(b.name)} currently listed</span></figure>`
+      : lead ? `<figure class="breed-photo bt-photo"><img ${fillAttrs(lead, 720, 900)} alt="${esc(b.name)}" decoding="async">${lead.local ? '' : `<span class="photo-cap">A ${esc(b.name)} currently listed</span>`}</figure>`
       : BREED_FALLBACK[b.slug] ? `<figure class="breed-photo bt-photo">${fallbackImg(b, '(max-width:940px) 1px, 40vw')}</figure>` : ''}
     ${guidesFor(b.slug).length ? `<section class="guide-panel bt-guides" aria-label="${esc(b.name)} guides"><p class="eyebrow">${esc(b.name)} guides</p>${guideList(b.slug)}<a class="link-more" href="guides.html#${esc(b.slug)}">All breed guides</a></section>` : ''}
     <div class="breed-buy bt-buy">

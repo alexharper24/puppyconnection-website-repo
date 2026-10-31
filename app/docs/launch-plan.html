@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Puppy Connection Launch Plan</title>
+<style>
+:root{--bg:#f7f8f5;--card:#fff;--ink:#1f2a22;--muted:#5b675e;--line:#dfe4dc;--accent:#4f6b52;--you:#7a4b12;--youbg:#fbf1e3;--amb:#33507a;--ambbg:#e8eef8;--me:#3d5e40;--mebg:#e6efe5}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151a16;--card:#1d241f;--ink:#e6ebe4;--muted:#a3aea5;--line:#2f3a31;--accent:#9cc29f;--you:#f0c48a;--youbg:#3a2c18;--amb:#a9c3ec;--ambbg:#1f2b3d;--me:#a9d1ab;--mebg:#22331f}}
+:root[data-theme="dark"]{--bg:#151a16;--card:#1d241f;--ink:#e6ebe4;--muted:#a3aea5;--line:#2f3a31;--accent:#9cc29f;--you:#f0c48a;--youbg:#3a2c18;--amb:#a9c3ec;--ambbg:#1f2b3d;--me:#a9d1ab;--mebg:#22331f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:980px;margin:0 auto;padding:28px 16px 60px}
+h1{font-size:1.6rem;margin:0 0 .3rem;text-wrap:balance}
+h2{font-size:1.1rem;margin:2rem 0 .6rem;text-wrap:balance}
+p.lead{color:var(--muted);margin:0 0 1rem;max-width:70ch}
+.wrap{overflow-x:auto;background:var(--card);border:1px solid var(--line);border-radius:4px}
+table{border-collapse:collapse;width:100%;min-width:620px}
+th,td{text-align:left;vertical-align:top;padding:.55rem .7rem;border-bottom:1px solid var(--line)}
+th{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:600}
+tr:last-child td{border-bottom:0}
+td.n{width:2.2rem;color:var(--muted);font-variant-numeric:tabular-nums}
+td.who{width:6.5rem}
+.tag{display:inline-block;padding:.05rem .45rem;border-radius:4px;font-size:.8rem;font-weight:600}
+.alex{color:var(--you);background:var(--youbg)}
+.amber{color:var(--amb);background:var(--ambbg)}
+.claude{color:var(--me);background:var(--mebg)}
+.note{color:var(--muted);font-size:.88rem}
+.warn{border-left:3px solid var(--you);padding:.5rem .8rem;background:var(--card);margin:.8rem 0;max-width:80ch}
+</style>
+</head>
+<body>
+<main>
+<h1>Puppy Connection launch plan</h1>
+<p class="lead">Read from the admin checklist on October 31, 2026 at 23:11 UTC, which shows 54 launch items done and 18 open. Everything open is a step on cutover day or depends on one, apart from the five items in the first table.</p>
+
+<h2>Before cutover</h2>
+<div class="wrap"><table>
+<tr><th></th><th>Who</th><th>Step</th></tr>
+<tr><td class="n">1</td><td class="who"><span class="tag alex">Alex</span></td><td>Move Andre to his own litter in the portal (Manage as the breeder, open Andre, then "Not in the right litter?").</td></tr>
+<tr><td class="n">2</td><td class="who"><span class="tag alex">Alex</span></td><td>Send the breed information pulled from Wix, and Claude will compare it with the site and fold in what is missing.</td></tr>
+<tr><td class="n">3</td><td class="who"><span class="tag alex">Alex</span></td><td>Sign in once with a password and the authenticator on staging, and confirm it finishes inside the hosting time limit.</td></tr>
+<tr><td class="n">4</td><td class="who"><span class="tag alex">Alex</span></td><td>Remove the test operator amber@puppyconnection.test from the admin people list.</td></tr>
+<tr><td class="n">5</td><td class="who"><span class="tag amber">Amber</span></td><td>Send any launch items of her own that are not yet on the checklist, and add her bank account in Stripe so payouts reach her. Neither stops the cutover.</td></tr>
+</table></div>
+
+<h2>Cutover day, in order</h2>
+<div class="warn">WARNING: Wix stops answering on puppy-connection.com the moment the nameservers change. Take step 1 first, because the redirect list for the old puppy addresses comes from the live Wix site.</div>
+<div class="wrap"><table>
+<tr><th></th><th>Who</th><th>Step</th></tr>
+<tr><td class="n">1</td><td class="who"><span class="tag claude">Claude</span></td><td>Read every live Wix puppy address again and add a 301 for each new one to the redirect list.</td></tr>
+<tr><td class="n">2</td><td class="who"><span class="tag alex">Alex</span></td><td>Change the nameservers to Cloudflare, then check that the site loads and Google Workspace mail still arrives.</td></tr>
+<tr><td class="n">3</td><td class="who"><span class="tag claude">Claude</span></td><td>Attach puppy-connection.com and www to the site Worker, and the portal and admin hostnames to theirs, in the same minute as step 2. Set the portal origin and SITE_URL in the build.</td></tr>
+<tr><td class="n">4</td><td class="who"><span class="tag alex">Alex</span></td><td>Put the admin sign-in on admin.puppy-connection.com with the two-step check in Cloudflare Access.</td></tr>
+<tr><td class="n">5</td><td class="who"><span class="tag alex">Alex</span></td><td>Replace the Wix DMARC record, finish the Resend domain check, and confirm Google Workspace mail again.</td></tr>
+<tr><td class="n">6</td><td class="who"><span class="tag claude">Claude</span></td><td>Build the site as indexable, so noindex comes off, robots.txt opens and the sitemap names the real domain.</td></tr>
+<tr><td class="n">7</td><td class="who"><span class="tag claude">Claude</span></td><td>Fetch a sample of old Wix addresses and confirm each one lands on the right page.</td></tr>
+<tr><td class="n">8</td><td class="who"><span class="tag alex">Alex</span></td><td>Turn off the four Wix automations that still run.</td></tr>
+<tr><td class="n">9</td><td class="who"><span class="tag alex">Alex</span></td><td>Submit the sitemap in Search Console and Bing, and point the Business Profile at the new site.</td></tr>
+<tr><td class="n">10</td><td class="who"><span class="tag alex">Alex</span></td><td>Confirm visits show in Google Analytics Realtime.</td></tr>
+<tr><td class="n">11</td><td class="who"><span class="tag alex">Alex</span></td><td>Once Resend sends, send each notice once on production, send one real invitation, and send one listing report to Amber's inbox.</td></tr>
+<tr><td class="n">12</td><td class="who"><span class="tag alex">Alex</span></td><td>Invite Teapup at pups@teapup.com, and add the Responsible Dog Breeder Network address once from a member kennel so its 14 kennels get one invitation.</td></tr>
+<tr><td class="n">13</td><td class="who"><span class="tag alex">Alex</span></td><td>Run a new Ahrefs crawl, and Claude compares it with the October 28 baseline.</td></tr>
+</table></div>
+
+<h2>After launch</h2>
+<p class="note">These stay on the admin checklist under Gate 1 and later. The near ones are a test restore of a nightly backup, the walkthrough videos and quick guide, live training with Amber and Luke, the weekly Ahrefs review for the first month, and the check-in about 30 days after launch. A stock photo for the Mini Aussiedoodle brings its page back, and the page also returns by itself once one of its puppies is listed. Document prefill from health records and pedigrees is built in its own session.</p>
+</main>
+</body>
+</html>

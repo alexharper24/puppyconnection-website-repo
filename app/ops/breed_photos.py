@@ -9,7 +9,7 @@ point is where the subject sits, as a fraction of the saved photo, so every slot
 """
 import os, sys, json
 import io
-from PIL import Image, ImageCms, ImageOps
+from PIL import Image, ImageCms, ImageFilter, ImageOps
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -36,7 +36,7 @@ PHOTOS = {
     'cocker-spaniel': ('ChatGPT Image Oct 30, 2026, 05_06_49 PM-4.png', .55, .50),
     'english-bulldog': ('ChatGPT Image Oct 30, 2026, 05_06_48 PM-3.png', .53, .55),
     'bernese-mountain-dog': ('1_1.jpg', .52, .45),
-    'boston-terrier': ('brian1.JPG', .50, .46),  # Amber's new photo, 2026-10-31; focus on his head so the wide card keeps his ears
+    'boston-terrier': ('brian1.JPG', .50, .50),  # Amber's new photo, 2026-10-31, widened below
     'golden-retriever': ('ruthie-6.jpg', .50, .50),  # Amber's new photo, 2026-10-31
     'papillon': ('10.jpg', .55, .50, (.62, .47, .85)),
     'miniature-schnauzer': ('popper1.jpg', .50, .36),  # Amber's new photo, 2026-10-31
@@ -44,6 +44,25 @@ PHOTOS = {
     'labrador-retriever': ('Jo Jo 3.jpg', .50, .25, (.57, .50, .86)),
     'havanese': ('4.jpg', .53, .55, (.55, .50, .92)),
 }
+
+# A tall photo whose dog fills its width reads as a close-up in a wide card (Alex, 2026-10-31, the Boston Terrier).
+# slug: (top, bottom, ratio) keeps that band of the original and widens it to the ratio by stretching its own outer
+# edges, softened, so the dog sits smaller in the frame without anything made up.
+WIDEN = {
+    'boston-terrier': (.06, .86, 1.5),
+}
+
+
+def widen(p, ratio):
+    cw = round(p.height * ratio); side = (cw - p.width) // 2; strip = round(p.width * .06)
+    out = Image.new('RGB', (cw, p.height))
+    out.paste(p.crop((0, 0, strip, p.height)).resize((side + strip, p.height)).filter(ImageFilter.GaussianBlur(40)), (0, 0))
+    out.paste(p.crop((p.width - strip, 0, p.width, p.height)).resize((cw - side - p.width + strip, p.height)).filter(ImageFilter.GaussianBlur(40)), (side + p.width - strip, 0))
+    mask = Image.linear_gradient('L').rotate(90).resize((strip, p.height))  # 0 at the outer edge, 255 inward
+    full = Image.new('L', p.size, 255); full.paste(mask, (0, 0)); full.paste(mask.transpose(Image.FLIP_LEFT_RIGHT), (p.width - strip, 0))
+    out.paste(p, (side, 0), full)
+    return out
+
 
 # A breeder's own card and page photo (Alex, 2026-10-30): slug -> (original, focus x, focus y), written to
 # img/breeders/<slug>-photo-800.webp and -1600.webp.
@@ -78,7 +97,10 @@ def window(img, ratio, fx, fy):
 
 def main():
     table = {}
+    only = [a for a in sys.argv[1:] if not a.startswith('--')]  # slugs to remake, or none for all
     for slug, (f, fx, fy, *crop) in PHOTOS.items():
+        if only and slug not in only:
+            continue
         im = load(f)
         if crop:
             cx, cy, k = crop[0]
@@ -86,6 +108,9 @@ def main():
             x = min(max(round(cx * im.width - cw / 2), 0), im.width - cw)
             y = min(max(round(cy * im.height - ch / 2), 0), im.height - ch)
             im = im.crop((x, y, x + cw, y + ch))
+        if slug in WIDEN:
+            t, b, ratio = WIDEN[slug]
+            im = widen(im.crop((0, round(t * im.height), im.width, round(b * im.height))), ratio)
         for width in (800, 1600):
             c = im.copy()
             if c.width > width:
@@ -95,6 +120,8 @@ def main():
                 table[slug] = {'file': f'img/breeds/{slug}', 'w': c.width, 'h': c.height, 'fx': fx, 'fy': fy}
     print(json.dumps(table, indent=1))
     btable = {}
+    if only:
+        return
     for slug, (f, fx, fy) in BREEDER_PHOTOS.items():
         im = load(f)
         for width in (800, 1600):

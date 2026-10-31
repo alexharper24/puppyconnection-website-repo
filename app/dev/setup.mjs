@@ -49,6 +49,8 @@ for (const worker of ['portal', 'admin']) {
 // One stylesheet for both tools. The portal's copy is the source, and this keeps the admin's
 // copy identical so the two cannot drift.
 fs.copyFileSync(path.join(APP, 'portal/public/portal.css'), path.join(APP, 'admin/public/portal.css'));
+// The breed search (combo.js) is shared the same way (Alex, 2026-10-31).
+fs.copyFileSync(path.join(APP, 'portal/public/combo.js'), path.join(APP, 'admin/public/combo.js'));
 
 execFileSync(process.execPath, [path.join(HERE, 'seed.mjs')], { stdio: 'inherit' });
 

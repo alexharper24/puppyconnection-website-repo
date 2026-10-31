@@ -233,12 +233,14 @@
     }
     if (find) find.addEventListener('input', function () { page = 0; draw(); });
     if (pick) pick.addEventListener('change', function () { page = 0; draw(); });
+    // Alex, 2026-10-31. A long filter list, such as All breeds, takes a typed search (combo.js).
+    if (pick && pick.hasAttribute('data-search') && window.PCPicker) window.PCPicker.select(pick, { none: 'Nothing matches that' });
     draw();
   }
   function listPanel(opts) {
     return '<section class="panel" id="' + opts.id + '"><div class="toolbar">' +
       (opts.find ? '<label class="sr" for="' + opts.id + '-find">' + esc(opts.find) + '</label><input id="' + opts.id + '-find" type="search" data-find placeholder="' + esc(opts.find) + '" value="' + esc(opts.q || '') + '">' : '') +
-      (opts.pick ? '<label class="sr" for="' + opts.id + '-pick">' + esc(opts.pick[0]) + '</label><select id="' + opts.id + '-pick" data-pick><option value="">' + esc(opts.pick[0]) + '</option>' +
+      (opts.pick ? '<label class="sr" for="' + opts.id + '-pick">' + esc(opts.pick[0]) + '</label><select id="' + opts.id + '-pick" data-pick' + (opts.pickSearch ? ' data-search' : '') + '><option value="">' + esc(opts.pick[0]) + '</option>' +
         opts.pick[1].map(function (o) { return '<option>' + esc(o) + '</option>'; }).join('') + '</select>' : '') +
       (opts.tabs || '') + '<span class="count" data-count></span></div><div data-rows></div><div class="pager" data-pager hidden></div></section>';
   }
@@ -755,7 +757,7 @@
     opts = opts || {};
     var id = 'e-' + name;
     var input = opts.textarea ? '<textarea id="' + id + '" name="' + name + '"' + (opts.rows ? ' style="min-height:' + opts.rows + 'px"' : '') + '>' + esc(value == null ? '' : value) + '</textarea>'
-      : opts.select ? '<select id="' + id + '" name="' + name + '">' + opts.select.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(value == null ? '' : value) === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>'
+      : opts.select ? '<select id="' + id + '" name="' + name + '"' + (opts.search ? ' data-search' : '') + '>' + opts.select.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (String(value == null ? '' : value) === String(o[0]) ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('') + '</select>'
         : '<input id="' + id + '" name="' + name + '" type="' + (opts.type || 'text') + '" value="' + esc(value == null ? '' : value) + '"' + (opts.mode ? ' inputmode="' + opts.mode + '"' : '') + '>';
     return '<div class="field"><label for="' + id + '">' + esc(label) + '</label>' + input + (opts.hint ? '<div class="hint">' + esc(opts.hint) + '</div>' : '') + '</div>';
   }
@@ -769,6 +771,8 @@
       '<div class="btn-row"><button class="btn btn-primary" type="submit">Save</button><button class="btn btn-quiet" type="button" data-back>Back to the breeder</button></div></form>',
     function (d) {
       var f = $('#edit-form', d);
+      // Alex, 2026-10-31. A select marked data-search, such as the breed, takes a typed search (combo.js).
+      if (window.PCPicker) $$('select[data-search]', f).forEach(function (s) { window.PCPicker.select(s, { none: 'Nothing matches that' }); });
       $('[data-back]', d).addEventListener('click', function () { breederDrawer(data.breeder.id); });
       f.addEventListener('submit', function (e) {
         e.preventDefault();
@@ -792,7 +796,7 @@
   function litterEditor(data, l) {
     editorDrawer('Edit litter', data,
       '<input type="hidden" name="version" value="' + esc(l.version) + '">' +
-      field('breed_id', 'Breed', l.breed_id, { select: data.breeds.map(function (r) { return [r.id, r.name]; }) }) +
+      field('breed_id', 'Breed', l.breed_id, { select: data.breeds.map(function (r) { return [r.id, r.name]; }), search: true }) +
       '<div class="grid-2">' + field('born_on', 'Born', l.born_on, { type: 'date' }) + field('ready_on', 'Ready to go home', l.ready_on, { type: 'date' }) + '</div>' +
       '<div class="grid-2">' + field('mom_weight_lb', 'Mother\'s weight (lb)', l.mom_weight_lb, { mode: 'decimal' }) + field('dad_weight_lb', 'Father\'s weight (lb)', l.dad_weight_lb, { mode: 'decimal' }) + '</div>' +
       field('description', 'About the litter', l.description, { textarea: true }),
@@ -922,7 +926,7 @@
       var breeds = rows.map(function (x) { return x.breed; }).filter(function (b, i, a) { return b && a.indexOf(b) === i; }).sort();
       var tabs = [['filter=public', 'Live'], ['filter=drafts', 'Drafts'], ['filter=expired', 'Expired'], ['filter=held', 'On hold'], ['filter=all', 'All']];
       shell(head('Listings', 'Every puppy on the directory and where it stands. Hold takes a listing off the site, and List free publishes one without payment.') +
-        listPanel({ id: 'listings', find: 'Puppy, breed or breeder', q: p.q, pick: ['All breeds', breeds], tabs: seg('listings', 'filter=' + f, tabs, 'Listing state') }));
+        listPanel({ id: 'listings', find: 'Puppy, breed or breeder', q: p.q, pick: ['All breeds', breeds], pickSearch: true, tabs: seg('listings', 'filter=' + f, tabs, 'Listing state') }));
       list($('#listings'), { rows: rows, head: LISTING_HEAD, row: listingRow, text: listingText, pick: function (x) { return x.breed; }, sorts: LISTING_SORTS,
         emptyTitle: { public: 'Nothing is live', drafts: 'No drafts', expired: 'Nothing has expired', held: 'Nothing is on hold', all: 'No listings yet' }[f],
         emptyText: f === 'held' ? 'Listings you hold appear here until you release them.' : '', wire: function (box) { wireHolds(box, listings); } });

@@ -1319,7 +1319,9 @@ ${listNone('breeders')}
   for (const pg of INFO_PAGES) {
     write(pg.file, { title: pg.title, desc: pg.desc, trail: [[pg.name, `${base}${pg.file}`]], current: pg.file,
       // Ahrefs crawl 2026-10-28: the buying tips page is an article and says so in its data.
-      ld: pg.file === 'tips-on-buying-a-puppy.html' ? [{ '@type': 'Article', headline: pg.name, description: pg.desc, mainEntityOfPage: `${base}${pg.file}`, publisher: { '@type': 'Organization', name: 'Puppy Connection', url: base } }] : [],
+      ld: pg.file === 'tips-on-buying-a-puppy.html' ? [{ '@type': 'Article', headline: pg.name, description: pg.desc, mainEntityOfPage: `${base}${pg.file}`, publisher: { '@type': 'Organization', name: 'Puppy Connection', url: base } }]
+        // Amber's questions on How it works, as FAQ data (2026-10-31).
+        : pg.faq ? [{ '@type': 'FAQPage', mainEntity: pg.faq.map(([q, a]) => ({ '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a.join(' ') } })) }] : [],
       body: `<main id="info-page">
 <span id="content" tabindex="-1"></span>
 ${withPhoto(pg)}

@@ -41,6 +41,65 @@ export const PHOTO_SLOTS = {
   lede: { cls: 'photo-narrow', sizes: '(max-width:700px) 92vw, 640px' },
 };
 
+// Amber, 2026-10-31: the How it works questions, shown on the page and given to Google as FAQ data.
+export const HIW_FAQ = [
+ [
+  "Are you the breeder?",
+  [
+   "No. Puppy Connection is a listing and connection service. Every breeder featured on our website is independently owned and operated."
+  ]
+ ],
+ [
+  "Do you sell puppies?",
+  [
+   "No. Puppy Connection does not buy, sell, broker, or own puppies. Our role is to showcase breeders and help families connect with them."
+  ]
+ ],
+ [
+  "Who do I communicate with?",
+  [
+   "After making an inquiry, you'll communicate directly with the breeder regarding their puppies, breeding program, contracts, pricing, and availability."
+  ]
+ ],
+ [
+  "Who do I pay?",
+  [
+   "All payments are made directly to the breeder. Puppy Connection is not involved in financial transactions between buyers and breeders."
+  ]
+ ],
+ [
+  "Do you guarantee the puppies?",
+  [
+   "Each breeder provides their own health guarantees, contracts, and policies. Because every breeding program is unique, we encourage families to carefully review the breeder's documentation and ask questions before making a commitment."
+  ]
+ ],
+ [
+  "What can I learn on Puppy Connection?",
+  [
+   "Families can explore breed information, puppy-buying resources, training and nutrition information, and other resources designed to help them prepare for life with a dog."
+  ]
+ ],
+ [
+  "Can I learn about the breeder before contacting them?",
+  [
+   "Yes. Breeder profiles give families an opportunity to learn about a breeder's program, philosophy, dogs, health testing, available puppies, and other information the breeder chooses to share."
+  ]
+ ],
+ [
+  "Does Puppy Connection provide resources for breeders?",
+  [
+   "Yes. Puppy Connection is being developed to provide breeders with more than a place to list puppies, including educational, marketing, photography, business, and other resources designed to help breeders connect with families and grow their programs."
+  ]
+ ],
+ [
+  "Why use Puppy Connection instead of searching online?",
+  [
+   "We've designed Puppy Connection to be more than a collection of puppy listings. Families can explore breeders, learn about different breeds, and find resources to help them prepare for life with a puppy, all while getting to know the people behind the puppies.",
+   "Our goal isn't simply to help you find a puppy. It's to help you find the right breeder, make an informed decision, and build a connection that lasts beyond the day your puppy comes home."
+  ]
+ ]
+];
+
 export const INFO_PAGES = [
   {
     file: 'about.html', name: 'About',
@@ -52,11 +111,14 @@ export const INFO_PAGES = [
 <section class="band" style="padding-top:0"><div class="wrap split">
 <div class="prose">
 <p class="brand-line">Because they're more than just precious paws and puppy breath. They're family.</p>
-<p>We started Puppy Connection in 2013 with a simple belief: finding a puppy should be about more than a transaction. It should be the beginning of a lifelong connection. We wanted to create a place where families could discover wonderful puppies while helping small, family-owned breeders share the care, time, and love they pour into raising them.</p>
-<p>We look for breeders who genuinely love their dogs, prioritize health and temperament, and take pride in raising puppies that are well-prepared for loving homes. We value breeders who continually learn, work with their veterinarians, and give their puppies the care, socialization, and attention they need to become wonderful companions. Above all, we want to work with people who see their dogs as family and share our heart for connecting those puppies with families who will love them for a lifetime.</p>
-<p>Puppy Connection is based in northern Indiana and built on many years of experience in showing, breeding, grooming, photographing and studying dogs, including teaching courses in grooming, breeding, conformation and genetics.</p>
-<p>Today it is a directory. Small family breeders list their own puppies here, each with photos, a price, birth and go-home dates and what comes home with the puppy, and families contact the breeder directly. Every breeder is approved by Puppy Connection before their first puppy goes up.</p>
+<h2>Our story</h2>
+<p>Puppy Connection was built on the belief that dedicated breeders deserve more than a simple classified listing. That vision has grown beyond puppy listings into a resource designed to help families make informed decisions and help breeders build stronger connections with the people they serve.</p>
+<p>For years, we've had the privilege of getting to know breeders who pour their hearts into raising healthy, well-socialized puppies. We've also spoken with countless families who weren't just searching for a puppy. They were searching for confidence, transparency, and someone they could trust.</p>
+<p>As the dog world continues to evolve, we recognized an opportunity to better serve both breeders and puppy buyers.</p>
+<p>Today, Puppy Connection is a dedicated listing and connection service, as well as a growing resource for breeders and puppy buyers alike. Rather than acting as an intermediary in the purchasing process, we focus on giving breeders the tools to professionally present their programs while helping families find breeders whose values and goals align with their own.</p>
+<p>Every breeder featured on Puppy Connection operates independently, and every relationship begins directly between the breeder and the family.</p>
 <h2>What we ask of the breeders who list here</h2>
+<p>We look for breeders who genuinely love their dogs, prioritize health and temperament, and take pride in raising puppies that are well-prepared for loving homes. We value breeders who continually learn, work with their veterinarians, and give their puppies the care, socialization, and attention they need to become wonderful companions. Above all, we want to work with people who see their dogs as family and share our heart for connecting those puppies with families who will love them for a lifetime.</p>
 <ul class="includes" style="columns:1">
 <li>Health testing information where they have it</li>
 <li>Registration details</li>
@@ -73,10 +135,18 @@ export const INFO_PAGES = [
   },
   {
     file: 'how-it-works.html', name: 'How it works',
+    faq: HIW_FAQ,
     title: 'How Puppy Connection Works | Find a Puppy from a Family Breeder',
     desc: 'How to find a puppy on Puppy Connection: browse by breed or state, see each puppy and its breeder, and contact the breeder directly. How breeders list, too.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">How it works</p><h1>How Puppy Connection works</h1>
-<p class="lede">We make it easy to find the right puppy and connect with the right breeder. Here's how Puppy Connection works:</p></div></section>
+<p class="lede">Finding the right puppy begins with finding the right breeder.</p></div></section>
+<section class="band" style="padding-top:0"><div class="wrap"><div class="intro-block">
+<h2>Connecting breeders with loving families</h2>
+<p>Puppy Connection is a place where families can discover breeders, learn about breeds and puppy ownership, and connect directly with breeders they feel are a good fit.</p>
+<p>For breeders, Puppy Connection provides a place to showcase their breeding programs, share their puppies, and connect with families who are searching for their next companion.</p>
+<p>Puppy Connection does not sell or own puppies, and we don't act as a broker or intermediary between breeders and families. Instead, we provide the platform that brings them together. Breeders can share their programs and available puppies, while families can explore, learn, and connect directly with the breeder.</p>
+<p>Once a family connects with a breeder, the relationship continues directly between them.</p>
+</div></div></section>
 <section class="band" style="padding-top:0"><div class="wrap">
 <div class="sec-head"><div><p class="eyebrow">For families</p><h2>Simple steps. A lifetime of memories.</h2></div></div>
 <!-- Amber, 2026-10-28: her four steps as photo cards, with her photos, after the layout of a template she sent. -->
@@ -93,7 +163,12 @@ export const INFO_PAGES = [
 <p>Breeders create an account, fill in their profile and are approved by Puppy Connection. After that they add their litters and puppies with photos, and each puppy is $14.99 to list, paid once, with no commission on the sale.</p>
 <p>Every inquiry goes straight to the breeder, and the breeder portal shows how many families viewed and contacted each puppy.</p></div>
 <div style="align-self:center"><div class="btn-row"><a class="btn btn-primary" href="list-with-us.html">List your puppies</a></div></div>
-</div></section>`,
+</div></section>
+<section class="band" id="faq"><div class="wrap wrap-mid">
+<h2>Frequently asked questions</h2>
+<div class="prose qa faq-list">
+${HIW_FAQ.map(([q, a]) => `<h3>${q}</h3>\n${a.map((x) => `<p>${x}</p>`).join('\n')}`).join('\n')}
+</div></div></section>`,
   },
   {
     file: 'tips-on-buying-a-puppy.html', name: 'Tips on buying a puppy',
@@ -134,30 +209,53 @@ export const INFO_PAGES = [
     file: 'transportation.html', name: 'Transportation',
     photo: { n: 14, slot: 'aside' },
     title: 'Puppy Transportation and Delivery | Puppy Connection',
-    desc: 'Too far to pick up your puppy? Furry Freight, a pet transportation company in Pierceton, Indiana, delivers by road and air. Book with them directly.',
-    body: `<section class="band" style="padding-bottom:3.6rem"><div class="wrap wrap-mid split" style="align-items:center"><div><p class="eyebrow">Transportation</p><h1>Getting your puppy home</h1>
-<p class="lede">Most families pick their puppy up from the breeder. When the breeder is too far away, a pet transportation company can bring the puppy to you.</p></div><aside class="aside-still"></aside></div></section>
-<section class="band" style="padding-top:0" id="delivery"><div class="wrap wrap-mid">
+    desc: 'How to bring your new puppy home: pick it up from the breeder or use a pet transportation company such as Furry Freight, and what to ask before you book.',
+    body: `<section class="band" style="padding-bottom:3.6rem"><div class="wrap wrap-mid split" style="align-items:center"><div><p class="eyebrow">Transportation</p><h1>Bringing your puppy home</h1>
+<p class="lede">Every great journey begins with a safe trip home.</p>
+<p>One of the most exciting parts of welcoming a new puppy into your family is bringing them home. Whether you plan to travel to the breeder yourself or use professional puppy transportation, there are several ways to make the journey safe, comfortable, and as stress-free as possible for both you and your puppy.</p>
+<p>Puppy Connection is a breeder listing and connection service. Because the breeders on our site are independent businesses, transportation arrangements are made directly between the buyer, the breeder, and the transportation provider selected by the buyer.</p></div><aside class="aside-still"></aside></div></section>
+<section class="band" style="padding-top:0"><div class="wrap wrap-mid">
+<h2>Your transportation options</h2>
+<div class="split options-split">
+<div><h3>1. Pick up your puppy in person</h3>
+<p>Many families choose to travel to the breeder themselves. This gives you the opportunity to:</p>
+<ul class="includes" style="columns:1"><li>Meet your breeder in person</li><li>See where your puppy was raised</li><li>Ask questions before bringing your puppy home</li><li>Spend a little extra time with your breeder</li><li>Begin your puppy's journey home together</li></ul>
+<p>For families who are able to travel, picking up your puppy yourself can be a memorable part of the experience.</p></div>
+<div><h3>2. Professional puppy transportation</h3>
+<p>If traveling to the breeder isn't practical, professional pet transportation can be a convenient alternative.</p>
+<p>Pet transport providers specialize in moving pets safely between locations and may offer services such as door-to-door delivery, scheduled pickup and delivery, travel updates, and individualized care during the trip.</p>
+<p>Transportation services vary from company to company, so we encourage every family to research the provider they choose and ask questions about their transportation methods, experience, policies, and care procedures.</p></div>
+</div></div></section>
+<section class="band band-warm" id="delivery"><div class="wrap wrap-mid">
 <div class="partner">
 <img class="partner-logo" src="img/brand/furry-freight-logo.png" alt="Furry Freight Pet Transportation" width="420" height="331" loading="lazy" decoding="async">
 <div class="partner-copy">
-<h2>Delivery with Furry Freight</h2>
-<p>Furry Freight is a pet transportation company in Pierceton, Indiana. They run regular ground routes to the East Coast, the West Coast and the South, and when the timing calls for it they can fly a puppy with a chaperone or meet you at an airport.</p>
-<p>You book and pay for delivery with Furry Freight directly, not through Puppy Connection. Ask them for a quote before you put down a deposit, so the whole cost is in front of you when you decide.</p>
-<div class="btn-row"><a class="btn btn-primary" href="https://www.furryfreightdelivery.com/schedule-a-delivery" target="_blank" rel="noopener">Get a delivery quote</a><a class="btn btn-ghost" href="tel:+12605855209">(260) 585-5209</a></div>
-<p class="fine">Or email <a href="mailto:furryfreightpetdelivery@gmail.com">furryfreightpetdelivery@gmail.com</a>.</p>
+<h2>A transportation provider our families know: Furry Freight</h2>
+<p>When families ask us about professional puppy transportation, Furry Freight is one provider we are happy to share as an option.</p>
+<p>Furry Freight provides ground pet transportation throughout the United States, with a focus on keeping families informed and puppies comfortable throughout their journey. Families who choose Furry Freight appreciate services such as:</p>
+<ul class="includes"><li>Climate-controlled transportation</li><li>Experienced pet handlers</li><li>Regular communication and travel updates</li><li>Comfortable travel accommodations</li><li>Pickup and delivery coordination</li><li>Care throughout the journey</li></ul>
+<p>Puppy Connection does not require buyers to use Furry Freight, and transportation is arranged independently between the buyer, breeder, and transportation provider.</p>
+<p>For more information or to request a transportation quote:</p>
+<div class="btn-row"><a class="btn btn-primary" href="https://www.furryfreightdelivery.com/schedule-a-delivery" target="_blank" rel="noopener">Get a delivery quote</a><a class="btn btn-ghost" href="tel:+12605855209">Call or text (260) 585-5209</a></div>
+<p class="fine">Email <a href="mailto:furryfreightpetdelivery@gmail.com">furryfreightpetdelivery@gmail.com</a> or visit <a href="https://www.furryfreightdelivery.com/" target="_blank" rel="noopener">furryfreightdelivery.com</a>.</p>
 </div>
 </div>
 </div></section>
-<section class="band band-warm"><div class="wrap wrap-mid split">
-<div><p class="eyebrow">Before you ask for a quote</p><h2>What to have ready</h2>
-<ul class="includes" style="columns:1">
-<li>The go-home date you have agreed with the breeder</li>
-<li>The breeder's town, which you will find on the puppy's page</li>
-<li>Your own town, or the airport you would rather meet at</li>
-</ul>
-<p>Pickup and delivery are agreed between you, the breeder and Furry Freight, so check the date with the breeder before you book.</p></div>
-<div style="align-self:center"><div class="btn-row"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div></div>
+<section class="band"><div class="wrap wrap-mid split">
+<div><h2>Before you book your puppy's transportation</h2>
+<p>Before arranging transportation, we recommend asking the provider:</p>
+<ul class="includes" style="columns:1"><li>How will my puppy travel?</li><li>Will my puppy travel with other pets?</li><li>How will food, water, and bathroom breaks be handled?</li><li>Will I receive updates during the trip?</li><li>What happens if weather or travel conditions cause a delay?</li><li>What are the pickup and delivery procedures?</li><li>What is included in the transportation fee?</li><li>What happens if my puppy becomes ill or has an unexpected issue during travel?</li></ul>
+<p>It's also a good idea to confirm the pickup date, delivery location, estimated travel time, and any requirements directly with both your breeder and transportation provider before the trip begins.</p></div>
+<div><h2>Important information</h2>
+<p>Puppy Connection does not transport puppies, arrange transportation, schedule deliveries, collect transportation fees, or act as a transportation broker.</p>
+<p>Transportation is arranged solely between the buyer, the breeder, and the transportation provider selected by the buyer. Any transportation agreement, pricing, scheduling, or services are independent of Puppy Connection.</p></div>
+</div></section>
+<section class="band band-warm"><div class="wrap wrap-mid">
+<h2>Safe travels, happy arrivals</h2>
+<p>Whether you decide to drive to your breeder or work with a professional transporter, our hope is that your puppy arrives safely and begins a lifetime of wonderful memories with your family.</p>
+<p>We encourage every family to choose the transportation option that best fits their needs while prioritizing the health, comfort, and safety of their new puppy.</p>
+<p class="brand-line">Because they're more than just precious paws and puppy breath. They're family.</p>
+<div class="btn-row"><a class="btn btn-primary" href="puppies.html">See available puppies</a></div>
 </div></section>`,
   },
   {

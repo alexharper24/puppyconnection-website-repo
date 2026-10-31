@@ -926,3 +926,9 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 }
 /* Reviews: on a phone the three buttons stack at the width of the longest, text centered (Alex, 2026-10-31) */
 @media(max-width:940px){.head-row .head-actions{display:inline-grid;grid-template-columns:1fr;gap:.7rem}.head-row .head-actions .btn{justify-content:center;text-align:center}}
+/* Amber's content pages (2026-10-31) */
+.intro-block{max-width:46rem}
+.intro-block p{color:var(--ink-soft)}
+@media(min-width:900px){.steps.steps-4{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.options-split{margin-top:1.4rem}
+.faq-list{max-width:46rem}

@@ -238,7 +238,7 @@ export async function publishIfDue(env, { minAgeMs = 60000 } = {}) {
   const missing = publishMissing(env);
   if (missing) return { waiting, off: true, reason: missing };
   if (portalMode(env) === 'hook' && s.last_publish_at) {
-    const gap = Number(env.PUBLISH_HOOK_GAP_SECONDS ?? 180) * 1000;
+    const gap = Number(env.PUBLISH_HOOK_GAP_SECONDS ?? 120) * 1000;
     const since = Date.now() - Date.parse(s.last_publish_at);
     if (since < gap) return { waiting, wait: true, build_running: true, since_seconds: Math.floor(since / 1000) };
   }

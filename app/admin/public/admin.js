@@ -1100,7 +1100,7 @@
     reconcile: ['Checkout check', 'Every 15 minutes. Closes abandoned checkouts and publishes any paid listing that is not live.'],
     videos: ['Video check', 'Every 15 minutes. Finishes puppy videos once they are ready to play.'],
     photos: ['Photo check', 'Every 15 minutes. Checks new puppy photos that are still waiting for the quality check.'],
-    publish: ['Publish', 'Every 15 minutes. Updates the site once changes have waited a minute.', 'auto'],
+    publish: ['Publish', 'Every minute. Updates the site once the first change is 45 seconds old, with at least two minutes between builds.', 'auto'],
     build: ['Site build', 'Every 15 minutes. Checks that the last site build finished.', 'auto'],
     campaigns: ['Mailing list', 'Every 15 minutes. Sends the next batch of any email to the mailing list.'],
     alerts: ['Held alerts', 'Every 15 minutes. Sends alerts that were held back once their hour is up.', 'auto'],

@@ -1362,6 +1362,8 @@ ${withPhoto(pg).replaceAll('{{PORTAL}}', portal)}
   for (const f of ['index.html', 'puppies.html', 'list-with-us.html']) {
     let s = withNav(concept(f).split(CONCEPT_BASE).join(base));
     s = s.replace(/<meta name="robots"[^>]*>\n/, robots);
+    // The concept pages name the staging portal, so the build swaps in the real one (launch, 2026-10-31).
+    s = s.split('https://portal.puppyconnection.workers.dev').join(portal);
     s = s.replace(/<script src="data\/data\.js\?v=\d+"><\/script>\n?/, f === 'list-with-us.html' ? '' : `<script src="data/data.js?v=${dataV}"></script>\n`);
     s = s.replace(/js\/main\.js\?v=\d+/, `js/main.js?v=${mainV}`);
     if (f === 'puppies.html') s = s.replace(/(<script src="js\/main\.js\?v=\w+"><\/script>\n?)/, `$1<script src="js/search-count.js?v=${hash(SEARCH_JS)}"></script>\n`);

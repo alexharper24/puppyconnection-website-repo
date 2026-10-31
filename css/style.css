@@ -78,6 +78,11 @@ h1{font-size:clamp(2rem,4.6vw,3.4rem);letter-spacing:-.015em}
 h2{font-size:clamp(1.5rem,3vw,2.2rem)}
 h3{font-size:1.2rem}
 p{margin:0 0 1rem;max-width:70ch}
+/* Room between a heading and the text under it (Alex, 2026-10-31: paragraphs sat flush against headings site-wide).
+   Margins collapse, so a heading with its own bottom margin keeps the larger of the two. */
+:is(h1,h2,h3)+:is(p,ul,ol,.lede,.prose){margin-top:.85rem}
+h1+:is(p,.lede,.split){margin-top:1.1rem}
+.steps h3+p{margin-top:.6rem}
 
 .eyebrow{
   font-family:var(--cond);font-size:.82rem;letter-spacing:.18em;text-transform:uppercase;

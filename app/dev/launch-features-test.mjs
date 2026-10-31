@@ -458,7 +458,7 @@ async function reference() {
   check('A13 a breeder waiting for approval can correct the reference', r.status === 200 && r.data.reference.contact === '(317) 555-0123');
   const d = (await admin.get(`/api/breeders/${me.id}`)).data;
   check('A13 the admin sees the reference with the approval', d.reference && d.reference.name === 'Stacy Example' && d.reference.role_label === 'AKC representative' && d.reference.contact === '(317) 555-0123', JSON.stringify(d.reference));
-  check('A13 ... beside Approve on the approval screen', /referenceCard\(data\.reference\) : ''\) \+\s*'<div id="decide">/.test(fs.readFileSync(path.join(APP, 'admin/public/admin.js'), 'utf8')));
+  check('A13 ... beside Approve on the approval screen', /referenceCard\(data\.reference\) : ''\) \+\s*'<div id="decide"[^>]*>/.test(fs.readFileSync(path.join(APP, 'admin/public/admin.js'), 'utf8')));
   const exp = await (await fetch(`${PORTAL}/data/export.json`)).text();
   check('A13 the reference is never public', !exp.includes('Stacy Example') && !exp.includes('555-0123'));
   await admin.post(`/api/breeders/${me.id}/approve`, {});

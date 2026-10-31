@@ -46,7 +46,7 @@ export const INFO_PAGES = [
     file: 'about.html', name: 'About',
     title: 'About Puppy Connection | Family Dog Breeders in Indiana',
     desc: 'Puppy Connection is a directory of small family dog breeders, based in northern Indiana. See how it began and what we ask of the breeders who list here.',
-    photo: { n: 8, slot: 'aside' },
+    photo: { n: 8, slot: 'aside', phoneTop: true },
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">About</p><h1>About Puppy Connection</h1>
 <p class="lede">A directory of small family dog breeders, based in northern Indiana and growing across the Midwest. We serve families from South Bend, Fort Wayne, Indianapolis and Columbus to Chicago and Detroit.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">
@@ -99,7 +99,7 @@ export const INFO_PAGES = [
     file: 'tips-on-buying-a-puppy.html', name: 'Tips on buying a puppy',
     title: 'Tips on Buying a Puppy | Puppy Connection',
     desc: 'How to choose a reputable breeder, check health clearances and pick a well-socialized puppy, and how to get your home ready for its arrival.',
-    photo: { n: 4, slot: 'aside' },
+    photo: { n: 4, slot: 'aside', phoneTop: true },
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Tips</p><h1>Tips on buying a puppy</h1>
 <p class="lede">When buying a puppy, it's essential to make informed choices so it grows into a healthy, well-adjusted companion. These tips cover choosing a puppy and getting ready for its arrival.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split">

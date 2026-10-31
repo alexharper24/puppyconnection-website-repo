@@ -8,7 +8,8 @@ point is where the subject sits, as a fraction of the saved photo, so every slot
   python app/ops/breed_photos.py --preview  also write a contact sheet of every slot to the folder given by PREVIEW_DIR
 """
 import os, sys, json
-from PIL import Image, ImageOps
+import io
+from PIL import Image, ImageCms, ImageOps
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.abspath(os.path.join(HERE, '..', '..'))
@@ -52,6 +53,18 @@ BREEDER_PHOTOS = {
 OUT_B = os.path.join(REPO, 'img', 'breeders')
 
 
+def load(f):
+    """Open an original in sRGB. Most of the photographer's files are ProPhoto RGB and one is Display P3, and a
+    WebP written without converting them showed washed-out colour in every browser (Alex, 2026-10-30)."""
+    im = Image.open(os.path.join(SRC, f))
+    icc = im.info.get('icc_profile')
+    im = ImageOps.exif_transpose(im).convert('RGB')
+    if icc:
+        src = ImageCms.ImageCmsProfile(io.BytesIO(icc))
+        im = ImageCms.profileToProfile(im, src, ImageCms.createProfile('sRGB'), renderingIntent=0, outputMode='RGB')
+    return im
+
+
 def window(img, ratio, fx, fy):
     w, h = img.size
     if w / h > ratio:
@@ -65,7 +78,7 @@ def window(img, ratio, fx, fy):
 def main():
     table = {}
     for slug, (f, fx, fy, *crop) in PHOTOS.items():
-        im = ImageOps.exif_transpose(Image.open(os.path.join(SRC, f))).convert('RGB')
+        im = load(f)
         if crop:
             cx, cy, k = crop[0]
             cw, ch = round(im.width * k), round(im.height * k)
@@ -82,7 +95,7 @@ def main():
     print(json.dumps(table, indent=1))
     btable = {}
     for slug, (f, fx, fy) in BREEDER_PHOTOS.items():
-        im = ImageOps.exif_transpose(Image.open(os.path.join(SRC, f))).convert('RGB')
+        im = load(f)
         for width in (800, 1600):
             c = im.copy()
             if c.width > width:

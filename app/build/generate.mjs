@@ -1277,12 +1277,22 @@ ${listNone('breeders')}
     if (!pg.photo) return pg.body;
     const slot = PHOTO_SLOTS[pg.photo.slot];
     if (!slot) throw new Error(`generate.mjs: ${pg.file} names an unknown photo slot ${pg.photo.slot}`);
-    const fig = `<figure class="photo-fig ${slot.cls}">${photoImg(pg.photo.n, slot.sizes)}</figure>`;
+    // phoneTop: on a phone the side column falls to the end of the page, so the photo also sits under the
+    // opening paragraph there and the side copy is hidden (Amber, 2026-10-30, About and Tips).
+    const top = pg.photo.phoneTop;
+    const fig = `<figure class="photo-fig ${slot.cls}${top ? ' photo-wide-only' : ''}">${photoImg(pg.photo.n, slot.sizes, { lazy: !!top })}</figure>`;
     const mark = pg.photo.slot === 'aside' ? '<aside' : '<p class="lede">';
     const i = pg.body.indexOf(mark);
     if (i < 0) throw new Error(`generate.mjs: ${pg.file} has no ${mark} for its photo`);
     const at = pg.photo.slot === 'aside' ? pg.body.indexOf('>', i) + 1 : pg.body.indexOf('</p>', i) + '</p>'.length;
-    return pg.body.slice(0, at) + fig + pg.body.slice(at);
+    let body = pg.body.slice(0, at) + fig + pg.body.slice(at);
+    if (top) {
+      const l = body.indexOf('<p class="lede">');
+      if (l < 0) throw new Error(`generate.mjs: ${pg.file} has no opening paragraph for its phone photo`);
+      const e = body.indexOf('</p>', l) + '</p>'.length;
+      body = body.slice(0, e) + `<figure class="photo-fig photo-narrow photo-phone-only">${photoImg(pg.photo.n, '92vw', { lazy: true })}</figure>` + body.slice(e);
+    }
+    return body;
   };
   for (const pg of INFO_PAGES) {
     write(pg.file, { title: pg.title, desc: pg.desc, trail: [[pg.name, `${base}${pg.file}`]], current: pg.file,

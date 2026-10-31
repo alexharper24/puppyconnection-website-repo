@@ -898,3 +898,6 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
   .sec-tools{width:100%;justify-content:space-between}
   .list-search{width:100%}
 }
+/* About and Tips: the photo under the opening paragraph on a phone, in the side column above that (Amber, 2026-10-30) */
+.photo-phone-only{display:none}
+@media(max-width:940px){.photo-phone-only{display:block;margin-top:1.4rem}.photo-wide-only{display:none}}

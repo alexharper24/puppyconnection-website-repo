@@ -418,7 +418,13 @@ export function loadData(dataDir) {
     p.placed = p.availability === 'placed';
     p.mates = perLitter[p.litter] || 1;
   }
-  return { breeds, breeders, litters, puppies, breedBy, breederBy };
+  // Alex, 2026-10-31. An adopted puppy shows as Adopted while its litter still has a puppy to offer.
+  // Once every puppy of a litter is adopted the litter has nothing left, so its puppies leave every
+  // list, the search and the sitemap. Their pages stay at their addresses, marked noindex, so the
+  // Wix redirects, shared links and old search results still land rather than 404.
+  const open = new Set(puppies.filter((p) => p.availability !== 'placed').map((p) => p.litter));
+  for (const p of puppies) p.litterDone = p.placed && !open.has(p.litter);
+  return { breeds, breeders, litters, puppies: puppies.filter((p) => !p.litterDone), allPuppies: puppies, breedBy, breederBy };
 }
 
 const realBreeder = (b) => b && b.slug !== 'unassigned';
@@ -525,7 +531,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
 
   // ---- the listing data the home page and the puppy browser render with js/main.js
   const breedCounts = {};
-  for (const p of D.puppies) breedCounts[p.b.slug] = (breedCounts[p.b.slug] || 0) + 1;
+  for (const p of D.allPuppies) breedCounts[p.b.slug] = (breedCounts[p.b.slug] || 0) + 1;
   const leadOf = (list) => {
     const pool = list.some((x) => !x.placed && x.photos.length) ? list.filter((x) => !x.placed) : list;
     let best = null; let top = -1;
@@ -801,9 +807,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
 
   // ---- puppies
   const breedersShown = D.breeders.filter(realBreeder);
-  for (const p of D.puppies) {
+  for (const p of D.allPuppies) {
     const b = realBreeder(p.br) ? p.br : null;
-    const mates = D.puppies.filter((x) => x.litter === p.litter && x.slug !== p.slug).sort(byStanding);
+    const mates = D.allPuppies.filter((x) => x.litter === p.litter && x.slug !== p.slug).sort(byStanding);
     const facts = [['Breed', p.b.name], ['Sex', p.sex ? p.sex[0].toUpperCase() + p.sex.slice(1) : null], ['Color', p.color], ['Coat type', p.coat],
       ['Born', longDate(p.l.born_on)], ['Ready to go home', longDate(p.l.ready_on)], ['Deposit', p.deposit ? money(p.deposit) : null],
       ['Mother', parentFact(p.l.mom, p.l.mom_weight_lb)], ['Father', parentFact(p.l.dad, p.l.dad_weight_lb)],
@@ -879,7 +885,7 @@ ${mates.length ? `<section class="band band-warm">
     const who = b ? ` from ${b.name}${place(b) ? ` in ${place(b)}` : ''}` : '';
     const when = p.placed ? 'Adopted.' : p.l.ready_on ? `Ready to go home ${longDate(p.l.ready_on)}.` : 'Available now.';
     write(pageFor.puppy(p.slug), {
-      noindex: p.placed && !!p.unlist_after && Date.parse(p.unlist_after) <= now,
+      noindex: p.litterDone || (p.placed && !!p.unlist_after && Date.parse(p.unlist_after) <= now),
       // SEO plan P11. "for sale" only while the puppy is, since an adopted puppy's page stays up.
       title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
       desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 155),
@@ -1174,6 +1180,8 @@ ${others.length ? `<section class="band">
   pageFor.stateBreeders = (s) => `dog-breeders-in-${stateSlug(s)}.html`;
   const stateOf = (b) => (realBreeder(b) ? stateName(b.state) : null);
   const statesListed = [...new Set(D.puppies.map((p) => stateOf(p.br)).filter(Boolean))].sort();
+  // A state whose puppies are all in fully adopted litters keeps its two pages, noindex and unlinked, so the addresses still answer.
+  const statePages = [...new Set(D.allPuppies.map((p) => stateOf(p.br)).filter(Boolean))].sort();
   // What the listings in a state say about deposits and what comes home with a puppy, the same
   // figures the breed guides carry, so a state page says something a family can use.
   const stateFacts = (list) => {
@@ -1183,7 +1191,7 @@ ${others.length ? `<section class="band">
     return [dep ? `<p>Breeders here who take a deposit ask ${dep} to hold a puppy, and the deposit is paid to the breeder, never to Puppy Connection.</p>` : '',
       inc.length && list.length ? `<p>${esc(includesLine(list.length, inc))}</p>` : ''].join('');
   };
-  for (const S of statesListed) {
+  for (const S of statePages) {
     const pups = D.puppies.filter((p) => stateOf(p.br) === S).sort(byStanding);
     const open = pups.filter((p) => !p.placed);
     const shown = open.length ? open : pups;
@@ -1214,6 +1222,7 @@ ${others.length ? `<section class="band">
 </section>
 </main>`;
     write(pageFor.statePuppies(S), {
+      noindex: !pups.length,
       title: `Puppies for Sale in ${S} | Puppy Connection`,
       desc: clip(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from small family breeders in ${S}${price ? `, priced ${price}` : ''}. See each puppy and contact its breeder directly.`, 155),
       body: pupBody, trail: [['Available puppies', `${base}puppies.html`], [`Puppies in ${S}`, `${base}${pageFor.statePuppies(S)}`]],
@@ -1244,6 +1253,7 @@ ${others.length ? `<section class="band">
 </section>
 </main>`;
     write(pageFor.stateBreeders(S), {
+      noindex: !pups.length,
       title: `Dog Breeders in ${S} | Puppy Connection`,
       desc: clip(`The small family dog breeders in ${S} who list puppies on Puppy Connection. See each breeder's puppies and contact them directly.`, 155),
       body: brBody, trail: [['Breeders', `${base}breeders.html`], [`Breeders in ${S}`, `${base}${pageFor.stateBreeders(S)}`]],
@@ -1378,7 +1388,7 @@ ${withPhoto(pg)}
   };
   fs.writeFileSync(path.join(out, 'sitemap.xml'), `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n${urls.map(urlEntry).join('\n')}\n</urlset>\n`);
   fs.writeFileSync(path.join(out, 'robots.txt'), indexable ? `User-agent: *\nAllow: /\n\nSitemap: ${base}sitemap.xml\n` : 'User-agent: *\nDisallow: /\n');
-  const redirects = D.puppies.filter((p) => p.legacy_slug).map((p) => `/product-page/${p.legacy_slug} /${pageFor.puppy(p.slug)} 301`).sort();
+  const redirects = D.allPuppies.filter((p) => p.legacy_slug).map((p) => `/product-page/${p.legacy_slug} /${pageFor.puppy(p.slug)} 301`).sort();
   // The old Wix pages other than puppies (build/legacy-pages.tsv), after the per-puppy lines so a
   // specific puppy wins over the /product-page/* fallback. A breed page is only built while the
   // breed has listings, so a target this build did not write falls back to the breeds index rather
@@ -1406,7 +1416,7 @@ ${withPhoto(pg)}
   // breeders' dashes taken out and strictCopy set, and runs every check.
   if (!strictCopy) fs.writeFileSync(path.join(out, '.sitecheck.json'), `${JSON.stringify({ ignore_checks: ['dashes'] }, null, 2)}\n`);
 
-  return { pages: pages.length, puppies: D.puppies.length, breeds: listedBreeds.length, breeders: breedersShown.length, states: statesListed.length, guides: GUIDES.length, redirects: redirects.length };
+  return { pages: pages.length, puppies: D.allPuppies.length, finished: D.allPuppies.length - D.puppies.length, breeds: listedBreeds.length, breeders: breedersShown.length, states: statesListed.length, guides: GUIDES.length, redirects: redirects.length };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -1418,5 +1428,5 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     portal: arg('portal', process.env.PORTAL_ORIGIN || 'https://portal.puppyconnection.workers.dev'),
     indexable: process.argv.includes('--indexable') || process.env.SITE_INDEXABLE === '1',
   });
-  console.log(`generated ${r.pages} pages: ${r.puppies} puppies, ${r.breeds} breeds, ${r.breeders} breeders, ${r.redirects} Wix redirects`);
+  console.log(`generated ${r.pages} pages: ${r.puppies} puppies (${r.finished} in fully adopted litters, unlisted), ${r.breeds} breeds, ${r.breeders} breeders, ${r.redirects} Wix redirects`);
 }

@@ -23,7 +23,7 @@
 // second photo on Tips (her choices). 10, 11 and 14 had their watermark removed by Alex, and 15 is
 // cropped clear of its watermark.
 const PHOTO_SIZE = { 1: [1600, 1066], 2: [1600, 1066], 3: [1600, 1066], 4: [1600, 1067], 5: [1600, 1329], 6: [1600, 1066], 8: [1600, 1067], 9: [1600, 1066],
-  10: [1448, 1086], 11: [1448, 1086], 12: [1600, 1067], 13: [1600, 851], 14: [1448, 1086], 15: [1600, 1199] };
+  10: [1448, 1086], 11: [1448, 1086], 12: [1600, 1067], 13: [1600, 851], 14: [1448, 1086], 15: [1600, 1199], 16: [1600, 1067] };
 export const PHOTO_ALT = 'Puppy Connection breeders with their puppies';
 // The img for photo n, with its 800 and 1600 copies. wh false leaves out width and height, for a
 // slot whose CSS sets the shape, such as the breed page's main picture.

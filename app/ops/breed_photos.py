@@ -36,7 +36,7 @@ PHOTOS = {
     'cocker-spaniel': ('ChatGPT Image Oct 30, 2026, 05_06_49 PM-4.png', .55, .50),
     'english-bulldog': ('ChatGPT Image Oct 30, 2026, 05_06_48 PM-3.png', .53, .55),
     'bernese-mountain-dog': ('1_1.jpg', .52, .45),
-    'boston-terrier': ('brian1.JPG', .50, .38),  # Amber's new photo, 2026-10-31
+    'boston-terrier': ('brian1.JPG', .50, .46),  # Amber's new photo, 2026-10-31; focus on his head so the wide card keeps his ears
     'golden-retriever': ('ruthie-6.jpg', .50, .50),  # Amber's new photo, 2026-10-31
     'papillon': ('10.jpg', .55, .50, (.62, .47, .85)),
     'miniature-schnauzer': ('popper1.jpg', .50, .36),  # Amber's new photo, 2026-10-31

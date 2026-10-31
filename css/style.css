@@ -608,6 +608,18 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
   .d-media{margin-top:1.2rem}
   .d-detail{margin-top:1.8rem}
 }
+@media(max-width:940px){
+  /* Alex, 2026-10-31: on a phone the breeder's contact comes before the parents, health and documents.
+     The photo column opens up so its parts can sit either side of the facts and the breeder box. */
+  .detail-grid{display:flex;flex-direction:column}
+  .d-title{order:1}
+  .d-media{display:contents}
+  .d-media > *{order:2}
+  .d-media > .gallery-main{margin-top:1.2rem}
+  .d-detail{order:3}
+  .d-media > .puppy-parents,.d-media > .puppy-health,.d-media > .puppy-docs{order:4}
+  .d-notes{order:5}
+}
 
 /* ---------- browse filter bar on a phone ---------- */
 @media(max-width:760px){

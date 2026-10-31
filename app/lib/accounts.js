@@ -320,18 +320,21 @@ export async function checkNewPerson(env, breeder, email) {
 }
 
 /**
- * Statements that add a person. actor is [actor_type, actor] for the audit row. A person who already
- * signs in to another kennel is added awaiting their confirmation (A27), so the kennel opens for
- * them only once they use the invitation with their current password or authenticator code.
+ * Statements that add a person. actor is [actor_type, actor] for the audit row. When a breeder adds
+ * someone who already has a password (A27), the kennel waits for their confirmation and opens only
+ * once they use the invitation with that password or their authenticator code. Alex, 2026-10-31:
+ * a kennel Puppy Connection adds (immediate) opens at once and the person gets a notice, and a
+ * person with no password yet is never held back, because the one password they choose covers
+ * every kennel they are on.
  */
-export function addPersonStmts(env, breederId, email, name, addedBy, actor) {
+export function addPersonStmts(env, breederId, email, name, addedBy, actor, { immediate = false } = {}) {
   const id = ulid();
   const e = String(email).toLowerCase();
   return { id, stmts: [
     env.DB.prepare(
       `INSERT INTO breeder_members (id, breeder_id, email, name, added_by, added_at, awaiting_accept)
-       VALUES (?, ?, ?, ?, ?, ?, CASE WHEN ${STILL_ON} THEN 1 ELSE 0 END)`,
-    ).bind(id, breederId, e, clean(name, 120), addedBy, now(), e, e),
+       VALUES (?, ?, ?, ?, ?, ?, CASE WHEN ? = 0 AND EXISTS (SELECT 1 FROM credentials WHERE email = ? AND password_hash IS NOT NULL) THEN 1 ELSE 0 END)`,
+    ).bind(id, breederId, e, clean(name, 120), addedBy, now(), immediate ? 1 : 0, e),
     auditStmt(env, actor[0], actor[1], 'member.add', 'breeder', breederId, null, { member: id, email: e }),
   ] };
 }
@@ -460,18 +463,29 @@ export async function peekAuthToken(env, token, purposes) {
  * already has a password (A27) gets the kennel_added email, and the link asks for that password, or
  * their authenticator code, instead of setting a new one. Either email names the kennel.
  */
-export async function sendInvitation(env, { breeder, email, by, actor, portalOrigin, template = 'invitation' }) {
+export async function sendInvitation(env, { breeder, email, by, actor, portalOrigin, template = 'invitation', added = null }) {
   const e = String(email).toLowerCase();
-  // Alex, 2026-10-31. An address invited to two kennels before it had a password got two "choose your password"
-  // emails and took them for two accounts. Each email now names the other kennels and says one password covers them.
-  const others = await otherKennelNames(env, e, breeder.id);
-  const { token, stmts } = await newAuthToken(env, { purpose: 'invite', email: e, breederId: breeder.id, createdBy: by, minutes: INVITE_DAYS * 24 * 60 });
+  const business = breeder.business_name || 'a kennel';
+  // added names every kennel given in this one step (Alex, 2026-10-31), so one email covers them all.
+  const kennels = added && added.length ? added : [business];
   const cred = await credentialFor(env, e);
   const existing = !!(cred && cred.password_hash);
-  stmts.push(auditStmt(env, actor[0], actor[1], 'member.invite', 'breeder', breeder.id, null, existing ? { email: e, existing_signin: true } : { email: e }));
+  const on = await onKennel(env, e, breeder.id, { awaiting: true });
+  if (existing && on && !on.awaiting) {
+    // Alex, 2026-10-31. Someone who already has a password and is on the kennel needs no link, only a
+    // notice that the kennel is under their sign-in.
+    await env.DB.batch([auditStmt(env, actor[0], actor[1], 'member.notify', 'breeder', breeder.id, null, { email: e, kennels })]);
+    await sendMail(env, e, 'kennel_access', { business, kennels, by, link: `${portalOrigin}/` });
+    return { ok: true, existing, notified: true };
+  }
+  // Alex, 2026-10-31. An address invited to two kennels before it had a password got two "choose your password"
+  // emails and took them for two accounts. Each email now names the other kennels and says one password covers them.
+  const others = (await otherKennelNames(env, e, breeder.id)).filter((n) => !kennels.includes(n));
+  const { token, stmts } = await newAuthToken(env, { purpose: 'invite', email: e, breederId: breeder.id, createdBy: by, minutes: INVITE_DAYS * 24 * 60 });
+  stmts.push(auditStmt(env, actor[0], actor[1], 'member.invite', 'breeder', breeder.id, null, existing ? { email: e, existing_signin: true } : { email: e, kennels }));
   await env.DB.batch(stmts);
   const link = `${portalOrigin}/auth/set-password?t=${encodeURIComponent(token)}`;
-  await sendMail(env, e, existing ? 'kennel_added' : template, { business: breeder.business_name || 'a kennel', by, link, days: INVITE_DAYS, others });
+  await sendMail(env, e, existing ? 'kennel_added' : template, { business, kennels, by, link, days: INVITE_DAYS, others });
   return { ok: true, existing };
 }
 

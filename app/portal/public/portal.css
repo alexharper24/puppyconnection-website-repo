@@ -432,6 +432,13 @@ table.list .row-acts { margin-top: .4rem; }
 .member-form { display: grid; grid-template-columns: 1fr 1.4fr auto; gap: .75rem; align-items: end; }
 .member-form .field { margin: 0; }
 @media (max-width: 640px) { .member-form { grid-template-columns: 1fr; } }
+/* Alex, 2026-10-31. Give one person more kennels in the same step, under Add a person. */
+.member-form .also-kennels { grid-column: 1 / -1; order: 1; }
+.also-kennels summary { cursor: pointer; min-height: var(--tap); display: flex; align-items: center; font-weight: 600; }
+.also-list { max-height: 18rem; overflow-y: auto; border: 1px solid var(--line); border-radius: var(--radius); padding: .5rem .75rem; margin-top: .5rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr)); gap: .1rem 1rem; background: var(--surface); }
+.also-list .check { min-height: 36px; align-items: center; }
+.also-list .check[hidden] { display: none; }
+
 
 /* Admin: photos managed for a breeder, the sign-ins form and the mailing address (2026-10-11). */
 .admin-photos { list-style: none; padding: 0; margin: 0 0 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: .8rem; }

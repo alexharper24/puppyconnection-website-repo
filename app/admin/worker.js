@@ -19,7 +19,7 @@ import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
 import {
   kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, sendInvitation, resetAuthenticatorStmts,
-  accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES, checkMakeMain,
+  accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES, checkMakeMain, onKennel,
 } from '../lib/accounts.js';
 import { checkLitterParents, parentsFor, documentsFor } from '../lib/parents.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
@@ -307,14 +307,31 @@ function needPortal(env) {
   return env.PORTAL_ORIGIN;
 }
 
-/** Add a person to a kennel, with the portal's limits, and send them an invitation unless asked not to. */
+/**
+ * Add a person to a kennel, with the portal's limits, and send them an invitation unless asked not to.
+ * Alex, 2026-10-31: `also` names more kennels to give the same person in the same step, such as the
+ * Responsible Dog Breeder Network's kennels, and one email covers every kennel added. A kennel added
+ * here opens at once, so someone who already has a password gets a notice rather than a link to confirm.
+ */
 async function addPersonAdmin(req, env, ctx, id, who) {
   requireSameOrigin(req);
   const b = await breederOr404(env, id);
   const body = await readJson(req);
   const email = await checkNewPerson(env, b, body.email);
-  await env.DB.batch(addPersonStmts(env, b.id, email, body.name, who.email, opActor(who)).stmts);
-  if (body.invite !== false) await sendInvitation(env, { breeder: b, email, by: 'Puppy Connection', actor: opActor(who), portalOrigin: needPortal(env) });
+  const kennels = [b];
+  const also = [...new Set((Array.isArray(body.also) ? body.also : []).map(String))].filter((x) => x !== b.id);
+  if (also.length > 60) throw bad('Choose at most 60 kennels at once.');
+  for (const oid of also) {
+    const o = await breederOr404(env, oid);
+    if (await onKennel(env, email, o.id, { awaiting: true })) continue;
+    try { await checkNewPerson(env, o, email); } catch (e) { throw bad(`${o.business_name || o.email}: ${e.message}`); }
+    kennels.push(o);
+  }
+  await env.DB.batch(kennels.flatMap((k) => addPersonStmts(env, k.id, email, body.name, who.email, opActor(who), { immediate: true }).stmts));
+  if (body.invite !== false) {
+    await sendInvitation(env, { breeder: b, email, by: 'Puppy Connection', actor: opActor(who), portalOrigin: needPortal(env),
+      added: kennels.map((k) => k.business_name || 'a kennel') });
+  }
   return breederDetail(req, env, ctx, id);
 }
 
@@ -1023,7 +1040,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=23"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=24"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }

@@ -530,8 +530,8 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
 /* A photo the reviewer posted with their own Google review, at the top of their card (Alex, 2026-10-31) */
 .review.has-photo{padding-top:0}
 .review-photo{display:block;width:calc(100% + 2.8rem);max-width:none;margin:0 -1.4rem;aspect-ratio:4/3;height:auto;object-fit:cover}
-/* A very tall phone photo keeps a portrait shape, or the wide crop shows only its face */
-.review-photo.tall{aspect-ratio:3/4}
+/* A very tall phone photo is cropped square, or the wide crop shows only its face (Alex, 2026-10-31) */
+.review-photo.tall{aspect-ratio:1/1}
 .review blockquote{margin:0}
 .review blockquote p{margin:0;font-size:.98rem;line-height:1.6}
 .review figcaption{margin-top:auto;font-family:var(--cond);font-size:.82rem;letter-spacing:.12em;text-transform:uppercase;color:var(--olive)}

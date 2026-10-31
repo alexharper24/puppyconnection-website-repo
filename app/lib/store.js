@@ -336,7 +336,7 @@ export function puppyFields(body, registries) {
   const url = httpsLink(body.breeder_url, 'The link to your site');
   const registry = clean(body.registry, 40);
   if (registry && registries && !registries.includes(registry)) throw bad(`Registration is one of ${registries.join(', ')}.`);
-  const includes = Array.isArray(body.includes) ? body.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 15) : [];
+  const includes = Array.isArray(body.includes) ? body.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 40) : [];
   return {
     name, sex, color: clean(body.color, 60), coat: clean(body.coat, 40), price_cents: cents(body.price), deposit_cents: cents(body.deposit),
     description: clean(body.description, 4000), breeder_url: url, includes_json: JSON.stringify(includes), availability,

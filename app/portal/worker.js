@@ -345,7 +345,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=26"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=28"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
@@ -1483,7 +1483,7 @@ async function uploadPhoto(request, env, ctx, puppyId) {
   const puppy = await owned(env, 'puppy', puppyId, breeder.id);
   if (puppy.publication_state === 'archived') throw bad('That puppy has been removed.');
   const s = await settings(env);
-  const count = (await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(position), -1) AS last FROM photos WHERE puppy_id = ?').bind(puppyId).first());
+  const count = (await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(MIN(position), 1) - 1 AS first FROM photos WHERE puppy_id = ?').bind(puppyId).first());
   if (count.n >= s.maxPhotos) throw bad(`A puppy can have up to ${s.maxPhotos} photos.`);
   const raw = new Uint8Array(await request.arrayBuffer());
   const img = cleanImage(raw);
@@ -1499,7 +1499,7 @@ async function uploadPhoto(request, env, ctx, puppyId) {
     env.DB.prepare(
       `INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, width, height, created_at, quality)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, img.size ? img.size.w : null, img.size ? img.size.h : null, now(), quality),
+    ).bind(id, breeder.id, puppyId, key, img.type, img.bytes.length, count.first, aspect, img.size ? img.size.w : null, img.size ? img.size.h : null, now(), quality),
     auditStmt(env, ...who(breeder), 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, stripped: raw.length - img.bytes.length }),
   ];
   // Workplan A12. With the check off a new photo counts at once. Otherwise it counts when it passes

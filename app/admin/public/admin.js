@@ -78,7 +78,12 @@
     cols.appendChild(main); cols.appendChild(side); body.appendChild(cols);
   }
   function openDrawer(title, html, ready) {
-    closeDrawer(); lastFocus = document.activeElement;
+    // Alex, 2026-10-31. A panel that redraws itself after a change (a photo moved, a note added)
+    // keeps its scroll place, skips the slide-in and leaves the focus alone, so nothing jumps.
+    var old = $('#drawer'), again = !!old && old.getAttribute('aria-label') === title;
+    var keepTop = again ? $('.drawer-body', old).scrollTop : 0, keepFocus = lastFocus;
+    if (again) lastFocus = null;
+    closeDrawer(); lastFocus = again ? keepFocus : document.activeElement;
     var s = document.createElement('div'); s.className = 'scrim'; s.id = 'scrim';
     var d = document.createElement('aside'); d.className = 'drawer'; d.id = 'drawer';
     d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', title);
@@ -86,8 +91,10 @@
     if (html.indexOf(SPLIT) >= 0 || html.indexOf(WIDE) >= 0) { d.classList.add('wide'); splitColumns($('.drawer-body', d)); }
     document.body.appendChild(s); document.body.appendChild(d);
     s.addEventListener('click', closeDrawer); $('[data-close]', d).addEventListener('click', closeDrawer);
-    var f = $('button:not([data-close]), input, textarea, select', d); if (f) f.focus();
+    if (again) { d.classList.add('no-anim'); $('.drawer-body', d).scrollTop = keepTop; }
+    else { var f = $('button:not([data-close]), input, textarea, select', d); if (f) f.focus(); }
     if (ready) ready(d);
+    if (again) $('.drawer-body', d).scrollTop = keepTop;
   }
   function closeDrawer() {
     var d = $('#drawer'), s = $('#scrim'); if (d) d.remove(); if (s) s.remove();

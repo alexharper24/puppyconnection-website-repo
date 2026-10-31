@@ -1040,7 +1040,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=26"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=28"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
@@ -1341,7 +1341,7 @@ async function adminUploadPhoto(req, env, ctx, puppyId, who) {
   if (!p) throw notFound();
   if (p.publication_state === 'archived') throw bad('The breeder removed that puppy.');
   const s = await settings(env);
-  const count = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(MAX(position), -1) AS last FROM photos WHERE puppy_id = ?').bind(puppyId).first();
+  const count = await env.DB.prepare('SELECT COUNT(*) AS n, COALESCE(MIN(position), 1) - 1 AS first FROM photos WHERE puppy_id = ?').bind(puppyId).first();
   if (count.n >= s.maxPhotos) throw bad(`A puppy can have up to ${s.maxPhotos} photos.`);
   const raw = new Uint8Array(await req.arrayBuffer());
   const img = cleanImage(raw);
@@ -1352,7 +1352,7 @@ async function adminUploadPhoto(req, env, ctx, puppyId, who) {
   const aspect = img.size && img.size.h ? Math.round((img.size.w / img.size.h) * 1000) / 1000 : null;
   const stmts = [
     env.DB.prepare(`INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, p.breeder_id, puppyId, key, img.type, img.bytes.length, count.last + 1, aspect, now()),
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, p.breeder_id, puppyId, key, img.type, img.bytes.length, count.first, aspect, now()),
     auditStmt(env, 'operator', who.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, breeder_id: p.breeder_id }),
   ];
   if (await isPublicPuppy(env, puppyId)) stmts.push(dirtyStmt(env));

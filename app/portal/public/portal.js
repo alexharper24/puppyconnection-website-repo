@@ -173,8 +173,13 @@
     cols.appendChild(main); cols.appendChild(side); body.appendChild(cols);
   }
   function openDrawer(title, bodyHtml, onReady) {
+    // Alex, 2026-10-31. A panel that redraws itself after a change (a photo moved, a note added)
+    // keeps its scroll place, skips the slide-in and leaves the focus alone, so nothing jumps.
+    var old = $('#drawer'), again = !!old && old.getAttribute('aria-label') === title;
+    var keepTop = again ? $('.drawer-body', old).scrollTop : 0, keepFocus = lastFocus;
+    if (again) lastFocus = null;
     closeDrawer();
-    lastFocus = document.activeElement;
+    lastFocus = again ? keepFocus : document.activeElement;
     var scrim = document.createElement('div'); scrim.className = 'scrim'; scrim.id = 'scrim';
     var d = document.createElement('aside'); d.className = 'drawer'; d.id = 'drawer';
     d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-label', title);
@@ -184,9 +189,10 @@
     document.body.appendChild(scrim); document.body.appendChild(d);
     scrim.addEventListener('click', closeDrawer);
     $('[data-close]', d).addEventListener('click', closeDrawer);
-    var first = $('input, select, textarea, button:not([data-close])', d);
-    if (first) first.focus();
+    if (again) { d.classList.add('no-anim'); $('.drawer-body', d).scrollTop = keepTop; }
+    else { var first = $('input, select, textarea, button:not([data-close])', d); if (first) first.focus(); }
     if (onReady) onReady(d);
+    if (again) $('.drawer-body', d).scrollTop = keepTop;
   }
   function closeDrawer() {
     var d = $('#drawer'), s = $('#scrim');
@@ -371,6 +377,10 @@
   });
 
   function shell(inner, narrow) {
+    // The same screen drawn again after a save keeps the page where it was (Alex, 2026-10-31).
+    var keepY = shell.lastRoute === state.route ? window.scrollY : 0;
+    shell.lastRoute = state.route;
+    if (keepY) requestAnimationFrame(function () { window.scrollTo(0, keepY); });
     document.body.className = '';
     var me = state.me;
     var route = state.route.split('?')[0];
@@ -763,6 +773,14 @@
     var needs = (x.needs && x.needs.length) ? 'Before it can be paid for, it needs ' + x.needs.join(' and ') + '.' : x.pay_block;
     return { tone: '', text: needs };
   }
+  /* Alex, 2026-10-31. The next step for a saved puppy that can be listed, at the foot of its form. */
+  function payNext(x) {
+    var s = standing(x), fee = money((state.listings && state.listings.fee_cents) || 0);
+    if (!s.pay && !s.renew) return '';
+    return '<div class="pay-next"><p><b>' + esc(x.name) + (s.renew ? ' can be renewed.' : ' is ready to list.') + '</b> ' +
+      (s.renew ? 'Renew to keep the listing on the site.' : 'Pay now, or add the rest of the litter first and pay for them together.') + '</p>' +
+      '<a class="btn btn-gold" data-pay-next href="#/pay?p=' + esc(x.id) + '">' + (s.renew ? 'Renew ' : 'Pay to list ') + esc(x.name) + (fee ? ', ' + esc(fee) : '') + '</a></div>';
+  }
   function standingLine(x) {
     var s = standing(x);
     // The Listed pill already says it all for a plain listing, so the line is left out.
@@ -939,11 +957,65 @@
       opts.map(function (c) { return '<option' + (c === value ? ' selected' : '') + '>' + esc(c) + '</option>'; }).join('') + '</select></div>';
   }
 
+  /* Alex, 2026-10-31. One page for a new puppy, mom or dad: the photo and document sections sit
+     beside the fields from the start. Choosing a file on a record that is not saved yet saves it
+     first, then the drawer reopens as the saved record and the same file goes up through the
+     normal upload, so there is no second step to find. */
+  var pendingUpload = null;
+  function saveFirstUploads(d, form) {
+    $$('.d-side input[type=file], .new-uploads input[type=file]', d).forEach(function (input) {
+      input.addEventListener('change', function () {
+        var files = Array.prototype.slice.call(input.files || []);
+        if (!files.length) return;
+        var own = input.closest('form'), fields = {};
+        if (own && own !== form) $$('select, input[type=text], input[type=radio]:checked', own).forEach(function (el) { if (el.name) fields[el.name] = el.value; });
+        pendingUpload = { sel: '#' + input.id, files: files, fields: fields };
+        if (form.requestSubmit) form.requestSubmit(); else form.dispatchEvent(new Event('submit', { cancelable: true }));
+      });
+    });
+  }
+  function carryUpload(d) {
+    var p = pendingUpload; pendingUpload = null;
+    if (!p) return;
+    var input = $(p.sel, d);
+    if (!input) return;
+    var own = input.closest('form');
+    if (own) Object.keys(p.fields).forEach(function (k) {
+      $$('[name="' + k + '"]', own).forEach(function (el) { if (el.type === 'radio') el.checked = el.value === p.fields[k]; else el.value = p.fields[k]; });
+    });
+    try {
+      var dt = new DataTransfer(); p.files.forEach(function (f) { dt.items.add(f); });
+      input.files = dt.files;
+      input.dispatchEvent(new Event('change'));
+    } catch (e) { toast('Saved. Choose the file again to upload it.'); }
+  }
+  var NEW_UPLOAD_NOTE = '<p class="hint new-upload-note">Choosing a photo or document saves what you have entered first.</p>';
+
+  /* Alex, 2026-10-31, after the Wix listing form: what a puppy comes with, ticked from a list rather
+     than typed line by line, with a box for anything else. Saved as the same list as before. */
+  var INCLUDE_GROUPS = [
+    ['Health', ['Veterinary exam', 'Health certificate', 'Health guarantee', 'Current vaccinations', 'Dewormed', 'Microchipped', 'Parents health tested', 'Genetic (DNA) testing']],
+    ['Registration and lines', ['Registered', 'Registrable', 'Pedigree', 'Champion bloodline', 'Champion sired', 'Show quality']],
+    ['Goes home with', ['Puppy starter kit', 'Food sample', 'Blanket or toy with the litter scent', 'Crate training started', 'Potty training started', 'Raised with children', 'Raised with other pets']],
+    ['Pickup and delivery', ['Available for on-site pickup', 'Available for local delivery', 'Available for shipping']],
+  ];
+  function includesField(list, dis) {
+    var known = {}, picked = {};
+    INCLUDE_GROUPS.forEach(function (g) { g[1].forEach(function (o) { known[o.toLowerCase()] = o; }); });
+    var other = [];
+    (list || []).forEach(function (v) { var k = known[String(v).toLowerCase()]; if (k) picked[k] = true; else other.push(v); });
+    return '<fieldset class="field includes-field"><legend>Comes with</legend><div class="includes-groups">' + INCLUDE_GROUPS.map(function (g) {
+      return '<div class="includes-group"><p class="includes-title">' + esc(g[0]) + '</p>' + g[1].map(function (o) {
+        return '<label class="check"><input type="checkbox" name="inc" value="' + esc(o) + '"' + (picked[o] ? ' checked' : '') + dis + '><span>' + esc(o) + '</span></label>';
+      }).join('') + '</div>';
+    }).join('') + '</div>' +
+      '<div class="field" style="margin:.6rem 0 0"><label for="p-inc">Anything else</label><textarea id="p-inc" name="includes" style="min-height:60px"' + dis + '>' + esc(other.join('\n')) + '</textarea><div class="hint">One item per line.</div></div></fieldset>';
+  }
+
   function puppyDrawer(x, litterId) {
     var canEdit = state.me.status === 'approved';
     var dis = canEdit ? '' : ' disabled';
     var br = breedOfLitter(x ? x.litter_id : litterId);
-    var inc = x ? x.includes.join('\n') : '';
     function seg(val) {
       return '<div class="seg" role="group" aria-label="Status">' + [['available', 'Available'], ['pending', 'Pending'], ['placed', 'Placed']].map(function (o) {
         return '<button type="button" data-av="' + o[0] + '" class="' + ((x ? x.availability : 'available') === o[0] ? 'on' : '') + '" aria-pressed="' + ((x ? x.availability : 'available') === o[0]) + '"' + dis + '>' + o[1] + '</button>';
@@ -962,12 +1034,14 @@
       '<div class="field"><label for="p-dep">Deposit ($)</label><input id="p-dep" name="deposit" type="text" inputmode="decimal" value="' + esc(x ? dollars(x.deposit_cents) : '') + '"' + dis + '></div></div>' +
       '<div class="field"><label>Status</label>' + seg() + '<div class="hint">Placed puppies stay visible in their litter, marked placed.</div></div>' +
       '<div class="field"><label for="p-desc">Description</label><textarea id="p-desc" name="description"' + dis + '>' + esc(x ? x.description : '') + '</textarea></div>' +
-      '<div class="field"><label for="p-inc">Comes with</label><textarea id="p-inc" name="includes" style="min-height:80px"' + dis + '>' + esc(inc) + '</textarea><div class="hint">One item per line, like "Vet exam" or "Microchipped".</div></div>' +
+      includesField(x ? x.includes : [], dis) +
       '<div class="field"><label for="p-url">Link to this puppy on your site</label><input id="p-url" name="breeder_url" type="url" value="' + esc(x ? x.breeder_url : '') + '"' + dis + '><div class="hint">Optional. Buyers are sent here to contact you.</div></div>' +
       detailFields(x, dis) +
       (canEdit ? '<div id="quality" aria-live="polite">' + qualityBox(x, findLitter(x ? x.litter_id : litterId), null) + '</div>' : '') +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + (x ? '<button class="btn btn-danger" type="button" id="archive-puppy">Remove puppy</button>' : '') + '</div>' : '') +
-      '</form>' + (x ? SPLIT + photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy') : '<p class="hint" style="margin-top:1rem">Add photos, videos and documents after the puppy is saved.</p>'),
+      '</form>' + (canEdit && x ? payNext(x) : '') +
+      (x ? SPLIT + photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy')
+        : canEdit ? SPLIT + NEW_UPLOAD_NOTE + photoSection({ photos: [], name: 'this puppy' }, true) + docSection([], true, 'puppy') + '<p class="hint">Add videos once the puppy is saved.</p>' : ''),
       function (d) {
         var form = $('#puppy', d);
         $$('[data-av]', d).forEach(function (b) {
@@ -980,21 +1054,25 @@
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           var body = formData(form);
-          body.includes = String(body.includes || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean);
+          body.includes = $$('[name=inc]:checked', form).map(function (c) { return c.value; })
+            .concat(String(body.includes || '').split('\n').map(function (s) { return s.trim(); }).filter(Boolean));
+          delete body.inc;
           if (!x) body.litter_id = litterId;
           (x ? api('PUT', '/api/puppies/' + x.id, body) : api('POST', '/api/puppies', body))
             .then(function (r) {
-              toast(x ? 'Puppy saved' : 'Puppy added. Now add photos.');
+              toast(x ? 'Puppy saved' : pendingUpload ? 'Puppy added' : 'Puppy added. Now add photos.');
               return loadListings().then(function () { puppyDrawer(findPuppy(x ? x.id : r.id)); litters(); });
             })
-            .catch(function (err) { showError(form, err); });
+            .catch(function (err) { pendingUpload = null; showError(form, err); });
         });
+        if (!x && canEdit) saveFirstUploads(d, form);
         var ar = $('#archive-puppy', d);
         if (ar) ar.addEventListener('click', function () {
           if (!confirm('Remove ' + x.name + ' from your listings?')) return;
           api('POST', '/api/puppies/' + x.id + '/archive', {}).then(function () { closeDrawer(); toast('Puppy removed'); litters(); }).catch(function (err) { showError(form, err); });
         });
-        if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); wireDocs(d, canEdit, '/api/puppies/' + x.id + '/documents', function () { return loadListings().then(function () { puppyDrawer(findPuppy(x.id)); litters(); }); }); }
+        if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); wireDocs(d, canEdit, '/api/puppies/' + x.id + '/documents', function () { return loadListings().then(function () { puppyDrawer(findPuppy(x.id)); litters(); }); }); carryUpload(d); }
+        var pn = $('[data-pay-next]', d); if (pn) pn.addEventListener('click', closeDrawer);
         // Workplan A21. The prompts follow the form as the breeder types.
         var qbox = $('#quality', d), qlit = findLitter(x ? x.litter_id : litterId);
         if (qbox) form.addEventListener('input', function () { qbox.innerHTML = qualityBox(x, qlit, form); });
@@ -1103,20 +1181,24 @@
     return '<section id="photo-step" style="margin-top:1.4rem"><h3>Photos</h3>' +
       (x.operator_hold && x.hold_kind === 'photos' ? '<p class="error">Taken off the site until new photos are uploaded.' + (x.hold_reason ? ' ' + esc(x.hold_reason) : '') + ' A new photo that passes the photo check brings it back.</p>' : '') +
       '<p class="photo-standard"><b>Photo standard.</b> ' + esc(PHOTO_STANDARD) + '</p>' +
-      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. The first photo is the cover.</p>' +
+      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. New photos go first, and the first photo is the cover.</p>' +
+      (canEdit ? '<div class="upload"><label for="ph-input" class="btn btn-sm">Add photos</label><input id="ph-input" type="file" accept="image/*" multiple hidden>' +
+        '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across and up to 15 MB each. Each photo is checked that the puppy can be seen clearly.</div><p class="error" id="ph-error" hidden></p></div>' : '') +
       '<div class="photos" id="photos">' + x.photos.map(function (ph, i) {
         var flag = ph.quality === 'sent_back' ? '<span class="pill pill-alert cover" title="' + esc((ph.messages || []).join(' ')) + '">Sent back</span>'
           : ph.quality === 'review' ? '<span class="pill pill-warn cover">Being looked at</span>' : ph.quality === 'pending' ? '<span class="pill pill-warn cover">Checking</span>' : '';
-        return '<div class="photo" data-id="' + esc(ph.id) + '"' + (ph.quality === 'sent_back' ? ' style="outline:2px solid #b42318"' : '') + '>' + (flag || (i === 0 ? '<span class="pill pill-gold cover">Cover</span>' : '')) +
+        return '<div class="photo" data-id="' + esc(ph.id) + '"' + (canEdit ? ' draggable="true"' : '') + (ph.quality === 'sent_back' ? ' style="outline:2px solid #b42318"' : '') + '>' + (flag || (i === 0 ? '<span class="pill pill-gold cover">Cover</span>' : '')) +
           '<img src="' + esc(cardUrl(ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(x.name) + '">' +
           (canEdit ? '<div class="tools"><button type="button" data-move="-1" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>&larr;</button>' +
             '<button type="button" data-remove aria-label="Remove photo">Remove</button>' +
-            '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' : '') + '</div>';
+            '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' +
+            '<div class="tools tools-2"><label class="sr" for="ph-pos-' + esc(ph.id) + '">Position</label><select id="ph-pos-' + esc(ph.id) + '" data-pos aria-label="Position of photo ' + (i + 1) + '">' +
+              x.photos.map(function (_, k) { return '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k === 0 ? '1, cover' : String(k + 1)) + '</option>'; }).join('') + '</select>' +
+              (i > 0 ? '<button type="button" data-cover>Make cover</button>' : '') + '</div>' : '') + '</div>';
       }).join('') + '</div>' +
       (x.photos.some(function (ph) { return ph.quality === 'sent_back'; }) ? '<p class="error" style="white-space:pre-line">' + x.photos.filter(function (ph) { return ph.quality === 'sent_back'; }).map(function (ph) {
         return 'A photo marked Sent back needs replacing. ' + (ph.messages || []).join(' ') + ' It is not shown on the site.'; }).join('\n') + '</p>' : '') +
-      (canEdit ? '<div class="upload"><label for="ph-input" class="btn btn-sm">Add photos</label><input id="ph-input" type="file" accept="image/*" multiple hidden>' +
-        '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across and up to 15 MB each. Each photo is checked that the puppy can be seen clearly.</div><p class="error" id="ph-error" hidden></p></div>' : '') + '</section>';
+      '</section>';
   }
 
   /* A phone photo can be 4 to 12 MB and 4000 px wide, and the site never shows one wider than
@@ -1212,7 +1294,8 @@
       errBox.hidden = true;
       var chain = Promise.resolve(), results = [], problems = [];
       var many = files.length > 1, fb = fileBusy(input, many ? 'Uploading photo 1 of ' + files.length + '…' : 'Uploading photo…');
-      files.forEach(function (file, i) {
+      // New photos go to the top (Alex, 2026-10-31), so the batch goes up last file first and keeps the order chosen.
+      files.slice().reverse().forEach(function (file, i) {
         chain = chain.then(function () {
           fb.set(many ? 'Uploading photo ' + (i + 1) + ' of ' + files.length + '…' : 'Uploading photo…');
           return uploadOne(x.id, file, function () { fb.set(many ? 'Checking photo ' + (i + 1) + ' of ' + files.length + '…' : 'Checking photo…'); })
@@ -1233,14 +1316,35 @@
         api('DELETE', '/api/photos/' + id).then(function () { toast('Photo removed'); reopen(); }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
       });
     });
+    // Alex, 2026-10-31. Move one step, straight to a position, or to the cover, in one save.
+    function moveTo(id, j) {
+      var ids = x.photos.map(function (p) { return p.id; });
+      var i = ids.indexOf(id);
+      if (i < 0 || j < 0 || j >= ids.length || i === j) return;
+      ids.splice(j, 0, ids.splice(i, 1)[0]);
+      api('PUT', '/api/puppies/' + x.id + '/photo-order', { ids: ids }).then(function () { if (j === 0) toast('Cover photo set'); return reopen(); })
+        .catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
+    }
     $$('[data-move]', d).forEach(function (b) {
-      b.addEventListener('click', function () {
-        var ids = x.photos.map(function (p) { return p.id; });
-        var id = b.closest('.photo').dataset.id;
-        var i = ids.indexOf(id), j = i + Number(b.dataset.move);
-        if (j < 0 || j >= ids.length) return;
-        ids.splice(j, 0, ids.splice(i, 1)[0]);
-        api('PUT', '/api/puppies/' + x.id + '/photo-order', { ids: ids }).then(reopen).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
+      b.addEventListener('click', function () { var id = b.closest('.photo').dataset.id; moveTo(id, x.photos.map(function (p) { return p.id; }).indexOf(id) + Number(b.dataset.move)); });
+    });
+    $$('[data-cover]', d).forEach(function (b) {
+      b.addEventListener('click', function () { moveTo(b.closest('.photo').dataset.id, 0); });
+    });
+    $$('[data-pos]', d).forEach(function (sel) {
+      sel.addEventListener('change', function () { moveTo(sel.closest('.photo').dataset.id, Number(sel.value)); });
+    });
+    // Alex, 2026-10-31. Drag a photo onto another to take its place. On a phone the position menu does the same.
+    var dragId = null;
+    $$('#photos .photo[draggable]', d).forEach(function (tile) {
+      tile.addEventListener('dragstart', function (e) { dragId = tile.dataset.id; tile.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', dragId); });
+      tile.addEventListener('dragend', function () { tile.classList.remove('dragging'); $$('#photos .drag-over', d).forEach(function (t) { t.classList.remove('drag-over'); }); });
+      tile.addEventListener('dragover', function (e) { if (!dragId || dragId === tile.dataset.id) return; e.preventDefault(); tile.classList.add('drag-over'); });
+      tile.addEventListener('dragleave', function () { tile.classList.remove('drag-over'); });
+      tile.addEventListener('drop', function (e) {
+        e.preventDefault(); tile.classList.remove('drag-over');
+        var from = dragId; dragId = null;
+        if (from && from !== tile.dataset.id) moveTo(from, x.photos.map(function (p) { return p.id; }).indexOf(tile.dataset.id));
       });
     });
   }
@@ -1321,7 +1425,8 @@
       '<div class="field"><label for="pa-ped">Pedigree</label><textarea id="pa-ped" name="pedigree" style="min-height:70px"' + dis + '>' + esc(p ? p.pedigree : '') + '</textarea><div class="hint">The ' + word + '\'s parents and lines, as you would tell a family. You can also upload it under Documents.</div></div>' +
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (p ? 'Save ' + word : 'Add ' + word) + '</button>' +
         (p ? '<button class="btn btn-quiet" type="button" id="archive-parent">' + (p.archived_at ? 'Put back on the litter picker' : 'Remove from the litter picker') + '</button>' : '') + '</div>' : '') +
-      '</form>' + (p ? SPLIT + parentPhotoSection(p, canEdit) + docSection(p.documents, canEdit, 'parent') : '<p class="hint" style="margin-top:1rem">Add a photo and documents after the ' + word + ' is saved.</p>'),
+      '</form>' + (p ? SPLIT + parentPhotoSection(p, canEdit) + docSection(p.documents, canEdit, 'parent')
+        : canEdit ? SPLIT + NEW_UPLOAD_NOTE + parentPhotoSection({ name: '', photo_url: null }, true) + docSection([], true, 'parent') : ''),
       function (d) {
         var form = $('#parent', d);
         $('#pa-breed', d).addEventListener('change', function () {
@@ -1334,15 +1439,16 @@
           delete body.test;
           body.health_tests = $$('[name=test]:checked', form).map(function (c) { return c.value; });
           (p ? api('PUT', '/api/parents/' + p.id, body) : api('POST', '/api/parents', body))
-            .then(function (r) { toast(p ? 'Saved' : 'Added. Add a photo next.'); return loadParents().then(function () { parentsView(); parentDrawer(findParent(p ? p.id : r.id)); }); })
-            .catch(function (err) { showError(form, err); });
+            .then(function (r) { toast(p ? 'Saved' : pendingUpload ? 'Added' : 'Added. Add a photo next.'); return loadParents().then(function () { parentsView(); parentDrawer(findParent(p ? p.id : r.id)); }); })
+            .catch(function (err) { pendingUpload = null; showError(form, err); });
         });
+        if (!p && canEdit) saveFirstUploads(d, form);
         var ar = $('#archive-parent', d);
         if (ar) ar.addEventListener('click', function () {
           api('POST', '/api/parents/' + p.id + '/archive', { archived: !p.archived_at }).then(function () { closeDrawer(); toast(p.archived_at ? 'Back on the litter picker' : 'Removed from the litter picker'); parentsView(); })
             .catch(function (err) { showError(form, err); });
         });
-        if (p) { wireParentPhoto(d, p, canEdit); wireDocs(d, canEdit, '/api/parents/' + p.id + '/documents', function () { return loadParents().then(function () { parentsView(); parentDrawer(findParent(p.id)); }); }); }
+        if (p) { wireParentPhoto(d, p, canEdit); wireDocs(d, canEdit, '/api/parents/' + p.id + '/documents', function () { return loadParents().then(function () { parentsView(); parentDrawer(findParent(p.id)); }); }); carryUpload(d); }
       });
   }
 
@@ -1498,6 +1604,8 @@
       }
       $$('input[name=p]', form).forEach(function (c) { c.addEventListener('change', update); });
       var all = $('#all'); if (all) all.addEventListener('change', function () { $$('input[name=p]', form).forEach(function (c) { c.checked = all.checked; }); update(); });
+      var pre = (q.match(/(?:^|&)p=([^&]+)/) || [])[1];
+      if (pre) { var pc = $$('input[name=p]', form).filter(function (c) { return c.value === decodeURIComponent(pre); })[0]; if (pc) { pc.checked = true; update(); pc.closest('.pay-row').scrollIntoView({ block: 'center' }); } }
       form.addEventListener('submit', function (e) {
         e.preventDefault();
         var ids = $$('input[name=p]:checked', form).map(function (c) { return c.value; });

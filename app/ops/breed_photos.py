@@ -48,7 +48,7 @@ PHOTOS = {
 # img/breeders/<slug>-photo-800.webp and -1600.webp.
 BREEDER_PHOTOS = {
     'teapup': ('teapup-schnauzer.jpg', .50, .36),
-    'sweetpuppypaws': ('spp-lab-portrait.jpg', .50, .38),
+    'sweetpuppypaws': ('spp-black-lab.jpg', .45, .40),
 }
 OUT_B = os.path.join(REPO, 'img', 'breeders')
 

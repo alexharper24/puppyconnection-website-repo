@@ -901,3 +901,21 @@ body.nav-open .chat-fab,body.nav-open .chat-panel{display:none}
 /* About and Tips: the photo under the opening paragraph on a phone, in the side column above that (Amber, 2026-10-30) */
 .photo-phone-only{display:none}
 @media(max-width:940px){.photo-phone-only{display:block;margin-top:1.4rem}.photo-wide-only{display:none}}
+/* For families: one menu item that opens the guide pages (2026-10-31) */
+.nav-drop{position:relative}
+.nav>a,.nav-drop>summary{white-space:nowrap}
+.nav-drop>summary{list-style:none;cursor:pointer;font-family:var(--cond);font-size:1rem;letter-spacing:.12em;text-transform:uppercase;color:var(--cream-text);padding:.4rem 0;border-bottom:2px solid transparent;display:flex;align-items:center;gap:.45rem}
+.nav-drop>summary::-webkit-details-marker{display:none}
+.nav-drop>summary::after{content:'';width:.4rem;height:.4rem;border-right:2px solid currentColor;border-bottom:2px solid currentColor;transform:translateY(-.15rem) rotate(45deg)}
+.nav-drop[open]>summary::after{transform:translateY(.1rem) rotate(-135deg)}
+.nav-drop>summary:hover,.nav-drop:has([aria-current])>summary{color:#fff;border-bottom-color:var(--gold)}
+.nav-drop>summary:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.nav-drop-menu{position:absolute;top:100%;left:-1rem;z-index:55;min-width:15rem;padding:.4rem 0;background:var(--sage);border:1px solid var(--sage-line);box-shadow:0 10px 24px rgba(0,0,0,.22);display:flex;flex-direction:column}
+.nav .nav-drop-menu a{padding:.6rem 1rem;border-bottom:0;white-space:nowrap}
+.nav .nav-drop-menu a:hover,.nav .nav-drop-menu a[aria-current]{background:rgba(255,255,255,.08);color:#fff}
+@media(max-width:900px){
+  .nav-drop{width:100%;border-bottom:1px solid var(--sage-line)}
+  .nav-drop>summary{width:100%;padding:1.15rem 0;font-size:1.35rem;letter-spacing:.1em;border-bottom:0;justify-content:space-between}
+  .nav-drop-menu{position:static;min-width:0;margin:0 0 .6rem;padding:0;background:none;border:0;box-shadow:none}
+  .nav .nav-drop-menu a{padding:.75rem 0 .75rem 1.1rem;font-size:1.1rem;border-bottom:0;border-top:0}
+}

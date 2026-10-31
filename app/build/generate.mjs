@@ -200,6 +200,22 @@ const SEARCH_JS = `/* Puppy Connection breed search counts. Written by app/build
 // mark, since the Furry Freight logo does not read at this size.
 const DELIVERY_BAND = '<div class="dv-band"><svg viewBox="0 0 48 28" aria-hidden="true"><path d="M2 4h28v16H2zM30 10h9l6 6v4H30z" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round"/><circle cx="10" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/><circle cx="37" cy="22" r="3.6" fill="#262626" stroke="currentColor" stroke-width="2.2"/></svg><p><span><b>Not local?</b> Furry Freight delivers puppies by ground or air.</span> <a class="dv-quote" href="transportation.html">Get a quote</a></p></div>';
 
+// Opens the For families menu on hover on a wide screen, closes it on a click outside or on Escape.
+const NAV_DROP_JS = `
+(function () {
+  var drops = [].slice.call(document.querySelectorAll('details.nav-drop'));
+  if (!drops.length) return;
+  var wide = window.matchMedia('(min-width:901px) and (hover:hover)');
+  drops.forEach(function (d) {
+    var t;
+    d.addEventListener('mouseenter', function () { if (wide.matches) { clearTimeout(t); d.open = true; } });
+    d.addEventListener('mouseleave', function () { if (wide.matches) t = setTimeout(function () { d.open = false; }, 250); });
+  });
+  document.addEventListener('click', function (e) { drops.forEach(function (d) { if (d.open && !d.contains(e.target)) d.open = false; }); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') drops.forEach(function (d) { if (d.open) { d.open = false; d.querySelector('summary').focus(); } }); });
+})();
+`;
+
 const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/generate.mjs. */
 (function () {
   'use strict';
@@ -439,10 +455,16 @@ export function build({ now = Date.now(), dataDir, out, templates, guides = path
   // About and Contact join the main menu on the generated site only (Alex, 2026-10-25), for the
   // same reason as the footer's site-pages column below: the concept at the repository root is
   // served on its own and has no about.html or contact.html, so the links would be broken there.
+  const FAMILIES_MENU = '<details class="nav-drop"><summary>For families</summary><div class="nav-drop-menu">'
+    + [['how-it-works.html', 'How it works'], ['transportation.html', 'Transportation'], ['tips-on-buying-a-puppy.html', 'Tips on buying a puppy'], ['reviews.html', 'Reviews']]
+      .map(([f, n]) => `<a href="${f}">${n}</a>`).join('') + '</div></details>';
   const NAV_AFTER = /(\n([ \t]*)<a href="breeds\.html"[^>]*>Breeds<\/a>)/;
   const withNav = (s) => {
     if (!NAV_AFTER.test(s)) throw new Error('generate.mjs: the header menu no longer has the Breeds link that About and Contact follow');
-    return s.replace(NAV_AFTER, (m, link, ind) => `${link}\n${ind}<a href="about.html">About</a>\n${ind}<a href="contact.html">Contact</a>`);
+    // For families gathers the guide pages that were only in the footer (Alex and Amber, 2026-10-31), so the menu
+    // gains one item rather than four. A details element opens it by click or tap; on a wide screen it also opens
+    // on hover, and NAV_DROP_JS closes it on a click elsewhere or Escape.
+    return s.replace(NAV_AFTER, (m, link, ind) => `${link}\n${ind}${FAMILIES_MENU}\n${ind}<a href="about.html">About</a>\n${ind}<a href="contact.html">Contact</a>`);
   };
   const hdr = withNav(idx.slice(idx.indexOf('<a class="skip-link"'), idx.indexOf('<main id="home">')));
   let ftr = idx.slice(idx.indexOf('<footer class="site-footer">'), idx.indexOf('</footer>') + '</footer>'.length);
@@ -487,7 +509,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   if (fs.existsSync(path.join(T, 'favicon.ico'))) fs.copyFileSync(path.join(T, 'favicon.ico'), path.join(out, 'favicon.ico'));
   fs.mkdirSync(path.join(out, 'js'), { recursive: true });
   fs.mkdirSync(path.join(out, 'data'), { recursive: true });
-  const mainJs = patchMain(concept('js/main.js'));
+  const mainJs = patchMain(concept('js/main.js')) + NAV_DROP_JS;
   fs.writeFileSync(path.join(out, 'js/main.js'), mainJs);
   fs.writeFileSync(path.join(out, 'js/pages.js'), PAGES_JS);
   fs.writeFileSync(path.join(out, 'js/search-count.js'), SEARCH_JS);
@@ -545,7 +567,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // ops/breed_photos.py. Same focus-point rules as the breed photos above.
   const CHOSEN_BREEDER_PHOTO = {
     'teapup': { w: 1600, h: 2135, fx: 0.5, fy: 0.36 },
-    'sweetpuppypaws': { w: 1600, h: 1561, fx: 0.5, fy: 0.38 },
+    'sweetpuppypaws': { w: 1600, h: 1772, fx: 0.45, fy: 0.4 },
   };
   const breederPhoto = (slug) => {
     const t = CHOSEN_BREEDER_PHOTO[slug];

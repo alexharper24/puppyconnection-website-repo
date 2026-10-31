@@ -462,14 +462,33 @@ export async function peekAuthToken(env, token, purposes) {
  */
 export async function sendInvitation(env, { breeder, email, by, actor, portalOrigin, template = 'invitation' }) {
   const e = String(email).toLowerCase();
+  // Alex, 2026-10-31. An address invited to two kennels before it had a password got two "choose your password"
+  // emails and took them for two accounts. Each email now names the other kennels and says one password covers them.
+  const others = await otherKennelNames(env, e, breeder.id);
   const { token, stmts } = await newAuthToken(env, { purpose: 'invite', email: e, breederId: breeder.id, createdBy: by, minutes: INVITE_DAYS * 24 * 60 });
   const cred = await credentialFor(env, e);
   const existing = !!(cred && cred.password_hash);
   stmts.push(auditStmt(env, actor[0], actor[1], 'member.invite', 'breeder', breeder.id, null, existing ? { email: e, existing_signin: true } : { email: e }));
   await env.DB.batch(stmts);
   const link = `${portalOrigin}/auth/set-password?t=${encodeURIComponent(token)}`;
-  await sendMail(env, e, existing ? 'kennel_added' : template, { business: breeder.business_name || 'a kennel', by, link, days: INVITE_DAYS });
+  await sendMail(env, e, existing ? 'kennel_added' : template, { business: breeder.business_name || 'a kennel', by, link, days: INVITE_DAYS, others });
   return { ok: true, existing };
+}
+
+/**
+ * The names of the other kennels this address is on or has an open invitation to, for the one-password note in an
+ * invitation and on the page its link opens.
+ */
+export async function otherKennelNames(env, email, breederId) {
+  const e = String(email).toLowerCase();
+  const { results } = await env.DB.prepare(
+    `SELECT DISTINCT COALESCE(p.business_name, 'another kennel') AS name FROM breeders b LEFT JOIN breeder_profiles p ON p.breeder_id = b.id
+      WHERE b.id != ? AND (lower(b.email) = ?
+         OR b.id IN (SELECT breeder_id FROM breeder_members WHERE lower(email) = ?)
+         OR b.id IN (SELECT breeder_id FROM auth_tokens WHERE purpose = 'invite' AND lower(email) = ? AND used_at IS NULL AND expires_at > ?))
+      ORDER BY name`,
+  ).bind(breederId || '', e, e, e, now()).all();
+  return results.map((r) => r.name);
 }
 
 /** Turn a person's authenticator off, so they set it up again (A26, the admin's Reset authenticator). */

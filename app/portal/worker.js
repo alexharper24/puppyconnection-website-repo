@@ -42,7 +42,7 @@ import {
   personFor, kennelsFor, onKennel, checkMakeMain, acceptKennelStmts, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
   spendAuthToken, peekAuthToken, sendInvitation, hashPassword, checkPassword, passwordProblem, useSecondFactor, failureState,
   failureStmt, sealSecret, openSecret, base32, otpauthUri, matchTotp, newRecoveryCodes, accessStmts, ACCESS_HOW, MAX_MEMBERS,
-  RESET_MINUTES, VERIFY_HOURS, MFA_MINUTES, OPERATOR_SESSION_HOURS, INVITE_DAYS,
+  RESET_MINUTES, VERIFY_HOURS, MFA_MINUTES, OPERATOR_SESSION_HOURS, INVITE_DAYS, otherKennelNames,
 } from '../lib/accounts.js';
 
 /// Plan P6.3. A session lasts 60 days from its last renewal. Using it more than a day into
@@ -363,7 +363,12 @@ async function setPasswordContext(env, row) {
   if (row.purpose === 'verify') return { heading: 'Choose your password', intro: 'Your email address is confirmed. Choose a password to finish creating your breeder account.' };
   const b = row.breeder_id ? await loadBreeder(env, row.breeder_id) : null;
   const name = (b && b.business_name) || 'your kennel';
-  if (row.purpose === 'invite') return { heading: `Manage ${name} on Puppy Connection`, intro: `Choose a password to sign in to ${name} in the breeder portal.`, name };
+  if (row.purpose === 'invite') {
+    // Alex, 2026-10-31: someone invited to several kennels sets one password for all of them.
+    const others = await otherKennelNames(env, row.email, row.breeder_id);
+    const more = others.length ? ` This one password also signs you in to ${others.join(' and ')} once you open ${others.length > 1 ? 'those invitations' : 'that invitation'}.` : '';
+    return { heading: `Manage ${name} on Puppy Connection`, intro: `Choose a password to sign in to ${name} in the breeder portal.${more}`, name };
+  }
   // Workplan A27. A reset for a person on several kennels names none of them, because one password signs in to all.
   if (!b) return { heading: 'Choose a new password', intro: 'This sets the password you use to sign in to each of your kennels on Puppy Connection.' };
   return { heading: 'Choose a new password', intro: `This sets the password you use to sign in to ${name}.` };

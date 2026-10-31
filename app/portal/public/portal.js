@@ -681,6 +681,8 @@
       '<div class="field"><label for="f-facebook">Facebook page</label><input id="f-facebook" name="facebook_url" type="url" value="' + esc(x.facebook_url || '') + '" placeholder="https://www.facebook.com/yourkennel"' + dis + '>' +
       '<div class="hint">Optional. The address of your kennel\'s Facebook page.</div></div>' +
       (editable ? '<button class="btn btn-primary" type="submit">Save extras</button>' : '') + '</form></section>';
+    // Alex, 2026-10-31. A find box over the breeds, with the ticked ones first and always shown.
+    if (window.PCPicker) window.PCPicker.checks($('#extras-form .breed-picks'), { label: 'Find a breed', none: 'No other breed matches that' });
     if (!editable) return;
     var form = $('#extras-form');
     form.addEventListener('submit', function (e) {
@@ -722,6 +724,9 @@
     if (state.breeds.length) return Promise.resolve(state.breeds);
     return api('GET', '/api/breeds').then(function (b) { state.breeds = b; return b; });
   }
+  // Alex, 2026-10-31. Every breed select takes a typed search (combo.js), since the list grows to
+  // about 330. The select stays the form's control, and without combo.js it works as before.
+  function breedSearch(sel) { if (sel && window.PCPicker) window.PCPicker.select(sel, { none: 'No breed matches that' }); }
 
   // End dates and renewals exist only when listings expire (listing_days above 0, plan D8).
   function expiring() { return !!(state.listings && state.listings.listing_days > 0); }
@@ -961,6 +966,7 @@
       (l ? '<button class="btn btn-danger" type="button" id="archive-litter">Remove litter</button>' : '') + '</div></form>',
       function (d) {
         var form = $('#litter', d);
+        breedSearch($('#l-breed', d));
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           var body = formData(form);
@@ -1484,6 +1490,7 @@
           var picked = $$('[name=test]:checked', form).map(function (c) { return c.value; });
           $('#pa-tests-slot', d).innerHTML = testPicks(this.value, picked, dis);
         });
+        breedSearch($('#pa-breed', d));
         form.addEventListener('submit', function (e) {
           e.preventDefault();
           var body = formData(form);

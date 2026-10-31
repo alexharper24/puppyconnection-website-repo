@@ -242,6 +242,30 @@ table.list tr.total-row td { background: var(--ground); }
   grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr)); gap: .25rem 1rem; }
 .breed-picks legend { font-weight: 500; font-size: .9rem; padding: 0 .3rem; }
 .breed-picks .check { align-items: center; min-height: 40px; font-size: .92rem; }
+/* Alex, 2026-10-31. Type-to-search in front of a long select (combo.js), for about 330 breeds.
+   The select stays in the form, hidden, and the box and its list carry the picking. */
+.combo { position: relative; min-width: 0; }
+.combo input[role=combobox] { padding-right: 2.2rem; text-overflow: ellipsis;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23414141' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right .8rem center; }
+.combo input[role=combobox]:disabled { background-color: var(--ground); color: var(--muted); }
+.combo-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 2px); margin: 0; padding: .25rem 0; list-style: none;
+  max-height: min(18rem, 50vh); overflow-y: auto; overscroll-behavior: contain; background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(38,38,38,.14); }
+.combo-list [role=option] { display: flex; align-items: center; min-height: 36px; padding: .3rem .75rem; cursor: pointer; }
+.combo-list [role=option]:hover { background: var(--row-hover); }
+.combo-list [role=option][aria-selected=true] { background: var(--cream); box-shadow: inset 3px 0 0 var(--bronze); }
+.combo-list .is-current { font-weight: 600; }
+.combo-none { padding: .5rem .75rem; color: var(--muted); }
+.toolbar .combo { flex: 0 1 13rem; }
+.toolbar .combo input[role=combobox] { min-height: 40px; }
+.panel:has(.combo.is-open) { overflow: visible; }
+/* The find box above Breeds you raise. Ticked breeds sit first and always show. */
+.breed-picks.has-find { display: block; }
+.pick-find { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; margin: .2rem 0 .5rem; }
+.pick-find input { flex: 1 1 14rem; width: auto; min-height: 40px; }
+.pick-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr)); gap: .25rem 1rem;
+  max-height: 22rem; overflow-y: auto; overscroll-behavior: contain; }
+.pick-none { margin: .4rem 0 0; }
 /* Workplan A13. The reference asked for before approval. */
 .reference { border: 1px solid var(--line); border-radius: var(--r-lg); padding: .6rem .9rem .2rem; margin: 0 0 1rem; min-width: 0; }
 .reference legend { font-weight: 500; font-size: .9rem; padding: 0 .3rem; }

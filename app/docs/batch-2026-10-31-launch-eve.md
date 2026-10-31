@@ -24,6 +24,9 @@ tasks:
   - {id: t13-list-photo, status: done, evidence: "site repo a90ad72 live 2026-10-31, checked on site.puppyconnection.workers.dev", asked: "Amber 2026-10-31", item: "best.JPG beside the Your puppies deserve more section on List with us, under it on phones"}
   - {id: t14-transport-photo, status: done, evidence: "site repo a90ad72 live 2026-10-31, checked on site.puppyconnection.workers.dev", asked: "Amber 2026-10-31", item: "transportation.jpg beside the Safe travels, happy arrivals section on the transportation page, under it on phones"}
   - {id: t15-quote-direct, status: done, evidence: "site repo a90ad72 live 2026-10-31, checked on site.puppyconnection.workers.dev", asked: "Amber 2026-10-31", item: "Get a quote on each puppy page goes straight to Furry Freight's site"}
+  - {id: t16-branded-signin, status: built, blocked_on: alex, asked: "Alex 2026-10-31: the password page looks like it's from the 1900s, no way to show the password, black branding on the Teapup and SPP invitation", evidence: "PR 77 (ed8bdbd): signed-out pages in Playfair, Barlow, sage band and gold rule; password boxes styled and with Show; checked locally at 1100 and 390 px; signin 26, multikennel 82, accounts 80", item: "Deploy the portal and admin for the new sign-in and password pages (needs Alex's OK)"}
+  - {id: t17-spp-adopted-litters, status: open, blocked_on: other-session, item: "Sweet Puppy Paws and Teapup: a fully adopted litter comes off the site; handed to its own session 2026-10-31 (teapup-website-repo and sweetpuppypaws-website)"}
+  - {id: t18-parent-form, status: open, blocked_on: alex, asked: "Alex 2026-10-31: one page for a mom or dad with photos and documents, and an uploaded health or pedigree document that fills in what it can for the breeder to review", item: "Choose whether to build the one-page parent and puppy form and the document prefill"}
 excluded: []
 ---
 

@@ -27,7 +27,7 @@ import {
 } from '../lib/payments.js';
 import { cleanImage } from '../lib/images.js';
 import { reportTarget, reportForm, saveReport } from '../lib/reports.js';
-import { photoCheckMode, checkPhoto, reasonText } from '../lib/photocheck.js';
+import { photoCheckMode, checkPhoto, reasonText, checkParentPhoto } from '../lib/photocheck.js';
 import { photoPassedStmts, scheduleFor, inactivitySettings } from '../lib/inactivity.js';
 import {
   streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
@@ -560,8 +560,10 @@ async function authHandoff(request, env) {
  * whatever each kennel's status, because approval and suspension are enforced on every request
  * after this. The main address is marked verified and a person marked joined, on every kennel. A
  * new address becomes a pending breeder, so someone a breeder added is never given a new account.
+ * Google never makes a new account (Alex, 2026-11-01): an address no kennel has added is refused
+ * with GOOGLE_NO_ACCOUNT, and Create an account stays the way in for a new breeder.
  */
-async function verifiedKennels(env, email, { businessName = '', contactName = null, method }) {
+async function verifiedKennels(env, email, { businessName = '', contactName = null, method, allowNew = true }) {
   const t = now();
   const kennels = await kennelsFor(env, email);
   if (kennels.length) {
@@ -580,6 +582,7 @@ async function verifiedKennels(env, email, { businessName = '', contactName = nu
   if (await env.DB.prepare('SELECT 1 AS x FROM breeder_members WHERE email = ?').bind(email).first()) {
     throw bad('That address has an invitation waiting. Open the invitation email to add the kennel.');
   }
+  if (!allowNew) throw new HttpError(403, GOOGLE_NO_ACCOUNT);
   const id = ulid();
   await env.DB.batch([
     env.DB.prepare(`INSERT INTO breeders (id, email, status, email_verified_at, created_at, updated_at) VALUES (?, ?, 'pending', ?, ?, ?)`)
@@ -660,6 +663,8 @@ async function chooseKennel(request, env) {
 // ------------------------------------------------------------------ Continue with Google (plan P6.1)
 
 const GOOGLE_COOKIE = 'pc_google';
+// The sign-in page shows the same words for ?google=unknown (portal.js renderSignIn).
+const GOOGLE_NO_ACCOUNT = 'That Google account is not on Puppy Connection yet. To list with us, choose Create an account and sign up with your email and a password. If you help run a kennel that already lists with us, ask Puppy Connection or the kennel\'s main contact to invite this address.';
 const googleRedirect = (request) => `${new URL(request.url).origin}/auth/google/callback`;
 
 async function googleStart(request, env) {
@@ -694,7 +699,18 @@ async function googleCallback(request, env) {
   const email = String(claims.email).trim().toLowerCase();
   if (!EMAIL_RX.test(email)) return fail('email address not usable');
   let kennels;
-  try { kennels = await verifiedKennels(env, email, { contactName: clean(claims.name, 120), method: 'google' }); } catch (e) { if (e instanceof HttpError) return fail(e.message); throw e; }
+  try { kennels = await verifiedKennels(env, email, { contactName: clean(claims.name, 120), method: 'google', allowNew: false }); } catch (e) {
+    if (!(e instanceof HttpError)) throw e;
+    if (e.message === GOOGLE_NO_ACCOUNT) {
+      console.warn('google sign-in refused: no kennel has added this address');
+      return redirect('/?google=unknown', 303, { 'set-cookie': clear });
+    }
+    if (e.status === 400) {
+      console.warn('google sign-in refused: invitation waiting');
+      return redirect('/?google=invited', 303, { 'set-cookie': clear });
+    }
+    return fail(e.message);
+  }
   const session = await signInPerson(request, env, email, kennels);
   const res = redirect(session.choose || '/', 303, { 'set-cookie': session.cookie });
   res.headers.append('set-cookie', clear);
@@ -729,7 +745,11 @@ async function oneTapSignIn(request, env) {
   }
   const email = String(claims.email).trim().toLowerCase();
   if (!EMAIL_RX.test(email)) return json({ error: 'That Google account has no usable email address.' }, 400, { 'set-cookie': clear });
-  const kennels = await verifiedKennels(env, email, { contactName: clean(claims.name, 120), method: 'google' });
+  let kennels;
+  try { kennels = await verifiedKennels(env, email, { contactName: clean(claims.name, 120), method: 'google', allowNew: false }); } catch (e) {
+    if (e instanceof HttpError) return json({ error: e.message }, e.status, { 'set-cookie': clear });
+    throw e;
+  }
   const session = await signInPerson(request, env, email, kennels);
   const res = json({ ok: true, choose: session.choose }, 200, { 'set-cookie': session.cookie });
   res.headers.append('set-cookie', clear);
@@ -1368,6 +1388,8 @@ async function addPuppies(request, env, ctx, litterId) {
   if (!total) throw bad('Say how many puppies to add.');
   if (total > MAX_AT_ONCE) throw bad(`Add up to ${MAX_AT_ONCE} puppies at a time.`);
   const shared = { price_cents: cents(body.price), deposit_cents: cents(body.deposit), color: clean(body.color, 60) };
+  // Alex, 2026-11-01. Every puppy needs a price before it can be paid for, as puppyFields() asks.
+  if (shared.price_cents == null) throw bad('Give a price for each puppy. You can change it puppy by puppy afterwards.');
   const breed = await env.DB.prepare('SELECT name FROM breeds WHERE id = ?').bind(litter.breed_id).first();
   const { results: names } = await env.DB.prepare("SELECT name FROM puppies WHERE litter_id = ? AND breeder_id = ? AND publication_state != 'archived'")
     .bind(litter.id, breeder.id).all();
@@ -1763,13 +1785,24 @@ async function archiveParent(request, env, ctx, id) {
 
 const PARENT_CARD_EDGE = 1000;
 
-/** The parent's photo, shrunk in the browser as puppy photos are, with its metadata stripped here. */
+/**
+ * The parent's photo, shrunk in the browser as puppy photos are, with its metadata stripped here.
+ * It must pass the same size floor and quality check as a puppy photo before it is saved, so a
+ * photo that does not pass never replaces the one families see (lib/photocheck.js checkParentPhoto).
+ */
 async function uploadParentPhoto(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
   requireApproved(breeder);
   const p = await owned(env, 'parent', id, breeder.id);
   const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
+  // A test can ask the local stand-in for a verdict. Nothing else can choose one.
+  const sim = isLocal(request, env) ? request.headers.get('x-sim-photo-check') : null;
+  const refused = await checkParentPhoto(env, img, { sim });
+  if (refused) {
+    await auditStmt(env, ...who(breeder), 'parent.photo.sent_back', 'parent', id, null, { reasons: refused.reasons }).run();
+    throw new HttpError(422, `${refused.messages.join(' ')} The photo was not added, so upload a clearer one.`);
+  }
   const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[img.type];
   const key = `parents/${breeder.id}/${id}-${ulid().slice(-10).toLowerCase()}.${ext}`;
   await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });

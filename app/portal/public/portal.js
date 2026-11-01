@@ -252,6 +252,9 @@
     } else {
       body = '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection.</p>' +
         (/google=failed/.test(location.search) ? '<p class="notice notice-alert">Google sign-in did not go through. Please try again, or use your email and password below.</p>' : '') +
+        // The same words as GOOGLE_NO_ACCOUNT in worker.js, with Create an account as a link.
+        (/google=unknown/.test(location.search) ? '<p class="notice notice-alert" id="google-unknown">That Google account is not on Puppy Connection yet. To list with us, choose <a href="/" data-mode="signup">Create an account</a> and sign up with your email and a password. If you help run a kennel that already lists with us, ask Puppy Connection or the kennel\'s main contact to invite this address.</p>' : '') +
+        (/google=invited/.test(location.search) ? '<p class="notice notice-alert">That address has an invitation waiting. Open the invitation email to add the kennel, then sign in.</p>' : '') +
         (c.google ? '<div id="gsi-button" class="gsi-button" aria-live="polite"></div><a class="btn btn-google" id="google-redirect" href="/auth/google">' + GOOGLE_SVG + 'Continue with Google</a>' +
           '<p class="or"><span>or use your email and password</span></p>' : '') +
         '<form id="signin" novalidate><div class="field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="username" required></div>' +
@@ -572,17 +575,43 @@
       var placed = all.filter(function (x) { return x.availability === 'placed'; }).length;
       var views = all.reduce(function (n, x) { return n + (x.views || 0); }, 0);
       var clicks = all.reduce(function (n, x) { return n + (x.clicks || 0); }, 0);
-      shell(html + '<div class="stats">' +
+      shell(html + firstSteps(L, all, live) + '<div class="stats">' +
         '<a class="stat" href="#/litters"><b>' + live + '</b><span>Live on the site</span></a>' +
         '<a class="stat" href="#/litters"><b>' + drafts + '</b><span>Drafts</span></a>' +
         '<a class="stat" href="#/pay"><b>' + ready + '</b><span>Ready to pay for</span></a>' +
         (L.listing_days > 0 ? '<a class="stat" href="#/pay"><b>' + soon + '</b><span>Expiring within a week</span></a>' : '<a class="stat" href="#/litters"><b>' + placed + '</b><span>Placed</span></a>') + '</div>' +
-        '<div class="card"><h2>' + (all.length ? 'Next steps' : 'Add your first litter') + '</h2><p>Add a litter, add each puppy with photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it ' + term(L) + '.</p>' +
+        (live ? '<div class="card"><h2>Next steps</h2><p>Save each new mom and dad under Moms and dads, add the litter and pick them, add each puppy with a price and photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it ' + term(L) + '.</p>' +
         '<div class="btn-row"><a class="btn btn-primary" href="#/litters">Litters and puppies</a>' + (ready ? '<a class="btn btn-gold" href="#/pay">Pay to list ' + ready + '</a>' : '') +
-        (me.site_url ? '<a class="btn" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">See your page on the site</a>' : '') + '</div></div>' +
+        (me.site_url ? '<a class="btn" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">See your page on the site</a>' : '') + '</div></div>' : '') +
         (live || views ? '<div class="card"><h2>Views and clicks</h2><p>In the last 30 days buyers opened your puppies\' pages ' + plural(views, 'time') + ' and clicked through to you ' + plural(clicks, 'time') + '.</p>' +
           '<a class="btn btn-sm" href="#/stats">See each puppy</a></div>' : ''));
     });
+  }
+
+  /* Alex, 2026-11-01. Until a breeder has a puppy on the site, the Overview leads them through the
+     order the portal needs: a mom or dad can only be picked on a litter once it is saved under Moms
+     and dads, so the parents come first, then the litter, the puppies and paying to list. Each step
+     is ticked from what the breeder has saved, and the first one not done carries the button. */
+  function firstSteps(L, all, live) {
+    if (live) return '';
+    var parents = (L.parents || []).filter(function (p) { return !p.archived_at; });
+    var moms = parents.filter(function (p) { return p.sex === 'female'; }).length, dads = parents.length - moms;
+    var litters = L.litters.filter(function (l) { return !l.archived_at; });
+    var picked = litters.some(function (l) { return l.mom_id || l.dad_id; });
+    var priced = all.filter(function (x) { return x.price_cents != null; }).length;
+    var steps = [
+      { done: moms > 0 && dads > 0, title: 'Add the mom and the dad', text: 'Save each parent once under Moms and dads, with a photo and their health testing. You pick them on the litter next, so they come first.', href: '#/parents', btn: 'Moms and dads' },
+      { done: picked, title: 'Start a litter', text: 'Choose the breed, the birth date and the date the puppies can go home, and pick the mom and dad you saved.', href: '#/litters', btn: 'Add a litter' },
+      { done: priced > 0, title: 'Add the puppies', text: 'Add each puppy to the litter with its price and at least ' + plural(L.min_photos || 1, 'photo') + '.', href: '#/litters', btn: 'Litters and puppies' },
+      { done: false, title: 'Pay to list', text: 'Pay ' + money(L.fee_cents) + ' per puppy to list it ' + term(L) + '. Finish the litter first and pay for all its puppies together.', href: '#/pay', btn: 'Pay to list' },
+    ];
+    var now = -1;
+    steps.forEach(function (s, i) { if (now < 0 && !s.done) now = i; });
+    return '<div class="card"><h2>Your first listing</h2><ol class="steps">' + steps.map(function (s, i) {
+      return '<li class="' + (s.done ? 'done' : i === now ? 'now' : '') + '"><span class="dot">' + (i + 1) + '</span><div><b>' + esc(s.title) + '</b>' +
+        '<div class="muted small">' + esc(s.text) + '</div>' +
+        (i === now ? '<a class="btn btn-sm' + (i === 3 ? ' btn-gold' : '') + '" href="' + s.href + '" style="margin-top:.4rem">' + esc(s.btn) + '</a>' : '') + '</div></li>';
+    }).join('') + '</ol></div>';
   }
 
   // ------------------------------------------------------------ profile
@@ -821,7 +850,10 @@
       var active = L.litters.filter(function (l) { return !l.archived_at; });
       var html = head('Litters and puppies', 'Each litter holds its puppies. Add photos to a puppy, then pay to list it.', canEdit ? '<button class="btn btn-primary" id="add-litter">Add a litter</button>' : '');
       if (!canEdit) html += '<p class="notice">' + (me.status === 'suspended' ? 'Your account is paused, so this is read only.' : 'Litters open once your account is approved.') + '</p>';
-      if (!active.length) html += '<div class="card">' + empty('No litters yet', canEdit ? 'Start with a litter, then add each puppy to it.' : '', canEdit ? '<button class="btn btn-primary" data-first-litter>Add a litter</button>' : '') + '</div>';
+      var hasParents = (L.parents || []).some(function (p) { return !p.archived_at; });
+      // Alex, 2026-11-01. A litter picks its mom and dad from Moms and dads, so with none saved the first step is there.
+      if (!active.length) html += '<div class="card">' + empty('No litters yet', canEdit ? (hasParents ? 'Add a litter and pick its mom and dad, then add each puppy to it.' : 'Save the mom and dad under Moms and dads first, so you can pick them on the litter. Then add the litter and each puppy.') : '',
+        canEdit ? '<div class="btn-row" style="justify-content:center">' + (hasParents ? '' : '<a class="btn btn-primary" href="#/parents">Add the mom and dad</a>') + '<button class="btn' + (hasParents ? ' btn-primary' : '') + '" data-first-litter>Add a litter</button></div>' : '') + '</div>';
       // Alex, 2026-10-31. Find a puppy by name, breed, color or sex, and narrow by status, for kennels with many puppies.
       var total = active.reduce(function (n, l) { return n + l.puppies.filter(function (x) { return x.publication_state !== 'archived'; }).length; }, 0);
       if (total > 1) html += '<div class="pup-search"><label class="sr" for="pup-q">Find a puppy</label><input id="pup-q" type="search" placeholder="Find a puppy by name, breed, color or sex" autocomplete="off">' +
@@ -914,7 +946,7 @@
     openDrawer('Add several puppies',
       '<p class="muted small">' + esc(l.breed_name) + ' litter. Puppies are named Girl 1, Boy 1 or Puppy 1 and so on, and you can rename each one and add its photos afterwards.</p>' +
       '<form id="many" novalidate><div class="grid-3">' + n('girls', 'Girls') + n('boys', 'Boys') + n('unknown', 'Not sure yet') + '</div>' +
-      '<div class="grid-2"><div class="field"><label for="m-price">Price for each ($)</label><input id="m-price" name="price" type="text" inputmode="decimal"></div>' +
+      '<div class="grid-2"><div class="field"><label for="m-price">Price for each ($)</label><input id="m-price" name="price" type="text" inputmode="decimal" required></div>' +
       '<div class="field"><label for="m-dep">Deposit for each ($)</label><input id="m-dep" name="deposit" type="text" inputmode="decimal"></div></div>' +
       colorField('m', '', breedOfLitter(l.id), '', 'Optional. Leave it blank if the colors differ.') +
       '<div class="btn-row"><button class="btn btn-primary" type="submit">Add puppies</button></div></form>',
@@ -1306,13 +1338,13 @@
       return sum / (d.length / 4);
     } catch (e) { return 255; }
   }
-  function screen(file) {
+  function screen(file, what) {
     return decode(file).then(function (src) {
       var edge = Math.max(src.width, src.height);
       var light = brightness(src);
       if (src.close) src.close();
       if (edge < MIN_EDGE) throw new Error(file.name + ' is ' + edge + ' pixels across. Photos need to be at least ' + MIN_EDGE + ' pixels, so use the original from your phone or camera rather than a screenshot or a saved copy.');
-      if (light < DARK && !confirm(file.name + ' looks dark, so families may not see the puppy well. Upload it anyway?')) throw new Error('skip');
+      if (light < DARK && !confirm(file.name + ' looks dark, so families may not see the ' + (what || 'puppy') + ' well. Upload it anyway?')) throw new Error('skip');
     }, function () { /* a file the browser cannot decode goes up as it is, and the server checks it */ });
   }
   function shrink(file) {
@@ -1548,7 +1580,9 @@
     return '<section style="margin-top:1.4rem"><h3>Photo</h3>' +
       (p.photo_url ? '<img src="' + esc(p.photo_url) + '" alt="' + esc(p.name) + '" style="max-width:100%;max-height:16rem;border-radius:8px;display:block">' : '<p class="muted small">No photo yet. Families like to see the parents.</p>') +
       (canEdit ? '<div class="upload btn-row"><label for="pa-photo" class="btn btn-sm">' + (p.photo_url ? 'Replace photo' : 'Add a photo') + '</label><input id="pa-photo" type="file" accept="image/*" hidden>' +
-        (p.photo_url ? '<button type="button" class="btn btn-sm btn-quiet" id="pa-photo-remove">Remove photo</button>' : '') + '</div><p class="error" id="pa-photo-error" hidden></p>' : '') + '</section>';
+        (p.photo_url ? '<button type="button" class="btn btn-sm btn-quiet" id="pa-photo-remove">Remove photo</button>' : '') + '</div>' +
+        '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across. The photo is checked that the dog can be seen clearly, as puppy photos are.</div>' +
+        '<p class="error" id="pa-photo-error" hidden></p>' : '') + '</section>';
   }
   function wireParentPhoto(d, p, canEdit) {
     if (!canEdit) return;
@@ -1558,11 +1592,16 @@
       var file = input.files && input.files[0];
       if (!file) return;
       errBox.hidden = true;
-      var fb = fileBusy(input, 'Uploading photo…');
-      shrink(file).then(function (s) {
+      // The same size floor as puppy photos here, and the server checks the photo before it saves it.
+      var fb = fileBusy(input, 'Checking photo…');
+      screen(file, 'dog').then(function () { return shrink(file); }).then(function (s) {
         return api('POST', '/api/parents/' + p.id + '/photo', undefined, s.full)
           .then(function () { return s.card ? api('POST', '/api/parents/' + p.id + '/photo/card', undefined, s.card).catch(function () {}) : null; });
-      }).then(function () { fb.done(); toast('Photo added'); reopen(); }).catch(function (err) { fb.done(); errBox.hidden = false; errBox.textContent = err.message; });
+      }).then(function () { fb.done(); toast('Photo added'); reopen(); }).catch(function (err) {
+        fb.done(); input.value = '';
+        if (err.message === 'skip') return;
+        errBox.hidden = false; errBox.textContent = err.message;
+      });
     });
     var rm = $('#pa-photo-remove', d);
     if (rm) rm.addEventListener('click', function () {
@@ -2140,9 +2179,9 @@
     function q(title, body) { return '<section class="card help"><h2>' + esc(title) + '</h2>' + body + '</section>'; }
     shell(head('Help', 'Short answers to the questions breeders ask most.') +
       q('How do I get approved?', '<p>Fill in your profile with your business name, a phone or email buyers can use, and your town and state. Then name one reference who can confirm you are a real breeder, such as your veterinarian, another respected breeder, an AKC representative or a board member of your local animal welfare council. Accept the listing terms and submit. Puppy Connection looks over every new breeder once before they can list, and emails you when your account is approved. After that your listings go live without waiting.</p><p>Until then you can still edit your profile, and the menu shows only what you can use.</p>') +
-      q('How does listing work?', '<p>Add a litter first, with the breed and the dates. Then add each puppy to it with a price and ' + photos + '. If a litter has several puppies, use Add several to put them all in at once, then rename each one and add its photos.</p><p>A puppy stays a draft, which only you can see, until you pay to list it. The Litters and puppies screen says what each draft still needs.</p>') +
+      q('How does listing work?', '<p>Save the mom and dad first under Moms and dads, because a litter picks its parents from there. Then add the litter, with the breed and the dates, and pick them. Then add each puppy to it with a price and ' + photos + '. If a litter has several puppies, use Add several to put them all in at once, then rename each one and add its photos.</p><p>A puppy stays a draft, which only you can see, until you pay to list it. The Litters and puppies screen says what each draft still needs.</p>') +
       q('What does it cost?', '<p>Listing costs ' + esc(fee) + ' per puppy. ' + esc(lasts) + '</p><p>You can pay for a whole litter in one go on the Pay to list screen. Payment is by card through Stripe, and Stripe emails your receipt. Puppy Connection never sees your card number.</p>') +
-      q('How do I keep a listing on the site?', '<p>Add a new photo of the puppy at least every four weeks. A listing kept current this way stays up with no end date, until the puppy goes home or you remove it. Puppies change fast, and families get in touch far more often when the photos show the puppy as it looks today. Only a new photo counts, so changing the price or saying the puppy is still available does not.</p>' +
+      q('How do I keep a listing on the site?', '<p>Add a new photo of the puppy at least every four weeks. A listing kept current this way stays up with no end date until you remove it. A puppy marked placed stays on the site, shown as placed, and needs no new photos. Puppies change fast, and families get in touch far more often when the photos show the puppy as it looks today. Only a new photo counts, so changing the price or saying the puppy is still available does not.</p>' +
         '<p>After four weeks with no new photo we email you that the listing goes offline in two weeks, and after five weeks that it goes offline the next week. Each email links straight to the puppy\'s photos, and the top of the portal lists every listing that needs one and by when.</p>' +
         '<p>At six weeks the listing comes off the site. Add a new photo within the next six weeks and it goes straight back, free. After twelve weeks it is removed, but everything is kept in Litters and puppies, and you can relist it for ' + esc(fee) + ' without entering it again.</p>') +
       q('What happens when a puppy goes home?', '<p>Mark it placed, either from the list or in the puppy\'s own page in the portal. It stays on the site marked as placed, so buyers can still see the litter and know that puppy is spoken for. You can mark it available again if plans change.</p><p>If you would rather take a puppy off the site entirely, open it and choose Remove puppy.</p>') +

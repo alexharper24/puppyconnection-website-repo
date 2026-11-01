@@ -6,7 +6,8 @@
 // it collects, keeps or shares, change this page in the same commit. Where to look:
 //   passwords and sessions       lib/accounts.js, portal/worker.js, lib/jobs.js housekeeping (a day, a week)
 //   photo metadata stripped      lib/images.js, and portal.js shrink() in the browser
-//   photo quality check          lib/photocheck.js, Workers AI, the result kept on the photo row
+//   photo quality check          lib/photocheck.js, Workers AI, the result kept on the photo row. A
+//                                parent photo is checked at upload and not stored if it fails
 //   puppy videos                 lib/stream.js, Cloudflare Stream
 //   saved parents, documents     lib/parents.js, migrations/0050 (public docs/, private private/)
 //   Google                       lib/google.js, scope "openid email profile", name and email kept
@@ -81,7 +82,7 @@ export function privacyPage() {
 
 <h2>Your photos and videos</h2>
 <p>Photos taken on a phone can carry hidden details, such as where the photo was taken and what camera took it. The portal takes those details out of every photo you upload before it is saved, so they never reach the public site. Photos are also resized in your browser before they upload.</p>
-<p>Each puppy photo you upload is looked at by an automated check, run on Cloudflare's AI service, to see whether the puppy can be seen clearly. We keep the result with the photo. A photo that does not pass goes back to you with the reason, or to Puppy Connection to look at, and does not show on the site until it passes.</p>
+<p>Each puppy photo you upload is looked at by an automated check, run on Cloudflare's AI service, to see whether the puppy can be seen clearly. We keep the result with the photo. A photo that does not pass goes back to you with the reason, or to Puppy Connection to look at, and does not show on the site until it passes. A photo of a saved mom or dad gets the same check when you upload it, and one that does not pass is not saved, so you see the reason and can upload another.</p>
 <p>Puppy videos go straight from your browser to Cloudflare Stream, which stores them and plays them on the puppy's page.</p>
 
 <h2>Signing in</h2>

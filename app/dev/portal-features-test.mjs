@@ -113,9 +113,24 @@ async function main() {
 
   // ---------------------------------------------------------------- P2.1 where a puppy stands
   const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese' })).data.id;
-  const bare = (await A.c.post('/api/puppies', { litter_id: litter, name: 'Pepper' })).data.id;
-  let p = await pup(A.c, bare);
-  check('P2.1 a draft with no price and no photo names both', JSON.stringify(p.needs) === '["a price","a photo"]' && /price/.test(p.pay_block), JSON.stringify([p.needs, p.pay_block]));
+  // Alex, 2026-11-01. The Overview's first-run steps lead with the mom and dad, because a litter
+  // picks them from Moms and dads, then the litter, the puppies and paying to list.
+  const pjs = await (await fetch(`${PORTAL}/portal.js`)).text();
+  const at = (t) => pjs.indexOf(`title: '${t}'`);
+  check('the first-run steps run mom and dad, litter, puppies, pay to list',
+    at('Add the mom and the dad') > 0 && at('Add the mom and the dad') < at('Start a litter') && at('Start a litter') < at('Add the puppies') && at('Add the puppies') < at('Pay to list') && !/Add your first litter/.test(pjs));
+  // Alex, 2026-11-01. A puppy cannot be paid for without a price, so a save without one is refused,
+  // except for a puppy marked placed, which is no longer offered.
+  const noPrice = await A.c.post('/api/puppies', { litter_id: litter, name: 'Pepper' });
+  check('a puppy with no price is refused, saying a price is needed to list it', noPrice.status === 400 && /Give the puppy a price/.test(noPrice.data.error) && /pay to list/.test(noPrice.data.error), JSON.stringify(noPrice.data));
+  const placedNoPrice = await A.c.post('/api/puppies', { litter_id: litter, name: 'Gone Home', availability: 'placed' });
+  check('a puppy marked placed may save with no price', placedNoPrice.status === 201, JSON.stringify(placedNoPrice.data));
+  let p = await pup(A.c, placedNoPrice.data.id);
+  check('P2.1 a puppy with no price and no photo names both', JSON.stringify(p.needs) === '["a price","a photo"]' && /price/.test(p.pay_block), JSON.stringify([p.needs, p.pay_block]));
+  const bare = (await A.c.post('/api/puppies', { litter_id: litter, name: 'Pepper', price: '1800' })).data.id;
+  p = await pup(A.c, bare);
+  const cleared = await A.c.put(`/api/puppies/${bare}`, { name: 'Pepper', price: '', version: p.version });
+  check('an edit that clears the price is refused and the price stays', cleared.status === 400 && (await pup(A.c, bare)).price_cents === 180000, JSON.stringify(cleared.data));
   // Color and coat choices (migrations/0009): each breed carries its suggestions to the editor.
   const breedList = (await A.c.get('/api/breeds')).data;
   const hav = breedList.find((b) => b.id === 'breed-havanese'), dachs = breedList.find((b) => b.slug === 'miniature-dachshund');
@@ -202,7 +217,9 @@ async function main() {
   const made = all.filter((x) => many.data.ids.includes(x.id));
   check('P2.4 they are named, sexed and priced', made.map((x) => `${x.name}/${x.sex}/${x.price_cents}/${x.deposit_cents}`).sort().join() === 'Boy 1/male/120000/20000,Girl 1/female/120000/20000,Girl 2/female/120000/20000',
     made.map((x) => `${x.name}/${x.sex}/${x.price_cents}`).join());
-  const more = await A.c.post(`/api/litters/${litter}/puppies`, { girls: 1, unknown: 1 });
+  const unpriced = await A.c.post(`/api/litters/${litter}/puppies`, { girls: 1, unknown: 1 });
+  check('P2.4 a batch with no price is refused', unpriced.status === 400 && /price for each puppy/.test(unpriced.data.error), JSON.stringify(unpriced.data));
+  const more = await A.c.post(`/api/litters/${litter}/puppies`, { girls: 1, unknown: 1, price: '1200' });
   all = await puppies(A.c);
   check('P2.4 a second batch counts on from the first', more.status === 201 && all.some((x) => x.name === 'Girl 3' && x.sex === 'female') && all.some((x) => x.name === 'Puppy 1' && x.sex === null));
   check('P2.4 zero puppies is refused', (await A.c.post(`/api/litters/${litter}/puppies`, { girls: 0 })).status === 400);

@@ -60,6 +60,15 @@ tasks:
     closed: 2026-11-01
     asked: "Alex 2026-11-01: does one invitation to the RDB address tell them they have all the kennels"
     evidence: "It did already name every other kennel. PR 121 lists more than two one per line and drops the set-password page's 'once you open those invitations'. multikennel 85, accounts 80, signin 26, email-html 277"
+  - id: n11-rdb-21
+    status: done
+    closed: 2026-11-01
+    asked: "Alex 2026-11-01: RDB manages 21 breeders to start, make the RDB admin address the main contact of each"
+    evidence: "Fourteen already had it from 0085. Migration 0089 moved Paw Print Acres, Heartland Mini Schnauzers, TM Countryside K9, Willow Lane Bulldogs, Maple Lane Pets, Cornerstone Cavaliers and Perfect Match Poodles off placeholder addresses. Backup production-2026-11-01-pre0089.sql downloaded, rehearsal PASS (7 audit rows, second run 0 changes), production read-back 22 kennels on the address (the 21 plus Ibar Canine Companions), 21 RDB audit rows, no credentials, members or open invites for the address"
+  - id: n12-ibar-and-names
+    status: open
+    blocked_on: alex
+    item: "Ibar Canine Companions is also on the RDB address (since before 0085) but was not in Alex's list of 21, so the invitation will name 22. Confirm it stays. Alex's names Cuddly Canine Companions and The Home of Maple Lane Pets are listed as Cuddly Family Companions and Maple Lane Pets, so confirm whether either display name should change"
   - id: n8-flagged-photos
     status: open
     blocked_on: alex

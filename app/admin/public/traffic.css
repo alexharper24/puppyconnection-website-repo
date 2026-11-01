@@ -35,3 +35,12 @@ path.tc-other { fill: var(--tc-other); }
 @media (max-width: 600px) {
   .tc-controls .seg button { padding: .45rem .6rem; }
 }
+
+/* The Reports tabs (admin.js reportsScreen). They wrap rather than scroll, so a phone shows every report. */
+.rtabs { display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1rem; }
+.rtabs button { border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink); border-radius: var(--radius);
+  padding: .45rem .8rem; min-height: 40px; font: 500 .86rem var(--sans); cursor: pointer; }
+.rtabs button:hover { border-color: var(--bronze); }
+.rtabs button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+.rtabs button:focus-visible { outline: 2px solid var(--olive); outline-offset: 2px; }
+.tc-more { margin: .7rem 0 0; }

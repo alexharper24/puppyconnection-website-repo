@@ -912,7 +912,7 @@ async function trafficTop(req, env) {
   const from = q.get('from'), to = q.get('to'), kind = q.get('kind') || 'all';
   if (!DAY_RX.test(from || '') || !DAY_RX.test(to || '') || from > to) throw bad('Choose a from and to day.');
   if (!['all', 'puppy', 'home', 'breed', 'breeder', 'guide', 'other'].includes(kind)) throw bad('Unknown kind of page.');
-  const LIMIT = 40;
+  const LIMIT = 100; // the chart shows 20 at a time, with Show more
   const out = [];
   if (kind === 'all' || kind === 'puppy') {
     const { results: top } = await env.DB.prepare(

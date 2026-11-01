@@ -8,6 +8,7 @@
   var SVGNS = 'http://www.w3.org/2000/svg';
   var KIND_NAMES = { puppy: 'Puppy pages', home: 'Home', breed: 'Breeds', breeder: 'Breeders', guide: 'Guides', other: 'Other pages' };
   var SPAN = { day: 30, week: 26, month: 12 };
+  var PAGE = 20; // top pages shown at first, and how many more each Show more adds (Alex, 2026-11-01)
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
   function d0(s) { return new Date(s + 'T00:00:00Z'); }
@@ -213,13 +214,21 @@
         if (box.dataset.ask !== ask) return;
         if (!t.pages.length) { box.innerHTML = '<p class="muted small">No ' + (st.kind === 'all' ? '' : KIND_NAMES[st.kind].toLowerCase() + ' ') + 'views were counted in this period.</p>'; return; }
         var site = t.site ? t.site.replace(/\/$/, '') + '/' : null;
-        box.innerHTML = '<div class="table-wrap"><table class="list"><thead><tr><th>Top pages</th><th class="hide-sm">Kind</th><th class="num">Views</th><th class="num">Clicks</th></tr></thead><tbody>' +
-          t.pages.map(function (p) {
-            var name = '<b>' + esc(p.label) + '</b>';
-            if (site && p.page) name = '<a href="' + esc(site + (p.page === 'index' ? '' : p.page + '.html')) + '" target="_blank" rel="noopener">' + name + '</a>';
-            return '<tr><td>' + name + (p.sub ? '<span class="sub">' + esc(p.sub) + '</span>' : '') + '</td><td class="hide-sm small muted">' + esc(KIND_NAMES[p.kind] || p.kind) + '</td>' +
-              '<td class="num">' + n(p.views) + '</td><td class="num">' + n(p.clicks) + '</td></tr>';
-          }).join('') + '</tbody></table></div>';
+        var shown = PAGE;
+        function row(p) {
+          var name = '<b>' + esc(p.label) + '</b>';
+          if (site && p.page) name = '<a href="' + esc(site + (p.page === 'index' ? '' : p.page + '.html')) + '" target="_blank" rel="noopener">' + name + '</a>';
+          return '<tr><td>' + name + (p.sub ? '<span class="sub">' + esc(p.sub) + '</span>' : '') + '</td><td class="hide-sm small muted">' + esc(KIND_NAMES[p.kind] || p.kind) + '</td>' +
+            '<td class="num">' + n(p.views) + '</td><td class="num">' + n(p.clicks) + '</td></tr>';
+        }
+        function show() {
+          box.innerHTML = '<div class="table-wrap"><table class="list"><thead><tr><th>Top pages</th><th class="hide-sm">Kind</th><th class="num">Views</th><th class="num">Clicks</th></tr></thead><tbody>' +
+            t.pages.slice(0, shown).map(row).join('') + '</tbody></table></div>' +
+            (t.pages.length > shown ? '<p class="tc-more"><button type="button" class="btn btn-sm" data-more>Show ' + Math.min(PAGE, t.pages.length - shown) + ' more</button> <span class="muted small">' + shown + ' of ' + t.pages.length + ' shown</span></p>' : '');
+          var more = A.$('[data-more]', box);
+          if (more) more.addEventListener('click', function () { shown += PAGE; show(); });
+        }
+        show();
       }).catch(function () { box.innerHTML = '<p class="muted small">The top pages could not be loaded.</p>'; });
     }
   }

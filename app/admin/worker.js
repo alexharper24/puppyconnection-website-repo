@@ -1609,7 +1609,13 @@ export default {
       }
       if (url.pathname.startsWith('/api/')) throw notFound();
       const asset = await env.ASSETS.fetch(new Request(new URL(url.pathname === '/' ? '/index.html' : url.pathname, url), request));
-      return withHeaders(asset, SECURITY_HEADERS);
+      const out = withHeaders(asset, SECURITY_HEADERS);
+      // Alex, 2026-11-01. An operator's browser is Puppy Connection's own: the public site reads this cookie
+      // to keep its visits out of Google Analytics reports and the breeders' view and click counts.
+      if (url.hostname.endsWith('puppy-connection.com') && (url.pathname === '/' || url.pathname.endsWith('.html'))) {
+        out.headers.append('set-cookie', 'pc_staff=1; Domain=puppy-connection.com; Path=/; Max-Age=34560000; Secure; SameSite=Lax');
+      }
+      return out;
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.message, ...(e.extra || {}) }, e.status);
       console.error(e);

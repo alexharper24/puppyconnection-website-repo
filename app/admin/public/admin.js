@@ -702,9 +702,10 @@
                   '<button type="button" class="btn btn-sm btn-danger" data-remove-picked disabled>Remove selected</button></div>' : '') +
                 (photos.length ? '<ul class="admin-photos">' + photos.map(function (ph, i) {
           return '<li data-id="' + esc(ph.id) + '"><img src="' + esc(photoThumb(ph.card || ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(p.name) + '" decoding="async">' +
+            (photos.length > 1 ? '<label class="photo-pick" title="Select to remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"></label>' : '') +
             '<div class="btn-row"><button class="btn btn-sm" data-move="-1"' + (i ? '' : ' disabled') + ' aria-label="Move earlier">Earlier</button>' +
             '<button class="btn btn-sm" data-move="1"' + (i < photos.length - 1 ? '' : ' disabled') + ' aria-label="Move later">Later</button>' +
-            '<label class="pick-remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"></label><button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first</span>') + '</li>';
+            '<button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first</span>') + '</li>';
         }).join('') + '</ul>' : '<p class="muted">No photos yet.</p>') +
         '<div class="field"><label for="ph-add">Add photos</label><input id="ph-add" type="file" accept="image/*" multiple></div>' +
         '<p class="notice notice-alert small" id="ph-err" hidden></p>' +

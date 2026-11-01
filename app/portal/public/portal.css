@@ -308,8 +308,9 @@ table.list tr.total-row td { background: var(--ground); }
 /* Alex, 2026-11-01. Batch photo removal: a box beside each Remove, and the bar above the photos. */
 .photo-batch { display: flex; justify-content: flex-end; gap: .5rem; margin: .4rem 0 .6rem; }
 /* The box sits in the photo's top-right corner, opposite the Cover pill (Alex, 2026-11-01). */
-.photo-pick { position: absolute; top: 4px; right: 4px; display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; border-radius: 4px; background: rgba(255, 255, 255, .92); box-shadow: 0 1px 3px rgba(38, 38, 38, .25); cursor: pointer; }
-.photo-pick input[type=checkbox] { width: 20px; height: 20px; margin: 0; accent-color: var(--olive); cursor: pointer; }
+/* Just the box, no pad, the Cover pill's height and level with its top (Alex, 2026-11-01). */
+.photo-pick { position: absolute; top: 4px; right: 4px; display: block; line-height: 0; cursor: pointer; }
+.photo-pick input[type=checkbox] { width: var(--pick, 22px); height: var(--pick, 22px); margin: 0; accent-color: var(--olive); cursor: pointer; }
 .admin-photos li { position: relative; }
 .photo .tools-2 { gap: .3rem; align-items: center; border-top: 1px solid var(--line); }
 .photo .tools-2 select { min-height: 32px; padding: .1rem .3rem; font-size: .82rem; width: auto; flex: 1 1 auto; min-width: 0; }

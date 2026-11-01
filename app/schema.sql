@@ -82,6 +82,29 @@ CREATE TABLE IF NOT EXISTS puppy_stats (
   clicks   INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (puppy_id, day)
 );
+-- The admin's top pages for a date range read by day (migrations/0088).
+CREATE INDEX IF NOT EXISTS puppy_stats_day ON puppy_stats(day);
+
+-- Every public page that is not a puppy page, by its file name without .html ('index' for the
+-- home page), counted the same cookieless way as puppy_stats (migrations/0088).
+CREATE TABLE IF NOT EXISTS page_stats (
+  page     TEXT NOT NULL,
+  day      TEXT NOT NULL,
+  views    INTEGER NOT NULL DEFAULT 0,
+  clicks   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (page, day)
+);
+CREATE INDEX IF NOT EXISTS page_stats_day ON page_stats(day);
+
+-- The day's totals by kind of page (puppy, home, list, breed, breeder, guide, other), written with
+-- each count so the admin's traffic chart reads a handful of rows a day rather than every page.
+CREATE TABLE IF NOT EXISTS traffic_daily (
+  day      TEXT NOT NULL,
+  kind     TEXT NOT NULL,
+  views    INTEGER NOT NULL DEFAULT 0,
+  clicks   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, kind)
+);
 
 -- Plan P2.7. A breeder asking Puppy Connection to close their account. An operator sees the
 -- request and marks it closed (resolved_at). Thirty days later the daily retention job removes the

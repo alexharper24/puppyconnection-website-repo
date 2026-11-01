@@ -97,7 +97,7 @@
   function card(l) {
     /* The first row or two are in view immediately. Marking those lazy delays
        them; mark them eager and high priority instead. */
-    var eager = cardIndex++ < 8;
+    var eager = cardIndex++ < eagerCards;
     /* 48 listings have no landscape photo anywhere in their set. Cropping a
        portrait into the 3:2 slot cuts the dog in half whichever edge we anchor
        to, so those sit whole on the card's own ground instead. */
@@ -136,6 +136,9 @@
         '</div>' +
       '</a>';
   }
+  /* On the home page the grids sit below the hero photo, so none of their cards competes with it
+     for the first download (Alex, 2026-11-01, PageSpeed). */
+  var eagerCards = document.querySelector('#homeFeatured') ? 0 : 8;
   function renderInto(sel, list, emptyMsg) {
     var el = document.querySelector(sel);
     if (!el) return;
@@ -474,7 +477,8 @@
       bl.innerHTML = BREEDS.map(function (b) {
         return '<a class="card" href="breed.html?slug=' + esc(b.slug) + '">' +
           '<div class="card-media">' + (b.photo ? '<img src="' + esc(PHONE.matches ? wix(b.photo_tall || b.photo, 480, 600) : wix(b.photo, 600, 400)) +
-            '" alt="' + esc(b.name) + '" loading="lazy" decoding="async" ' + (PHONE.matches ? 'width="480" height="600"' : 'width="600" height="400"') + '>' : '') + '</div>' +
+            '" alt="' + esc(b.name) + '" loading="lazy" decoding="async" ' +
+            (b.photo_small ? 'srcset="' + esc(b.photo_small) + ' 400w, ' + esc(b.photo) + ' 800w" sizes="(max-width:760px) 46vw, 25vw" ' : '') + (PHONE.matches ? 'width="480" height="600"' : 'width="600" height="400"') + '>' : '') + '</div>' +
           '<div class="card-body"><div class="card-name">' + esc(b.name) + '</div>' +
           '<div class="card-breed">' + b.demo_count + ' listed</div></div></a>';
       }).join('');
@@ -1040,10 +1044,16 @@
   window.gtag = function () { window.dataLayer.push(arguments); };
   window.gtag('js', new Date());
   window.gtag('config', id, internal ? { traffic_type: 'internal' } : {});
-  var s = document.createElement('script');
-  s.async = true;
-  s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
-  document.head.appendChild(s);
+  // gtag.js is 176 KB, so it loads once the page has finished and the browser is idle (Alex, 2026-11-01,
+  // after a PageSpeed run). Calls made before then wait in dataLayer and go when it arrives.
+  var load = function () {
+    var s = document.createElement('script');
+    s.async = true;
+    s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
+    document.head.appendChild(s);
+  };
+  var later = function () { if (window.requestIdleCallback) window.requestIdleCallback(load, { timeout: 3000 }); else setTimeout(load, 1500); };
+  if (document.readyState === 'complete') later(); else window.addEventListener('load', later);
 
   // Clicks to a breeder's website, phone and email from puppy and breeder pages (workplan B11),
   // so the property can show a breeder what a listing produced. The site's own count of these

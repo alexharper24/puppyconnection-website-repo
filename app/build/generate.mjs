@@ -538,7 +538,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
 
   fs.rmSync(out, { recursive: true, force: true });
   fs.mkdirSync(out, { recursive: true });
-  for (const dir of ['css', 'img']) fs.cpSync(path.join(T, dir), path.join(out, dir), { recursive: true });
+  for (const dir of ['css', 'img', 'fonts']) fs.cpSync(path.join(T, dir), path.join(out, dir), { recursive: true });
   // The favicon sits at the root, where browsers look for it whatever the page says (option X, 2026-10-11).
   if (fs.existsSync(path.join(T, 'favicon.ico'))) fs.copyFileSync(path.join(T, 'favicon.ico'), path.join(out, 'favicon.ico'));
   fs.mkdirSync(path.join(out, 'js'), { recursive: true });
@@ -593,7 +593,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     if (!t) return null;
     // A v= from each file's bytes, because a replaced photo keeps its name and browsers kept showing the old one (Alex, 2026-10-30).
     const v = (w) => `img/breeds/${slug}-${w}.webp?v=${hash(fs.readFileSync(path.join(T, `img/breeds/${slug}-${w}.webp`)))}`;
-    return { src: v(1600), card: v(800), w: t.w, h: t.h, aspect: t.w / t.h, fx: t.fx, fy: t.fy, local: true };
+    return { src: v(1600), card: v(800), small: v(400), w: t.w, h: t.h, aspect: t.w / t.h, fx: t.fx, fy: t.fy, local: true };
   };
   // A breed whose picture is a puppy's photo can name a better focus point than the detector found, where the
   // photo's own record is not the place to change it (Alex, 2026-10-30: the Maltese head was cut off at the top).
@@ -651,6 +651,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     return { name: b.name, slug: b.slug, live_count: breedCounts[b.slug] || 0, demo_count: breedCounts[b.slug] || 0, guide: [], photo: lead ? (isWix(lead.src) ? fill(lead, 600, 400) : lead.local ? lead.card : lead.src) : BREED_FALLBACK[b.slug] ? `${BREED_FALLBACK[b.slug].file}-800.webp` : null,
       // The phone home page shows breed cards at portrait 4:5 (Alex, 2026-10-07), cropped around the same focus point.
       photo_tall: lead && isWix(lead.src) ? fill(lead, 480, 600) : null,
+      // A 400 px copy for the home page's phone grid, two across (Alex, 2026-11-01, PageSpeed).
+      photo_small: lead && lead.small ? lead.small : null,
       photo_pos: lead && lead.local ? objectPosition(lead, 600, 400) : null, photo_pos_tall: lead && lead.local ? objectPosition(lead, 480, 600) : null };
   });
   const dataJs = `// Written by app/build/generate.mjs from data/*.json. Do not edit.\nwindow.PC_LISTINGS=${JSON.stringify(pcListings)};\nwindow.PC_BREEDS=${JSON.stringify(pcBreeds)};\nwindow.PC_BREEDERS=[];\n`;
@@ -676,9 +678,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   })}</script>`;
   const fonts = [
     ...(onWix ? ['<link rel="preconnect" href="https://static.wixstatic.com" crossorigin>'] : []),
-    '<link rel="preconnect" href="https://fonts.googleapis.com">',
-    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>',
-    '<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600&family=Barlow:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">',
+    // The fonts are this site's own files in fonts/ (Alex, 2026-11-01), with the two the top of a page uses preloaded.
+    '<link rel="preload" href="fonts/playfair-display-500.woff2" as="font" type="font/woff2" crossorigin>',
+    '<link rel="preload" href="fonts/barlow-400.woff2" as="font" type="font/woff2" crossorigin>',
     `<link rel="stylesheet" href="css/style.css?v=${cssV}">`,
   ].join('\n');
   const absolute = (src) => (!src ? null : /^https?:/.test(src) ? src : base + src);
@@ -1384,6 +1386,16 @@ ${withPhoto(pg).replaceAll('{{PORTAL}}', portal)}
   // ---- the concept's own pages, carried over with this site's address, scripts and footer
   for (const f of ['index.html', 'puppies.html', 'list-with-us.html']) {
     let s = withNav(concept(f).split(CONCEPT_BASE).join(base));
+    // The home breed grid's placeholder cards carry the first twelve breed names, so a name that wraps to two
+    // lines holds its height before js/main.js draws the real cards (Alex, 2026-11-01, PageSpeed).
+    if (f === 'index.html') {
+      const a = s.indexOf('id="breedList">');
+      const z = s.indexOf('<div class="btn-row reveal-row">', a);
+      if (a < 0 || z < 0) throw new Error('generate.mjs: the home page no longer has the breed grid and its reveal row');
+      let i = 0;
+      s = s.slice(0, a) + s.slice(a, z).replace(/<div class="card-name">&nbsp;<\/div>/g,
+        () => `<div class="card-name">${pcBreeds[i] ? esc(pcBreeds[i++].name) : '&nbsp;'}</div>`) + s.slice(z);
+    }
     s = s.replace(/<meta name="robots"[^>]*>\n/, robots);
     // The concept pages name the staging portal, so the build swaps in the real one (launch, 2026-10-31).
     s = s.split('https://portal.puppyconnection.workers.dev').join(portal);

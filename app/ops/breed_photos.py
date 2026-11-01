@@ -111,7 +111,7 @@ def main():
         if slug in WIDEN:
             t, b, ratio = WIDEN[slug]
             im = widen(im.crop((0, round(t * im.height), im.width, round(b * im.height))), ratio)
-        for width in (800, 1600):
+        for width in (400, 800, 1600):
             c = im.copy()
             if c.width > width:
                 c = c.resize((width, round(c.height * width / c.width)), Image.LANCZOS)
@@ -124,7 +124,7 @@ def main():
         return
     for slug, (f, fx, fy) in BREEDER_PHOTOS.items():
         im = load(f)
-        for width in (800, 1600):
+        for width in (400, 800, 1600):
             c = im.copy()
             if c.width > width:
                 c = c.resize((width, round(c.height * width / c.width)), Image.LANCZOS)

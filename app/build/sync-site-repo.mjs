@@ -49,7 +49,7 @@ export function fileList() {
     ['templates/favicon.ico', 'favicon.ico'],
   ];
   const walk = (dir) => fs.readdirSync(path.join(REPO, dir), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]));
-  for (const dir of ['css', 'img']) for (const f of walk(dir)) list.push([`templates/${f}`, f]);
+  for (const dir of ['css', 'img', 'fonts']) for (const f of walk(dir)) list.push([`templates/${f}`, f]);
   // Breed guide files (build/guides.mjs), at content/guides beside build/ in the site repository.
   if (fs.existsSync(path.join(REPO, 'app/content/guides'))) for (const f of walk('app/content/guides')) list.push([f.replace(/^app\//, ''), f]);
   if (fs.existsSync(path.join(REPO, 'app/content/breeds'))) for (const f of walk('app/content/breeds')) list.push([f.replace(/^app\//, ''), f]);
@@ -69,7 +69,7 @@ function read(file) {
 function appCommit() {
   try {
     const sha = execFileSync('git', ['-C', REPO, 'rev-parse', 'HEAD']).toString().trim();
-    const dirty = execFileSync('git', ['-C', REPO, 'status', '--porcelain', '--', 'app/build', 'app/site', 'app/lib', 'index.html', 'puppies.html', 'list-with-us.html', 'css', 'img', 'js']).toString().trim();
+    const dirty = execFileSync('git', ['-C', REPO, 'status', '--porcelain', '--', 'app/build', 'app/site', 'app/lib', 'index.html', 'puppies.html', 'list-with-us.html', 'css', 'img', 'fonts', 'js']).toString().trim();
     return { sha, uncommitted_changes: !!dirty };
   } catch { return { sha: null, uncommitted_changes: null }; }
 }

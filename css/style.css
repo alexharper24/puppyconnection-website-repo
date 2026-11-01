@@ -357,9 +357,16 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
 .gallery-main img{width:100%;height:100%;object-fit:contain}
 /* G8: the photos are stacked and crossfade, as on Bless Your Paws. Only .is-on shows. */
 .gallery-main{position:relative}
-.gallery-main img{position:absolute;inset:0;opacity:0;transition:opacity .7s ease-in-out}
-.gallery-main img.is-on{opacity:1;z-index:1}
-@media (prefers-reduced-motion:reduce){.gallery-main img{transition:none}}
+.gallery-main .slide{position:absolute;inset:0;overflow:hidden;opacity:0;transition:opacity .7s ease-in-out}
+.gallery-main .slide.is-on{opacity:1;z-index:1}
+@media (prefers-reduced-motion:reduce){.gallery-main .slide{transition:none}}
+/* A square or portrait photo stays whole over a blurred fill of itself, as .card-media.is-whole does */
+.gallery-main .slide.is-whole::before{
+  content:'';position:absolute;inset:0;z-index:0;
+  background:var(--fill) center/cover no-repeat;
+  filter:blur(22px) saturate(.7) brightness(.94);transform:scale(1.25);
+}
+.gallery-main .slide img{position:relative;z-index:1;display:block}
 /* One row that scrolls, rather than a second row that competes with the main
    photo for height. The arrows only appear when there is somewhere to go. */
 .thumb-strip{position:relative;margin-top:.5rem}

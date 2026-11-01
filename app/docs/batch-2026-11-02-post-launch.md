@@ -15,7 +15,9 @@ tasks:
     rules: "d1-migration skill: backup, two rehearsals, apply with app/ops/d1-apply.mjs (Alex has allowed Claude to run it). lib/inactivity.js holds the clock; never-signed-in legacy breeders are skipped today, so decide with Alex whether the portal notice shows for them on first sign-in"
   - id: n2-crop-preview
     status: open
-    blocked_on: alex
+    blocked_on: claude
+    approved: "Alex 2026-11-01: the 4:3 and 5:4 to 3:2 crops look good. Leave out the seven non-photo images below, whatever he decides for them"
+    not_photos: "Found 2026-11-01, both brought across from the old Wix listings. The Bentley stud poster (sire graphic, wixstatic 8d80ac_3e5dda73...) is photo 9 of Damon and photo 8 of Stephan, Premier Paw Pals Yorkies. AKC Bred with H.E.A.R.T. badges are photo 10 of Biscuit and Sage (Chain O' Lakes Companions, 8d80ac_a48f613b...) and photo 7 of Harriet, 11 of Saber and 9 of Sawyer (Perfect Match Poodles, 8d80ac_94e2b67b...). Asked Alex whether to take them off the galleries"
     progress: "Preview built 2026-11-01 by app/ops/crop_preview.py from production-2026-11-01-pre0085.sql, at app/.state/crop-preview/index.html (gitignored, images local). 154 photos of listed puppies (98 near 4:3 meaning 1.29 to 1.43, 56 near 5:4 meaning 1.17 to 1.29): 68 would cut the dog box the detector draws by more than 2% of the height, 9 have no dog found, 77 keep the whole box. Nothing cropped. Waiting on Alex's list"
     item: "Show Alex every photo a crop of 4:3 and 5:4 photos to 3:2 would change, before any crop is made. Build contact sheets or an HTML page with each photo as it is now beside the cropped version around its stored focus point (photos.focus_x/focus_y), flagging any crop that cuts a head or feet. Do not crop anything until Alex approves the list"
     measured: "Listed puppies 2026-11-01: 749 photos about 3:2, 102 at 4:3, 56 at 5:4, 207 square, 177 portrait, 102 with no size recorded"
@@ -47,6 +49,16 @@ tasks:
     status: done
     closed: 2026-11-01
     evidence: "Always Use HTTPS turned on in Cloudflare for puppy-connection.com. curl: http apex, www and portal each 301 to https"
+  - id: n9-designated-representative
+    status: done
+    closed: 2026-11-01
+    asked: "Amber via Alex 2026-11-01: change speak to the breeder directly to connect with the breeder or their designated representative"
+    evidence: "PR 121 merged (bc0f842), portal 21664f28, admin 32ab6cd0, site repo b49bd61. Live: home page 3 matches, how-it-works step 3 and breeder pages read Connect with this breeder. Meta descriptions add the sentence only when it fits 155 characters (withTail in generate.mjs), so cut descriptions 40 against 56 before. Left as they were: payments made directly to the breeder, transport arranged directly, the relationship statements on the about page, list-with-us (addressed to breeders) and the privacy page (legal text)"
+  - id: n10-invite-kennel-list
+    status: done
+    closed: 2026-11-01
+    asked: "Alex 2026-11-01: does one invitation to the RDB address tell them they have all the kennels"
+    evidence: "It did already name every other kennel. PR 121 lists more than two one per line and drops the set-password page's 'once you open those invitations'. multikennel 85, accounts 80, signin 26, email-html 277"
   - id: n8-flagged-photos
     status: open
     blocked_on: alex

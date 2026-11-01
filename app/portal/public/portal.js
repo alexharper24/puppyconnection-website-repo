@@ -1245,13 +1245,15 @@
       '<p class="hint">A new photo at least every four weeks keeps the listing on the site. New photos go first, and the first photo is the cover.</p>' +
       (canEdit ? '<div class="upload"><label for="ph-input" class="btn btn-sm">Add photos</label><input id="ph-input" type="file" accept="image/*" multiple hidden>' +
         '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across and up to 15 MB each. Each photo is checked that the puppy can be seen clearly.</div><p class="error" id="ph-error" hidden></p></div>' : '') +
+      (canEdit && x.photos.length > 1 ? '<div class="photo-batch"><button type="button" class="btn btn-sm btn-quiet" data-pick-all>Select all</button>' +
+        '<button type="button" class="btn btn-sm btn-danger" data-remove-picked disabled>Remove selected</button></div>' : '') +
       '<div class="photos" id="photos">' + x.photos.map(function (ph, i) {
         var flag = ph.quality === 'sent_back' ? '<span class="pill pill-alert cover" title="' + esc((ph.messages || []).join(' ')) + '">Sent back</span>'
           : ph.quality === 'review' ? '<span class="pill pill-warn cover">Being looked at</span>' : ph.quality === 'pending' ? '<span class="pill pill-warn cover">Checking</span>' : '';
         return '<div class="photo" data-id="' + esc(ph.id) + '"' + (canEdit ? ' draggable="true"' : '') + (ph.quality === 'sent_back' ? ' style="outline:2px solid #b42318"' : '') + '>' + (flag || (i === 0 ? '<span class="pill pill-gold cover">Cover</span>' : '')) +
           '<img src="' + esc(cardUrl(ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(x.name) + '">' +
           (canEdit ? '<div class="tools"><button type="button" data-move="-1" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>&larr;</button>' +
-            '<button type="button" data-remove aria-label="Remove photo">Remove</button>' +
+            '<span class="pick-remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"><button type="button" data-remove aria-label="Remove photo">Remove</button></span>' +
             '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' +
             '<div class="tools tools-2"><label class="sr" for="ph-pos-' + esc(ph.id) + '">Position</label><select id="ph-pos-' + esc(ph.id) + '" data-pos aria-label="Position of photo ' + (i + 1) + '">' +
               x.photos.map(function (_, k) { return '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k === 0 ? '1, cover' : String(k + 1)) + '</option>'; }).join('') + '</select>' +
@@ -1376,6 +1378,27 @@
         var id = b.closest('.photo').dataset.id;
         api('DELETE', '/api/photos/' + id).then(function () { toast('Photo removed'); reopen(); }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
       });
+    });
+    // Alex, 2026-11-01. Tick several photos and remove them in one go, one request each, then redraw once.
+    var picks = $$('[data-pick]', d), pickBtn = $('[data-remove-picked]', d), pickAll = $('[data-pick-all]', d);
+    function picked() { return picks.filter(function (c) { return c.checked; }); }
+    function syncPicks() {
+      if (!pickBtn) return;
+      var n = picked().length;
+      pickBtn.disabled = !n;
+      pickBtn.textContent = n ? 'Remove ' + plural(n, 'photo', 'photos') : 'Remove selected';
+      if (pickAll) pickAll.textContent = n === picks.length ? 'Clear selection' : 'Select all';
+    }
+    picks.forEach(function (c) { c.addEventListener('change', syncPicks); });
+    if (pickAll) pickAll.addEventListener('click', function () { var all = picked().length !== picks.length; picks.forEach(function (c) { c.checked = all; }); syncPicks(); });
+    if (pickBtn) pickBtn.addEventListener('click', function () {
+      var ids = picked().map(function (c) { return c.closest('.photo').dataset.id; });
+      if (!ids.length || !confirm('Remove ' + plural(ids.length, 'photo', 'photos') + ' from ' + x.name + '?')) return;
+      pickBtn.disabled = true;
+      var done = 0, chain = Promise.resolve();
+      ids.forEach(function (id) { chain = chain.then(function () { return api('DELETE', '/api/photos/' + id).then(function () { done += 1; }); }); });
+      chain.then(function () { toast(plural(done, 'photo', 'photos') + ' removed'); reopen(); })
+        .catch(function (err) { errBox.hidden = false; errBox.textContent = (done ? plural(done, 'photo', 'photos') + ' removed, then: ' : '') + err.message; reopen(); });
     });
     // Alex, 2026-10-31. Move one step, straight to a position, or to the cover, in one save.
     function moveTo(id, j) {

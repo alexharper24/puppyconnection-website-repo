@@ -305,6 +305,11 @@ table.list tr.total-row td { background: var(--ground); }
 .photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
 .photo .tools { display: flex; justify-content: space-between; padding: .2rem; }
 .photo .tools button { border: 0; background: transparent; cursor: pointer; font-size: .85rem; padding: .25rem .4rem; min-height: 32px; }
+/* Alex, 2026-11-01. Batch photo removal: a box beside each Remove, and the bar above the photos. */
+.photo-batch { display: flex; justify-content: flex-end; gap: .5rem; margin: .4rem 0 .6rem; }
+.pick-remove { display: inline-flex; align-items: center; gap: .15rem; }
+.pick-remove input[type=checkbox] { width: 18px; height: 18px; margin: 0; accent-color: var(--olive, #4f6b52); cursor: pointer; }
+.admin-photos .pick-remove { min-height: 36px; padding: 0 .2rem; }
 .photo .tools-2 { gap: .3rem; align-items: center; border-top: 1px solid var(--line); }
 .photo .tools-2 select { min-height: 32px; padding: .1rem .3rem; font-size: .82rem; width: auto; flex: 1 1 auto; min-width: 0; }
 .photo .tools-2 button { color: var(--olive); font-weight: 600; white-space: nowrap; }

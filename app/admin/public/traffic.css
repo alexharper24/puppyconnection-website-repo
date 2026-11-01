@@ -1,0 +1,37 @@
+/* The traffic chart on Reports (traffic.js). Series colors checked with the dataviz validator
+   on 2026-11-01 against the white card: lightness, chroma, color-blind separation and 3:1 contrast all pass. */
+:root { --tc-puppy: #4e7a3a; --tc-other: #b8862b; }
+.tc-head { flex-wrap: wrap; gap: .6rem 1rem; margin-bottom: .5rem; }
+.tc-controls { display: flex; flex-wrap: wrap; gap: .5rem; }
+.tc-legend { display: flex; flex-wrap: wrap; gap: .3rem 1.2rem; font-size: .86rem; margin: 0 0 .4rem; }
+.tc-legend span { display: inline-flex; align-items: center; gap: .4rem; }
+.tc-key { display: inline-block; width: .8rem; height: .8rem; border-radius: 2px; flex: none; }
+i.tc-puppy { background: var(--tc-puppy); }
+i.tc-other { background: var(--tc-other); }
+.tc-key-total { background: var(--ink); }
+.tc-wrap { position: relative; }
+.tc-plot { width: 100%; min-height: 200px; }
+.tc-plot svg { display: block; max-width: 100%; height: auto; overflow: visible; }
+.tc-grid { stroke: var(--line); stroke-width: 1; }
+.tc-base { stroke: var(--line-strong); stroke-width: 1; }
+.tc-axis { font: 11px var(--sans); fill: var(--muted); font-variant-numeric: tabular-nums; }
+.tc-val { font: 600 11px var(--sans); fill: var(--ink); font-variant-numeric: tabular-nums; }
+path.tc-puppy { fill: var(--tc-puppy); }
+path.tc-other { fill: var(--tc-other); }
+.tc-bar.dim path { opacity: .35; }
+.tc-hit { fill: transparent; cursor: pointer; outline: none; }
+.tc-hit:hover, .tc-hit:focus-visible { fill: rgba(38, 38, 38, .05); }
+.tc-hit:focus-visible { stroke: var(--olive); stroke-width: 2; }
+.tc-tip { position: absolute; top: 0; z-index: 2; pointer-events: none; background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0, 0, 0, .12); padding: .45rem .6rem; font-size: .82rem; white-space: nowrap; }
+.tc-tip b, .tc-tip span { display: flex; align-items: center; gap: .4rem; }
+.tc-note { margin: .4rem 0 1rem; }
+.tc-range { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; margin: 0 0 .3rem; }
+.tc-sum { margin: 0 0 .6rem; }
+/* The kind buttons wrap rather than scroll, so a phone shows all seven. */
+.tc-kinds { display: flex; flex-wrap: wrap; gap: .35rem; border: 0; overflow: visible; margin-bottom: .8rem; }
+.tc-kinds > button { border: 1px solid var(--line-strong) !important; border-radius: var(--radius); }
+.tc-n { color: inherit; opacity: .7; font-variant-numeric: tabular-nums; margin-left: .2rem; }
+@media (max-width: 600px) {
+  .tc-controls .seg button { padding: .45rem .6rem; }
+}

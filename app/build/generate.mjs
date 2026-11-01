@@ -678,9 +678,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   })}</script>`;
   const fonts = [
     ...(onWix ? ['<link rel="preconnect" href="https://static.wixstatic.com" crossorigin>'] : []),
-    // The fonts are this site's own files in fonts/ (Alex, 2026-11-01), with the two the top of a page uses preloaded.
-    '<link rel="preload" href="fonts/playfair-display-500.woff2" as="font" type="font/woff2" crossorigin>',
-    '<link rel="preload" href="fonts/barlow-400.woff2" as="font" type="font/woff2" crossorigin>',
+    // The fonts are this site's own files in fonts/, named in css/style.css (Alex, 2026-11-01). They are not
+    // preloaded, because a preload queued them ahead of the hero photo and put about 0.75 s on its load.
     `<link rel="stylesheet" href="css/style.css?v=${cssV}">`,
   ].join('\n');
   const absolute = (src) => (!src ? null : /^https?:/.test(src) ? src : base + src);

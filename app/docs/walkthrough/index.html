@@ -1,0 +1,1101 @@
+<title>Breeder Portal Walkthrough</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap">
+<style>
+/* Layout: one player column, the recreated portal screen on top, then the caption and the controls.
+   The portal tokens and classes below are copied from app/portal/public/portal.css so the scenes
+   look like the real portal. The portal locks itself to light mode, so this page does too. */
+:root {
+  color-scheme: light only;
+  --ink: #262626; --ink-soft: #414141; --muted: #6b665c;
+  --gold: #f7d57f; --bronze: #bc9b5d; --olive: #7c6b40;
+  --paper: #fcfcfc; --ground: #ece6d8; --surface: #fff; --cream: #e7e2d2;
+  --line: #ddd5c3; --line-strong: #cfc8b7; --row-hover: #fbf9f3;
+  --ok: #2f6140; --ok-bg: #e4efe7; --alert: #92402f; --alert-bg: #f6e3de;
+  --warn: #7d5f12; --warn-bg: #fbf0d3; --info-bg: #eceae4;
+  --rail-bg: #262626; --rail-ink: #f3efe4; --rail-soft: #b9b2a2; --rail-line: rgba(255,255,255,.1);
+  --sage: #4a5a4b; --plain-bg: #f5f2ea;
+  --serif: Georgia, 'Times New Roman', serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --brand-serif: 'Playfair Display', Georgia, serif;
+  --brand-sans: 'Barlow', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --radius: 4px; --r-lg: 6px; --rail: 15.5rem; --tap: 44px; --act-w: 11.5rem;
+}
+body { background: var(--plain-bg); color: var(--ink); font: 16px/1.5 var(--brand-sans); }
+
+/* ---------- the player ---------- */
+.wt { max-width: 1040px; margin: 0 auto; display: grid; gap: 1rem; padding-block: 1.5rem 2.5rem;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wt-eyebrow { margin: 0 0 .3rem; font-size: .75rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--olive); }
+.wt-head h1 { margin: 0; font: 600 clamp(1.45rem, 3.4vw, 2.1rem)/1.15 var(--brand-serif); text-wrap: balance; }
+.wt-head p { margin: .45rem 0 0; color: var(--ink-soft); max-width: 65ch; }
+.wt-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: .4rem; }
+.wt-steps button { display: inline-flex; align-items: center; gap: .45rem; min-height: 38px; padding: .3rem .8rem .3rem .4rem; border: 1px solid var(--line-strong);
+  border-radius: 6px; background: var(--surface); color: var(--ink); font: 500 .9rem var(--brand-sans); cursor: pointer; }
+.wt-steps button:hover { border-color: var(--bronze); }
+.wt-steps .n { width: 1.5rem; height: 1.5rem; border-radius: 50%; display: grid; place-items: center; font-size: .78rem; font-weight: 600;
+  background: var(--ground); border: 1px solid var(--line-strong); font-variant-numeric: tabular-nums; }
+.wt-steps .done .n { background: var(--ok); border-color: var(--ok); color: #fff; }
+.wt-steps [aria-current="step"] { border-color: var(--sage); box-shadow: inset 0 0 0 1px var(--sage); }
+.wt-steps [aria-current="step"] .n { background: var(--gold); border-color: #e6c264; color: var(--ink); }
+.wt-screen { position: relative; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--ground);
+  box-shadow: 0 1px 2px rgba(38,38,38,.06), 0 12px 32px rgba(74,90,75,.14); }
+.wt-vp { position: relative; width: 100%; overflow: hidden; max-width: 100%; }
+.wt-cv { position: absolute; top: 0; left: 0; transform-origin: 0 0; overflow: hidden; }
+.wt-bar { display: flex; gap: 3px; height: 5px; }
+.wt-seg { flex: var(--w, 1) 1 0; min-width: 0; background: var(--line); border-radius: 3px; overflow: hidden; }
+.wt-seg span { display: block; height: 100%; width: 0; background: var(--sage); }
+.wt-cap { margin: 0; min-height: 2.9em; font: 500 clamp(1.05rem, 2.3vw, 1.3rem)/1.4 var(--brand-sans); text-wrap: balance; max-width: 60ch; }
+.wt-cap span { display: block; }
+.wt-cap.all span + span { margin-top: .35rem; }
+.wt-ctrl { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+.wt-btn { display: inline-flex; align-items: center; gap: .45rem; min-height: 44px; padding: .5rem 1rem; border: 1px solid var(--line-strong); border-radius: 6px;
+  background: var(--surface); color: var(--ink); font: 600 .95rem var(--brand-sans); cursor: pointer; }
+.wt-btn:hover { border-color: var(--bronze); }
+.wt-btn.primary { background: var(--gold); border-color: #e6c264; min-width: 7.5rem; justify-content: center; }
+.wt-btn[disabled] { opacity: .45; cursor: not-allowed; }
+.wt-btn svg { width: 14px; height: 14px; fill: currentColor; }
+.wt-btn:focus-visible, .wt-steps button:focus-visible { outline: 3px solid var(--bronze); outline-offset: 2px; }
+.wt-time { margin-left: auto; color: var(--muted); font-size: .9rem; font-variant-numeric: tabular-nums; }
+.wt-note { margin: 0; color: var(--muted); font-size: .85rem; max-width: 70ch; }
+
+/* the cursor, the tap mark and the highlight ring drawn over the scenes */
+.wt-cursor { position: absolute; left: 0; top: 0; z-index: 100; pointer-events: none; transition: transform .6s cubic-bezier(.45,0,.2,1); }
+.wt-cursor svg { display: block; width: 24px; height: 24px; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35)); }
+.phone .wt-cursor .arrow, .desk .wt-cursor .touch { display: none; }
+.phone .wt-cursor svg { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
+.wt-tap { position: absolute; z-index: 99; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; background: rgba(247,213,127,.75);
+  pointer-events: none; animation: wt-tap .45s ease-out forwards; }
+@keyframes wt-tap { from { transform: scale(.3); opacity: 1; } to { transform: scale(1.5); opacity: 0; } }
+.pc .wt-ring { box-shadow: 0 0 0 4px rgba(247,213,127,.95), 0 0 0 7px rgba(188,155,93,.35) !important; animation: wt-ring 1.2s ease-in-out infinite; }
+@keyframes wt-ring { 50% { box-shadow: 0 0 0 6px rgba(247,213,127,.6), 0 0 0 10px rgba(188,155,93,.2); } }
+.pc .is-press { transform: scale(.96); filter: brightness(.92); }
+.pc .is-focus { border-color: var(--bronze) !important; box-shadow: 0 0 0 3px rgba(188,155,93,.25) !important; }
+.pc .wt-slide { animation: slide .18s ease-out; }
+@keyframes slide { from { transform: translateX(30px); opacity: .6; } }
+.pc .wt-fade { animation: wt-fade .35s ease-out; }
+@keyframes wt-fade { from { opacity: 0; transform: translateY(6px); } }
+.pc.still, .pc.still * { animation: none !important; transition: none !important; }
+.wt-cv.paused * { animation-play-state: paused !important; }
+
+/* ---------- the portal, copied from portal.css and scoped to the scene canvas ---------- */
+.pc { font: 15px/1.55 var(--sans); color: var(--ink); background: var(--ground); }
+.pc * { box-sizing: border-box; }
+.pc h1, .pc h2, .pc h3 { font-family: var(--serif); font-weight: 600; line-height: 1.2; text-wrap: balance; margin: 0 0 .6rem; }
+.pc h1 { font-size: 1.6rem; margin: 0; } .pc h2 { font-size: 1.15rem; } .pc h3 { font-size: 1rem; }
+.pc p { margin: 0 0 .8rem; }
+.pc a { color: var(--olive); }
+.pc .muted { color: var(--muted); } .pc .small { font-size: .875rem; }
+.pc img { max-width: 100%; }
+.pc .btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; min-height: var(--tap); padding: .5rem 1.05rem; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); background: #fff; color: var(--ink); font: 500 .92rem var(--sans); cursor: default; text-decoration: none; white-space: nowrap;
+  transition: transform .12s, filter .12s; }
+.pc .btn-primary { background: var(--ink); border-color: var(--ink); color: #fff; }
+.pc .btn-gold { background: var(--gold); border-color: #e6c264; color: var(--ink); }
+.pc .btn-danger { color: var(--alert); border-color: #d9b3aa; }
+.pc .btn-quiet { background: transparent; border-color: transparent; color: var(--olive); }
+.pc .btn-sm { min-height: 36px; padding: .3rem .75rem; font-size: .85rem; }
+.pc .btn[disabled] { opacity: .45; }
+.pc .btn-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+.pc label { display: block; font-weight: 500; font-size: .9rem; margin: 0 0 .3rem; }
+.pc .field { margin-bottom: .9rem; }
+.pc .hint { font-size: .82rem; color: var(--muted); margin-top: .25rem; }
+.pc input[type=text], .pc input[type=password], .pc select, .pc textarea { width: 100%; min-height: var(--tap); padding: .5rem .7rem; border: 1px solid var(--line-strong);
+  border-radius: var(--radius); background: #fff; color: var(--ink); font: 1rem var(--sans); }
+.pc textarea { min-height: 70px; resize: none; }
+.pc .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 0 1rem; }
+.pc .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr)); gap: 0 1rem; }
+.pc .check { display: flex; gap: .6rem; align-items: flex-start; font-weight: 400; }
+.pc .check input { width: 20px; height: 20px; margin-top: .15rem; flex: none; accent-color: var(--olive); }
+.pc .pill { display: inline-block; padding: .1rem .5rem; border-radius: 4px; font-size: .76rem; font-weight: 600; background: var(--info-bg); color: #55524b; white-space: nowrap; }
+.pc .pill-ok { background: var(--ok-bg); color: var(--ok); }
+.pc .pill-warn { background: var(--warn-bg); color: var(--warn); }
+.pc .pill-alert { background: var(--alert-bg); color: var(--alert); }
+.pc .pill-gold { background: #fbefc8; color: var(--olive); }
+.pc .chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+
+.pc .app { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); height: 100%; }
+.pc .rail { display: flex; flex-direction: column; height: 100%; background: var(--rail-bg); color: var(--rail-ink); }
+.pc .rail-head { padding: .6rem 1rem .35rem; display: flex; align-items: center; justify-content: space-between; gap: .45rem; }
+.pc .rail-head a { display: block; width: 6.6rem; flex: none; }
+.pc .rail-head img { width: 100%; height: auto; display: block; }
+.pc .rail-head .role { font-size: .68rem; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); white-space: nowrap; }
+.pc .nav { flex: 1; overflow: hidden; padding: .1rem .6rem .5rem; display: grid; align-content: start; }
+.pc .nav-group { font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); opacity: .85; padding: .45rem .6rem .15rem; }
+.pc .nav-group ~ .nav-group { border-top: 1px solid var(--rail-line); margin-top: .2rem; padding-top: .4rem; }
+.pc .nav a { display: flex; align-items: center; min-height: 30px; padding: .2rem .6rem; font-size: .9rem; border-radius: var(--radius); color: #e9e4d8;
+  text-decoration: none; font-weight: 550; transition: transform .12s, filter .12s; }
+.pc .nav a.is-on { background: rgba(247,213,127,.16); color: #fff; font-weight: 600; box-shadow: inset 3px 0 0 var(--gold); border-radius: 0 4px 4px 0; }
+.pc .rail-foot { display: flex; gap: .6rem; align-items: flex-start; padding: .5rem 1rem; font-size: .8rem; border-top: 1px solid var(--rail-line); color: var(--rail-soft); }
+.pc .rail-foot b { display: block; color: #fff; font-weight: 600; } .pc .rail-foot span { display: block; }
+.pc .rail-foot .dot { width: 9px; height: 9px; border-radius: 50%; background: #4f9a63; margin-top: .35rem; flex: none; }
+.pc .menu-btn { display: none; align-items: center; gap: .5rem; min-height: 40px; padding: .3rem .8rem; border: 1px solid rgba(255,255,255,.25); border-radius: var(--radius);
+  background: transparent; color: #fff; font: 600 .9rem var(--sans); transition: transform .12s, filter .12s; }
+.pc .menu-btn span { color: var(--gold); font-weight: 500; white-space: nowrap; }
+.pc .main { min-width: 0; display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+.pc .topbar { display: flex; align-items: center; gap: 1rem; padding: .6rem 2rem; background: rgba(236,230,216,.94); border-bottom: 1px solid var(--line); min-height: 60px; }
+.pc .who { margin-left: auto; display: flex; align-items: center; gap: .6rem; min-width: 0; font-size: .9rem; }
+.pc .work { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 1.6rem 2rem 4rem; scrollbar-width: none; }
+.pc .work::-webkit-scrollbar, .pc .drawer-body::-webkit-scrollbar { display: none; }
+.pc .view { max-width: 92rem; margin-inline: auto; }
+.pc .page-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: .8rem 1rem; margin-bottom: 1.2rem; }
+.pc .page-head > div:first-child { flex: 1 1 22rem; min-width: 0; }
+.pc .lede { margin: .3rem 0 0; color: var(--muted); max-width: 70ch; }
+.pc .head-actions { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pc .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 1.25rem; margin-bottom: 1rem; }
+.pc .card > :last-child { margin-bottom: 0; }
+.pc .card-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: .5rem; margin-bottom: .6rem; }
+.pc .card-head h2 { margin: 0; }
+.pc .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); overflow: hidden; margin-bottom: 1rem; }
+.pc .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.pc .stat { display: block; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 1rem; }
+.pc .stat b { display: block; font: 600 1.7rem/1.1 var(--serif); font-variant-numeric: tabular-nums; }
+.pc .stat span { font-size: .85rem; color: var(--muted); }
+.pc .steps { list-style: none; padding: 0; margin: 0; }
+.pc .steps li { display: flex; gap: .7rem; align-items: flex-start; padding: .6rem 0; border-top: 1px solid var(--line); }
+.pc .steps li:first-child { border-top: 0; }
+.pc .steps .dot { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem;
+  font-weight: 700; background: var(--ground); border: 1px solid var(--line-strong); }
+.pc .steps .now .dot { background: var(--gold); border-color: #e6c264; }
+.pc .empty { text-align: center; padding: 2.4rem 1rem; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--radius); margin: 1rem; }
+.pc .empty b { display: block; color: var(--ink); font: 600 1.05rem var(--serif); margin-bottom: .3rem; }
+.pc .empty .btn { margin-top: .8rem; }
+.pc .thumb { width: 56px; height: 42px; object-fit: cover; border-radius: var(--radius); background: var(--cream); display: block; }
+.pc .thumb-empty { width: 56px; height: 42px; border-radius: var(--radius); background: var(--ground); border: 1px dashed var(--line-strong);
+  display: grid; place-items: center; font-size: .66rem; color: var(--muted); text-align: center; line-height: 1.1; }
+.pc .puppy-row { display: grid; grid-template-columns: 64px 1fr auto; gap: .8rem; align-items: center; padding: .65rem 0; border-top: 1px solid var(--line); }
+.pc .puppy-row:first-child { border-top: 0; }
+.pc .puppy-row .thumb { width: 64px; height: 48px; }
+.pc .puppy-row .meta { min-width: 0; } .pc .puppy-row .meta b { display: block; }
+.pc .puppy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(22rem, 100%), 1fr)); gap: .7rem; margin-top: .4rem; }
+.pc .puppy-card { display: flex; flex-direction: column; gap: .5rem; min-width: 0; border: 1px solid #978a68; border-radius: var(--r-lg); padding: .75rem .8rem .5rem;
+  background: #fff; box-shadow: 0 1px 2px rgba(38,38,38,.05); }
+.pc .pc-top { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: .8rem; align-items: start; }
+.pc .pc-top .thumb, .pc .pc-top .thumb-empty { width: 72px; height: 72px; }
+.pc .pc-top .meta { min-width: 0; }
+.pc .pc-top .meta b { display: block; font-size: 1rem; line-height: 1.25; }
+.pc .pc-top .meta .small { display: block; margin-top: .1rem; line-height: 1.4; }
+.pc .pc-top .chips { margin-top: .35rem; }
+.pc .standing { font-size: .84rem; color: var(--ink-soft); margin: 0; line-height: 1.4; }
+.pc .standing-gold { color: var(--olive); } .pc .standing-alert { color: var(--alert); }
+.pc .puppy-card .row-actions { margin-top: auto; display: flex; flex-wrap: wrap; gap: 0 1.2rem; padding-top: .3rem; border-top: 1px solid var(--line); }
+.pc .puppy-card .row-actions .btn { padding-left: 0; padding-right: 0; border: 0; background: none; }
+
+.pc .combo { position: relative; min-width: 0; }
+.pc .combo input { padding-right: 2.2rem;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%23414141' stroke-width='1.6'/%3E%3C/svg%3E") no-repeat right .8rem center; }
+.pc .combo-list { position: absolute; z-index: 30; left: 0; right: 0; top: calc(100% + 2px); margin: 0; padding: .25rem 0; list-style: none; background: var(--surface);
+  border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 6px 18px rgba(38,38,38,.14); }
+.pc .combo-list li { display: flex; align-items: center; min-height: 36px; padding: .3rem .75rem; transition: transform .12s, filter .12s; }
+.pc .combo-list li.on { background: var(--cream); box-shadow: inset 3px 0 0 var(--bronze); }
+.pc .breed-picks { border: 1px solid var(--line); border-radius: var(--r-lg); padding: .6rem .9rem .8rem; margin: 0 0 1rem; display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr)); gap: .25rem 1rem; }
+.pc .breed-picks legend { font-weight: 500; font-size: .9rem; padding: 0 .3rem; }
+.pc .breed-picks .check { align-items: center; min-height: 36px; font-size: .9rem; margin: 0; }
+
+.pc .scrim { position: absolute; inset: 0; background: rgba(20,20,20,.35); z-index: 40; }
+.pc .drawer { position: absolute; top: 0; right: 0; height: 100%; width: min(580px, 100%); background: var(--paper); z-index: 50;
+  box-shadow: -10px 0 30px rgba(0,0,0,.12); display: flex; flex-direction: column; }
+.pc .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: .6rem; padding: .9rem 1.2rem; border-bottom: 1px solid var(--line-strong); background: var(--ground); }
+.pc .drawer-head h2 { margin: 0; }
+.pc .drawer-body { padding: 1.1rem 1.2rem 2rem; overflow-y: auto; overflow-x: hidden; flex: 1; scrollbar-width: none; }
+.pc .drawer-body h3 { margin-top: 1.4rem; }
+.pc .drawer-body form > .btn-row:last-child { flex-direction: row-reverse; justify-content: flex-start; }
+.pc .drawer-body form > .btn-row:last-child > .btn { min-width: var(--act-w); }
+.pc .drawer-body form > .btn-row:last-child > .btn-danger { margin-right: auto; }
+.pc .d-side section { margin-top: 1.4rem; }
+.pc.desk .drawer.wide { width: calc(100% - var(--rail)); }
+.pc.desk .drawer.wide .drawer-body { padding: 1.1rem 1.5rem 2rem; }
+.pc.desk .drawer.wide .d-cols { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 1.6rem; align-items: start; }
+.pc.desk .drawer.wide .d-side { border-left: 1px solid var(--line); padding-left: 1.6rem; }
+.pc.desk .drawer.wide .d-side > :first-child, .pc.desk .drawer.wide .d-side > section:first-child h3:first-child { margin-top: 0; }
+
+.pc .photos { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: .6rem; margin: .4rem 0 .8rem; }
+.pc .photo { position: relative; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; background: #fff; }
+.pc .photo img { display: block; width: 100%; aspect-ratio: 4 / 3; object-fit: cover; }
+.pc .photo .tools { display: flex; justify-content: space-between; padding: .2rem; }
+.pc .photo .tools button { border: 0; background: transparent; font-size: .85rem; padding: .25rem .4rem; min-height: 32px; color: var(--ink); }
+.pc .photo .cover { position: absolute; top: 4px; left: 4px; }
+.pc .photo-pick { position: absolute; top: 4px; right: 4px; display: block; line-height: 0; margin: 0; }
+.pc .photo-pick input { width: 22px; height: 22px; margin: 0; accent-color: var(--olive); }
+.pc .upload { border: 1px dashed var(--line-strong); border-radius: var(--radius); padding: .9rem; text-align: center; background: #fff; margin: 0 0 .8rem; }
+.pc .upload .btn { min-width: 12rem; }
+.pc .photo-standard { font-size: .88rem; background: var(--info-bg); border-radius: var(--radius); padding: .6rem .8rem; margin: .4rem 0 .6rem; }
+.pc .parent-photo img { display: block; width: 100%; max-width: 280px; aspect-ratio: 4 / 3; object-fit: cover; border-radius: var(--radius); border: 1px solid var(--line); }
+.pc .doc-list { list-style: none; margin: .6rem 0 1rem; padding: 0; display: grid; gap: .5rem; }
+.pc .doc { display: flex; align-items: flex-start; gap: .8rem; border: 1px solid var(--line); border-radius: var(--r-lg); padding: .6rem .8rem; min-width: 0; background: #fff; }
+.pc .doc-preview { flex: none; display: flex; align-items: center; justify-content: center; width: 96px; height: 124px; overflow: hidden;
+  border: 1px solid var(--line); border-radius: var(--radius); background: var(--ground); }
+.pc .doc-preview img { display: block; width: 92px; height: auto; transition: transform .45s ease; }
+.pc .doc-body { display: grid; gap: .45rem; min-width: 0; flex: 1 1 auto; }
+.pc .doc-main { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; min-width: 0; }
+.pc .doc-actions { margin: 0; gap: .2rem .4rem; }
+.pc .doc-actions .btn { padding-inline: .4rem; }
+.pc .doc-vis { border: 0; padding: 0; margin: 0 0 .8rem; display: grid; gap: .2rem; }
+.pc .doc-vis legend { font-weight: 500; font-size: .9rem; padding: 0; margin-bottom: .3rem; }
+.pc .doc-vis .check { min-height: 32px; align-items: center; margin: 0; }
+.pc .prefill { border: 1px dashed var(--bronze); border-radius: var(--r-lg); padding: .7rem .9rem; margin: 0 0 1rem; background: #fffdf6; }
+.pc .prefill-title { font-weight: 600; margin: 0 0 .2rem; }
+.pc .prefill .hint { margin: 0 0 .5rem; }
+.pc .prefill-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+.pc .prefill-row .check { align-items: center; min-height: 36px; font-size: .9rem; margin: 0; }
+.pc .prefill-status { margin: .5rem 0 0; font-size: .88rem; }
+.pc .prefilled input:not([type=checkbox]), .pc .prefilled select, .pc .prefilled textarea { border-color: var(--bronze); box-shadow: 0 0 0 2px #f7d57f; background-color: #fffdf3; }
+.pc .prefill-note { display: inline-block; margin-left: .5rem; padding: .05rem .45rem; border-radius: var(--radius); background: #fbefc8; color: var(--olive); font-size: .74rem; font-weight: 600; vertical-align: middle; }
+.pc fieldset.prefilled { box-shadow: inset 3px 0 0 var(--gold); }
+.pc .prefilled-check span { background: #fbefc8; border-radius: var(--radius); padding: 0 .2rem; }
+.pc .includes-title { margin: 0 0 .2rem; font-size: .78rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pc .includes-field { border: 0; padding: 0; margin: 0 0 .9rem; }
+.pc .includes-field legend { font-weight: 600; font-size: .9rem; margin-bottom: .4rem; padding: 0; }
+.pc .includes-group { display: grid; grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr)); gap: 0 1rem; }
+.pc .includes-group .check { min-height: 34px; align-items: center; margin: 0; font-size: .92rem; }
+.pc .pay-next { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .6rem 1rem; margin: 1rem 0 0; padding: .85rem 1rem;
+  border: 1px solid #e6c264; border-radius: var(--r-lg); background: #fdf6e1; }
+.pc .pay-next p { margin: 0; flex: 1 1 16rem; }
+.pc .pay-row { display: flex; gap: .8rem; align-items: center; padding: .6rem 0; border-top: 1px solid var(--line); margin: 0; }
+.pc .pay-row:first-of-type { border-top: 0; }
+.pc .pay-row .why { font-size: .85rem; color: var(--muted); }
+.pc .total { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: 1.05rem; margin-top: 1rem; }
+.pc .total b { font: 600 1.4rem var(--serif); font-variant-numeric: tabular-nums; }
+.pc .toast { position: absolute; bottom: 1.2rem; left: 50%; transform: translateX(-50%); background: var(--ink); color: #fff; padding: .7rem 1.1rem; border-radius: var(--r-lg);
+  z-index: 60; box-shadow: 0 6px 20px rgba(0,0,0,.2); width: max-content; max-width: calc(100% - 2rem); }
+.pc .work-foot { display: flex; gap: 1.2rem; margin-top: 2.5rem; padding-top: 1rem; border-top: 1px solid var(--line); font-size: .85rem; }
+.pc .work-foot a { color: var(--muted); }
+.pc .checkout { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 55; width: min(380px, calc(100% - 2rem)); background: #fff;
+  border-radius: 10px; padding: 1.4rem 1.4rem 1.5rem; box-shadow: 0 12px 40px rgba(0,0,0,.25); }
+.pc .checkout .btn { width: 100%; margin-top: 1rem; }
+.pc .checkout table { width: 100%; border-collapse: collapse; margin-top: .6rem; }
+.pc .checkout td { padding: .5rem 0; border-bottom: 1px solid var(--line); }
+.pc .checkout td + td { text-align: right; font-variant-numeric: tabular-nums; }
+.pc .checkout tr:last-child td { font-weight: 700; border-bottom: 0; }
+
+/* signed-out pages in the site's brand, as portal.css does for body.plain */
+.pc.plain { --serif: var(--brand-serif); --sans: var(--brand-sans); font-family: var(--sans); font-size: 16px; background: var(--plain-bg); padding-top: 3rem; overflow: hidden; }
+.pc.plain h1 { font-size: 1.65rem; letter-spacing: -.005em; margin-bottom: .5rem; }
+.pc .plain-card { margin-inline: auto; width: min(480px, 100%); background: #fff; border-radius: 10px; padding: 0 2rem 2rem; overflow: hidden;
+  box-shadow: 0 1px 2px rgba(38,38,38,.06), 0 12px 32px rgba(74,90,75,.12); }
+.pc .plain-card > p { color: var(--ink-soft); }
+.pc .plain-card .btn { width: 100%; min-height: 48px; border-radius: 6px; font-size: 1rem; }
+.pc .plain-card .btn-primary { background: var(--gold); border-color: #e6c264; color: var(--ink); font-weight: 600; }
+.pc .plain-mark { display: grid; place-items: center; margin: 0 -2rem 1.8rem; background: var(--sage); padding: 1.4rem 1rem 1.2rem; border-bottom: 4px solid var(--gold); }
+.pc .plain-mark img { width: 9.5rem; height: auto; display: block; }
+.pc.plain label { font-weight: 600; font-size: .92rem; }
+.pc.plain input[type=text], .pc.plain input[type=password] { min-height: 48px; border-radius: 6px; border-color: #d6cfbf; padding: .6rem .8rem; }
+.pc .btn-google { background: #fff; border-color: #747775; color: #1f1f1f; font-weight: 500; gap: .7rem; margin-top: .4rem; }
+.pc .btn-google svg { width: 18px; height: 18px; }
+.pc .or { display: flex; align-items: center; gap: .8rem; color: var(--muted); font-size: .85rem; margin: 1.1rem 0 .2rem; }
+.pc .or::before, .pc .or::after { content: ''; flex: 1; border-top: 1px solid var(--line); }
+.pc .plain-card form { margin-top: .8rem; }
+.pc .pw-wrap { position: relative; }
+.pc .pw-wrap input { padding-right: 4.6rem !important; }
+.pc .pw-show { position: absolute; top: 50%; right: .35rem; transform: translateY(-50%); min-height: 36px; min-width: 3.9rem; padding: 0 .6rem; border: 0; border-radius: 4px;
+  background: transparent; color: var(--olive); font: 600 .85rem var(--sans); }
+.pc .plain-site { position: absolute; top: .9rem; right: 2rem; font-size: .9rem; color: #5b574e; }
+.pc .plain-foot { display: flex; gap: 1.2rem; justify-content: center; margin: 1rem auto 0; font-size: .85rem; }
+.pc .plain-foot a { color: #5b574e; }
+
+/* the phone layout, which the portal applies below 860px and 700px wide */
+.pc.phone .app { display: flex; flex-direction: column; }
+.pc.phone .rail { height: auto; flex: none; }
+.pc.phone .rail-head { padding: .5rem .8rem; gap: .6rem; }
+.pc.phone .rail-head a { width: 5rem; }
+.pc.phone .rail-head .role { font-size: .62rem; margin-right: auto; }
+.pc.phone .menu-btn { display: inline-flex; }
+.pc.phone .rail:not(.open) .nav { display: none; }
+.pc.phone .rail.open .nav { display: grid; grid-template-columns: 1fr 1fr; gap: 2px .4rem; padding: 0 .6rem .6rem; }
+.pc.phone .rail.open .nav-group { grid-column: 1 / -1; padding: .5rem .2rem .1rem; border: 0; margin: 0; }
+.pc.phone .rail-foot { display: none; }
+.pc.phone .nav a { min-height: 40px; padding: .35rem .6rem; }
+.pc.phone .main { flex: 1; min-height: 0; height: auto; }
+.pc.phone .topbar { padding: .5rem 1rem; min-height: 0; flex-wrap: wrap; gap: .5rem; }
+.pc.phone .who { flex-wrap: wrap; justify-content: flex-end; row-gap: .4rem; }
+.pc.phone .who .name { display: none; }
+.pc.phone .work { padding: 1rem 1rem 3rem; }
+.pc.phone .card { padding: 1rem; }
+.pc.phone .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pc.phone .head-actions { width: 100%; }
+.pc.phone .pc-top { grid-template-columns: 56px minmax(0, 1fr) auto; }
+.pc.phone .pc-top .thumb, .pc.phone .pc-top .thumb-empty { width: 56px; height: 56px; }
+.pc.phone input, .pc.phone select, .pc.phone textarea { font-size: 16px; }
+.pc.phone .drawer { width: 100%; }
+.pc.phone .photos { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.pc.phone.plain { padding: 1rem .75rem; }
+.pc.phone .plain-card { padding: 0 1.2rem 1.5rem; }
+.pc.phone .plain-mark { margin: 0 -1.2rem 1.4rem; }
+.pc.phone .plain-site { position: static; display: block; text-align: right; margin: 0 0 .4rem; }
+</style>
+
+<main class="wt">
+  <header class="wt-head">
+    <p class="wt-eyebrow">Puppy Connection breeder portal</p>
+    <h1>From sign-in to a live listing</h1>
+    <p>The five steps a breeder takes to list a litter, shown on the portal's own screens with a sample kennel.</p>
+  </header>
+
+  <ol class="wt-steps" id="steps" aria-label="Steps"></ol>
+
+  <div class="wt-screen" id="screen">
+    <div class="wt-vp" id="vp" aria-hidden="true"><div class="wt-cv" id="cv"></div></div>
+  </div>
+
+  <div class="wt-bar" id="bar" aria-hidden="true"></div>
+  <p class="wt-cap" id="cap" aria-live="polite"></p>
+
+  <div class="wt-ctrl">
+    <button class="wt-btn" id="back" type="button" aria-label="Back one scene"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M11 2 4 8l7 6z"/></svg>Back</button>
+    <button class="wt-btn primary" id="play" type="button">Play</button>
+    <button class="wt-btn" id="next" type="button" aria-label="Next scene">Next<svg viewBox="0 0 16 16" aria-hidden="true"><path d="m5 2 7 6-7 6z"/></svg></button>
+    <span class="wt-time" id="time"></span>
+  </div>
+  <p class="wt-note">Sample kennel, parents and puppies, with drawn photos. Space plays or pauses, and the arrow keys move between scenes.</p>
+</main>
+
+<div id="offscreen" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------- sample content, made up for the walkthrough ----------
+  var LOGO = 'logo-white.webp';
+  var KENNEL = 'Maple Brook Doodles';
+  var EMAIL = 'casey@example.com';
+  var BREED = 'Mini Bernedoodle';
+  var FEE = 14.99;
+  var CHAPTERS = ['Sign in', 'Moms and dads', 'Start a litter', 'Add the puppies', 'Pay to list'];
+  // Health tests the portal lists for a Mini Bernedoodle, from the Bernese and Miniature Poodle lists in lib/healthtests.js.
+  var TESTS = ['AKC DNA profile', 'Hips (x-ray evaluation)', 'Elbows (OFA)', 'Eyes (exam by a board-certified ophthalmologist)', 'Heart (cardiac exam)',
+    'Degenerative myelopathy (DNA)', 'Patellas (knees)', 'PRA-prcd (DNA)'];
+  var MOM_TESTS = [1, 2, 3, 4];
+  var GOOGLE_G = '<svg viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
+
+  // Drawn photos, so no real puppy appears. A soft backdrop, a blanket and a doodle face.
+  function dog(o) {
+    var s = o.big ? 1.12 : 1;
+    var spots = (o.spots || []).map(function (p) { return '<ellipse cx="' + p[0] + '" cy="' + p[1] + '" rx="' + p[2] + '" ry="' + p[3] + '" fill="' + p[4] + '"/>'; }).join('');
+    var face = o.away ? '<ellipse cx="0" cy="40" rx="20" ry="8" fill="' + o.ear + '" opacity=".5"/>' :
+      '<path d="M-10 -86 Q0 -92 10 -86 L14 -10 L-14 -10 Z" fill="' + o.muzzle + '"/>' +
+      '<ellipse cx="-27" cy="-38" rx="9" ry="6" fill="' + o.tan + '"/><ellipse cx="27" cy="-38" rx="9" ry="6" fill="' + o.tan + '"/>' +
+      '<ellipse cx="0" cy="10" rx="36" ry="27" fill="' + o.muzzle + '"/>' +
+      '<circle cx="-26" cy="-22" r="8.5" fill="#15120f"/><circle cx="26" cy="-22" r="8.5" fill="#15120f"/>' +
+      '<circle cx="-23" cy="-25" r="2.6" fill="#fff"/><circle cx="29" cy="-25" r="2.6" fill="#fff"/>' +
+      '<ellipse cx="0" cy="0" rx="12" ry="8.5" fill="#15120f"/><path d="M0 8 Q0 20 -11 22 M0 8 Q0 20 11 22" stroke="#15120f" stroke-width="3" fill="none" stroke-linecap="round"/>';
+    var svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300"><rect width="400" height="300" fill="' + o.bg + '"/>' +
+      '<rect y="225" width="400" height="75" fill="' + (o.floor || '#f3eee4') + '"/>' +
+      '<g transform="translate(' + (o.x || 200) + ' 160) scale(' + s + ')">' +
+      '<ellipse cx="0" cy="98" rx="92" ry="58" fill="' + o.fur + '"/>' +
+      '<ellipse cx="-64" cy="-10" rx="30" ry="56" fill="' + o.ear + '" transform="rotate(16 -64 -10)"/>' +
+      '<ellipse cx="64" cy="-10" rx="30" ry="56" fill="' + o.ear + '" transform="rotate(-16 64 -10)"/>' +
+      '<circle cx="0" cy="-24" r="66" fill="' + o.fur + '"/>' + spots + face + '</g></svg>';
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+  var TRI = { fur: '#2b2622', ear: '#1b1815', muzzle: '#f4ede2', tan: '#b9773f' };
+  var MERLE = { fur: '#9b9da1', ear: '#3a3633', muzzle: '#f6f1e8', tan: '#b9773f',
+    spots: [[-30, -62, 16, 11, '#3a3633'], [36, -40, 12, 15, '#55524f'], [-46, 92, 22, 14, '#3a3633'], [40, 110, 18, 12, '#55524f']] };
+  function mix(a, b) { var o = {}; [a, b].forEach(function (x) { for (var k in x) o[k] = x[k]; }); return o; }
+  var IMG = {
+    hazel: dog(mix(TRI, { bg: '#d9e2d4', big: true })),
+    bramble: dog(mix(MERLE, { bg: '#e8dcc8', big: true })),
+    clover1: dog(mix(MERLE, { bg: '#dfe7e0' })),
+    clover2: dog(mix(MERLE, { bg: '#efe3cf', x: 180 })),
+    clover3: dog(mix(MERLE, { bg: '#e4e0ec', away: true })),
+    juniper: dog(mix(MERLE, { bg: '#efe3cf', fur: '#b3b5b8' })),
+    pepper: dog(mix(TRI, { bg: '#e6dccb' }))
+  };
+  var DOC = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 388"><rect width="300" height="388" fill="#fff"/>' +
+    '<rect x="26" y="28" width="130" height="16" fill="#4a5a4b"/><rect x="26" y="56" width="200" height="8" fill="#cfc8b7"/>' +
+    [90, 110, 130, 150, 186, 206, 226, 246, 282, 302].map(function (y, i) { return '<rect x="26" y="' + y + '" width="' + (i % 3 ? 248 : 170) + '" height="7" fill="#ddd5c3"/>'; }).join('') +
+    '<rect x="196" y="330" width="78" height="26" fill="none" stroke="#bc9b5d" stroke-width="3"/></svg>');
+
+  // ---------- the player state ----------
+  var S = { i: 0, playing: false, instant: false, token: 0, mode: 'desk', scale: 1, elapsed: 0, virtual: 0, caps: [], final: false, ended: false };
+  var DUR = [];
+  var LOGICAL = { desk: [1120, 660], phone: [390, 640] };
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+  var vp = document.getElementById('vp'), cvWrap = document.getElementById('cv'), capEl = document.getElementById('cap');
+  var C, cur, waiters = [];
+
+  function Stop() {}
+  function chk(t) { if (t !== S.token) throw new Stop(); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function gate() { return S.playing || S.instant ? null : new Promise(function (r) { waiters.push(r); }); }
+  function release() { var w = waiters; waiters = []; w.forEach(function (r) { r(); }); }
+  async function wait(ms) {
+    var t = S.token; S.virtual += ms;
+    if (S.instant) return;
+    var left = ms;
+    while (left > 0) {
+      chk(t);
+      var g = gate(); if (g) { await g; chk(t); }
+      var t0 = performance.now();
+      await sleep(Math.min(left, 40));
+      chk(t);
+      var d = performance.now() - t0; left -= d; S.elapsed += d;
+    }
+  }
+
+  function $(sel, root) { return (root || C).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || C).querySelectorAll(sel)); }
+  function rel(el) {
+    var r = el.getBoundingClientRect(), c = C.getBoundingClientRect();
+    return { x: (r.left - c.left) / S.scale, y: (r.top - c.top) / S.scale, w: r.width / S.scale, h: r.height / S.scale };
+  }
+  async function reveal(el) {
+    var box = el.closest('.drawer-body, .work');
+    if (!box) return;
+    var r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
+    var top = (r.top - b.top) / S.scale, bottom = top + r.height / S.scale, h = box.clientHeight;
+    if (top >= 8 && bottom <= h - 8) return;
+    var target = Math.max(0, Math.round(box.scrollTop + top - h * 0.3));
+    if (S.instant) { box.scrollTop = target; return; }
+    box.scrollTo({ top: target, behavior: 'smooth' });
+    await wait(480);
+    box.scrollTop = target;
+  }
+  async function move(el) {
+    await reveal(el);
+    if (!S.instant) {
+      var r = rel(el);
+      var x = r.x + Math.min(r.w / 2, 60), y = r.y + r.h * 0.6;
+      cur.hidden = false; cur.style.transition = '';
+      cur.style.transform = 'translate(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px)';
+    }
+    await wait(650);
+  }
+  async function click(el) {
+    await move(el);
+    if (!S.instant) {
+      var r = rel(el), tap = document.createElement('span');
+      tap.className = 'wt-tap'; tap.style.left = (r.x + Math.min(r.w / 2, 60)) + 'px'; tap.style.top = (r.y + r.h * 0.6) + 'px';
+      C.appendChild(tap); setTimeout(function () { tap.remove(); }, 500);
+    }
+    el.classList.add('is-press'); await wait(150); el.classList.remove('is-press'); await wait(150);
+  }
+  var focused = null;
+  function focus(el) { if (focused) focused.classList.remove('is-focus'); focused = el; if (el) el.classList.add('is-focus'); }
+  async function type(el, text, clear) {
+    focus(el);
+    if (clear) el.value = '';
+    for (var k = 0; k < text.length; k++) { el.value += text[k]; await wait(55); }
+    await wait(250);
+  }
+  async function fillField(el, text) { await click(el); await type(el, text, true); }
+  async function pick(sel, value) { await click(sel); focus(sel); sel.value = value; await wait(500); }
+  function cap(text) { S.caps.push(text); renderCap(); }
+  function renderCap() {
+    var list = S.final ? S.caps : S.caps.slice(-1);
+    capEl.className = 'wt-cap' + (S.final && list.length > 1 ? ' all' : '');
+    capEl.innerHTML = list.map(function (t) { return '<span>' + t + '</span>'; }).join('');
+  }
+  function ring(el, on) { el.classList.toggle('wt-ring', on); }
+  function toast(text) {
+    var old = $('.toast'); if (old) old.remove();
+    C.insertAdjacentHTML('beforeend', '<div class="toast wt-fade" role="status">' + text + '</div>');
+  }
+  function fade(el) { if (el) { el.classList.remove('wt-fade'); void el.offsetWidth; el.classList.add('wt-fade'); } }
+
+  // ---------- portal screens ----------
+  var NAV = [['Your listings'], ['overview', 'Overview'], ['litters', 'Litters and puppies'], ['parents', 'Moms and dads'], ['pay', 'Pay to list'], ['stats', 'Views and clicks'],
+    ['Account'], ['profile', 'Profile'], ['payments', 'Payments'], ['account', 'Account'], ['help', 'Help']];
+  function navLabel(page) { for (var k = 0; k < NAV.length; k++) if (NAV[k][0] === page) return NAV[k][1]; return ''; }
+  function addCursor() {
+    cur = document.createElement('div'); cur.className = 'wt-cursor'; cur.hidden = true;
+    cur.innerHTML = '<svg class="arrow" viewBox="0 0 24 24"><path d="M3 2v17l4.6-4.3 3 6.8 3.1-1.4-3-6.6H17z" fill="#fff" stroke="#1d1b18" stroke-width="1.6" stroke-linejoin="round"/></svg>' +
+      '<svg class="touch" viewBox="0 0 34 34"><circle cx="17" cy="17" r="13" fill="rgba(38,38,38,.28)" stroke="#fff" stroke-width="2.5"/></svg>';
+    C.appendChild(cur);
+  }
+  function shell(page, content) {
+    C.innerHTML = '<div class="app"><aside class="rail"><div class="rail-head"><a><img src="' + LOGO + '" alt="Puppy Connection"></a><span class="role">Breeder portal</span>' +
+      '<button class="menu-btn" type="button" data-menu>Menu<span>' + navLabel(page) + '</span></button></div><nav class="nav">' +
+      NAV.map(function (n) { return n.length === 1 ? '<div class="nav-group">' + n[0] + '</div>' : '<a data-nav="' + n[0] + '"' + (n[0] === page ? ' class="is-on"' : '') + '>' + n[1] + '</a>'; }).join('') +
+      '</nav><div class="rail-foot"><span class="dot"></span><div><b>Approved</b><span>You can list and pay</span></div></div></aside>' +
+      '<div class="main"><header class="topbar"><div class="who"><span class="name">' + KENNEL + '</span><span class="pill pill-ok">Approved</span>' +
+      '<a class="btn btn-sm">View on the site</a><a class="btn btn-sm btn-quiet">Visit site</a><button class="btn btn-sm" type="button">Sign out</button></div></header>' +
+      '<div class="work"><div class="view">' + content + footer() + '</div></div></div></div>';
+    addCursor();
+  }
+  function footer() { return '<footer class="work-foot"><a>Privacy</a><a>Listing terms</a></footer>'; }
+  function setView(page, content) {
+    $$('.nav a').forEach(function (a) { a.classList.toggle('is-on', a.getAttribute('data-nav') === page); });
+    $('.menu-btn span').textContent = navLabel(page);
+    $('.view').innerHTML = content + footer();
+    $('.work').scrollTop = 0;
+    fade($('.view'));
+  }
+  async function navTo(page, content) {
+    if (S.mode === 'phone') { await click($('[data-menu]')); $('.rail').classList.add('open'); await wait(400); }
+    await click($('[data-nav="' + page + '"]'));
+    $('.rail').classList.remove('open');
+    setView(page, content);
+    await wait(600);
+  }
+  function openDrawer(title, body, wide, still) {
+    C.insertAdjacentHTML('beforeend', '<div class="scrim"></div><aside class="drawer' + (wide ? ' wide' : '') + (still ? '' : ' wt-slide') + '" aria-label="' + title + '">' +
+      '<div class="drawer-head"><h2>' + title + '</h2><button class="btn btn-quiet" type="button" data-close>Close</button></div><div class="drawer-body">' + body + '</div></aside>');
+    C.appendChild(cur);
+  }
+  function closeDrawer() { $$('.scrim, .drawer').forEach(function (e) { e.remove(); }); focus(null); }
+  function field(label, input, hint, attrs) {
+    return '<div class="field"' + (attrs || '') + '><label>' + label + '</label>' + input + (hint ? '<div class="hint">' + hint + '</div>' : '') + '</div>';
+  }
+  function text(key, value, extra) { return '<input type="text" data-k="' + key + '" value="' + (value || '') + '"' + (extra || '') + '>'; }
+  function select(key, options, value) {
+    return '<select data-k="' + key + '">' + options.map(function (o) { return '<option' + (o === value ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select>';
+  }
+  function markFilled(host) {
+    host.classList.add('prefilled');
+    var lab = host.querySelector('label, legend');
+    if (lab && !lab.querySelector('.prefill-note')) lab.insertAdjacentHTML('beforeend', '<span class="prefill-note">From your document, please check</span>');
+  }
+  function prefillBox(word) {
+    return '<div class="prefill"><p class="prefill-title">Fill from a document</p><p class="hint">Upload a health record, pedigree or registration paper, as a PDF or a photo of the page, ' +
+      'and the empty fields below are filled from it. Check each one before you save. When you save, the document is kept with this ' + word + ' as a private document.</p>' +
+      '<div class="prefill-row"><button class="btn btn-sm" type="button" data-pf>Choose a document</button><label class="check"><input type="checkbox"><span>Replace what is already filled in</span></label></div>' +
+      '<p class="prefill-status" data-pf-status hidden></p></div>';
+  }
+  async function readDocument(file, seconds) {
+    var b = $('[data-pf]'), st = $('[data-pf-status]');
+    await click(b);
+    b.textContent = 'Reading the document…'; b.disabled = true;
+    st.hidden = false; st.textContent = 'Reading ' + file + '. A photo of a page can take up to half a minute.';
+    await wait(seconds);
+    b.textContent = 'Choose a document'; b.disabled = false;
+  }
+  function docsSection(word, docs) {
+    return '<section class="docs"><h3>Documents</h3><p class="hint">Health records, health guarantees and pedigrees, as a PDF or a photo of the page, up to 10 MB each. ' +
+      'Choose for each one whether families can see it on ' + word + ', or keep it for Puppy Connection staff only.</p>' +
+      (docs || '<p class="muted small" data-nodocs>No documents yet.</p>') +
+      '<div class="grid-2">' + field('What it is', select('kind', ['Health record', 'Health guarantee', 'Pedigree', 'Other document'], 'Health record')) +
+      field('Name', text('dtitle'), 'Optional. The file name is used otherwise.') + '</div>' +
+      '<fieldset class="doc-vis"><legend>Who can see it</legend><label class="check"><input type="radio" name="vis-' + word.length + '"><span>Families, on the site</span></label>' +
+      '<label class="check"><input type="radio" name="vis-' + word.length + '" checked><span>Puppy Connection staff only</span></label></fieldset>' +
+      '<button class="btn btn-sm" type="button" data-docup>Choose a file and upload</button></section>';
+  }
+  function docItem(file, upright) {
+    return '<ul class="doc-list"><li class="doc"><span class="doc-preview"><img src="' + DOC + '" alt="" style="transform:' + (upright ? 'none' : 'rotate(90deg) scale(.78)') + '"></span>' +
+      '<div class="doc-body"><div class="doc-main"><b>Health record</b><span class="muted small">' + file + '</span></div><span class="small muted">Puppy Connection staff only</span>' +
+      '<div class="btn-row doc-actions"><button class="btn btn-sm btn-quiet" type="button" data-rotl>Rotate left</button><button class="btn btn-sm btn-quiet" type="button">Rotate right</button>' +
+      '<button class="btn btn-sm btn-quiet" type="button">Show to families</button></div></div></li></ul>';
+  }
+
+  // Overview
+  function overview() {
+    function stat(n, l) { return '<div class="stat"><b>' + n + '</b><span>' + l + '</span></div>'; }
+    return '<div class="page-head"><div><h1>Welcome, ' + KENNEL + '</h1><p class="lede">Your listings at a glance.</p></div></div>' +
+      firstSteps() + '<div class="stats">' + stat(0, 'Live on the site') + stat(0, 'Drafts') + stat(0, 'Ready to pay for') + stat(0, 'Placed') + '</div>';
+  }
+  // The Your first listing card the Overview shows until a breeder has a puppy on the site (portal.js firstSteps).
+  function firstSteps() {
+    var steps = [
+      ['Add the mom and the dad', 'Save each parent once under Moms and dads, with a photo and their health testing. You pick them on the litter next, so they come first.', 'Moms and dads'],
+      ['Start a litter', 'Choose the breed, the birth date and the date the puppies can go home, and pick the mom and dad you saved.'],
+      ['Add the puppies', 'Add each puppy to the litter with its price and at least 1 photo.'],
+      ['Pay to list', 'Pay $14.99 per puppy to list it once, and it stays up for as long as you add a new photo at least every four weeks. Finish the litter first and pay for all its puppies together.']
+    ];
+    return '<div class="card"><h2>Your first listing</h2><ol class="steps">' + steps.map(function (s, i) {
+      return '<li class="' + (i === 0 ? 'now' : '') + '"><span class="dot">' + (i + 1) + '</span><div><b>' + s[0] + '</b><div class="muted small">' + s[1] + '</div>' +
+        (s[2] ? '<a class="btn btn-sm" data-first style="margin-top:.4rem">' + s[2] + '</a>' : '') + '</div></li>';
+    }).join('') + '</ol></div>';
+  }
+
+  // Moms and dads
+  var HAZEL = { name: 'Hazel', role: 'Mom', img: IMG.hazel }, BRAMBLE = { name: 'Bramble', role: 'Dad', img: IMG.bramble };
+  function parentsPage(list) {
+    var body = list.length ? '<div class="panel" style="padding:.2rem 1rem">' + list.map(function (p) {
+      return '<div class="puppy-row wt-fade"><img class="thumb" src="' + p.img + '" alt=""><div class="meta"><b>' + p.name + '</b><span class="muted small">' + p.role + ', ' + BREED + '. 4 health tests</span></div>' +
+        '<button class="btn btn-sm" type="button">Edit</button></div>';
+    }).join('') + '</div>' :
+      '<div class="panel"><div class="empty"><b>No moms or dads yet</b>Add each mom and dad once, then choose them when you add or edit a litter.</div></div>';
+    return '<div class="page-head"><div><h1>Moms and dads</h1><p class="lede">Save each mom and dad once, with their health testing, then pick them on each litter. Families see both parents on every puppy page.</p></div>' +
+      '<div class="head-actions"><button class="btn btn-primary" type="button" data-add="mom">Add a mom</button><button class="btn btn-primary" type="button" data-add="dad">Add a dad</button></div></div>' + body;
+  }
+  function testPicks(ticked) {
+    return '<fieldset class="breed-picks" data-tests><legend>Health testing done</legend>' + (ticked ? TESTS.map(function (t, k) {
+      var on = ticked.indexOf(k) >= 0;
+      return '<label class="check' + (on ? ' prefilled-check' : '') + '"><input type="checkbox"' + (on ? ' checked' : '') + '><span>' + t + '</span></label>';
+    }).join('') : '<p class="hint" style="grid-column:1/-1;margin:0 0 .3rem">Choose the breed to see its health tests.</p>') + '</fieldset>';
+  }
+  function parentBody(o) {
+    var word = o.dad ? 'dad' : 'mom';
+    return '<div class="d-cols"><div class="d-main"><form>' + prefillBox(word) +
+      field('Name', text('name', o.name), 'The ' + word + '\'s call name or registered name.') +
+      field('Breed', '<div class="combo">' + text('breed', o.breed, ' placeholder="Choose a breed"') + '</div>') +
+      '<div class="grid-2">' + field('Registration', select('reg', ['Not registered or not set', 'AKC', 'AKC Canine Partners', 'APRI', 'ACA', 'CKC', 'UKC'], 'Not registered or not set')) +
+      field('Registration number', text('regno')) + '</div>' + testPicks(o.tests) +
+      field('Other health testing', '<textarea data-k="other"></textarea>', 'Any test not on the list, and results if you want families to see them.') +
+      field('Pedigree', '<textarea data-k="ped"></textarea>', 'The ' + word + '\'s parents and lines, as you would tell a family. You can also upload it under Documents.') +
+      '<div class="btn-row"><button class="btn btn-primary" type="button" data-save>' + (o.saved ? 'Save ' : 'Add ') + word + '</button></div></form></div>' +
+      '<div class="d-side"><p class="hint">Choosing a photo or document saves what you have entered first.</p><section data-photo><h3>Photo</h3>' + parentPhoto(o.photo) + '</section>' +
+      docsSection('the puppy pages of this ' + word + '\'s litters', o.doc ? docItem(o.doc, true) : '') + '</div></div>';
+  }
+  function parentPhoto(img) {
+    var hint = '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across. The photo is checked that the dog can be seen clearly, as puppy photos are.</div>';
+    return img ? '<div class="parent-photo wt-fade"><img src="' + img + '" alt=""></div><div class="btn-row"><button class="btn btn-sm" type="button">Replace photo</button><button class="btn btn-sm btn-quiet" type="button">Remove photo</button></div>' + hint :
+      '<p class="muted small">No photo yet. Families like to see the parents.</p><div class="upload"><button class="btn btn-sm" type="button" data-addphoto>Add a photo</button></div>' + hint;
+  }
+
+  // Litters and puppies
+  var LITTER = { meta: 'Born Oct 11, 2026, ready Dec 6, 2026. Parents 30 lb mom, 24 lb dad. Mom Hazel, Dad Bramble' };
+  function pup(name, sex, o) { return mix({ name: name, sex: sex, color: '', photos: 0, img: null, state: 'draft' }, o || {}); }
+  var SIX = [pup('Girl 1', 'female'), pup('Girl 2', 'female'), pup('Girl 3', 'female'), pup('Boy 1', 'male'), pup('Boy 2', 'male'), pup('Boy 3', 'male')];
+  var READY = [pup('Clover', 'female', { color: 'Merle', photos: 3, img: IMG.clover1, state: 'ready' }), pup('Juniper', 'female', { color: 'Merle', photos: 4, img: IMG.juniper, state: 'ready' }),
+    pup('Girl 3', 'female'), pup('Pepper', 'male', { color: 'Tricolor', photos: 3, img: IMG.pepper, state: 'ready' }), pup('Boy 2', 'male'), pup('Boy 3', 'male')];
+  var LISTED = READY.map(function (p) { return p.state === 'ready' ? mix(p, { state: 'listed' }) : p; });
+  function puppyCard(p, k) {
+    var img = p.img ? '<img class="thumb" src="' + p.img + '" alt="">' : '<div class="thumb-empty">No photo</div>';
+    var meta = '$2,200, ' + p.sex + (p.color ? ', ' + p.color : '') + '. ' + p.photos + (p.photos === 1 ? ' photo' : ' photos') + (p.state === 'listed' ? '. 0 views, 0 clicks in 30 days' : '');
+    var chip = p.state === 'listed' ? '<span class="pill pill-ok" data-listed>Listed</span>' : p.state === 'ready' ? '<span class="pill pill-gold">Draft, ready to pay for</span>' : '<span class="pill">Draft</span>';
+    var standing = p.state === 'listed' ? '' : p.state === 'ready' ? '<div class="standing standing-gold">Ready to list for $14.99. <a>Pay to list</a></div>' : '<div class="standing">Before it can be paid for, it needs a photo.</div>';
+    return '<div class="puppy-card"><div class="pc-top">' + img + '<div class="meta"><b>' + p.name + '</b><span class="muted small">' + meta + '</span><div class="chips">' + chip + '</div></div>' +
+      '<button class="btn btn-sm" type="button" data-edit="' + k + '">Edit</button></div>' + standing + '<div class="row-actions"><button class="btn btn-sm btn-quiet" type="button">Duplicate</button></div></div>';
+  }
+  function littersPage(litter, pups) {
+    var head = '<div class="page-head"><div><h1>Litters and puppies</h1><p class="lede">Each litter holds its puppies. Add photos to a puppy, then pay to list it.</p></div>' +
+      '<div class="head-actions"><button class="btn btn-primary" type="button" data-addlitter>Add a litter</button></div></div>';
+    if (!litter) return head + '<div class="card"><div class="empty"><b>No litters yet</b>Add a litter and pick its mom and dad, then add each puppy to it.<br><button class="btn btn-primary" type="button">Add a litter</button></div></div>';
+    return head + '<section class="card" data-litter><div class="card-head"><div><h2>' + BREED + '</h2><div class="muted small">' + litter.meta + '</div></div>' +
+      '<div class="btn-row" style="margin:0"><button class="btn btn-sm" type="button">Edit litter</button><button class="btn btn-sm" type="button" data-many>Add several</button>' +
+      '<button class="btn btn-sm btn-primary" type="button">Add a puppy</button></div></div>' +
+      (pups.length ? '<div class="puppy-grid">' + pups.map(puppyCard).join('') + '</div>' : '') + '</section>';
+  }
+  function litterBody() {
+    return '<form>' + field('Breed', '<div class="combo">' + text('breed', '', ' placeholder="Choose a breed"') + '<ul class="combo-list" hidden><li>Mini Bernedoodle</li><li>Munchkin Bernedoodle</li></ul></div>') +
+      '<div class="grid-2">' + field('Born', text('born', '', ' placeholder="mm/dd/yyyy"')) + field('Ready to go home', text('ready', '', ' placeholder="mm/dd/yyyy"')) + '</div>' +
+      '<div class="grid-2">' + field('Mom\'s weight (lb)', text('momw')) + field('Dad\'s weight (lb)', text('dadw')) + '</div>' +
+      '<div class="grid-2">' + field('Mom', select('mom', ['Not chosen', 'Hazel'], 'Not chosen')) + field('Dad', select('dad', ['Not chosen', 'Bramble'], 'Not chosen')) + '</div>' +
+      '<p class="small" style="margin-top:-.4rem"><a>Moms and dads</a></p>' +
+      field('About this litter', '<textarea data-k="about"></textarea>') +
+      '<div class="btn-row"><button class="btn btn-primary" type="button" data-save>Add litter</button></div></form>';
+  }
+  function manyBody() {
+    function n(key, label) { return field(label, text(key, '', ' inputmode="numeric"')); }
+    return '<p class="muted small">' + BREED + ' litter. Puppies are named Girl 1, Boy 1 or Puppy 1 and so on, and you can rename each one and add its photos afterwards.</p>' +
+      '<form><div class="grid-3">' + n('girls', 'Girls') + n('boys', 'Boys') + n('unknown', 'Not sure yet') + '</div>' +
+      '<div class="grid-2">' + field('Price for each ($)', text('price')) + field('Deposit for each ($)', text('deposit')) + '</div>' +
+      field('Color', text('color'), 'Optional. Leave it blank if the colors differ.') +
+      '<div class="btn-row"><button class="btn btn-primary" type="button" data-save>Add puppies</button></div></form>';
+  }
+  var COMES = ['Veterinary exam', 'Health certificate', 'Health guarantee', 'Current vaccinations', 'Dewormed', 'Microchipped'];
+  function puppyBody(o) {
+    return '<div class="d-cols"><div class="d-main"><form>' + prefillBox('puppy') +
+      field('Name', text('name', o.name)) +
+      '<div class="grid-2">' + field('Sex', select('sex', ['Not set', 'Female', 'Male'], 'Female')) + field('Color', text('color', o.color), 'Optional.') + '</div>' +
+      '<div class="grid-2">' + field('Price ($)', text('price', '2200')) + field('Deposit ($)', text('deposit', '300')) + '</div>' +
+      field('Status', select('status', ['Available', 'Pending', 'Placed'], 'Available'), 'Placed puppies stay visible in their litter, marked placed.') +
+      field('Description', '<textarea data-k="desc"></textarea>') +
+      '<fieldset class="includes-field"><legend>Comes with</legend><p class="includes-title">Health</p><div class="includes-group">' +
+      COMES.map(function (c) { var on = (o.comes || []).indexOf(c) >= 0; return '<label class="check"><input type="checkbox" data-c="' + c + '"' + (on ? ' checked' : '') + '><span>' + c + '</span></label>'; }).join('') +
+      '</div></fieldset>' +
+      '<div class="btn-row"><button class="btn btn-primary" type="button" data-save>Save puppy</button><button class="btn btn-danger" type="button">Remove puppy</button></div></form></div>' +
+      '<div class="d-side"><section data-photostep><h3>Photos</h3><p class="photo-standard"><b>Photo standard.</b> Photos must be high quality, not blurry, and show the puppy clearly with no signs of illness or distress. ' +
+      'A listing that falls short can be taken offline by Puppy Connection until proper photos are uploaded.</p>' +
+      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. New photos go first, and the first photo is the cover.</p>' +
+      '<div class="upload"><button class="btn btn-sm" type="button" data-addphotos>Add photos</button><div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across and up to 15 MB each. Each photo is checked that the puppy can be seen clearly.</div></div>' +
+      '<div class="photos" data-photos></div></section>' +
+      docsSection('the puppy page', o.doc ? docItem(o.doc, true) : '') + '</div></div>';
+  }
+  function photoTile(img, flag) {
+    return '<div class="photo wt-fade">' + flag + '<img src="' + img + '" alt=""><label class="photo-pick"><input type="checkbox"></label>' +
+      '<div class="tools"><button type="button">←</button><button type="button">Remove</button><button type="button">→</button></div></div>';
+  }
+  function payPage() {
+    var ready = READY.filter(function (p) { return p.state === 'ready'; }), rest = READY.filter(function (p) { return p.state !== 'ready'; });
+    return '<div class="page-head"><div><h1>Pay to list</h1><p class="lede">Each puppy costs $14.99 to list once, and it stays up for as long as you add a new photo at least every four weeks. Pay for a whole litter at once.</p></div></div>' +
+      '<form class="card"><h2>Ready to list</h2><label class="check" style="margin-bottom:.4rem"><input type="checkbox" data-all> Select all</label>' +
+      ready.map(function (p) {
+        return '<label class="pay-row check"><input type="checkbox" data-p><img class="thumb" src="' + p.img + '" alt=""><span><b>' + p.name + '</b> <span class="muted">' + BREED + '</span><br><span class="why">Draft</span></span></label>';
+      }).join('') +
+      '<div class="total"><span>Total</span><b data-total>$0</b></div><div class="btn-row"><button class="btn btn-gold" type="button" data-pay disabled>Continue to payment</button></div></form>' +
+      '<div class="card"><h2>Not ready yet</h2>' + rest.map(function (p) {
+        return '<div class="pay-row"><span><b>' + p.name + '</b> <span class="muted">' + BREED + '</span><br><span class="why">Before it can be paid for, it needs a photo.</span></span></div>';
+      }).join('') + '</div>';
+  }
+
+  // ---------- scenes ----------
+  var SCENES = [
+    { ch: 0,
+      setup: function () {
+        C.classList.add('plain');
+        C.innerHTML = '<a class="plain-site">Visit site</a><div class="plain-card"><div class="plain-mark"><img src="' + LOGO + '" alt="Puppy Connection"></div>' +
+          '<h1>Breeder portal</h1><p>List your litters and puppies on Puppy Connection.</p>' +
+          '<button class="btn btn-google" type="button" data-google>' + GOOGLE_G + 'Continue with Google</button><p class="or">or use your email and password</p>' +
+          '<form>' + field('Email', text('email')) + field('Password', '<div class="pw-wrap"><input type="password" data-k="pw"><button type="button" class="pw-show">Show</button></div>') +
+          '<button class="btn btn-primary" type="button" data-signin>Sign in</button></form>' +
+          '<p class="small" style="margin:.9rem 0 .5rem"><a>Forgot password?</a></p><p class="small" style="margin:0">New to Puppy Connection? <a>Create an account</a></p></div>' +
+          '<nav class="plain-foot"><a>Privacy</a><a>Listing terms</a></nav>';
+        addCursor();
+      },
+      run: async function () {
+        cap('Sign in with Google if Puppy Connection has added your Google address to your kennel.');
+        await wait(600);
+        var g = $('[data-google]');
+        await move(g); ring(g, true); await wait(2600); ring(g, false);
+        cap('Or sign in with your email and password.');
+        await fillField($('[data-k="email"]'), EMAIL);
+        await fillField($('[data-k="pw"]'), 'samplepassword');
+        focus(null);
+        await click($('[data-signin]'));
+        await wait(500);
+      } },
+
+    { ch: 1,
+      setup: function () { shell('overview', overview()); },
+      run: async function () {
+        cap('Start with the parents, under Moms and dads.');
+        await wait(1400);
+        await click($('[data-first]'));
+        setView('parents', parentsPage([]));
+        await wait(600);
+        cap('Save each mom and dad once, with their photo and health testing.');
+        await wait(1200);
+        await click($('[data-add="mom"]'));
+        openDrawer('Add a mom', parentBody({}), true);
+        await wait(900);
+        cap('Upload a health record or pedigree and the form fills itself in.');
+        await readDocument('hazel-health-record.pdf', 2000);
+        var name = $('[data-k="name"]'), breed = $('[data-k="breed"]');
+        name.value = 'Hazel'; markFilled(name.closest('.field'));
+        breed.value = BREED; markFilled(breed.closest('.field'));
+        var tests = $('[data-tests]'); tests.outerHTML = testPicks(MOM_TESTS); markFilled($('[data-tests]'));
+        $('[data-pf-status]').textContent = 'Filled 3 fields from hazel-health-record.pdf. Each one is marked below, so please check it before you save.';
+        await wait(1800);
+        cap('Each filled field is marked, so check it before you save.');
+        await reveal($('[data-tests]'));
+        await wait(2400);
+      } },
+
+    { ch: 1,
+      setup: function () {
+        shell('parents', parentsPage([]));
+        openDrawer('Add a mom', parentBody({ name: 'Hazel', breed: BREED, tests: MOM_TESTS }), true, true);
+      },
+      run: async function () {
+        cap('Add her photo. It is checked the same way as the puppy photos.');
+        await wait(500);
+        var addPhoto = $('[data-addphoto]');
+        await click(addPhoto);
+        addPhoto.textContent = 'Checking photo…'; addPhoto.disabled = true;
+        await wait(1300);
+        $('[data-photo]').innerHTML = '<h3>Photo</h3>' + parentPhoto(IMG.hazel);
+        toast('Photo added');
+        await wait(1600);
+        var t = $('.toast'); if (t) t.remove();
+        cap('Save her, then add the dad the same way.');
+        var save = $('[data-save]');
+        await click(save);
+        save.textContent = 'Save mom'; $('.drawer-head h2').textContent = 'Hazel';
+        $$('.prefilled').forEach(function (e) { e.classList.remove('prefilled'); });
+        $$('.prefill-note').forEach(function (e) { e.remove(); });
+        await wait(900);
+        await click($('[data-close]')); closeDrawer();
+        setView('parents', parentsPage([HAZEL]));
+        await wait(900);
+        await click($('[data-add="dad"]'));
+        openDrawer('Add a dad', parentBody({ dad: true, name: 'Bramble', breed: BREED, tests: MOM_TESTS, photo: IMG.bramble }), true);
+        await wait(1400);
+        await click($('[data-save]'));
+        $('.drawer-head h2').textContent = 'Bramble'; $('[data-save]').textContent = 'Save dad';
+        await wait(700);
+        await click($('[data-close]')); closeDrawer();
+        setView('parents', parentsPage([HAZEL, BRAMBLE]));
+        cap('Both parents are now ready to pick on every litter.');
+        await wait(2400);
+      } },
+
+    { ch: 2,
+      setup: function () { shell('parents', parentsPage([HAZEL, BRAMBLE])); },
+      run: async function () {
+        cap('Next, start a litter with its breed and birth date.');
+        await wait(900);
+        await navTo('litters', littersPage(null, []));
+        await click($('[data-addlitter]'));
+        openDrawer('Add a litter', litterBody(), false);
+        await wait(700);
+        var breed = $('[data-k="breed"]');
+        await click(breed); await type(breed, 'Mini Ber');
+        var list = $('.combo-list'); list.hidden = false;
+        await wait(500);
+        var opt = list.querySelector('li'); opt.classList.add('on');
+        await click(opt);
+        breed.value = BREED; list.hidden = true;
+        await fillField($('[data-k="born"]'), '10/11/2026');
+        await fillField($('[data-k="ready"]'), '12/06/2026');
+        await fillField($('[data-k="momw"]'), '30');
+        await fillField($('[data-k="dadw"]'), '24');
+        cap('Pick the mom and dad you saved.');
+        await pick($('[data-k="mom"]'), 'Hazel');
+        await pick($('[data-k="dad"]'), 'Bramble');
+        await fillField($('[data-k="about"]'), 'Raised in our home with children.');
+        focus(null);
+        await click($('[data-save]'));
+        closeDrawer();
+        setView('litters', littersPage(LITTER, []));
+        cap('The litter is ready for its puppies.');
+        await wait(2200);
+      } },
+
+    { ch: 3,
+      setup: function () { shell('litters', littersPage(LITTER, [])); },
+      run: async function () {
+        cap('Add the whole litter at once with Add several.');
+        await wait(900);
+        await click($('[data-many]'));
+        openDrawer('Add several puppies', manyBody(), false);
+        await wait(700);
+        await fillField($('[data-k="girls"]'), '3');
+        await fillField($('[data-k="boys"]'), '3');
+        await fillField($('[data-k="price"]'), '2200');
+        await fillField($('[data-k="deposit"]'), '300');
+        focus(null);
+        await click($('[data-save]'));
+        closeDrawer();
+        setView('litters', littersPage(LITTER, SIX));
+        toast('6 puppies added. Add photos to each one next.');
+        cap('Each puppy gets a card, ready for its name and photos.');
+        await wait(2800);
+      } },
+
+    { ch: 3,
+      setup: function () { shell('litters', littersPage(LITTER, SIX)); },
+      run: async function () {
+        cap('Open a puppy to name it and add its details.');
+        await wait(800);
+        await click($('[data-edit="0"]'));
+        openDrawer('Girl 1', puppyBody({ name: 'Girl 1' }), true);
+        await wait(800);
+        await fillField($('[data-k="name"]'), 'Clover');
+        focus(null);
+        cap('Fill from a document works here too, from a vet record or a registration paper.');
+        await readDocument('clover-vet-record.jpg', 1800);
+        var color = $('[data-k="color"]'); color.value = 'Merle'; markFilled(color.closest('.field'));
+        ['Current vaccinations', 'Dewormed', 'Microchipped'].forEach(function (c) {
+          var box = $('[data-c="' + c + '"]'); box.checked = true; box.closest('label').classList.add('prefilled-check');
+        });
+        markFilled($('.includes-field'));
+        $('[data-pf-status]').textContent = 'Filled 4 fields from clover-vet-record.jpg. Each one is marked below, so please check it before you save.';
+        await wait(1200);
+        await reveal($('.includes-field'));
+        await wait(1600);
+        cap('Turn a sideways scan upright with Rotate left or Rotate right.');
+        var up = $('[data-docup]');
+        await click(up);
+        var none = $('[data-nodocs]'); none.outerHTML = docItem('clover-health-record.jpg', false);
+        fade($('.doc'));
+        await wait(1000);
+        var rot = $('[data-rotl]');
+        await click(rot);
+        $('.doc-preview img').style.transform = 'none';
+        await wait(1800);
+      } },
+
+    { ch: 3,
+      setup: function () {
+        shell('litters', littersPage(LITTER, SIX));
+        openDrawer('Girl 1', puppyBody({ name: 'Clover', color: 'Merle', comes: ['Current vaccinations', 'Dewormed', 'Microchipped'], doc: 'clover-health-record.jpg' }), true, true);
+      },
+      run: async function () {
+        cap('Add up to 15 clear photos, several at a time.');
+        await wait(600);
+        var add = $('[data-addphotos]'), box = $('[data-photos]');
+        await click(add);
+        cap('Each photo is checked so families can see the puppy clearly.');
+        var shots = [IMG.clover1, IMG.clover2, IMG.clover3];
+        for (var k = 0; k < 3; k++) {
+          add.textContent = 'Checking photo ' + (k + 1) + ' of 3…'; add.disabled = true;
+          box.insertAdjacentHTML('beforeend', photoTile(shots[k], k === 0 ? '<span class="pill pill-gold cover">Cover</span>' : k === 2 ? '<span class="pill pill-warn cover">Checking</span>' : ''));
+          await wait(1100);
+        }
+        add.textContent = 'Add photos'; add.disabled = false;
+        var flag = $$('.photo .cover')[1];
+        flag.className = 'pill pill-alert cover'; flag.textContent = 'Sent back';
+        box.insertAdjacentHTML('afterend', '<p class="small standing-alert wt-fade" data-sentnote>A photo marked Sent back needs replacing. The puppy is turned away from the camera. It is not shown on the site.</p>');
+        cap('A photo that is sent back does not count, so replace it with a clearer one.');
+        await reveal($('[data-sentnote]'));
+        await wait(2600);
+        cap('The first photo is the cover. Save, and the puppy is ready to list.');
+        var cover = $('.photo .cover');
+        await move(cover); ring(cover, true); await wait(1600); ring(cover, false);
+        var save = $('[data-save]');
+        await click(save);
+        $('.drawer-head h2').textContent = 'Clover';
+        save.closest('form').insertAdjacentHTML('afterend', '<div class="pay-next wt-fade"><p><b>Clover is ready to list.</b> Pay now, or add the rest of the litter first and pay for them together.</p>' +
+          '<a class="btn btn-gold">Pay to list Clover, $14.99</a></div>');
+        await reveal($('.pay-next'));
+        await wait(2400);
+      } },
+
+    { ch: 4,
+      setup: function () { shell('litters', littersPage(LITTER, READY)); },
+      run: async function () {
+        cap('Finish each puppy the same way, then open Pay to list.');
+        await wait(2000);
+        await navTo('pay', payPage());
+        cap('Tick the puppies to list and pay $14.99 each, once.');
+        await wait(700);
+        var all = $('[data-all]');
+        await click(all);
+        all.checked = true;
+        var n = 0;
+        $$('[data-p]').forEach(function (b) { b.checked = true; n++; });
+        var amount = '$' + (FEE * n).toFixed(2);
+        $('[data-total]').textContent = amount;
+        var pay = $('[data-pay]'); pay.disabled = false; pay.textContent = 'Pay ' + amount + ' for ' + n + ' listings';
+        await wait(1400);
+        await click(pay);
+        C.insertAdjacentHTML('beforeend', '<div class="scrim"></div><div class="checkout wt-fade"><h2>Checkout</h2><p class="muted small" style="margin:0">Puppy Connection</p>' +
+          '<table><tr><td>' + n + ' listings at $14.99</td><td>' + amount + '</td></tr><tr><td>Total</td><td>' + amount + '</td></tr></table>' +
+          '<button class="btn btn-primary" type="button" data-checkout>Pay ' + amount + '</button></div>');
+        C.appendChild(cur);
+        cap('Pay by card on the secure checkout page.');
+        await wait(1200);
+        await click($('[data-checkout]'));
+        await wait(700);
+      } },
+
+    { ch: 4,
+      setup: function () { shell('litters', littersPage(LITTER, LISTED)); },
+      run: async function () {
+        toast('Payment received. Your puppies appear on the site within a few minutes.');
+        cap('Your puppies appear on the site within a few minutes.');
+        await wait(800);
+        var pills = $$('[data-listed]');
+        pills.forEach(function (p) { ring(p, true); });
+        await wait(2600);
+        pills.forEach(function (p) { ring(p, false); });
+        cap('Add a new photo at least every four weeks and the listing stays up.');
+        await wait(3400);
+      } }
+  ];
+
+  // ---------- running scenes ----------
+  function build(target) {
+    C = target; C.innerHTML = ''; focused = null;
+    C.className = (target === cvWrap ? 'wt-cv ' : '') + 'pc ' + S.mode + (S.instant || reduced.matches ? ' still' : '');
+  }
+  async function runScene(i, instant) {
+    S.token++; var t = S.token;
+    release();
+    S.i = i; S.instant = instant; S.final = false; S.ended = false; S.caps = []; S.elapsed = 0; S.virtual = 0;
+    cvWrap.classList.remove('paused');
+    build(cvWrap);
+    SCENES[i].setup();
+    updateUi();
+    try {
+      await SCENES[i].run();
+      S.instant = false;
+      if (instant) {
+        if (cur) cur.hidden = true;
+        S.final = true; renderCap(); updateUi();
+        if (!S.playing) return;
+        await wait(7000);
+      } else {
+        await wait(1500);
+      }
+      chk(t);
+      if (i < SCENES.length - 1) { runScene(i + 1, instant); return; }
+      S.playing = false; S.ended = true; S.final = true; renderCap(); updateUi();
+    } catch (e) { if (!(e instanceof Stop)) throw e; }
+  }
+  async function measure() {
+    var off = document.getElementById('offscreen'), keep = { C: C, instant: S.instant, virtual: S.virtual, caps: S.caps };
+    S.instant = true; DUR = [];
+    for (var k = 0; k < SCENES.length; k++) {
+      build(off); S.virtual = 0; S.caps = [];
+      SCENES[k].setup(); await SCENES[k].run();
+      DUR.push(S.virtual + 1500);
+    }
+    off.innerHTML = '';
+    C = keep.C; S.instant = keep.instant; S.virtual = keep.virtual; S.caps = keep.caps;
+    var bar = document.getElementById('bar');
+    bar.innerHTML = DUR.map(function (d) { return '<div class="wt-seg" style="--w:' + d + '"><span></span></div>'; }).join('');
+  }
+
+  // ---------- controls ----------
+  var playBtn = document.getElementById('play'), backBtn = document.getElementById('back'), nextBtn = document.getElementById('next');
+  var stepsEl = document.getElementById('steps');
+  stepsEl.innerHTML = CHAPTERS.map(function (c, k) { return '<li><button type="button" data-ch="' + k + '"><span class="n">' + (k + 1) + '</span>' + c + '</button></li>'; }).join('');
+  function updateUi() {
+    var ch = SCENES[S.i].ch;
+    Array.prototype.forEach.call(stepsEl.querySelectorAll('button'), function (b, k) {
+      if (k === ch) b.setAttribute('aria-current', 'step'); else b.removeAttribute('aria-current');
+      b.parentNode.classList.toggle('done', k < ch);
+    });
+    playBtn.textContent = S.ended ? 'Replay' : S.playing ? 'Pause' : 'Play';
+    backBtn.disabled = S.i === 0;
+    nextBtn.disabled = S.i === SCENES.length - 1;
+  }
+  function freezeCursor() {
+    if (!cur) return;
+    var m = getComputedStyle(cur).transform;
+    cur.style.transition = 'none'; if (m && m !== 'none') cur.style.transform = m;
+  }
+  function play() {
+    if (S.ended) { S.playing = true; runScene(0, reduced.matches); return; }
+    S.playing = true; cvWrap.classList.remove('paused');
+    if (S.final && !reduced.matches) runScene(S.i, false);
+    else if (S.final) runScene(S.i < SCENES.length - 1 ? S.i + 1 : 0, true);
+    else release();
+    updateUi();
+  }
+  function pause() { S.playing = false; cvWrap.classList.add('paused'); freezeCursor(); updateUi(); }
+  function go(i) {
+    if (i < 0 || i >= SCENES.length) return;
+    runScene(i, !S.playing || reduced.matches);
+  }
+  playBtn.addEventListener('click', function () { if (S.playing) pause(); else play(); });
+  backBtn.addEventListener('click', function () { go(S.i - 1); });
+  nextBtn.addEventListener('click', function () { go(S.i + 1); });
+  stepsEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-ch]'); if (!b) return;
+    var ch = +b.getAttribute('data-ch');
+    for (var k = 0; k < SCENES.length; k++) if (SCENES[k].ch === ch) { go(k); break; }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === ' ' && !/^(BUTTON|INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) { e.preventDefault(); playBtn.click(); }
+    else if (e.key === 'ArrowLeft') go(S.i - 1);
+    else if (e.key === 'ArrowRight') go(S.i + 1);
+  });
+
+  // progress bar and clock
+  function fmt(ms) { var s = Math.round(ms / 1000); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
+  var timeEl = document.getElementById('time');
+  function tick() {
+    var segs = document.querySelectorAll('.wt-seg span'), done = 0, total = 0;
+    for (var k = 0; k < DUR.length; k++) {
+      var f = k < S.i ? 1 : k > S.i ? 0 : (S.final ? 1 : Math.min(1, S.elapsed / DUR[k]));
+      if (segs[k]) segs[k].style.width = (f * 100).toFixed(1) + '%';
+      total += DUR[k]; done += DUR[k] * f;
+    }
+    if (DUR.length) timeEl.textContent = fmt(done) + ' / ' + fmt(total);
+    requestAnimationFrame(tick);
+  }
+
+  // scale the scene canvas to the player, and switch to the phone layout on a narrow player
+  var started = false;
+  function fit() {
+    var w = vp.clientWidth || 360;
+    var mode = w < 620 ? 'phone' : 'desk', size = LOGICAL[mode];
+    S.scale = w / size[0];
+    vp.style.height = Math.round(size[1] * S.scale) + 'px';
+    cvWrap.style.width = size[0] + 'px'; cvWrap.style.height = size[1] + 'px';
+    cvWrap.style.transform = 'scale(' + S.scale + ')';
+    if (mode !== S.mode) {
+      S.mode = mode;
+      if (started) { S.token++; release(); }
+      if (started) measure().then(function () { runScene(S.i, !S.playing || reduced.matches); });
+    }
+  }
+  new ResizeObserver(fit).observe(vp);
+
+  (async function start() {
+    fit();
+    await measure();
+    started = true;
+    requestAnimationFrame(tick);
+    if (reduced.matches) { runScene(0, true); }
+    else { S.playing = true; runScene(0, false); }
+  })();
+})();
+</script>

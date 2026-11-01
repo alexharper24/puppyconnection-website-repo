@@ -562,6 +562,10 @@ settings, terms and operators are not touched. The audit log and email log are k
 
 ## Pending
 
+- [ ] Alex reviews the breeder walkthrough animation (`docs/walkthrough/`, batch file
+      `docs/batch-2026-11-01-breeder-walkthrough.md`) and decides whether it plays on a breeder's
+      first sign-in. Recheck its sign-in, checkout and parent photo scenes once the Google sign-in,
+      checkout wording and parent photo check changes land
 - [ ] Password hashing and the Workers CPU limit (launch workplan A26). One PBKDF2 hash at the
       100,000 maximum measured about 13 ms in Node and 50 to 122 ms in local workerd across four runs (2026-10-24),
       against Workers Free's 10 ms of CPU a request. Alex decides between Workers Paid for the portal,

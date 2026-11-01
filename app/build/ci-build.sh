@@ -64,7 +64,8 @@ args=(--data "$DATA_DIR" --templates templates --out "$OUT")
 # The real addresses since launch, 2026-10-31. A Workers Builds variable still overrides either.
 args+=(--base "${SITE_URL:-https://www.puppy-connection.com/}")
 args+=(--portal "${PORTAL_ORIGIN:-https://portal.puppy-connection.com}")
-[ "${SITE_INDEXABLE:-}" = "1" ] && args+=(--indexable)
+# Open to search engines since launch, 2026-10-31. SITE_INDEXABLE=0 in Workers Builds closes it again.
+[ "${SITE_INDEXABLE:-1}" = "1" ] && args+=(--indexable)
 node build/generate.mjs "${args[@]}"
 
 echo "=== site-checks"

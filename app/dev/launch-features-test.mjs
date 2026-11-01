@@ -330,6 +330,8 @@ async function inactivity() {
   };
 
   check('A12 paying for a listing starts its photo clock', [x, y, z].every(recent), JSON.stringify(row(x)));
+  // The schedule below runs with the clock going. The stopped clock (migrations/0084) is tested after it.
+  await admin.put('/api/settings', { photo_clock_stop: '0' });
   // The clock waits for the go-live date (migrations/0033). With it two weeks ahead, a listing whose
   // photo is five weeks old is not emailed, and the portal counts from the go-live date.
   const golive = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
@@ -428,6 +430,28 @@ async function inactivity() {
   check('A12 signing in starts their clock, so an old listing is not emailed at once', !!first && row(y).inactive_stage === null, String(first));
   sql(`UPDATE breeders SET legacy = 0 WHERE id = '${A.id}'`);
   check('A12 the weeks are a setting and must rise', (await admin.put('/api/settings', { inactivity_days: '28,35,30,84' })).status === 400 && (await admin.put('/api/settings', { inactivity_days: '28,35,42,84' })).status === 200);
+  // migrations/0084. With the clock stopped, a listing already past six weeks by its own photo is warned
+  // at once, despite the go-live date, with no offline date, and it never goes further.
+  check('A12 the stop is a setting that takes 0 or 1', (await admin.put('/api/settings', { photo_clock_stop: 'yes' })).status === 400
+    && (await admin.put('/api/settings', { photo_clock_stop: '1' })).status === 200);
+  await admin.put('/api/settings', { photo_clock_start: golive });
+  sql(`UPDATE breeders SET first_signin_at = '${ago(60)}' WHERE id = '${A.id}'`);
+  sql(`UPDATE puppies SET inactive_stage = NULL, stage_at = NULL WHERE id IN ('${x}', '${y}')`);
+  clock(x, 50); clock(y, 30);
+  await run();
+  check('A12 stopped: a listing past six weeks by its own photo is warned at once, one under six weeks waits for the go-live date', row(x).inactive_stage === 'reminded_1' && row(y).inactive_stage === null, JSON.stringify([row(x), row(y)]));
+  m = (await mails()).find((e) => /^Add a new photo of Rusty/.test(e.subject) && /more than four weeks/.test(e.body));
+  check('A12 stopped: the warning names no offline date', !!m && !/offline/.test(m.body) && m.body.includes(`#/litters?photos=${x}`), m && m.body);
+  px = await pup(A.c, x);
+  check('A12 stopped: the portal asks for a photo with no date', px.schedule && px.schedule.stage === 'warned' && px.schedule.by === null, JSON.stringify(px.schedule));
+  clock(x, 100, 60);
+  await run();
+  check('A12 stopped: a warned listing never goes to the last warning, offline or removed', row(x).inactive_stage === 'reminded_1' && isPublic(x), JSON.stringify(row(x)));
+  sql(`UPDATE puppies SET inactive_stage = 'offline', publication_state = 'expired', stage_at = '${ago(60)}' WHERE id = '${y}'`);
+  clock(y, 100);
+  await run();
+  check('A12 stopped: an offline listing is not removed', row(y).inactive_stage === 'offline', JSON.stringify(row(y)));
+  await admin.put('/api/settings', { photo_clock_stop: '1' });
   await admin.put('/api/settings', { photo_clock_start: '2026-11-01' });
   check('A12 the separate free window setting is gone', !sql("SELECT key FROM settings WHERE key = 'reactivate_days'").length && (await admin.put('/api/settings', { reactivate_days: '42' })).status === 400);
   const portalJs = fs.readFileSync(path.join(APP, 'portal/public/portal.js'), 'utf8');

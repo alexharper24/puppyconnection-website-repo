@@ -597,6 +597,8 @@ const EDITABLE = {
   adopted_index_days: (v) => /^\d{1,3}$/.test(v) && Number(v) >= 1,
   // Workplan A12. The go-live date the photo clock waits for, as YYYY-MM-DD, or empty for no wait.
   photo_clock_start: (v) => v === '' || (/^\d{4}-\d{2}-\d{2}$/.test(v) && !Number.isNaN(Date.parse(v))),
+  // migrations/0084. 1 stops the photo clock at the first warning, so nothing goes offline or is removed.
+  photo_clock_stop: (v) => v === '0' || v === '1',
   // Workplan A12. Days with no new photo to the two warnings, offline and removed, rising.
   inactivity_days: (v) => /^\d{1,3},\d{1,3},\d{1,3},\d{1,3}$/.test(v) && v.split(',').map(Number).every((n, i, a) => n >= 1 && (i === 0 || n > a[i - 1])),
   // terms_version is no longer typed in here. Publishing on the Terms screen sets it (plan P3.4).

@@ -1552,6 +1552,8 @@
           '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no new photo</span></span>' +
           '<a class="stat" href="#/breeders"><b>' + s.new_breeders_30 + '</b><span>New breeders, 30 days</span></a></div>' +
         '<p class="btn-row" style="margin-top:-.4rem">' + csvLink('summary') + '</p>' +
+        // Views and clicks over time (Alex, 2026-11-01), drawn by traffic.js.
+        '<section class="card" id="r-traffic"></section>' +
         table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {
           return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.paid_listings + '</td><td class="num hide-sm">' + m.comped_listings + '</td>' +
             '<td class="num">' + esc(money(m.revenue_cents)) + '</td><td class="num hide-sm">' + esc(money(m.refunded_cents)) + '</td><td class="num">' + esc(money(m.revenue_cents - m.refunded_cents)) + '</td></tr>';
@@ -1575,6 +1577,7 @@
           return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.placed + '</td><td class="num hide-sm">' + m.imported + '</td></tr>';
         }, 'No puppies have been marked placed yet.', 'sales') +
         '<p class="hint">Sales are puppies breeders mark placed, kept apart from paid listings.</p>');
+      if (window.pcTraffic) window.pcTraffic.mount($('#r-traffic'));
     });
   }
 

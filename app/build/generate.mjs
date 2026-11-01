@@ -235,6 +235,32 @@ const NAV_DROP_JS = `
 })();
 `;
 
+// Every page but a puppy page counts a view when it opens and a click when a visitor follows a
+// phone, email or off-site link (Alex, 2026-11-01), by its file name only and the same cookieless
+// way as the puppy pages, which keep their own count in PAGES_JS. Appended to js/main.js, which
+// every page loads.
+const PAGE_COUNT_JS = `
+(function () {
+  if (document.querySelector('[data-puppy]')) return;
+  if (/(?:^|; )pc_staff=1(?:;|$)/.test(document.cookie)) return; // Puppy Connection's own browsers are not counted (Alex, 2026-11-01)
+  var page = location.pathname.replace(/^\\//, '').replace(/\\.html$/, '') || 'index';
+  if (!/^[a-z0-9-]{1,120}$/.test(page)) return;
+  function send(k) {
+    try {
+      var body = JSON.stringify({ k: k, s: page });
+      if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'text/plain' }));
+      else fetch('/api/beacon', { method: 'POST', body: body, keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(function () {});
+    } catch (e) { /* counting never gets in the way of the page */ }
+  }
+  send('page');
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest && e.target.closest('a[href]');
+    if (!a) return;
+    if (/^(tel|mailto|sms):/i.test(a.getAttribute('href')) || (/^https?:$/.test(a.protocol) && a.host !== location.host)) send('pclick');
+  }, true);
+})();
+`;
+
 const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/generate.mjs. */
 (function () {
   'use strict';
@@ -546,7 +572,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   if (fs.existsSync(path.join(T, 'favicon.ico'))) fs.copyFileSync(path.join(T, 'favicon.ico'), path.join(out, 'favicon.ico'));
   fs.mkdirSync(path.join(out, 'js'), { recursive: true });
   fs.mkdirSync(path.join(out, 'data'), { recursive: true });
-  const mainJs = patchMain(concept('js/main.js')) + NAV_DROP_JS;
+  const mainJs = patchMain(concept('js/main.js')) + NAV_DROP_JS + PAGE_COUNT_JS;
   fs.writeFileSync(path.join(out, 'js/main.js'), mainJs);
   fs.writeFileSync(path.join(out, 'js/pages.js'), PAGES_JS);
   fs.writeFileSync(path.join(out, 'js/search-count.js'), SEARCH_JS);

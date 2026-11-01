@@ -530,7 +530,7 @@
     });
     var ar = $('#cl-archive');
     if (ar) ar.addEventListener('click', function () {
-      if (!confirm('Archive this item? It is kept with its history and can be restored.')) return;
+      if (!pcConfirm(ar, 'Archive this item? It is kept with its history and can be restored.', { yes: 'Archive' })) return;
       ar.disabled = true;
       send('POST', '/api/checklist/items/' + it.id + '/archive', { reason: $('#a-reason').value }).then(function () { A().toast('Archived'); A().closeDrawer(); return reload(); }).catch(fail(ar));
     });

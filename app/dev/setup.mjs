@@ -51,6 +51,8 @@ for (const worker of ['portal', 'admin']) {
 fs.copyFileSync(path.join(APP, 'portal/public/portal.css'), path.join(APP, 'admin/public/portal.css'));
 // The breed search (combo.js) is shared the same way (Alex, 2026-10-31).
 fs.copyFileSync(path.join(APP, 'portal/public/combo.js'), path.join(APP, 'admin/public/combo.js'));
+// The confirmation dialog (dialog.js) is shared the same way (Alex, 2026-11-01).
+fs.copyFileSync(path.join(APP, 'portal/public/dialog.js'), path.join(APP, 'admin/public/dialog.js'));
 
 execFileSync(process.execPath, [path.join(HERE, 'seed.mjs')], { stdio: 'inherit' });
 

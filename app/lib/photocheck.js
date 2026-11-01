@@ -138,6 +138,30 @@ const now = () => new Date().toISOString().slice(0, 19) + 'Z';
 /** The breeder-facing sentences for stored reasons. */
 export const reasonText = (reasons) => (Array.isArray(reasons) ? reasons : String(reasons || '').split(',')).filter((r) => PHOTO_REASONS[r]).map((r) => PHOTO_REASONS[r]);
 
+// Saved moms and dads get the same floor and the same check as puppy photos (Alex, 2026-11-01).
+// The floor is the portal's MIN_EDGE. The portal shrinks a photo to 1,600 px before upload, so a
+// photo that passed the floor in the browser still passes it here.
+export const MIN_PHOTO_EDGE = 1000;
+
+/** The reasons said about a grown dog rather than a puppy, for a mom or dad photo. */
+export const parentReasonText = (reasons) => reasonText(reasons).map((t) => t.replace(/\bpuppy\b/g, 'dog'));
+
+/**
+ * Check a mom or dad photo before it is saved. A parent has one photo and no review queue, so a
+ * photo that does not pass is never stored and the breeder is told why at once, whatever
+ * photo_check_route says. Photos already saved before this check are left as they are.
+ * Returns null when the photo may be saved, or the reasons and the sentences to show the breeder.
+ */
+export async function checkParentPhoto(env, img, { sim } = {}) {
+  const edge = img.size ? Math.max(img.size.w, img.size.h) : 0;
+  if (img.size && edge < MIN_PHOTO_EDGE) {
+    return { reasons: ['low_quality'], messages: [`This photo is ${edge} pixels across. Photos need to be at least 1,000 pixels, so use the original from your phone or camera rather than a screenshot or a saved copy.`] };
+  }
+  const v = await judgePhoto(env, img.bytes, img.type, { sim });
+  if (v.verdict === 'pass') return null;
+  return { reasons: v.reasons, messages: parentReasonText(v.reasons) };
+}
+
 /**
  * Judge one pending photo and record the result. The card copy is judged where there is one,
  * because it costs about a quarter of the tokens of the full photo and is what families see

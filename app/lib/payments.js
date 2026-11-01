@@ -173,15 +173,19 @@ const simProvider = {
 /**
  * The line Stripe's checkout shows above the Pay button, naming the puppies being listed, so
  * the breeder sees more than "Puppy listing x 3". Stripe allows 1,200 characters, so a long
- * batch is cut short with a count of the rest.
+ * batch is cut short with a count of the rest. With no end date (listing_days 0) a listing stays up
+ * while it gets a new photo at least every four weeks (lib/inactivity.js). Marking a puppy placed
+ * leaves it on the site, so the note does not say placing ends a listing.
  */
-export function listingNote(puppies) {
+export function listingNote(puppies, listingDays = 0) {
   const names = puppies.map((x) => x.name).filter(Boolean);
   if (!names.length) return null;
   let shown = names.slice();
   const join = (list, rest) => list.join(', ') + (rest ? `, and ${rest} more` : '');
   while (shown.length > 1 && join(shown, names.length - shown.length).length > 1000) shown.pop();
-  return `Listing on Puppy Connection: ${join(shown, names.length - shown.length)}. Each puppy is paid for once and stays listed until you remove it or mark it placed.`;
+  const lasts = listingDays > 0 ? `Each payment lists a puppy for ${listingDays} days.`
+    : 'Each puppy is paid for once and stays listed for as long as you add a new photo of it at least every four weeks.';
+  return `Listing on Puppy Connection: ${join(shown, names.length - shown.length)}. ${lasts}`;
 }
 
 export function provider(env) {
@@ -268,7 +272,7 @@ export async function createCheckout(env, breeder, puppyIds, origin) {
       checkoutId, breederId: breeder.id, priceId: p.priceId(env), quantity: qty, unitAmount: s.feeCents,
       customer, email: breeder.email, origin, expiresAt: addMinutes(t, HOLD_MINUTES),
       description: `${qty} puppy listing${qty === 1 ? '' : 's'}, Puppy Connection`,
-      note: listingNote(puppies),
+      note: listingNote(puppies, s.listingDays),
     });
   } catch (e) {
     await releaseCheckout(env, checkoutId, 'failed');

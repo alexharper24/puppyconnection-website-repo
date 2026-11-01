@@ -61,8 +61,9 @@ fi
 
 echo "=== pages"
 args=(--data "$DATA_DIR" --templates templates --out "$OUT")
-[ -n "${SITE_URL:-}" ] && args+=(--base "$SITE_URL")
-[ -n "${PORTAL_ORIGIN:-}" ] && args+=(--portal "$PORTAL_ORIGIN")
+# The real addresses since launch, 2026-10-31. A Workers Builds variable still overrides either.
+args+=(--base "${SITE_URL:-https://www.puppy-connection.com/}")
+args+=(--portal "${PORTAL_ORIGIN:-https://portal.puppy-connection.com}")
 [ "${SITE_INDEXABLE:-}" = "1" ] && args+=(--indexable)
 node build/generate.mjs "${args[@]}"
 

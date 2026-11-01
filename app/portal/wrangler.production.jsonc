@@ -8,8 +8,7 @@
 // (and on the portal STRIPE_WEBHOOK_SECRET for webhook we_1UT6dbCVXPZ95g1DTrAn6V7W) immediately
 // before deploying this file, never while wrangler.hosted.jsonc is deployed.
 // WARNING: deploying this takes real money and sends real email. Clear the test data first.
-// At cutover (E2) change the three *_ORIGIN values and TURNSTILE_HOSTNAME to the puppy-connection.com
-// hostnames and add the custom domains; until then it runs on the workers.dev addresses.
+// Cutover (E2), 2026-10-31: the origins name the puppy-connection.com hostnames and the custom domain is in routes.
 // Deploy from app/portal:  wrangler deploy --config wrangler.production.jsonc
 {
   "name": "portal",
@@ -19,6 +18,8 @@
   "observability": { "enabled": true },
   "workers_dev": true,
   "preview_urls": false,
+  // The real address since launch, 2026-10-31. workers.dev stays on so Stripe webhooks and the site build keep reaching it.
+  "routes": [{ "pattern": "portal.puppy-connection.com", "custom_domain": true }],
   "assets": { "directory": "public", "binding": "ASSETS", "run_worker_first": true, "html_handling": "none" },
   "d1_databases": [
     { "binding": "DB", "database_name": "puppyconnection", "database_id": "4556bf68-fa4a-406f-9b98-2f64006ea00b" }
@@ -39,13 +40,13 @@
     // Turnstile widget "Puppy Connection breeder portal" in the Puppy Connection account (2026-10-02).
     // The site key is public by design. TURNSTILE_SECRET is a secret, set with wrangler secret put.
     "TURNSTILE_SITE_KEY": "0x4AAAAAAFMKWRvBD106y7VJ",
-    "TURNSTILE_HOSTNAME": "portal.puppyconnection.workers.dev",
+    "TURNSTILE_HOSTNAME": "portal.puppy-connection.com",
     // 2026-10-04). The client ID is public; GOOGLE_CLIENT_SECRET is a secret, set with wrangler secret put.
     "GOOGLE_CLIENT_ID": "751105615126-cu5h48psv53a59nci3e9g5u0n0mmfuir.apps.googleusercontent.com",
-    "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
-    "ADMIN_ORIGIN": "https://admin.puppyconnection.workers.dev",
+    "PORTAL_ORIGIN": "https://portal.puppy-connection.com",
+    "ADMIN_ORIGIN": "https://admin.puppy-connection.com",
     // Plan P2.2. The public site, for the View on the site links.
-    "SITE_ORIGIN": "https://site.puppyconnection.workers.dev",
+    "SITE_ORIGIN": "https://www.puppy-connection.com",
     // Publishing (decisions D10 and D11, and Alex 2026-10-06). PUBLISH_MODE hook POSTs the site
     // Worker's Workers Builds deploy hook, the secret PUBLISH_HOOK_URL, and the build in
     // alexharper24/puppyconnection-site fetches /data/export.json from here. Until the secret is

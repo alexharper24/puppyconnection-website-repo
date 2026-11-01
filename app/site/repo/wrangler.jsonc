@@ -15,6 +15,11 @@
   "compatibility_date": "2026-08-18",
   "observability": { "enabled": true },
   "workers_dev": true,
+  // The real addresses since launch, 2026-10-31. A Cloudflare redirect rule sends the apex to www, which is canonical.
+  "routes": [
+    { "pattern": "www.puppy-connection.com", "custom_domain": true },
+    { "pattern": "puppy-connection.com", "custom_domain": true }
+  ],
   "preview_urls": false,
   "assets": {
     "directory": "dist",

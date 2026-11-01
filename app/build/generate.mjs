@@ -375,10 +375,11 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
 // Workplan A19. A saved parent on a puppy page: the photo, name, breed, registration, the health
 // tests the breeder ticked and any other testing, the pedigree, and the parent's public documents.
 const plist = (list) => (list || []).map((t) => `<p>${esc(t)}</p>`).join('');
+// A saved parent shows its name only, because its card further down gives the weight (Alex, 2026-11-01).
+// With no saved parent the weight is all there is, so it stays.
 function parentFact(par, weight) {
-  const w = weight != null ? `${weight} lbs adult weight` : null;
-  if (!par) return w;
-  return w ? `${par.name}, ${w}` : par.name;
+  if (par) return par.name;
+  return weight != null ? `${weight} lbs adult weight` : null;
 }
 function docList(docs) {
   return `<ul class="doc-links">${docs.map((d) => `<li><a href="${esc(d.src)}" target="_blank" rel="noopener">${esc(d.title)}</a> <span class="doc-kind">${esc(d.kind)}${d.pdf ? ', PDF' : ''}</span></li>`).join('')}</ul>`;

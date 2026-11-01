@@ -20,19 +20,28 @@ tasks:
     item: "Show Alex every photo a crop of 4:3 and 5:4 photos to 3:2 would change, before any crop is made. Build contact sheets or an HTML page with each photo as it is now beside the cropped version around its stored focus point (photos.focus_x/focus_y), flagging any crop that cuts a head or feet. Do not crop anything until Alex approves the list"
     measured: "Listed puppies 2026-11-01: 749 photos about 3:2, 102 at 4:3, 56 at 5:4, 207 square, 177 portrait, 102 with no size recorded"
   - id: n3-blur-fill
-    status: in_progress
+    status: done
+    closed: 2026-11-01
+    evidence: "PR 116 (2aa3b50), site repo bb50dc0. Live: puppy-adel-cavapoo.html serves slide is-on is-whole with style.css v91, its fill /media/seed-p-0274-img0/card answers 200, and all 14 card fills on puppies.html answer 200 (all 14 were 404 before)"
     progress: "Each photo in the puppy page frame is a .slide; a square or portrait one (aspect under 1.2, the card rule) is .is-whole with a blurred --fill, and a later photo's fill loads with it. Found and fixed with it: every card fill of a photo in R2 answered 404 live (a url() in a custom property resolves against css/style.css, so media/<id> was fetched as css/media/<id>); generate.mjs fillUrl() roots it and js/main.js makes it absolute. Local build from live data: 82 pages open on a whole photo, 548 later fills, card fills 200, crossfade and aria checked, 390 px no overflow, check_site 0 errors on the build. style.css v91, main.js v43"
     item: "Puppy page main photo (css .gallery-main, 3:2 with object-fit contain) shows plain side bands for square and portrait photos. Approved: leave them whole and put a blurred fill of the same photo behind, as the cards already do (.card-media.is-whole with --fill in generate.mjs). No crop for square or portrait"
   - id: n4-multi-main
-    status: in_progress
+    status: done
+    closed: 2026-11-01
+    evidence: "PR 115 (8233f66), portal 86d11fdc, admin 0fd48ee4. 0085 applied with d1-apply after production-2026-11-01-pre0085.sql (1 of 1 batch). Read back: 43 breeders, 15 with administrator@responsibledogbreeder.com as main contact, public_puppies 266 and public_breeders 41 as before, email no longer unique, breeders_copy gone, 0 orphaned puppies"
+    follow_up: "Alex sends one invitation to the network address from any of the 15 kennels' Who signs in; its password then opens all 15. Replaces launch-eve t7"
     progress: "Migration 0085 rebuilds breeders without UNIQUE on email (copy, drop, recreate, refill, so deferred keys settle; the copy-then-rename pattern failed the rehearsal) and sets administrator@responsibledogbreeder.com as main contact of the 14 RDB kennels in place of their placeholder addresses. Rehearsed twice on pre0084 and pre0085 (PASS, second run 0 changes, 0 key violations) and via d1-apply --sqlite: 15 kennels on the address, public views 266 puppies and 41 breeders as before. Code: checkMakeMain and the admin email change no longer refuse a main contact of another kennel. multikennel 85 of 85, accounts 80, signin 26, admin-features 122; access-tests 9 of 10 with test 0 (static route list) failing on routes added by earlier PRs"
     item: "Let one address be the main contact of several kennels (approved by Alex 2026-11-01, for the RDB kennels, where one person is the main contact for all 14). breeders.email is UNIQUE (schema.sql line 9), so this is a table rebuild migration with foreign keys deferred. Also lift checkMakeMain's refusal (lib/accounts.js about line 386), recheck session revoke at accounts.js about line 370 (main sessions carry email NULL), the other-kennels count at about line 283, portal/worker.js line 493 and 572, and the admin's ability to set the main contact to an address already main elsewhere. kennelsFor already returns several main kennels"
     hazard: "WARNING: rebuilding breeders touches every table that references it. Rehearse on a fresh production export twice with foreign keys on"
   - id: n5-town-searches
     status: open
+    blocked_on: alex
+    progress: "Reported 2026-11-01 in app/docs/post-launch-reports-2026-11-01.html. Page per query not in the cache (Wix reports queries and pages apart; home page took 92% of page clicks Aug to Dec 2025). Saved Wix copy names no town, 273 saved listings carry no town, Business Profile service area is Ohio, Florida and 8 more areas (rest did not load). No live kennel is in Mishawaka, Elkhart or Lafayette. Proposal: breeder town on breeder and puppy pages, an Indiana page section naming real breeder towns near Elkhart and Mishawaka, Lafayette left out, ask Amber about the profile's service areas"
     item: "Find how the Wix site ranked for 'puppies for sale mishawaka' (43 clicks, position 3.1), 'lafayette indiana' (35, 3.4) and 'elkhart' (34, 5.2) over the last year: which Wix page got those clicks (Search Console page and query report for the old property, cached in hs-seo-data/puppyconnection), whether the copy named the towns, whether listings carried a breeder town, or whether the Business Profile did it. Then propose what the new site needs, such as breeder town on the breeder and puppy pages or state pages naming nearby towns, only where a breeder is really there. Report to Alex before building"
   - id: n6-breed-gaps
     status: open
+    blocked_on: alex
+    progress: "Reported 2026-11-01 in the same page. The cached figures are Aug to Dec 2025 (9,191 impressions, 15 clicks), not 365 days. Proposal: write the low-shedding guide and point the hypoallergenic address at it; set each breed's legacy-pages.tsv target to its own breed page now, since the generator falls back to breeds.html until that page is built"
     item: "Old breed pages for Pomsky, Miniature Pinscher, Basset Hound, Pug, Portuguese Water Dog and the hypoallergenic page now redirect to /breeds.html. About 9,000 impressions and about 15 clicks over the last 365 days in total (not per month). Propose: publish the low-shedding guide and point the hypoallergenic URL at it, and redirect each breed to its own breed page once a puppy of that breed lists. Ask Alex before building"
   - id: n7-https
     status: done

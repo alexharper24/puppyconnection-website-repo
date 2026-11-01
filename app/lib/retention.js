@@ -235,6 +235,7 @@ async function removeAccount(env, acct, budget) {
     ['parents', 'DELETE FROM parent_dogs WHERE breeder_id = ?'],
     ['breeds_raised', 'DELETE FROM breeder_breeds WHERE breeder_id = ?'],
     ['people', 'DELETE FROM breeder_members WHERE breeder_id = ?'],
+    ['walkthrough', 'DELETE FROM walkthrough_seen WHERE breeder_id = ?'],
     ['reference', 'DELETE FROM breeder_references WHERE breeder_id = ?'],
     ['sessions', 'DELETE FROM sessions WHERE breeder_id = ?'],
     ['profile', 'DELETE FROM breeder_profiles WHERE breeder_id = ?'],

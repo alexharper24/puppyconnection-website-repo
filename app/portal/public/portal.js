@@ -199,7 +199,52 @@
     if (d) d.remove(); if (s) s.remove();
     if (lastFocus && lastFocus.focus) lastFocus.focus();
   }
-  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeDrawer(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') { if (tour) closeTour(); else closeDrawer(); } });
+
+  /* Alex, 2026-11-01. The breeder walkthrough (walkthrough.js) in a panel over the portal. It opens by
+     itself the first time a person is in an approved kennel, as its main contact or anyone managing
+     it, and from Help or the Overview at any time. Closing it, skipping it or reaching the end is
+     recorded for this person and kennel, so it does not open by itself there again. */
+  var tour = null, tourAuto = false;
+  function loadWalkthrough() {
+    if (window.PCWalkthrough) return Promise.resolve();
+    return new Promise(function (ok, fail) {
+      var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/walkthrough.css?v=1'; document.head.appendChild(l);
+      var sc = document.createElement('script'); sc.src = '/walkthrough.js?v=1'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc);
+    });
+  }
+  function openTour(first) {
+    if (tour) return;
+    tour = { pending: true };
+    loadWalkthrough().then(function () {
+      var scrim = document.createElement('div'); scrim.className = 'scrim tour-scrim';
+      var d = document.createElement('aside'); d.className = 'tour'; d.id = 'tour'; d.tabIndex = -1;
+      d.setAttribute('role', 'dialog'); d.setAttribute('aria-modal', 'true'); d.setAttribute('aria-labelledby', 'tour-title');
+      d.innerHTML = '<div class="tour-head"><div><h2 id="tour-title">' + (first ? 'Welcome to the breeder portal' : 'How listing works') + '</h2>' +
+        '<p class="muted small">A two-minute look at listing a litter, from the mom and dad to paying to list.' + (first ? ' You can watch it again any time under Help.' : '') + '</p></div>' +
+        '<button class="btn' + (first ? ' btn-quiet' : '') + '" type="button" id="tour-close">' + (first ? 'Skip for now' : 'Close') + '</button></div><div class="tour-body"></div>';
+      document.body.appendChild(scrim); document.body.appendChild(d);
+      var close = $('#tour-close', d);
+      close.addEventListener('click', closeTour);
+      var player = PCWalkthrough.mount($('.tour-body', d), {
+        logo: '/logo-white.webp?v=1', keyTarget: d,
+        onEnd: function () { if (first) { close.textContent = 'Get started'; close.className = 'btn btn-primary'; } }
+      });
+      tour = { el: d, scrim: scrim, player: player, focus: document.activeElement };
+      d.focus();
+    }).catch(function () { tour = null; toast('The walkthrough did not load. Please try again.'); });
+  }
+  function closeTour() {
+    if (!tour || tour.pending) return;
+    var t = tour; tour = null;
+    t.player.destroy(); t.el.remove(); t.scrim.remove();
+    if (state.me && state.me.walkthrough) { state.me.walkthrough = false; api('POST', '/api/walkthrough/seen', {}).catch(function () { /* it opens again next time */ }); }
+    if (t.focus && t.focus.focus) t.focus.focus();
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-tour]');
+    if (b) { e.preventDefault(); openTour(false); }
+  });
   // Workplan A12. Add a photo and Relist, wherever the banner or a standing line shows them. Add a
   // photo opens the puppy at its photos, the same place the reminder emails link to.
   document.addEventListener('click', function (e) {
@@ -611,7 +656,7 @@
       return '<li class="' + (s.done ? 'done' : i === now ? 'now' : '') + '"><span class="dot">' + (i + 1) + '</span><div><b>' + esc(s.title) + '</b>' +
         '<div class="muted small">' + esc(s.text) + '</div>' +
         (i === now ? '<a class="btn btn-sm' + (i === 3 ? ' btn-gold' : '') + '" href="' + s.href + '" style="margin-top:.4rem">' + esc(s.btn) + '</a>' : '') + '</div></li>';
-    }).join('') + '</ol></div>';
+    }).join('') + '</ol><p class="small" style="margin:.6rem 0 0"><a href="#/help" data-tour>See how it works, in two minutes</a></p></div>';
   }
 
   // ------------------------------------------------------------ profile
@@ -2198,6 +2243,8 @@
       : 'You pay once, and the listing stays up with no end date while you add a new photo of the puppy at least every four weeks. There is nothing to renew.';
     function q(title, body) { return '<section class="card help"><h2>' + esc(title) + '</h2>' + body + '</section>'; }
     shell(head('Help', 'Short answers to the questions breeders ask most.') +
+      q('How it works, in two minutes', '<p>A short walkthrough shows each step on these screens with a sample kennel, from adding the mom and dad to paying to list.</p>' +
+        '<button class="btn btn-sm" type="button" data-tour>Watch the walkthrough</button>') +
       q('How do I get approved?', '<p>Fill in your profile with your business name, a phone or email buyers can use, and your town and state. Then name one reference who can confirm you are a real breeder, such as your veterinarian, another respected breeder, an AKC representative or a board member of your local animal welfare council. Accept the listing terms and submit. Puppy Connection looks over every new breeder once before they can list, and emails you when your account is approved. After that your listings go live without waiting.</p><p>Until then you can still edit your profile, and the menu shows only what you can use.</p>') +
       q('How does listing work?', '<p>Save the mom and dad first under Moms and dads, because a litter picks its parents from there. Then add the litter, with the breed and the dates, and pick them. Then add each puppy to it with a price and ' + photos + '. If a litter has several puppies, use Add several to put them all in at once, then rename each one and add its photos.</p><p>A puppy stays a draft, which only you can see, until you pay to list it. The Litters and puppies screen says what each draft still needs.</p>') +
       q('What does it cost?', '<p>Listing costs ' + esc(fee) + ' per puppy. ' + esc(lasts) + '</p><p>You can pay for a whole litter in one go on the Pay to list screen. Payment is by card through Stripe, and Stripe emails your receipt. Puppy Connection never sees your card number.</p>') +
@@ -2236,6 +2283,7 @@
     if (allowed && allowed.indexOf(r) < 0) { if (r) { location.replace('#/'); return; } }
     window.scrollTo(0, 0);
     ({ '': overview, profile: profile, litters: litters, parents: parentsView, pay: pay, payments: payments, stats: stats, account: accountScreen, help: help }[r] || overview)();
+    if (state.me.walkthrough && !tourAuto) { tourAuto = true; openTour(true); }
   }
 
   window.addEventListener('hashchange', function () {

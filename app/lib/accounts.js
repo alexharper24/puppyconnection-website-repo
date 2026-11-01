@@ -377,6 +377,8 @@ export function signInsEndStmts(env, breederId, email, { mainNull = false } = {}
 export function removePersonStmts(env, breederId, member, actor) {
   return [
     env.DB.prepare('DELETE FROM breeder_members WHERE id = ? AND breeder_id = ?').bind(member.id, breederId),
+    // Added back later, they are new to the kennel again, so the walkthrough opens for them once more.
+    env.DB.prepare('DELETE FROM walkthrough_seen WHERE email = ? AND breeder_id = ?').bind(String(member.email).toLowerCase(), breederId),
     ...signInsEndStmts(env, breederId, member.email),
     auditStmt(env, actor[0], actor[1], 'member.remove', 'breeder', breederId, { member: member.id, email: member.email }, null),
   ];

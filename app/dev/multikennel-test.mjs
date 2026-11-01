@@ -249,11 +249,17 @@ async function main() {
   const nOnK1 = (await admin.get(`/api/breeders/${K1.id}`)).data.people.find((p) => p.email === N);
   const mm = await admin.post(`/api/breeders/${K1.id}/people/main`, { member_id: nOnK1.member_id, old: 'keep' });
   check('Make main contact works for a person who is also on other kennels', mm.status === 200 && sql(`SELECT email FROM breeders WHERE id = ${q(K1.id)}`)[0].email === N);
-  const nOnK2 = (await admin.get(`/api/breeders/${K2.id}`)).data.people.find((p) => p.email === N);
-  const mm2 = await admin.post(`/api/breeders/${K2.id}/people/main`, { member_id: nOnK2.member_id, old: 'keep' });
-  check('but a person can be the main contact of one kennel only', mm2.status === 400 && /main contact of one kennel only/.test(mm2.data.error), JSON.stringify(mm2.data));
+  // migrations/0085 (Alex, 2026-11-01). One address may be the main contact of several kennels.
   const K2own = (await K2.c.get('/api/account')).data.members.find((m) => m.email === N);
-  check('and the portal says the same', (await K2.c.post(`/api/account/members/${K2own.id}/main`, { keep_old: true })).status === 400);
+  const mm2 = await K2.c.post(`/api/account/members/${K2own.id}/main`, { keep_old: true });
+  check('a person already main contact of one kennel can be made main contact of another', mm2.status === 200
+    && sql(`SELECT COUNT(*) AS n FROM breeders WHERE email = ${q(N)} AND id IN (${q(K1.id)}, ${q(K2.id)})`)[0].n === 2, JSON.stringify(mm2.data));
+  const k2People = (await admin.get(`/api/breeders/${K2.id}`)).data.people;
+  check('the admin shows them as main contact there and counts their other kennels', k2People[0].email === N && k2People[0].main && k2People[0].other_kennels >= 2, JSON.stringify(k2People[0]));
+  const k2Old = k2People.find((p) => p.email === K2.email);
+  const handBack = await admin.post(`/api/breeders/${K2.id}/people/main`, { member_id: k2Old.member_id, old: 'keep' });
+  check('and the kennel can be handed back, leaving them a person on it again', handBack.status === 200 && sql(`SELECT email FROM breeders WHERE id = ${q(K2.id)}`)[0].email === K2.email
+    && (await admin.get(`/api/breeders/${K2.id}`)).data.people.some((p) => p.email === N && !p.main), JSON.stringify(handBack.data).slice(0, 200));
   // K1's old main contact stays on as a person, and N signs in to K1 now as its main contact.
   check('the old main contact of K1 keeps signing in', (await K1.c.get('/api/me')).data.id === K1.id);
 
@@ -306,6 +312,12 @@ async function main() {
   await choose(W.c, K4.id);
   const wl = await W.c.post('/api/litters', { breed_id: (await W.c.get('/api/breeds')).data[0].id, born_on: '2026-09-04' });
   check('a write by the person is recorded as them', sql(`SELECT actor FROM audit_log WHERE action = 'litter.create' AND entity_id = ${q(wl.data.id)}`)[0]?.actor === N);
+
+  // migrations/0085. The admin may set a kennel's main email to an address that is main contact elsewhere.
+  const ce = await admin.req('PUT', `/api/breeders/${K9.id}/email`, { email: N });
+  check('the admin sets a main email already used as the main contact of another kennel', ce.status === 200 && sql(`SELECT COUNT(*) AS n FROM breeders WHERE email = ${q(N)}`)[0].n >= 2, JSON.stringify(ce.data).slice(0, 200));
+  await choose(W.c, K9.id);
+  check('and their one sign-in opens it', (await W.c.get('/api/me')).data.id === K9.id);
 
   console.log(`\n${passes} passed, ${fails} failed`);
   process.exit(fails ? 1 : 0);

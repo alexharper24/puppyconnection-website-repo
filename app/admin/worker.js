@@ -258,25 +258,20 @@ async function changeEmail(req, env, ctx, id, who) {
   const b = await loadBreeder(env, id);
   if (!b) throw notFound();
   if (addr === String(b.email).toLowerCase()) return breederDetail(req, env, ctx, id);
-  // Workplan A25. A person already on this kennel is moved with Make main contact instead. Since A27
-  // a person on another kennel may become the main contact here, as long as they are not the main
-  // contact there too, which the UNIQUE answer below refuses.
+  // Workplan A25. A person already on this kennel is moved with Make main contact instead. Since
+  // migrations/0085 any address may become the main contact here, including the main contact of
+  // other kennels, who then signs in to this one with the password they already have.
   if (await env.DB.prepare('SELECT 1 AS x FROM breeder_members WHERE breeder_id = ? AND email = ?').bind(id, addr).first()) {
     throw bad('That address is a person on this kennel. To make them the main contact, use Make main contact.');
   }
   const t = now();
-  try {
-    await env.DB.batch([
-      env.DB.prepare('UPDATE breeders SET email = ?, updated_at = ? WHERE id = ?').bind(addr, t, id),
-      env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL').bind(t, id),
-      // The old address's links, password and authenticator go with it. The new one gets an invitation.
-      ...signInsEndStmts(env, id, b.email, { mainNull: true }),
-      auditStmt(env, 'operator', who.email, 'breeder.email', 'breeder', id, { email: b.email }, { email: addr }),
-    ]);
-  } catch (e) {
-    if (/UNIQUE/i.test(e.message)) throw bad('Another account already uses that address.');
-    throw e;
-  }
+  await env.DB.batch([
+    env.DB.prepare('UPDATE breeders SET email = ?, updated_at = ? WHERE id = ?').bind(addr, t, id),
+    env.DB.prepare('UPDATE sessions SET revoked_at = ? WHERE breeder_id = ? AND revoked_at IS NULL').bind(t, id),
+    // The old address's links, password and authenticator go with it. The new one gets an invitation.
+    ...signInsEndStmts(env, id, b.email, { mainNull: true }),
+    auditStmt(env, 'operator', who.email, 'breeder.email', 'breeder', id, { email: b.email }, { email: addr }),
+  ]);
   return breederDetail(req, env, ctx, id);
 }
 

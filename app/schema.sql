@@ -6,7 +6,8 @@
 
 CREATE TABLE IF NOT EXISTS breeders (
   id                   TEXT PRIMARY KEY,
-  email                TEXT NOT NULL UNIQUE COLLATE NOCASE,
+  -- Not unique since migrations/0085: one address may be the main contact of several kennels.
+  email                TEXT NOT NULL COLLATE NOCASE,
   status               TEXT NOT NULL DEFAULT 'pending'
                        CHECK (status IN ('pending','approved','declined','suspended')),
   email_verified_at    TEXT,
@@ -32,6 +33,7 @@ CREATE TABLE IF NOT EXISTS breeders (
   updated_at           TEXT NOT NULL,
   version              INTEGER NOT NULL DEFAULT 1
 );
+CREATE INDEX IF NOT EXISTS breeders_email ON breeders (email);
 
 CREATE TABLE IF NOT EXISTS breeder_profiles (
   breeder_id    TEXT PRIMARY KEY REFERENCES breeders(id),

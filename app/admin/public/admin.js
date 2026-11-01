@@ -109,7 +109,7 @@
   // Workplan A3. Remove video, in the puppy editor.
   document.addEventListener('click', function (e) {
     var b = e.target.closest && e.target.closest('[data-remove-video]');
-    if (!b || !confirm('Remove this video from the puppy?')) return;
+    if (!b || !pcConfirm(b, 'Remove this video from the puppy?', { yes: 'Remove', danger: true })) return;
     b.disabled = true;
     api('DELETE', '/api/videos/' + b.dataset.removeVideo).then(function () { b.parentNode.textContent = 'Video removed.'; toast('Video removed'); })
       .catch(function (err) { b.disabled = false; toast(err.message); });
@@ -591,7 +591,7 @@
     $$('[data-access]', d).forEach(function (btn) {
       btn.addEventListener('click', function () {
         var on = btn.dataset.access === 'on';
-        if (!confirm(on ? 'Record that Puppy Connection already manages ' + (b.business_name || b.email) + '? This turns access on.' : 'Turn Puppy Connection access off for ' + (b.business_name || b.email) + '? Any open Puppy Connection session on their account ends at once.')) return;
+        if (!pcConfirm(btn, on ? 'Record that Puppy Connection already manages ' + (b.business_name || b.email) + '? This turns access on.' : 'Turn Puppy Connection access off for ' + (b.business_name || b.email) + '? Any open Puppy Connection session on their account ends at once.', on ? { yes: 'Record it' } : { yes: 'Turn access off', danger: true })) return;
         api('PUT', '/api/breeders/' + b.id + '/access', { on: on }).then(function () { toast(on ? 'Access recorded' : 'Access turned off'); again(); }).catch(fail);
       });
     });
@@ -604,13 +604,13 @@
     });
     $$('[data-reset-auth]', d).forEach(function (btn) {
       btn.addEventListener('click', function () {
-        if (!confirm('Reset the authenticator for ' + btn.dataset.resetAuth + '? It turns off, their recovery codes stop working, and they can set it up again after signing in with their password.')) return;
+        if (!pcConfirm(btn, 'Reset the authenticator for ' + btn.dataset.resetAuth + '? It turns off, their recovery codes stop working, and they can set it up again after signing in with their password.', { yes: 'Reset', danger: true })) return;
         api('POST', '/api/breeders/' + b.id + '/people/reset-authenticator', { email: btn.dataset.resetAuth }).then(function () { toast('Authenticator reset'); again(); }).catch(fail);
       });
     });
     $$('[data-remove-person]', d).forEach(function (btn) {
       btn.addEventListener('click', function () {
-        if (!confirm('Remove this person? They are signed out at once and can no longer sign in to this kennel.')) return;
+        if (!pcConfirm(btn, 'Remove this person? They are signed out at once and can no longer sign in to this kennel.', { yes: 'Remove', danger: true })) return;
         api('DELETE', '/api/breeders/' + b.id + '/people/' + btn.dataset.removePerson).then(function () { toast('Person removed'); again(); }).catch(fail);
       });
     });
@@ -744,7 +744,7 @@
         if (pickAll) pickAll.addEventListener('click', function () { var all = picked().length !== picks.length; picks.forEach(function (c) { c.checked = all; }); syncPicks(); });
         if (pickBtn) pickBtn.addEventListener('click', function () {
           var ids = picked().map(function (c) { return c.closest('li').dataset.id; });
-          if (!ids.length || !confirm('Remove ' + ids.length + (ids.length === 1 ? ' photo' : ' photos') + ' from ' + p.name + '?')) return;
+          if (!ids.length || !pcConfirm(pickBtn, 'Remove ' + ids.length + (ids.length === 1 ? ' photo' : ' photos') + ' from ' + p.name + '?', { yes: 'Remove', danger: true })) return;
           pickBtn.disabled = true;
           var done = 0, chain = Promise.resolve();
           ids.forEach(function (id) { chain = chain.then(function () { return api('DELETE', '/api/photos/' + id).then(function () { done += 1; }); }); });
@@ -752,7 +752,7 @@
         });
         $$('[data-remove]', d).forEach(function (b) {
           b.addEventListener('click', function () {
-            if (!confirm('Remove this photo from ' + p.name + '?')) return;
+            if (!pcConfirm(b, 'Remove this photo from ' + p.name + '?', { yes: 'Remove', danger: true })) return;
             api('DELETE', '/api/photos/' + b.closest('li').dataset.id).then(function () { toast('Photo removed'); again(); }).catch(fail);
           });
         });
@@ -911,7 +911,7 @@
   function wireHolds(root, after) {
     $$('[data-hold]', root).forEach(function (b) {
       b.addEventListener('click', function () {
-        if (b.dataset.on === '1' && !confirm('Take this listing off the site until you release it? The breeder sees it as paused.')) return;
+        if (b.dataset.on === '1' && !pcConfirm(b, 'Take this listing off the site until you release it? The breeder sees it as paused.', { yes: 'Hold listing', danger: true })) return;
         api('POST', '/api/puppies/' + b.dataset.hold + '/hold', { on: b.dataset.on === '1' }).then(function () { toast(b.dataset.on === '1' ? 'Listing held' : 'Listing released'); after(); });
       });
     });
@@ -926,7 +926,7 @@
     });
     $$('[data-comp]', root).forEach(function (b) {
       b.addEventListener('click', function () {
-        if (!confirm('List this puppy without payment? It is recorded as comped.')) return;
+        if (!pcConfirm(b, 'List this puppy without payment? It is recorded as comped.', { yes: 'List free' })) return;
         api('POST', '/api/puppies/' + b.dataset.comp + '/comp', {}).then(function () { toast('Listed free'); after(); });
       });
     });
@@ -1114,7 +1114,7 @@
       save().then(function (t2) { toast('Draft saved'); drawTerms(t2); }).catch(function (err) { showError(f, err); });
     });
     $('#terms-publish').addEventListener('click', function () {
-      if (!confirm('Publish this draft as the new listing terms? Every breeder on an older version is asked to accept it the next time they open the portal.')) return;
+      if (!pcConfirm(this, 'Publish this draft as the new listing terms? Every breeder on an older version is asked to accept it the next time they open the portal.', { yes: 'Publish terms' })) return;
       save().then(function () { return api('POST', '/api/terms/publish', {}); })
         .then(function (t2) { toast('Published version ' + t2.current.version); drawTerms(t2); }).catch(function (err) { showError(f, err); });
     });
@@ -1332,7 +1332,7 @@
       });
       $$('[data-remove-person]').forEach(function (b) {
         b.addEventListener('click', function () {
-          if (!confirm('Remove ' + b.dataset.removePerson + '? They will no longer be able to sign in here. Take them off the Access policy too.')) return;
+          if (!pcConfirm(b, 'Remove ' + b.dataset.removePerson + '? They will no longer be able to sign in here. Take them off the Access policy too.', { yes: 'Remove', danger: true })) return;
           api('DELETE', '/api/people/' + encodeURIComponent(b.dataset.removePerson)).then(function () { toast('Removed'); peopleScreen(); }).catch(function (err) { toast(err.message); });
         });
       });
@@ -1423,7 +1423,7 @@
         wire: function (box) {
           $$('[data-unsub]', box).forEach(function (b) {
             b.addEventListener('click', function () {
-              if (!confirm('Unsubscribe ' + b.dataset.email + '? They will stay off the list unless they sign up again themselves.')) return;
+              if (!pcConfirm(b, 'Unsubscribe ' + b.dataset.email + '? They will stay off the list unless they sign up again themselves.', { yes: 'Unsubscribe', danger: true })) return;
               api('POST', '/api/subscribers/' + b.dataset.unsub + '/unsubscribe', {}).then(function () { toast('Unsubscribed'); listScreen(); });
             });
           });
@@ -1525,7 +1525,7 @@
     });
     if (sbtn) sbtn.addEventListener('click', function () {
       var a = audience(), n = audienceCounts(c)[a];
-      if (!confirm('Send "' + $('#camp-subject').value + '" to ' + n.toLocaleString('en-US') + ' people (' + AUDIENCE_NAMES[a].toLowerCase() + ')? Save any changes first. This cannot be undone.')) return;
+      if (!pcConfirm(sbtn, 'Send "' + $('#camp-subject').value + '" to ' + n.toLocaleString('en-US') + ' people (' + AUDIENCE_NAMES[a].toLowerCase() + ')? Save any changes first. This cannot be undone.', { yes: 'Send to the list' })) return;
       api('POST', '/api/campaigns/' + f.dataset.id + '/send', { audience: a, confirm_count: n }).then(function (r) { toast('Sending to ' + r.total + ' people'); listScreen(); })
         .catch(function (err) { showError(f, err); });
     });

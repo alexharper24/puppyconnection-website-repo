@@ -187,6 +187,7 @@ const SEARCH_JS = `/* Puppy Connection breed search counts. Written by app/build
   function count(name) {
     var s = slugOf(name);
     if (!s || sent[s]) return;
+    if (/(?:^|; )pc_staff=1(?:;|$)/.test(document.cookie)) return; // Puppy Connection's own browsers are not counted (Alex, 2026-11-01)
     sent[s] = 1;
     try {
       var body = JSON.stringify({ k: 'search', s: s });
@@ -227,6 +228,8 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
 (function () {
   'use strict';
   function beacon(k, s) {
+    // A browser marked by the admin or by ?internal=1 is Puppy Connection's own and is not counted (Alex, 2026-11-01).
+    if (/(?:^|; )pc_staff=1(?:;|$)/.test(document.cookie)) return;
     try {
       var body = JSON.stringify({ k: k, s: s });
       if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'text/plain' }));

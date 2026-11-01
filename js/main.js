@@ -1027,10 +1027,17 @@
   var host = location.hostname.replace(/^www\./, '');
   if (host !== 'puppy-connection.com') return;
   var id = 'G-0EKJRGCX9T';
+  // Puppy Connection's own browsers (Alex, 2026-11-01). Opening the admin marks a browser with the pc_staff
+  // cookie for the whole domain, and ?internal=1 on any page marks a phone that never opens the admin
+  // (?internal=0 clears it). A marked browser is sent as traffic_type internal, which the property's
+  // Internal Traffic data filter drops from reports.
+  var q = /[?&]internal=([01])(?:&|$)/.exec(location.search);
+  if (q) document.cookie = 'pc_staff=' + (q[1] === '1' ? '1; Max-Age=34560000' : '; Max-Age=0') + '; Domain=puppy-connection.com; Path=/; Secure; SameSite=Lax';
+  var internal = /(?:^|; )pc_staff=1(?:;|$)/.test(document.cookie);
   window.dataLayer = window.dataLayer || [];
   window.gtag = function () { window.dataLayer.push(arguments); };
   window.gtag('js', new Date());
-  window.gtag('config', id);
+  window.gtag('config', id, internal ? { traffic_type: 'internal' } : {});
   var s = document.createElement('script');
   s.async = true;
   s.src = 'https://www.googletagmanager.com/gtag/js?id=' + id;
@@ -1039,22 +1046,37 @@
   // Clicks to a breeder's website, phone and email from puppy and breeder pages (workplan B11),
   // so the property can show a breeder what a listing produced. The site's own count of these
   // clicks (the beacon in js/pages.js) carries on beside it unchanged.
+  // Alex, 2026-11-01: also the Contact the breeder button, a deposit, Facebook, the delivery quote, the
+  // mailing list, a listing report and the list-with-us sign-up, each its own event name.
   var page = document.querySelector('main#detail, main#profile');
-  if (!page) return;
+  function about() {
+    if (!page) return { page_type: location.pathname.replace(/^\/|\.html$/g, '') || 'home' };
+    var name = document.querySelector(page.id === 'detail' ? '#dBreeder .breeder-name' : '#profile h1');
+    return { breeder_name: name ? name.textContent.trim() : '', puppy: page.getAttribute('data-puppy') || '', page_type: page.id === 'detail' ? 'puppy' : 'breeder' };
+  }
+  function send(name, extra) {
+    var p = about();
+    for (var k in extra) p[k] = extra[k];
+    p.transport_type = 'beacon';
+    window.gtag('event', name, p);
+  }
   document.addEventListener('click', function (e) {
-    var a = e.target.closest && e.target.closest('.contact-list a, .profile-actions a, .puppy-out');
+    var a = e.target.closest && e.target.closest('a');
     if (!a) return;
     var href = a.getAttribute('href') || '';
-    var kind = /^tel:/i.test(href) ? 'phone' : /^mailto:/i.test(href) ? 'email'
-      : /^https?:/i.test(href) && !/facebook\.com/i.test(href) ? 'website' : null;
-    if (!kind) return;
-    var name = document.querySelector(page.id === 'detail' ? '#dBreeder .breeder-name' : '#profile h1');
-    window.gtag('event', 'breeder_' + kind + '_click', {
-      breeder_name: name ? name.textContent.trim() : '',
-      puppy: page.getAttribute('data-puppy') || '',
-      page_type: page.id === 'detail' ? 'puppy' : 'breeder',
-      link_url: kind === 'website' ? href : '',
-      transport_type: 'beacon'
-    });
+    if (page && a.closest('.contact-list, .profile-actions, .d-actions')) {
+      if (href === '#dBreeder') return send('contact_breeder_click', {});
+      if (/^tel:/i.test(href)) return send('breeder_phone_click', {});
+      if (/^mailto:/i.test(href)) return send('breeder_email_click', {});
+      if (/facebook\.com/i.test(href)) return send('breeder_facebook_click', { link_url: href });
+      if (/deposit/i.test(a.textContent)) return send('breeder_deposit_click', { link_url: href });
+      if (/^https?:/i.test(href)) return send('breeder_website_click', { link_url: href });
+    }
+    if (/furryfreight/i.test(href)) return send('delivery_quote_click', { link_url: href });
+    if (/\/report\?/.test(href)) return send('report_listing_click', {});
+    if (/^https:\/\/portal\.puppy-connection\.com\/?(?:[?#]|$)/.test(href)) return send('list_with_us_click', {});
+  }, true);
+  document.addEventListener('submit', function (e) {
+    if (e.target.closest && e.target.closest('.foot-signup')) send('newsletter_signup', {});
   }, true);
 })();

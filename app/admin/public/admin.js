@@ -698,11 +698,13 @@
   function photoDrawer(data, p) {
     api('GET', '/api/puppies/' + p.id + '/photos').then(function (photos) {
       openDrawer('Photos of ' + p.name, WIDE +
+                (photos.length > 1 ? '<div class="photo-batch"><button type="button" class="btn btn-sm btn-quiet" data-pick-all>Select all</button>' +
+                  '<button type="button" class="btn btn-sm btn-danger" data-remove-picked disabled>Remove selected</button></div>' : '') +
                 (photos.length ? '<ul class="admin-photos">' + photos.map(function (ph, i) {
           return '<li data-id="' + esc(ph.id) + '"><img src="' + esc(photoThumb(ph.card || ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(p.name) + '" decoding="async">' +
             '<div class="btn-row"><button class="btn btn-sm" data-move="-1"' + (i ? '' : ' disabled') + ' aria-label="Move earlier">Earlier</button>' +
             '<button class="btn btn-sm" data-move="1"' + (i < photos.length - 1 ? '' : ' disabled') + ' aria-label="Move later">Later</button>' +
-            '<button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first</span>') + '</li>';
+            '<label class="pick-remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"></label><button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first</span>') + '</li>';
         }).join('') + '</ul>' : '<p class="muted">No photos yet.</p>') +
         '<div class="field"><label for="ph-add">Add photos</label><input id="ph-add" type="file" accept="image/*" multiple></div>' +
         '<p class="notice notice-alert small" id="ph-err" hidden></p>' +
@@ -725,6 +727,26 @@
             });
           });
           chain.then(function () { toast(files.length === 1 ? 'Photo added' : files.length + ' photos added'); again(); }).catch(function (e2) { fail(e2); });
+        });
+        // Alex, 2026-11-01. Tick several photos and remove them in one go.
+        var picks = $$('[data-pick]', d), pickBtn = $('[data-remove-picked]', d), pickAll = $('[data-pick-all]', d);
+        function picked() { return picks.filter(function (c) { return c.checked; }); }
+        function syncPicks() {
+          if (!pickBtn) return;
+          var n = picked().length;
+          pickBtn.disabled = !n;
+          pickBtn.textContent = n ? 'Remove ' + n + (n === 1 ? ' photo' : ' photos') : 'Remove selected';
+          if (pickAll) pickAll.textContent = n === picks.length ? 'Clear selection' : 'Select all';
+        }
+        picks.forEach(function (c) { c.addEventListener('change', syncPicks); });
+        if (pickAll) pickAll.addEventListener('click', function () { var all = picked().length !== picks.length; picks.forEach(function (c) { c.checked = all; }); syncPicks(); });
+        if (pickBtn) pickBtn.addEventListener('click', function () {
+          var ids = picked().map(function (c) { return c.closest('li').dataset.id; });
+          if (!ids.length || !confirm('Remove ' + ids.length + (ids.length === 1 ? ' photo' : ' photos') + ' from ' + p.name + '?')) return;
+          pickBtn.disabled = true;
+          var done = 0, chain = Promise.resolve();
+          ids.forEach(function (id) { chain = chain.then(function () { return api('DELETE', '/api/photos/' + id).then(function () { done += 1; }); }); });
+          chain.then(function () { toast(done + (done === 1 ? ' photo removed' : ' photos removed')); again(); }).catch(function (e) { fail(e); again(); });
         });
         $$('[data-remove]', d).forEach(function (b) {
           b.addEventListener('click', function () {

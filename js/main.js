@@ -115,8 +115,10 @@
         '<div class="card-media' + (tall ? ' is-whole' : '') + '"' +
           /* a heavily blurred crop of the same photo fills the tile behind the
              whole image, so the card reads edge to edge without losing the dog.
-             60px wide is all a 22px blur needs, so it costs about a kilobyte. */
-          (tall ? ' style="--fill:url(' + esc(wix(img(l), 60, 40)) + ')"' : '') + '>' +
+             60px wide is all a 22px blur needs, so it costs about a kilobyte.
+             The address is made absolute, because a url() in a custom property
+             resolves against css/style.css, where media/<id> does not exist. */
+          (tall ? ' style="--fill:url(' + esc(new URL(wix(img(l), 60, 40), location.href).href) + ')"' : '') + '>' +
           (img(l) ? '<img src="' + esc(phone ? (l.lead_tall || wix(img(l), 480, 600)) : tall ? wixFit(img(l), 600, 400) : wix(img(l), 600, 400)) + '" alt="' + esc(l.puppy_name) + ', ' +
             esc(l.breed || 'puppy') + '" ' +
             (eager ? 'fetchpriority="high" decoding="async"' : 'loading="lazy" decoding="async"') +

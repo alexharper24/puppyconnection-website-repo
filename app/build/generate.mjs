@@ -109,6 +109,14 @@ function objectPosition(photo, w, h) {
   return a > t ? `${at(photo.fx, t / a)}% 50%` : `50% ${at(photo.fy, a / t)}%`;
 }
 // The src attribute of a cropped photo, with the R2 photo's position beside it.
+// The blurred fill behind a whole photo, as a CSS url() for the --fill property. A url() in a custom
+// property resolves against the stylesheet that uses it, css/style.css, so a photo the site serves
+// (media/<id>) is named from the site root, or it would be looked for under css/ (found 2026-11-01:
+// every card fill of a photo in R2 answered 404).
+function fillUrl(photo) {
+  const u = fill(photo, 60, 40);
+  return `url(${/^[a-z]+:|^\//i.test(u) ? u : `/${u}`})`;
+}
 function fillAttrs(photo, w, h) {
   const pos = objectPosition(photo, w, h);
   return `src="${esc(fill(photo, w, h))}"${pos ? ` style="object-position:${pos}"` : ''}`;
@@ -250,13 +258,17 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     // 4 seconds. It pauses on hover and focus, while the tab is hidden and while the gallery is
     // off screen, and never runs for anyone who asked for reduced motion. A thumbnail or an arrow
     // restarts the wait.
-    var slides = [].slice.call(frame.querySelectorAll('img'));
+    var slides = [].slice.call(frame.querySelectorAll('.slide'));
     var thumbs = [].slice.call(gal.querySelectorAll('button'));
     var prev = document.querySelector('.thumb-nav.prev');
     var next = document.querySelector('.thumb-nav.next');
     var strip = document.querySelector('.thumb-strip');
     var i = 0;
-    var load = function (k) { var im = slides[k]; if (im && !im.getAttribute('src') && im.getAttribute('data-src')) im.setAttribute('src', im.getAttribute('data-src')); };
+    var load = function (k) {
+      var s = slides[k], im = s && s.querySelector('img');
+      if (im && !im.getAttribute('src') && im.getAttribute('data-src')) im.setAttribute('src', im.getAttribute('data-src'));
+      if (s && s.getAttribute('data-fill')) { s.style.setProperty('--fill', s.getAttribute('data-fill')); s.removeAttribute('data-fill'); }
+    };
     var arrows = function () {
       if (!prev || !next) return;
       var over = gal.scrollWidth - gal.clientWidth;
@@ -266,7 +278,7 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     var show = function (n) {
       i = (n + slides.length) % slides.length;
       load(i); load((i + 1) % slides.length);
-      slides.forEach(function (im, k) { im.classList.toggle('is-on', k === i); im.setAttribute('aria-hidden', k === i ? 'false' : 'true'); });
+      slides.forEach(function (s, k) { s.classList.toggle('is-on', k === i); s.setAttribute('aria-hidden', k === i ? 'false' : 'true'); });
       thumbs.forEach(function (t, k) { if (k === i) t.setAttribute('aria-current', 'true'); else t.removeAttribute('aria-current'); });
       // Keep the active thumbnail in view with scrollLeft, since scrollIntoView also moves the page.
       var act = thumbs[i];
@@ -790,12 +802,21 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const tall = ((lead && lead.aspect) || 9) < 1.2;
     const label = p.placed ? 'Adopted' : p.availability === 'pending' ? 'Pending' : '';
     return `<a class="card${p.placed ? ' is-sold' : ''}" href="${pageFor.puppy(p.slug)}">`
-      + `<div class="card-media${tall ? ' is-whole' : ''}"${tall && lead ? ` style="--fill:url(${esc(fill(lead, 60, 40))})"` : ''}>`
+      + `<div class="card-media${tall ? ' is-whole' : ''}"${tall && lead ? ` style="--fill:${esc(fillUrl(lead))}"` : ''}>`
       + (lead ? `<img ${tall ? `src="${esc(fit(lead, 600, 400))}"` : fillAttrs(lead, 600, 400)} alt="${esc(p.name)}, ${esc(p.b.name)}" ${eager ? 'decoding="async"' : 'loading="lazy" decoding="async"'} width="600" height="400">` : '')
       + (label ? `<span class="tag ${p.placed ? 'tag-sold' : 'tag-pending'}">${label}</span>` : '')
       + (p.mates > 1 ? `<span class="tag tag-litter">Litter of ${p.mates}</span>` : '')
       + `</div><div class="card-body"><div class="card-name">${esc(p.name)}</div><div class="card-breed">${esc(p.b.name)}</div>`
       + `<div class="card-foot"><span class="price">${money(p.price)}</span><span class="card-ready"${p.l.ready_on ? ` data-ready="${esc(String(p.l.ready_on).slice(0, 10))}">${esc(readyLabel(p.l.ready_on, buildNow))}` : '>'}</span></div></div></a>`;
+  }
+  // One photo in the puppy page's frame. A square or portrait photo stays whole over a blurred fill of
+  // itself, as the cards do (Alex, 2026-11-01), and the fill of a later photo loads with that photo.
+  function slide(ph, i, p) {
+    const whole = ((ph && ph.aspect) || 9) < 1.2;
+    const url = esc(fillUrl(ph));
+    const alt = `${esc(p.name)}, ${esc(p.b.name)} puppy${p.photos.length > 1 ? `, photo ${i + 1} of ${p.photos.length}` : ''}`;
+    return `<div class="slide${i === 0 ? ' is-on' : ''}${whole ? ' is-whole' : ''}"${whole ? (i === 0 ? ` style="--fill:${url}"` : ` data-fill="${url}"`) : ''}${i === 0 ? '' : ' aria-hidden="true"'}>`
+      + `<img ${i === 0 ? 'src' : 'data-src'}="${esc(fit(ph, 1200, 800))}" alt="${alt}" decoding="async"></div>`;
   }
   const grid = (list, empty, cls = 'grid grid-4') => { cardN = 0; return list.length ? `<div class="${cls}">${list.map(card).join('')}</div>` : `<p class="empty">${empty}</p>`; };
   const paras = (list) => list.map((t) => `<p>${esc(t)}</p>`).join('');
@@ -858,9 +879,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       ${p.placed ? '<p class="meta">Adopted. This puppy has gone home and stays here so its litter can be seen.</p>' : p.availability === 'pending' ? '<p class="meta">Pending. Ask the breeder whether this puppy is still open.</p>' : ''}
     </div>
     <div class="d-media">
-      <div class="gallery-main" id="dMain">${p.photos.map((ph, i) => i === 0
-        ? `<img class="is-on" src="${esc(fit(ph, 1200, 800))}" alt="${esc(p.name)}, ${esc(p.b.name)} puppy${p.photos.length > 1 ? `, photo 1 of ${p.photos.length}` : ''}" decoding="async">`
-        : `<img data-src="${esc(fit(ph, 1200, 800))}" alt="${esc(p.name)}, ${esc(p.b.name)} puppy, photo ${i + 1} of ${p.photos.length}" decoding="async" aria-hidden="true">`).join('')}</div>
+      <div class="gallery-main" id="dMain">${p.photos.map((ph, i) => slide(ph, i, p)).join('')}</div>
       ${p.photos.length > 1 ? `<div class="thumb-strip">
         <button class="thumb-nav prev" type="button" aria-label="Earlier photos" hidden>&#8249;</button>
         <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img ${fillAttrs(ph, 160, 160)} alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>

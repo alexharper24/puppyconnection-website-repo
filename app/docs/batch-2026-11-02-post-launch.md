@@ -15,10 +15,13 @@ tasks:
     rules: "d1-migration skill: backup, two rehearsals, apply with app/ops/d1-apply.mjs (Alex has allowed Claude to run it). lib/inactivity.js holds the clock; never-signed-in legacy breeders are skipped today, so decide with Alex whether the portal notice shows for them on first sign-in"
   - id: n2-crop-preview
     status: open
+    blocked_on: alex
+    progress: "Preview built 2026-11-01 by app/ops/crop_preview.py from production-2026-11-01-pre0085.sql, at app/.state/crop-preview/index.html (gitignored, images local). 154 photos of listed puppies (98 near 4:3 meaning 1.29 to 1.43, 56 near 5:4 meaning 1.17 to 1.29): 68 would cut the dog box the detector draws by more than 2% of the height, 9 have no dog found, 77 keep the whole box. Nothing cropped. Waiting on Alex's list"
     item: "Show Alex every photo a crop of 4:3 and 5:4 photos to 3:2 would change, before any crop is made. Build contact sheets or an HTML page with each photo as it is now beside the cropped version around its stored focus point (photos.focus_x/focus_y), flagging any crop that cuts a head or feet. Do not crop anything until Alex approves the list"
     measured: "Listed puppies 2026-11-01: 749 photos about 3:2, 102 at 4:3, 56 at 5:4, 207 square, 177 portrait, 102 with no size recorded"
   - id: n3-blur-fill
-    status: open
+    status: in_progress
+    progress: "Each photo in the puppy page frame is a .slide; a square or portrait one (aspect under 1.2, the card rule) is .is-whole with a blurred --fill, and a later photo's fill loads with it. Found and fixed with it: every card fill of a photo in R2 answered 404 live (a url() in a custom property resolves against css/style.css, so media/<id> was fetched as css/media/<id>); generate.mjs fillUrl() roots it and js/main.js makes it absolute. Local build from live data: 82 pages open on a whole photo, 548 later fills, card fills 200, crossfade and aria checked, 390 px no overflow, check_site 0 errors on the build. style.css v91, main.js v43"
     item: "Puppy page main photo (css .gallery-main, 3:2 with object-fit contain) shows plain side bands for square and portrait photos. Approved: leave them whole and put a blurred fill of the same photo behind, as the cards already do (.card-media.is-whole with --fill in generate.mjs). No crop for square or portrait"
   - id: n4-multi-main
     status: in_progress

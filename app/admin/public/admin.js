@@ -481,15 +481,16 @@
         // Plan P3.2. Private notes, never shown to the breeder.
         sec('Private notes',
           '<form id="note-form"><label class="sr" for="note-body">New note</label><textarea id="note-body" name="body" style="min-height:70px" placeholder="Add a note about this breeder"></textarea>' +
-          '<div class="dsec-foot"><button class="btn btn-sm btn-act" type="submit">Add note</button></div></form>' +
-          '<div id="notes">' + notesHtml(data.notes) + '</div>') +
+          // Alex, 2026-11-01. With no notes yet, the line sits beside Add note rather than under it.
+          '<div class="dsec-foot">' + (data.notes.length ? '' : '<p class="muted small" id="no-notes">No notes yet.</p>') + '<button class="btn btn-sm btn-act" type="submit">Add note</button></div></form>' +
+          '<div id="notes">' + (data.notes.length ? notesHtml(data.notes) : '') + '</div>') +
         sec('Change sign-in email',
           '<form id="email-form" class="dsec-line"><input type="email" name="email" aria-label="Sign-in email" value="' + esc(b.email) + '"><button class="btn btn-sm btn-act" type="submit">Change</button></form>' +
           '<p class="hint">This signs them out everywhere. Send the new address an invitation from Who signs in.</p>') +
         SPLIT +
         (litters.length ? sec('Litters (' + litters.length + ')', litters.map(function (l) {
           var n = l.puppies.filter(function (p) { return p.publication_state !== 'archived'; }).length;
-          return '<div class="pay-row"><span><b>' + esc(l.breed_name) + '</b></span><span class="muted small">' + (l.born_on ? 'born ' + esc(day(l.born_on)) + ', ' : '') + plural(n, 'puppy', 'puppies') + '</span>' +
+          return '<div class="pay-row"><span><b>' + esc(l.breed_name) + '</b> <span class="muted small">' + (l.born_on ? 'born ' + esc(day(l.born_on)) + ', ' : '') + plural(n, 'puppy', 'puppies') + '</span></span>' +
             '<button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button></div>';
         }).join('')) : '') +
         // Workplan A19 and A20. The saved moms and dads, and every document, private ones included.
@@ -522,7 +523,7 @@
           nf.addEventListener('submit', function (e) {
             e.preventDefault();
             api('POST', '/api/breeders/' + b.id + '/notes', { body: $('#note-body', d).value }).then(function (notes) {
-              $('#note-body', d).value = ''; $('#notes', d).innerHTML = notesHtml(notes); var er = $('.error', nf); if (er) er.remove(); toast('Note added');
+              $('#note-body', d).value = ''; $('#notes', d).innerHTML = notesHtml(notes); var nn = $('#no-notes', d); if (nn) nn.remove(); var er = $('.error', nf); if (er) er.remove(); toast('Note added');
             }).catch(function (err) { showError(nf, err); });
           });
           $('#edit-profile', d).addEventListener('click', function () { profileEditor(data); });
@@ -895,7 +896,7 @@
     else if (p.publication_state === 'expired') c.push('<span class="pill pill-warn">Expired</span>');
     else if (p.publication_state === 'draft') c.push('<span class="pill">Draft</span>');
     else if (p.publication_state === 'published') c.push('<span class="pill pill-warn">Paid, hidden</span>');
-    if (p.payment_state === 'comped') c.push('<span class="pill pill-gold">Comped</span>');
+    if (p.payment_state === 'comped') c.push('<span class="pill pill-gold" title="Listed free. Puppy Connection waived the listing fee.">Comped</span>');
     if (p.operator_hold) c.push('<span class="pill pill-alert"' + (p.hold_reason ? ' title="' + esc(p.hold_reason) + '"' : '') + '>' + (p.hold_kind === 'photos' ? 'Offline for photos' : 'On hold') + '</span>');
     if (p.availability && p.availability !== 'available') c.push('<span class="pill">' + (p.availability === 'placed' ? 'Placed' : 'Pending') + '</span>');
     return c.join('');

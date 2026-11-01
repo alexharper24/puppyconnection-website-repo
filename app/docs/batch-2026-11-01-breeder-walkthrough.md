@@ -46,6 +46,7 @@ open:
   - { id: w4, item: "Alex approves the 1080p MP4 or asks for a phone-shaped one", blocked_on: Alex }
   - { id: w3, item: "Recheck the sign-in, checkout and parent photo scenes once the parallel session's changes land", blocked_on: parallel session }
 closed:
+  - { id: w7, item: "Merge and deploy the portal walkthrough", date: 2026-11-01, evidence: "PR 127 merged (b420d47) after resolving the cache-number clash with main, portal.css v38 and portal.js v47. Deployed from main with wrangler.production.jsonc, portal fb1ef157 and admin 25d65ead. Live portal serves portal.css?v=38, portal.js?v=47, walkthrough.js 200 (52 KB) and walkthrough.css 200 (28 KB). The signed-in panel was not checked on the live portal, because that needs a breeder sign-in" }
   - { id: w5, item: "Back up, rehearse and apply 0087", date: 2026-11-01, evidence: "Backup downloaded to the main checkout app/.state/production-2026-11-01-pre0087.sql. Rehearsal PASS twice. Applied in 1 batch. Read back: walkthrough_seen exists with 0 rows, breeders 43 and puppies 319 as in the backup" }
   - { id: w0, item: "Build and publish the first draft", date: 2026-11-01, evidence: "All nine scenes rendered with no console errors at desktop and phone widths in the local browser, and the artifact published as version 1" }
 ---

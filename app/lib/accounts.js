@@ -3,8 +3,9 @@
 //
 // A person is one sign-in address. On each kennel they are the main email (breeders.email) or one
 // of up to MAX_MEMBERS extra people (breeder_members), and since launch workplan A27 the same
-// address can be on several kennels, as the main contact of one and a person on others, or as a
-// person on several. Their one password and one authenticator live in credentials, keyed by the
+// address can be on several kennels, as the main contact or a person on each. Since migrations/0085
+// (Alex, 2026-11-01) one address may be the main contact of several kennels, as the Responsible Dog
+// Breeder Network's administrator address is for every member kennel. Their one password and one authenticator live in credentials, keyed by the
 // address, so they follow the person across kennels and when Make main contact moves them.
 
 import { now, addMinutes, randomToken, sha256hex, timingSafeEqual, bad, clean, ulid } from './util.js';
@@ -382,15 +383,12 @@ export function removePersonStmts(env, breederId, member, actor) {
 }
 
 /**
- * A27. breeders.email stays unique, so a person can be the main contact of one kennel only, and
- * Make main contact refuses a person who is already the main contact of another kennel.
+ * A27. Make main contact waits until the person has used their invitation to this kennel. Since
+ * migrations/0085 a person who is already the main contact of another kennel may be made it here too.
  */
 export async function checkMakeMain(env, breeder, member) {
   const row = await env.DB.prepare('SELECT awaiting_accept FROM breeder_members WHERE id = ?').bind(member.id).first();
   if (row && row.awaiting_accept) throw bad(`${member.email} has not used their invitation to this kennel yet, so they cannot be made the main contact until they do.`);
-  const other = await env.DB.prepare('SELECT b.id, p.business_name FROM breeders b LEFT JOIN breeder_profiles p ON p.breeder_id = b.id WHERE b.email = ? AND b.id != ?')
-    .bind(String(member.email).toLowerCase(), breeder.id).first();
-  if (other) throw bad(`${member.email} is already the main contact of ${other.business_name || 'another kennel'}, and a person can be the main contact of one kennel only. Make someone else the main contact there first.`);
 }
 
 /**

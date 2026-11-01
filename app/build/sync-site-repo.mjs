@@ -24,6 +24,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
 const REPO = path.resolve(APP, '..');
 // SITE_CHECKS points elsewhere when this runs from a worktree, where ../site-checks is not beside it.
+// It names the file itself, such as C:/Git_Repos/site-checks/check_site.py, never the folder (EISDIR, 2026-11-01).
 const SITE_CHECKS = process.env.SITE_CHECKS || path.resolve(REPO, '../site-checks/check_site.py');
 
 /** Every file the site repository gets, as [path there, path here]. */

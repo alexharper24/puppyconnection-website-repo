@@ -666,3 +666,24 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
   .drawer.wide .d-side { border-left: 1px solid var(--line); padding-left: 1.6rem; }
   .drawer.wide .d-side > :first-child, .drawer.wide .d-side > section:first-child h3:first-child { margin-top: 0; }
 }
+
+/* Alex, 2026-11-01. The breeder walkthrough (walkthrough.js) in a panel over the portal. The screen
+   is kept short enough that the caption and the controls fit under it on a laptop, and on a phone
+   the panel fills the screen. */
+.tour-scrim { z-index: 65; }
+.tour { position: fixed; z-index: 70; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(1100px, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem); overflow-y: auto; background: var(--paper); border-radius: 10px; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.tour:focus { outline: none; }
+.tour-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem .7rem; }
+.tour-head h2 { margin: 0 0 .2rem; }
+.tour-head p { margin: 0; }
+.tour-body { padding: 0 1.25rem 1.25rem; }
+.tour .wt-screen { width: 100%; max-width: calc((100dvh - 22rem) * 1120 / 660); margin-inline: auto; }
+@media (max-width: 700px) {
+  .tour { inset: 0; transform: none; width: 100%; max-height: none; border-radius: 0; }
+  .tour-head { padding: .8rem 1rem .6rem; }
+  .tour-body { padding: 0 1rem 1rem; }
+  .tour .wt-screen { max-width: none; }
+  /* The chapter buttons take two rows on a phone, and the progress bar shows the same thing. */
+  .tour .wt-steps { display: none; }
+}

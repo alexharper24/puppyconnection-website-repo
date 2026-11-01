@@ -149,7 +149,10 @@ const BACKUP_TABLES = ['breeders', 'breeder_profiles', 'breeder_references', 'pe
   // Added 2026-10-24 (launch workplan A26, migrations/0055). Passwords as PBKDF2 hashes, the
   // authenticator secret (sealed under TOTP_KEY once that secret is set) and hashed recovery codes,
   // so a restore does not make every breeder set a new password. One-time links are left out.
-  'credentials', 'recovery_codes'];
+  'credentials', 'recovery_codes',
+  // Added 2026-11-01 (migrations/0087). Who has closed the breeder walkthrough on which kennel, so a restore
+  // does not open it again for everyone.
+  'walkthrough_seen'];
 async function backup(env) {
   const dump = { taken_at: now(), tables: {} };
   let rows = 0;

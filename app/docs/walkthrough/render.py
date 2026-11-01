@@ -1,4 +1,4 @@
-"""Render the breeder walkthrough (index.html) to an MP4, frame by frame.
+"""Render the breeder walkthrough (index.html, with the portal's walkthrough.css and .js) to an MP4, frame by frame.
 
     python app/docs/walkthrough/render.py                 # 1920x1080, breeder-walkthrough.mp4
     python app/docs/walkthrough/render.py --phone         # 1080x1920, the phone layout
@@ -18,6 +18,7 @@ import imageio_ffmpeg
 from playwright.sync_api import sync_playwright
 
 HERE = pathlib.Path(__file__).resolve().parent
+PUBLIC = HERE.parents[1] / 'portal' / 'public'   # walkthrough.css and walkthrough.js, shared with the portal
 ORIGIN = 'http://walkthrough.local'
 
 # The skeleton the Artifact host wraps around index.html.
@@ -27,14 +28,16 @@ HEAD = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
 
 FRAME_CSS = {
     'desk': """
-      .wt-head, .wt-steps, .wt-ctrl, .wt-note { display: none !important; }
-      .wt { max-width: 1500px !important; padding: 34px 0 0 !important; gap: 18px !important; }
+      .page > header, .wt-steps, .wt-ctrl, .wt-note { display: none !important; }
+      .page { max-width: 1500px !important; padding: 34px 0 0 !important; gap: 0 !important; }
+      .wt { gap: 18px !important; }
       .wt-cap { font-size: 32px !important; min-height: 0 !important; max-width: none !important; text-align: center; }
       .wt-bar { height: 6px; }
     """,
     'phone': """
-      .wt-head, .wt-steps, .wt-ctrl, .wt-note { display: none !important; }
-      .wt { padding: 16px 16px 0 !important; gap: 12px !important; }
+      .page > header, .wt-steps, .wt-ctrl, .wt-note { display: none !important; }
+      .page { padding: 16px 16px 0 !important; gap: 0 !important; }
+      .wt { gap: 12px !important; }
       .wt-cap { font-size: 19px !important; text-align: center; max-width: none !important; }
     """,
 }
@@ -62,7 +65,7 @@ SYNC = """() => {
     if (a.__t0 === undefined) { a.__t0 = now; a.pause(); }
     a.currentTime = now - a.__t0;
   }
-  return document.getElementById('play').textContent;
+  return document.querySelector('[data-wt="play"]').textContent;
 }"""
 
 
@@ -88,6 +91,8 @@ def main():
         browser = p.chromium.launch()
         page = browser.new_page(viewport=viewport, device_scale_factor=scale, reduced_motion='no-preference')
         page.route(ORIGIN + '/index.html', lambda r: r.fulfill(body=page_html, content_type='text/html; charset=utf-8'))
+        page.route(ORIGIN + '/walkthrough.css', lambda r: r.fulfill(path=str(PUBLIC / 'walkthrough.css'), content_type='text/css'))
+        page.route(ORIGIN + '/walkthrough.js', lambda r: r.fulfill(path=str(PUBLIC / 'walkthrough.js'), content_type='text/javascript'))
         page.route(ORIGIN + '/logo-white.webp', lambda r: r.fulfill(path=str(HERE / 'logo-white.webp'), content_type='image/webp'))
         # An installed clock still follows real time until it is paused.
         page.clock.install(time=1793534400000)

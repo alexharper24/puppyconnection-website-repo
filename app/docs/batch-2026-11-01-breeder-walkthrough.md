@@ -2,7 +2,7 @@
 batch: breeder-walkthrough
 date: 2026-11-01
 objective: "A short animated walkthrough of the breeder journey, from sign-in to a paid listing, for Alex to review before it may play in the portal on a breeder's first sign-in."
-source: app/docs/walkthrough/index.html
+source: "app/portal/public/walkthrough.js and walkthrough.css, the one player. app/docs/walkthrough/index.html is the review page that loads them"
 artifact: "https://claude.ai/artifact/Y1AwRdwZc58bxnpVy7Pet4 (private, version 1, 2026-11-01)"
 video: "app/docs/walkthrough/render.py writes breeder-walkthrough.mp4 (1920x1080, 30 fps, H.264) beside index.html, gitignored. --phone writes a 1080x1920 version"
 running_time: "2:08, the sum of the scene timeline as the page computes it"
@@ -30,7 +30,17 @@ scenes:
   - { id: s7, chapter: Add the puppies, what: "Add photos, Checking photo 1 of 3, one Sent back, first is Cover, Save puppy, ready to list box", status: built }
   - { id: s8, chapter: Pay to list, what: "Pay to list, Select all, total updates, Pay $44.97 for 3 listings, plain checkout card", status: built }
   - { id: s9, chapter: Pay to list, what: "Back on Litters and puppies, toast, pills change to Listed, four-week photo note, Replay", status: built }
+portal_build:
+  rule: "Opens by itself the first time a person is in an approved kennel, as its main contact or a manager, once per person per kennel (Alex, 2026-11-01). Help and the Overview's Your first listing card open it any time"
+  table: "walkthrough_seen (email, breeder_id, seen_at), migrations/0087_walkthrough_seen.sql and schema.sql"
+  worker: "/api/me gains walkthrough. POST /api/walkthrough/seen records it. An operator session never sees it and cannot record it. A missing table reads as seen, so the code can deploy before the migration"
+  cleared_with: "demo reset, account closing (retention), removing a person from a kennel, and the daily backup list"
+  portal: "portal.js opens a panel (Skip for now, then Get started at the end), Help has Watch the walkthrough, Escape closes. portal.css v36, portal.js v47"
+  tests: "app/dev/walkthrough-test.mjs 17 passed. multikennel-test 85 passed, retention, restore and demo all passed (2026-11-01, local)"
+  rehearsal: "0087 rehearsed on main's schema with foreign keys on, run 1 added one empty table, run 2 changed nothing (2026-11-01). Not yet rehearsed on a staging or production export"
 open:
+  - { id: w5, item: "Back up, rehearse and apply 0087 on staging, then production", blocked_on: Alex approval }
+  - { id: w6, item: "Decide whether people who already signed in before the deploy should also see it once (as built they do)", blocked_on: Alex }
   - { id: w1, item: "Alex reviews the artifact and gives corrections", blocked_on: Alex }
   - { id: w2, item: "Decide whether and how it plays on a breeder's first sign-in", blocked_on: Alex }
   - { id: w4, item: "Alex approves the 1080p MP4 or asks for a phone-shaped one", blocked_on: Alex }

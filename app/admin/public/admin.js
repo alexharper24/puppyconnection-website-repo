@@ -1533,51 +1533,74 @@
 
   // ------------------------------------------------------------ reports (plan P3.7)
   function csvLink(name) { return '<a class="btn btn-sm" href="/api/reports/' + name + '.csv" download>Download CSV</a>'; }
+  // One report at a time, chosen from a row of tabs, so no report is a long scroll away (Alex, 2026-11-01).
+  // The tab stays in the address, so a reload or a shared link opens the same report.
+  var REPORT_TABS = [['traffic', 'Views and clicks'], ['months', 'Listings and revenue'], ['breeds', 'Listings by breed'], ['views', 'Most viewed puppies'],
+    ['searches', 'Breeds searched for'], ['new', 'New breeders by month'], ['sales', 'Sales breeders reported'], ['glance', 'At a glance']];
   function reportsScreen() {
     Promise.all([refreshStats(), api('GET', '/api/reports')]).then(function (r) {
       var d = r[1], s = d.summary;
-      function table(id, title, head, rows, rowFn, emptyText, csv) {
+      function table(id, title, head, rows, rowFn, emptyText, csv, note) {
         return '<section class="card" id="' + id + '"><div class="page-head" style="margin-bottom:.4rem"><div><h2 style="margin:0">' + esc(title) + '</h2></div><div class="head-actions">' + csvLink(csv) + '</div></div>' +
-          (rows.length ? '<div class="table-wrap"><table class="list"><thead><tr>' + head + '</tr></thead><tbody>' + rows.map(rowFn).join('') + '</tbody></table></div>' : '<p class="muted small">' + esc(emptyText) + '</p>') + '</section>';
+          (rows.length ? '<div class="table-wrap"><table class="list"><thead><tr>' + head + '</tr></thead><tbody>' + rows.map(rowFn).join('') + '</tbody></table></div>' : '<p class="muted small">' + esc(emptyText) + '</p>') +
+          (note ? '<p class="hint" style="margin:.6rem 0 0">' + esc(note) + '</p>' : '') + '</section>';
       }
-      shell(head('Reports', 'Listings, money and views at a glance. Each table downloads as a CSV for a spreadsheet.') +
-        '<div class="stats">' +
-          '<a class="stat" href="#/listings"><b>' + s.live + '</b><span>Live on the site</span></a>' +
-          '<a class="stat" href="#/listings?filter=all"><b>' + s.placed + '</b><span>Marked placed</span></a>' +
-          '<a class="stat" href="#/listings?filter=drafts"><b>' + s.draft + '</b><span>Drafts</span></a>' +
-          '<a class="stat" href="#/breeders?status=approved"><b>' + s.approved_breeders + '</b><span>Approved breeders</span></a></div>' +
-        // Workplan A4.
-        '<div class="stats">' +
-          '<a class="stat" href="#/listings"><b>' + s.pending + '</b><span>Marked pending</span></a>' +
-          '<span class="stat"><b>' + s.reminded + '</b><span>Emailed for a new photo</span></span>' +
-          '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no new photo</span></span>' +
-          '<a class="stat" href="#/breeders"><b>' + s.new_breeders_30 + '</b><span>New breeders, 30 days</span></a></div>' +
-        '<p class="btn-row" style="margin-top:-.4rem">' + csvLink('summary') + '</p>' +
+      function month(m) { return esc(new Date(m + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })); }
+      var panels = {
         // Views and clicks over time (Alex, 2026-11-01), drawn by traffic.js.
-        '<section class="card" id="r-traffic"></section>' +
-        table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {
-          return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.paid_listings + '</td><td class="num hide-sm">' + m.comped_listings + '</td>' +
+        traffic: '<section class="card" id="r-traffic"></section>',
+        months: table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {
+          return '<tr><td>' + month(m.month) + '</td><td class="num">' + m.paid_listings + '</td><td class="num hide-sm">' + m.comped_listings + '</td>' +
             '<td class="num">' + esc(money(m.revenue_cents)) + '</td><td class="num hide-sm">' + esc(money(m.refunded_cents)) + '</td><td class="num">' + esc(money(m.revenue_cents - m.refunded_cents)) + '</td></tr>';
-        }, 'No listings have been paid for or comped yet.', 'months') +
-        '<div class="cols">' +
-        table('r-breeds', 'Listings by breed', '<th>Breed</th><th class="num">Live</th><th class="num">Placed</th><th class="num">Drafts</th>', d.breeds, function (b) {
+        }, 'No listings have been paid for or comped yet.', 'months'),
+        breeds: table('r-breeds', 'Listings by breed', '<th>Breed</th><th class="num">Live</th><th class="num">Placed</th><th class="num">Drafts</th>', d.breeds, function (b) {
           return '<tr><td>' + esc(b.breed) + '</td><td class="num">' + b.live + '</td><td class="num">' + b.placed + '</td><td class="num">' + b.draft + '</td></tr>';
-        }, 'No puppies yet.', 'breeds') +
-        table('r-views', 'Most viewed puppies', '<th>Puppy</th><th class="num">Views</th><th class="num">Clicks</th><th class="num hide-sm">Last 30 days</th>', d.views, function (v) {
+        }, 'No puppies yet.', 'breeds'),
+        views: table('r-views', 'Most viewed puppies', '<th>Puppy</th><th class="num">Views</th><th class="num">Clicks</th><th class="num hide-sm">Last 30 days</th>', d.views, function (v) {
           return '<tr><td><b>' + esc(v.name) + '</b><span class="sub">' + esc(v.breed) + ', ' + esc(v.business_name) + (v.is_public ? '' : ', not live now') + '</span></td>' +
             '<td class="num">' + v.views + '</td><td class="num">' + v.clicks + '</td><td class="num hide-sm">' + v.views_30 + ' views, ' + v.clicks_30 + ' clicks</td></tr>';
-        }, 'No puppy pages have been viewed yet.', 'views') + '</div>' +
-        '<div class="cols">' +
-        table('r-searches', 'Breeds families searched for, last 30 days', '<th>Breed</th><th class="num">Searches</th>', d.searches, function (x) {
+        }, 'No puppy pages have been viewed yet.', 'views', 'The 25 puppies with the most views since November 1, 2026.'),
+        searches: table('r-searches', 'Breeds searched for, last 30 days', '<th>Breed</th><th class="num">Searches</th>', d.searches, function (x) {
           return '<tr><td>' + esc(x.breed) + '</td><td class="num">' + x.searches + '</td></tr>';
-        }, 'No breed searches on the browse page yet. Each time a family picks a breed in its filter, it counts once.', 'searches') +
-        table('r-new', 'New breeders by month', '<th>Month</th><th class="num">Signed up</th><th class="num">Approved now</th>', d.new_breeders, function (m) {
-          return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.signed_up + '</td><td class="num">' + m.approved + '</td></tr>';
-        }, 'No breeders have signed up through the portal yet.', 'new_breeders') + '</div>' +
-        table('r-sales', 'Sales breeders reported', '<th>Month</th><th class="num">Marked placed</th><th class="num hide-sm">Imported listings</th>', d.sales, function (m) {
-          return '<tr><td>' + esc(new Date(m.month + '-15T12:00:00Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric' })) + '</td><td class="num">' + m.placed + '</td><td class="num hide-sm">' + m.imported + '</td></tr>';
-        }, 'No puppies have been marked placed yet.', 'sales') +
-        '<p class="hint">Sales are puppies breeders mark placed, kept apart from paid listings.</p>');
+        }, 'No breed searches on the browse page yet. Each time a family picks a breed in its filter, it counts once.', 'searches'),
+        'new': table('r-new', 'New breeders by month', '<th>Month</th><th class="num">Signed up</th><th class="num">Approved now</th>', d.new_breeders, function (m) {
+          return '<tr><td>' + month(m.month) + '</td><td class="num">' + m.signed_up + '</td><td class="num">' + m.approved + '</td></tr>';
+        }, 'No breeders have signed up through the portal yet.', 'new_breeders'),
+        sales: table('r-sales', 'Sales breeders reported', '<th>Month</th><th class="num">Marked placed</th><th class="num hide-sm">Imported listings</th>', d.sales, function (m) {
+          return '<tr><td>' + month(m.month) + '</td><td class="num">' + m.placed + '</td><td class="num hide-sm">' + m.imported + '</td></tr>';
+        }, 'No puppies have been marked placed yet.', 'sales', 'Sales are puppies breeders mark placed, kept apart from paid listings.'),
+        glance: '<div class="stats">' +
+            '<a class="stat" href="#/listings"><b>' + s.live + '</b><span>Live on the site</span></a>' +
+            '<a class="stat" href="#/listings?filter=all"><b>' + s.placed + '</b><span>Marked placed</span></a>' +
+            '<a class="stat" href="#/listings?filter=drafts"><b>' + s.draft + '</b><span>Drafts</span></a>' +
+            '<a class="stat" href="#/breeders?status=approved"><b>' + s.approved_breeders + '</b><span>Approved breeders</span></a></div>' +
+          // Workplan A4.
+          '<div class="stats">' +
+            '<a class="stat" href="#/listings"><b>' + s.pending + '</b><span>Marked pending</span></a>' +
+            '<span class="stat"><b>' + s.reminded + '</b><span>Emailed for a new photo</span></span>' +
+            '<span class="stat"><b>' + (s.offline + s.removed) + '</b><span>Off the site for no new photo</span></span>' +
+            '<a class="stat" href="#/breeders"><b>' + s.new_breeders_30 + '</b><span>New breeders, 30 days</span></a></div>' +
+          '<p class="btn-row">' + csvLink('summary') + '</p>',
+      };
+      var tab = panels[params().tab] ? params().tab : 'traffic';
+      shell(head('Reports', 'Listings, money and views. Each table downloads as a CSV for a spreadsheet.') +
+        '<div class="rtabs" role="tablist" aria-label="Reports">' + REPORT_TABS.map(function (t) {
+          return '<button type="button" role="tab" id="rt-' + t[0] + '" aria-controls="rp-' + t[0] + '" aria-selected="' + (t[0] === tab) + '" data-tab="' + t[0] + '">' + esc(t[1]) + '</button>';
+        }).join('') + '</div>' +
+        REPORT_TABS.map(function (t) {
+          return '<div role="tabpanel" id="rp-' + t[0] + '" aria-labelledby="rt-' + t[0] + '"' + (t[0] === tab ? '' : ' hidden') + '>' + panels[t[0]] + '</div>';
+        }).join(''));
+      $$('.rtabs [data-tab]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          tab = b.dataset.tab;
+          $$('.rtabs [data-tab]').forEach(function (x) { x.setAttribute('aria-selected', String(x === b)); });
+          REPORT_TABS.forEach(function (t) { $('#rp-' + t[0]).hidden = t[0] !== tab; });
+          // Kept in the address without a hashchange, so the screen is not fetched again.
+          history.replaceState(null, '', '#/reports' + (tab === 'traffic' ? '' : '?tab=' + tab));
+          // The chart sizes itself to its panel, which had no width while it was hidden.
+          if (tab === 'traffic') window.dispatchEvent(new Event('resize'));
+        });
+      });
       if (window.pcTraffic) window.pcTraffic.mount($('#r-traffic'));
     });
   }

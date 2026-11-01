@@ -23,6 +23,7 @@ tasks:
   - {id: c7-test, status: done, note: "launch-features and portal-features suites not run, because they need 8787 and 8788, which other sessions hold", item: "Tests in app/dev, local site beacon and local admin at desktop and 390 px"}
   - {id: c8-ship, status: done, deployed: "PR 128 (34db802), admin 11472c73 with wrangler.production.jsonc, site repo 93ea854; live about.html loads js/main.js?v=f952eeb1 with the page counter at 20:57 UTC", open: "No page_stats row yet at 20:59 UTC; the site had no visits in those two minutes (puppy views unchanged). Check page_stats on the next session", item: "PR, merge, admin deploy, site repo sync, migration applied and read back"}
   - {id: c9-report, status: done, evidence: "https://claude.ai/artifact/5W5SA7uw8CfDfBMu9dAuFm", item: "Screenshot and short description of the chart for Alex"}
+  - {id: c10-report-tabs, status: done, asked: "Alex 2026-11-01: each report on its own tab, Views and clicks first, top 20 pages with a button for more", deployed: "PR 130 (5a2f422), admin 4b621393", evidence: "local admin at 1100 and 390 px: eight tabs wrap, no refetch on a switch, #/reports?tab=sales opens Sales, chart redraws to 740 px when its tab opens second, Show more 20, 40, 54 of 54", note: "The eight count tiles that sat at the top are the At a glance tab, last"}
 excluded: []
 ---
 

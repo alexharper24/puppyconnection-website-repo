@@ -156,7 +156,12 @@ def plan(classified, raw, backup):
                         'drop': [{'id': r['id'], 'r2_key': r['r2_key'], 'external_url': r['external_url'], 'position': r['position']} for r in drop],
                         'before': [{'id': r['id'], 'position': r['position'], 'mid': (media(r['external_url']) or [None])[0]} for r in ours]})
     json.dump(sorted(keys), open(os.path.join(STATE, 'taken-keys.json'), 'w', encoding='utf-8'))
-    json.dump({'made_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'backup': os.path.basename(backup),
+    # When the backup was written, which is the moment the plan's view of the database dates from. The migration's
+    # hand-change guard counts from here, not from when the plan ran, so a change made in between is still seen.
+    # Five minutes are taken off, because the export is written a little after D1 makes it, and a change counted
+    # twice only leaves that puppy alone.
+    taken = datetime.fromtimestamp(os.path.getmtime(backup) - 300, timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    json.dump({'made_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'), 'backup': os.path.basename(backup), 'backup_at': taken,
                'puppies': puppies, 'log': log}, open(PLAN, 'w', encoding='utf-8'), indent=1)
     new = sum(o['kind'] == 'new' for p in puppies for o in p['order'])
     kept = sum(o['kind'] == 'kept' for p in puppies for o in p['order'])
@@ -471,7 +476,9 @@ def migration(backup, out):
     f, ov, skip = jload('focus.json', {}), jload('overrides.json', {}), jload('excluded.json', {})
     db = load_db(backup)
     now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-    since = p['made_at']
+    since = p.get('backup_at') or p['made_at']
+    if os.path.basename(backup) != p['backup']:
+        raise SystemExit(f"the plan was made on {p['backup']}, so make the plan again on {os.path.basename(backup)} first")
     lines = [f"""-- Alex, 2026-11-01 (docs/batch-2026-11-01-wix-photo-refresh.md). Puppies still for sale whose photos on the old Wix
 -- store are newer than ours get Wix's current photos, in Wix's order and up to 15, in place of the photos we copied from
 -- Wix. A photo the breeder uploaded in the portal (external_url NULL) is kept, after the Wix photos. A Wix photo we

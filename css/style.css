@@ -141,6 +141,12 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
      covers the logo and the button used to close it. */
   .brand,.burger{position:relative;z-index:60}
   .burger{display:block}
+  /* Alex, 2026-11-01: a smaller logo so the sticky header takes less of a phone screen, and a menu button
+     that is easier to read and tap (44px). */
+  .hdr{padding-top:.55rem;padding-bottom:.55rem}
+  .brand img{width:118px}
+  .brand small{font-size:.64rem}
+  .burger{font-size:.95rem;padding:.65rem 1.05rem;min-height:44px}
   body.nav-open{overflow:hidden}
 }
 
@@ -701,6 +707,8 @@ aside .guide-panel{margin-top:1rem}
 .foot-legal a{color:var(--cream-text)}
 .foot-legal a:hover{color:var(--gold)}
 @media(max-width:560px){.foot-base{flex-direction:column;align-items:flex-start}}
+/* On a phone the credit takes the second line whole, so Studio never sits alone (Alex, 2026-11-01). */
+@media(max-width:560px){.foot-credit{display:block}}
 /* The guides hub as option A (2026-10-11): a card per breed, two to a row on a phone like the puppies page. */
 .guide-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:1.2rem}
 .gc{background:var(--paper);border:1px solid var(--line);display:flex;flex-direction:column;min-width:0}

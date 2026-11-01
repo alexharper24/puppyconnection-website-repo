@@ -1073,6 +1073,7 @@
         (x.is_public ? '<p class="hint" style="margin:.4rem 0 0">Changes you save here, photos included, show on the site within a few minutes.</p>' : '') +
         '<div style="margin-bottom:.8rem"></div>' : '') +
       '<form id="puppy" novalidate>' + (x ? '<input type="hidden" name="version" value="' + esc(x.version) + '">' : '') +
+      (canEdit ? prefillBox('puppy', 'puppy') : '') +
       '<div class="field"><label for="p-name">Name</label><input id="p-name" name="name" type="text" value="' + esc(x ? x.name : '') + '" required' + dis + '></div>' +
       '<div class="grid-2"><div class="field"><label for="p-sex">Sex</label><select id="p-sex" name="sex"' + dis + '><option value="">Not set</option><option value="female"' + (x && x.sex === 'female' ? ' selected' : '') + '>Female</option><option value="male"' + (x && x.sex === 'male' ? ' selected' : '') + '>Male</option></select></div>' +
       colorField('p', x ? x.color : '', br, dis) + '</div>' + coatField(x ? x.coat : '', br, dis) +
@@ -1106,12 +1107,15 @@
           if (!x) body.litter_id = litterId;
           (x ? api('PUT', '/api/puppies/' + x.id, body) : api('POST', '/api/puppies', body))
             .then(function (r) {
-              toast(x ? 'Puppy saved' : pendingUpload ? 'Puppy added' : 'Puppy added. Now add photos.');
-              return loadListings().then(function () { puppyDrawer(findPuppy(x ? x.id : r.id)); litters(); });
+              return attachHeld(form, '/api/puppies/' + (x ? x.id : r.id) + '/documents').then(function (n) {
+                toast((x ? 'Puppy saved' : pendingUpload || n ? 'Puppy added' : 'Puppy added. Now add photos.') + (n ? ', with the document kept as private' : ''));
+                return loadListings().then(function () { puppyDrawer(findPuppy(x ? x.id : r.id)); litters(); });
+              });
             })
             .catch(function (err) { pendingUpload = null; showError(form, err); });
         });
         if (!x && canEdit) saveFirstUploads(d, form);
+        if (canEdit) wirePrefill(d, form, 'puppy', { litter: x ? x.litter_id : litterId });
         var ar = $('#archive-puppy', d);
         if (ar) ar.addEventListener('click', function () {
           if (!confirm('Remove ' + x.name + ' from your listings?')) return;
@@ -1470,7 +1474,7 @@
     var word = sex === 'female' ? 'mom' : 'dad';
     openDrawer(p ? p.name : 'Add a ' + word,
       '<form id="parent" novalidate>' + (p ? '<input type="hidden" name="version" value="' + esc(p.version) + '">' : '') +
-      '<input type="hidden" name="sex" value="' + esc(sex) + '">' +
+      '<input type="hidden" name="sex" value="' + esc(sex) + '">' + (canEdit ? prefillBox('parent', word) : '') +
       '<div class="field"><label for="pa-name">Name</label><input id="pa-name" name="name" type="text" value="' + esc(p ? p.name : '') + '" required' + dis + '><div class="hint">The ' + word + '\'s call name or registered name.</div></div>' +
       '<div class="field"><label for="pa-breed">Breed</label><select id="pa-breed" name="breed"' + dis + '><option value="">Choose a breed</option>' +
         P.breeds.map(function (b) { return '<option value="' + esc(b.slug) + '"' + (p && p.breed === b.slug ? ' selected' : '') + '>' + esc(b.name) + '</option>'; }).join('') + '</select></div>' +
@@ -1497,10 +1501,16 @@
           delete body.test;
           body.health_tests = $$('[name=test]:checked', form).map(function (c) { return c.value; });
           (p ? api('PUT', '/api/parents/' + p.id, body) : api('POST', '/api/parents', body))
-            .then(function (r) { toast(p ? 'Saved' : pendingUpload ? 'Added' : 'Added. Add a photo next.'); return loadParents().then(function () { parentsView(); parentDrawer(findParent(p ? p.id : r.id)); }); })
+            .then(function (r) {
+              return attachHeld(form, '/api/parents/' + (p ? p.id : r.id) + '/documents').then(function (n) {
+                toast((p ? 'Saved' : pendingUpload || n ? 'Added' : 'Added. Add a photo next.') + (n ? ', with the document kept as private' : ''));
+                return loadParents().then(function () { parentsView(); parentDrawer(findParent(p ? p.id : r.id)); });
+              });
+            })
             .catch(function (err) { pendingUpload = null; showError(form, err); });
         });
         if (!p && canEdit) saveFirstUploads(d, form);
+        if (canEdit) wirePrefill(d, form, 'parent', { sex: sex });
         var ar = $('#archive-parent', d);
         if (ar) ar.addEventListener('click', function () {
           api('POST', '/api/parents/' + p.id + '/archive', { archived: !p.archived_at }).then(function () { closeDrawer(); toast(p.archived_at ? 'Back on the litter picker' : 'Removed from the litter picker'); parentsView(); })
@@ -1536,6 +1546,129 @@
     });
   }
 
+  // ------------------------------------------------------------ fill from a document
+  /* Alex, 2026-11-01. A breeder uploads a health record, pedigree or registration paper and the form
+     is filled from it (lib/docextract.js on the server). Only empty fields are filled unless the
+     breeder ticks Replace, health tests and Comes with ticks are only ever added, and every filled
+     field says "From your document, please check" until the breeder changes it or saves. Nothing
+     is saved here. The file is held in the page and added as a private document when the form is
+     saved, so closing the drawer without saving keeps nothing. */
+  var PREFILL_NOTE = 'From your document, please check';
+  function prefillBox(owner, word) {
+    if (!(state.config && state.config.prefill)) return '';
+    return '<div class="prefill" data-prefill><p class="prefill-title">Fill from a document</p>' +
+      '<p class="hint">Upload a health record, pedigree or registration paper, as a PDF or a photo of the page, and the empty fields below are filled from it. Check each one before you save. When you save, the document is kept with this ' + esc(word) + ' as a private document.</p>' +
+      '<div class="prefill-row"><label for="pf-file-' + owner + '" class="btn btn-sm">Choose a document</label><input id="pf-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>' +
+      '<label class="check"><input type="checkbox" data-pf-replace><span>Replace what is already filled in</span></label></div>' +
+      '<p class="prefill-status" data-pf-status role="status" hidden></p></div>';
+  }
+  function markFilled(el, box) {
+    // A ticked box marks its own line and the list it sits in, which carries the one note.
+    var host = box || el.closest('.field') || el.closest('label');
+    if (!host) return;
+    host.classList.add('prefilled');
+    if (box && el.closest('label')) el.closest('label').classList.add('prefilled-check');
+    if (!$('.prefill-note', host)) {
+      var n = document.createElement('span'); n.className = 'prefill-note'; n.textContent = PREFILL_NOTE;
+      var label = box ? $('legend', box) : $('label', host);
+      if (label && label !== el.closest('label')) label.appendChild(n); else host.appendChild(n);
+    }
+    function clear() {
+      host.classList.remove('prefilled');
+      $$('.prefilled-check', host).forEach(function (l) { l.classList.remove('prefilled-check'); });
+      var n2 = $('.prefill-note', host); if (n2) n2.remove();
+    }
+    el.addEventListener('input', clear, { once: true });
+    el.addEventListener('change', clear, { once: true });
+  }
+  /* Put the fields in the form. Returns { filled, kept }: how many were filled and how many were
+     left alone because the breeder had already filled them. */
+  function applyPrefill(d, form, r, replace) {
+    var filled = 0, kept = 0, f = r.fields || {};
+    // The breed first: choosing it redraws the health test list the tests are then ticked in.
+    var order = Object.keys(f).sort(function (a, b) { return (a === 'breed' ? -1 : 0) - (b === 'breed' ? -1 : 0); });
+    order.forEach(function (k) {
+      var v = f[k];
+      if (k === 'health_tests') {
+        var have = $$('[name=test]:checked', form).map(function (c) { return c.value; });
+        var add = v.filter(function (t) { return have.indexOf(t) < 0; });
+        if (!add.length) return;
+        var slot = $('#pa-tests-slot', d), breedSel = $('#pa-breed', d);
+        if (slot) slot.innerHTML = testPicks(breedSel ? breedSel.value : '', have.concat(add), '');
+        var set = $('#pa-tests', d);
+        add.forEach(function (t) { var c = $('[name=test][value="' + t + '"]', form); if (c) markFilled(c, set); });
+        filled++;
+        return;
+      }
+      var el = $('[name="' + k + '"]', form);
+      if (!el || el.disabled) return;
+      if (String(el.value || '').trim() && !replace) { if (String(el.value).trim() !== String(v)) kept++; return; }
+      if (el.tagName === 'SELECT') {
+        var ok = Array.prototype.some.call(el.options, function (o) { return (o.value || o.text) === v; });
+        if (!ok || el.value === v) return;
+        el.value = v;
+        el.dispatchEvent(new Event('change'));
+      } else {
+        if (el.value === v) return;
+        el.value = v;
+      }
+      var more = el.closest('details'); if (more) more.open = true;
+      markFilled(el);
+      filled++;
+    });
+    (r.includes || []).forEach(function (name) {
+      var c = $('[name=inc][value="' + name + '"]', form);
+      if (!c || c.checked || c.disabled) return;
+      c.checked = true;
+      markFilled(c, c.closest('.includes-field'));
+      filled++;
+    });
+    // The quality prompts follow the form (workplan A21).
+    form.dispatchEvent(new Event('input'));
+    return { filled: filled, kept: kept };
+  }
+  function wirePrefill(d, form, owner, opts) {
+    var box = $('[data-prefill]', d);
+    if (!box) return;
+    form.heldDocs = [];
+    var input = $('input[type=file]', box), status = $('[data-pf-status]', box);
+    function say(text, bad) { status.hidden = false; status.textContent = text; status.classList.toggle('error', !!bad); }
+    var max = (state.listings && state.listings.max_doc_bytes) || (state.parents && state.parents.max_doc_bytes) || 10485760;
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      input.value = '';
+      if (file.size > max) { say(file.name + ' is larger than 10 MB. A scan at a lower resolution, or one page per file, will fit.', true); return; }
+      var q = '?form=' + owner + (opts.sex ? '&sex=' + encodeURIComponent(opts.sex) : '') + (opts.litter ? '&litter=' + encodeURIComponent(opts.litter) : '');
+      var fb = fileBusy(input, 'Reading the document…');
+      say('Reading ' + file.name + '. A photo of a page can take up to half a minute.');
+      api('POST', '/api/extract' + q, undefined, file).then(function (r) {
+        fb.done();
+        if (r.empty) { say(r.message || 'We could not find anything in this document that fits this form. Nothing was changed.', true); return; }
+        var res = applyPrefill(d, form, r, $('[data-pf-replace]', box).checked);
+        form.heldDocs.push({ file: file, kind: r.kind || 'other' });
+        var kept = res.kept ? ' ' + (res.kept === 1 ? 'One field you had filled in was left as it was.' : res.kept + ' fields you had filled in were left as they were.') +
+          ' To use what the document says instead, tick Replace and choose the document again.' : '';
+        // A saved parent's sex comes from Add a mom or Add a dad, so a document for the other is only pointed out.
+        var other = opts.sex && r.sex && r.sex !== opts.sex ? ' This document seems to be about a ' + (r.sex === 'male' ? 'male' : 'female') + ' dog, and this is a ' + (opts.sex === 'female' ? 'mom' : 'dad') + '.' : '';
+        say((res.filled ? 'Filled ' + plural(res.filled, 'field') + ' from ' + file.name + '. Each one is marked below, so please check it before you save.'
+          : 'Everything this document says is already in the form, so nothing changed.') + kept + other, !!other);
+      }).catch(function (err) { fb.done(); say(err.message, true); });
+    });
+  }
+  /* After a save: the held documents go up as private documents of the saved record. A failure
+     here does not undo the save, and says what happened. */
+  function attachHeld(form, uploadPath) {
+    var list = (form.heldDocs || []).slice();
+    form.heldDocs = [];
+    return list.reduce(function (p, h) {
+      return p.then(function () {
+        var q = '?kind=' + encodeURIComponent(h.kind) + '&visibility=private&title=&name=' + encodeURIComponent(h.file.name.replace(/\.[^.]+$/, ''));
+        return api('POST', uploadPath + q, undefined, h.file).catch(function (err) { toast('Saved, but ' + h.file.name + ' was not added to the documents: ' + err.message); });
+      });
+    }, Promise.resolve()).then(function () { return list.length; });
+  }
+
   // ------------------------------------------------------------ documents (workplan A20)
   /* Health records, guarantees and pedigrees, as a PDF or an image, for a puppy or a parent. Each is
      shown to families or kept for Puppy Connection staff only, and starts private until chosen. */
@@ -1545,12 +1678,19 @@
     var max = (state.listings && state.listings.max_docs) || (state.parents && state.parents.max_docs) || 10;
     return '<section class="docs" style="margin-top:1.4rem"><h3>Documents</h3><p class="hint">Health records, health guarantees and pedigrees, as a PDF or a photo of the page, up to 10 MB each. Choose for each one whether families can see it on the ' + (owner === 'parent' ? 'puppy pages of this parent\'s litters' : 'puppy page') + ', or keep it for Puppy Connection staff only.</p>' +
       (docs.length ? '<ul class="doc-list">' + docs.map(function (doc) {
-        var pub = doc.visibility === 'public';
-        return '<li class="doc" data-id="' + esc(doc.id) + '"><div class="doc-main">' + (pub ? '<a href="' + esc(doc.url) + '" target="_blank" rel="noopener">' + esc(doc.title) + '</a>' : '<b>' + esc(doc.title) + '</b>') +
-          '<span class="muted small">' + esc(doc.kind_label) + ', ' + (doc.content_type === 'application/pdf' ? 'PDF' : 'image') + '</span>' +
+        var pub = doc.visibility === 'public', pdf = doc.content_type === 'application/pdf';
+        /* Alex, 2026-11-01. Each document shows as a preview, an image as itself and a PDF as its
+           first page, so a sideways or upside-down scan is seen before families see it. */
+        return '<li class="doc" data-id="' + esc(doc.id) + '">' +
+          '<a class="doc-preview" href="' + esc(doc.file) + '" target="_blank" rel="noopener" aria-label="Open ' + esc(doc.title) + '" data-doc-preview="' + (pdf ? 'pdf' : 'image') + '" data-type="' + esc(doc.content_type) + '">' +
+            (pdf ? '<span class="doc-pdf-label">PDF</span>' : '<img src="' + esc(doc.file) + '" alt="" loading="lazy">') + '</a>' +
+          '<div class="doc-body"><div class="doc-main"><a href="' + esc(doc.file) + '" target="_blank" rel="noopener">' + esc(doc.title) + '</a>' +
+          '<span class="muted small">' + esc(doc.kind_label) + ', ' + (pdf ? 'PDF' : 'image') + '</span>' +
           '<span class="pill ' + (pub ? 'pill-ok' : '') + '">' + (pub ? 'Families can see it' : 'Puppy Connection only') + '</span></div>' +
-          (canEdit ? '<div class="btn-row" style="margin:0"><button type="button" class="btn btn-sm" data-doc-vis="' + (pub ? 'private' : 'public') + '">' + (pub ? 'Make private' : 'Show to families') + '</button>' +
-            '<button type="button" class="btn btn-sm btn-quiet" data-doc-remove>Remove</button></div>' : '') + '</li>';
+          (canEdit ? '<div class="btn-row doc-actions"><button type="button" class="btn btn-sm btn-quiet" data-doc-rot="270" aria-label="Rotate ' + esc(doc.title) + ' left">Rotate left</button>' +
+            '<button type="button" class="btn btn-sm btn-quiet" data-doc-rot="90" aria-label="Rotate ' + esc(doc.title) + ' right">Rotate right</button>' +
+            '<button type="button" class="btn btn-sm" data-doc-vis="' + (pub ? 'private' : 'public') + '">' + (pub ? 'Make private' : 'Show to families') + '</button>' +
+            '<button type="button" class="btn btn-sm btn-quiet" data-doc-remove>Remove</button></div>' : '') + '</div></li>';
       }).join('') + '</ul>' : '<p class="muted small">No documents yet.</p>') +
       (canEdit && docs.length < max ? '<form class="doc-form" novalidate><div class="grid-2"><div class="field"><label for="doc-kind-' + owner + '">What it is</label><select id="doc-kind-' + owner + '" name="kind">' +
           Object.keys(K).map(function (k) { return '<option value="' + esc(k) + '">' + esc(K[k]) + '</option>'; }).join('') + '</select></div>' +
@@ -1560,10 +1700,79 @@
         '<label for="doc-file-' + owner + '" class="btn btn-sm">Choose a file and upload</label><input id="doc-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>' +
         '<p class="error" data-doc-error hidden></p></form>' : '') + '</section>';
   }
+  /* pdf.js (Mozilla, Apache 2.0, the legacy build of 6.2.108 under /vendor/pdfjs) draws the first
+     page of each PDF as its preview. It loads only when a drawer shows a PDF. If it cannot load or
+     cannot read a file, the preview stays a plain PDF link the breeder can open. */
+  var PDFJS_V = '6.2.108', pdfLib = null;
+  function loadPdfJs() {
+    if (!pdfLib) pdfLib = import('/vendor/pdfjs/pdf.min.mjs?v=' + PDFJS_V).then(function (m) {
+      m.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs?v=' + PDFJS_V;
+      return m;
+    });
+    return pdfLib;
+  }
+  function pdfPreviews(sec) {
+    var boxes = $$('[data-doc-preview="pdf"]', sec);
+    if (!boxes.length) return;
+    loadPdfJs().then(function (lib) {
+      boxes.forEach(function (box) {
+        var task = lib.getDocument({ url: box.getAttribute('href'), isEvalSupported: false, withCredentials: true });
+        task.promise.then(function (pdf) {
+          return pdf.getPage(1).then(function (page) {
+            // The viewport carries the page's own rotation, so a turned PDF shows turned.
+            var one = page.getViewport({ scale: 1 });
+            var ratio = window.devicePixelRatio || 1;
+            var scale = Math.min((box.clientWidth || 96) / one.width, (box.clientHeight || 124) / one.height) * ratio;
+            var vp = page.getViewport({ scale: scale });
+            var c = document.createElement('canvas');
+            c.width = Math.ceil(vp.width); c.height = Math.ceil(vp.height);
+            c.style.width = (vp.width / ratio) + 'px'; c.style.height = (vp.height / ratio) + 'px';
+            return page.render({ canvas: c, canvasContext: c.getContext('2d'), viewport: vp }).promise.then(function () {
+              box.innerHTML = ''; box.appendChild(c); box.classList.add('has-page');
+              task.destroy();
+            });
+          });
+        }).catch(function () { task.destroy(); });
+      });
+    }).catch(function () { /* the PDF label stays as the link */ });
+  }
+  /* An image is turned in the browser: drawn on a canvas a quarter or half turn round and sent back
+     as the same kind of file. A Worker has no image library to do it. The image comes from the
+     breeder's own same-origin copy, so the canvas can be read. */
+  function turnImage(src, type, turn) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth, h = img.naturalHeight, side = turn % 180 !== 0;
+        var c = document.createElement('canvas');
+        c.width = side ? h : w; c.height = side ? w : h;
+        var g = c.getContext('2d');
+        g.translate(c.width / 2, c.height / 2);
+        g.rotate(turn * Math.PI / 180);
+        g.drawImage(img, -w / 2, -h / 2);
+        c.toBlob(function (out) { if (out) resolve(out); else reject(new Error('This image could not be turned in this browser.')); }, type, 0.92);
+      };
+      img.onerror = function () { reject(new Error('The image could not be opened to turn it.')); };
+      img.src = src + (src.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+    });
+  }
   function wireDocs(d, canEdit, uploadPath, reopen) {
-    if (!canEdit) return;
     var sec = $('.docs', d);
     if (!sec) return;
+    pdfPreviews(sec);
+    if (!canEdit) return;
+    $$('[data-doc-rot]', sec).forEach(function (b) {
+      b.addEventListener('click', function () {
+        var li = b.closest('.doc'), prev = $('[data-doc-preview]', li), turn = Number(b.dataset.docRot);
+        var path = '/api/documents/' + li.dataset.id + '/rotate?turn=' + turn;
+        $$('[data-doc-rot]', li).forEach(function (o) { o.disabled = true; });
+        li.classList.add('is-turning');
+        var go = prev.dataset.docPreview === 'pdf' ? api('POST', path, {})
+          : turnImage(prev.getAttribute('href'), prev.dataset.type, turn).then(function (blob) { return api('POST', path, undefined, blob); });
+        go.then(function () { toast(turn === 90 ? 'Turned right' : 'Turned left'); reopen(); })
+          .catch(function (err) { li.classList.remove('is-turning'); $$('[data-doc-rot]', li).forEach(function (o) { o.disabled = false; }); toast(err.message); });
+      });
+    });
     var form = $('.doc-form', sec), errBox = form && $('[data-doc-error]', form);
     var max = (state.listings && state.listings.max_doc_bytes) || (state.parents && state.parents.max_doc_bytes) || 10485760;
     if (form) $('input[type=file]', form).addEventListener('change', function () {

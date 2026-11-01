@@ -222,6 +222,7 @@ node app/dev/checklist-test.mjs # docs/launch-workplan.md A17: the launch checkl
 node app/dev/email-html-test.mjs # the branded HTML part of every email on Node, no server: logo, button, footer, escaping, the opening lines, and every text part unchanged from origin/main. Writes dev/email-samples/*.html to open
 node app/dev/alerts-test.mjs    # launch workplan B10 and C5 on Node, no server: each failure alert forced, the hour's quiet window, and a send to subscribers or to all contacts
 node app/dev/parents-docs-test.mjs   # launch workplan A19 to A21: the health test lists, saved moms and dads on a litter and a puppy page, public and private documents, the site Worker over a stand-in D1, and the listing quality prompts
+node app/dev/doc-prefill-test.mjs    # fill from a document and Rotate on Node, no server: how the model's answer is cleaned, and made-up sample PDFs turned and read back with pdf.js
 node app/dev/photo-check/eval.mjs      # the photo check against Alex's 100-photo test set on real Workers AI, with the cost per photo (not part of the pre-commit run)
 node app/dev/link-check.mjs <built site>   # G1: every internal link and #anchor on a built site resolves (--anchors=<file> lists the targets for the browser check)
 ```
@@ -533,6 +534,24 @@ settings, terms and operators are not touched. The audit log and email log are k
   `docs/`, so a private file is never where the site Worker reads. The site serves a public document
   of a public puppy or parent at `/media/doc/<id>`, the portal serves the breeder's own public ones
   before listing, and only the admin serves a private one, to a signed-in operator.
+- **Document previews and Rotate** (Alex, 2026-11-01). The documents section shows each document
+  as a preview, an image as itself and a PDF as its first page drawn by pdf.js (the legacy build of
+  6.2.108, Apache 2.0, copied into `portal/public/vendor/pdfjs`). The breeder's own copy, public or
+  private, comes from `/api/documents/<id>/file`, which only its signed-in owner can open, so
+  `/media/doc` keeps answering 404 for a private one. Rotate left and right keep the document's id.
+  A PDF is turned on the server by appending new `/Rotate` values in an incremental update
+  (`lib/pdfrotate.js`), and an image is turned on a canvas in the browser and sent back. The turned
+  file goes under a new key, so the `v=` on its address changes, the public page is rebuilt, and no
+  cache keeps the old one. No migration is needed.
+- **Fill from a document** (Alex, 2026-11-01, `lib/docextract.js`). The mom, dad and puppy forms
+  take a health record, pedigree or registration paper. Workers AI reads it (`toMarkdown`), and the
+  model in `EXTRACT_MODEL` returns the form's own fields, which are checked against the form's
+  lists. Only empty fields are filled unless the breeder ticks Replace, each is marked "From your
+  document, please check", nothing is saved, and the file is added as a private document when the
+  form is saved. A scanned PDF with no text layer reads as nothing and the breeder is told to use a
+  photo. Each breeder has 20 reads a day and 6 in ten minutes, counted from `document.extract`
+  audit rows, with 400 a day across all breeders. No document text is logged. Locally the portal
+  has no AI binding, so the box does not show unless a config with `"ai"` is used.
 - **Listing quality prompts** (workplan A21). The puppy form lists what would make the listing
   stronger as the breeder types: a one-line description, no health details or health record, no
   mom or dad on the litter, fewer than three photos, and no birth date. The Pay to list screen

@@ -207,7 +207,9 @@ table.list tr.clickable:focus-visible { outline: 3px solid var(--bronze); outlin
    sat at different heights). Edit sits top right beside the name, the standing line runs the
    full width, and the actions are a ruled row pinned to the bottom, so in a row of cards the
    actions line up whatever each card holds. */
-.puppy-card { display: flex; flex-direction: column; gap: .5rem; min-width: 0; border: 1px solid #b3a990; border-radius: var(--r-lg); padding: .75rem .8rem .5rem; background: #fff; box-shadow: 0 1px 2px rgba(38, 38, 38, .05); }
+/* Alex, 2026-11-01. The card edge darkened from #b3a990 to #978a68, the same warm hue, so each card
+   stands out on the white litter section: 3.4 to 1 against white, up from 2.3 to 1. */
+.puppy-card { display: flex; flex-direction: column; gap: .5rem; min-width: 0; border: 1px solid #978a68; border-radius: var(--r-lg); padding: .75rem .8rem .5rem; background: #fff; box-shadow: 0 1px 2px rgba(38, 38, 38, .05); }
 .pc-top { display: grid; grid-template-columns: 72px minmax(0, 1fr) auto; gap: .8rem; align-items: start; }
 .pc-top .thumb, .pc-top .thumb-empty { width: 72px; height: 72px; }
 .pc-top .meta { min-width: 0; }
@@ -500,9 +502,32 @@ table.list .row-acts { margin-top: .4rem; }
 /* Workplan A19 to A21. Health test picks, documents, and the listing quality prompts. */
 .test-picks .check span .small { font-size: .78rem; }
 .doc-list { list-style: none; margin: .6rem 0 1rem; padding: 0; display: grid; gap: .5rem; }
-.doc { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem .8rem; border: 1px solid var(--line); border-radius: var(--r-lg); padding: .6rem .8rem; min-width: 0; }
-.doc-main { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; min-width: 0; flex: 1 1 14rem; }
+/* Alex, 2026-11-01. Each document leads with a preview, the image itself or a PDF's first page,
+   so a sideways scan is seen and turned before families see it. */
+.doc { display: flex; align-items: flex-start; gap: .8rem; border: 1px solid var(--line); border-radius: var(--r-lg); padding: .6rem .8rem; min-width: 0; }
+.doc-preview { flex: none; display: flex; align-items: center; justify-content: center; width: 96px; height: 124px; overflow: hidden;
+  border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); text-decoration: none; }
+.doc-preview img, .doc-preview canvas { display: block; max-width: 100%; max-height: 100%; object-fit: contain; }
+.doc-pdf-label { font-weight: 600; font-size: .85rem; color: var(--olive); }
+.doc-preview:hover, .doc-preview:focus-visible { border-color: var(--bronze); }
+.doc-body { display: grid; gap: .45rem; min-width: 0; flex: 1 1 auto; }
+.doc-main { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; min-width: 0; }
 .doc-main a, .doc-main b { overflow-wrap: anywhere; }
+.doc-actions { margin: 0; flex-wrap: wrap; gap: .4rem; }
+.doc.is-turning .doc-preview { opacity: .45; }
+/* Fill from a document (Alex, 2026-11-01). The box sits at the top of the form, and each field it
+   filled carries a gold edge and a note until the breeder changes it or saves. */
+.prefill { border: 1px dashed var(--bronze); border-radius: var(--r-lg); padding: .7rem .9rem; margin: 0 0 1rem; background: #fffdf6; }
+.prefill-title { font-weight: 600; margin: 0 0 .2rem; }
+.prefill .hint { margin: 0 0 .5rem; }
+.prefill-row { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1rem; }
+.prefill-row .check { align-items: center; min-height: 36px; font-size: .9rem; }
+.prefill-status { margin: .5rem 0 0; font-size: .88rem; }
+.prefill-status.error { color: var(--alert); }
+.prefilled input:not([type=checkbox]):not([type=radio]), .prefilled select, .prefilled textarea, .prefilled .combo input { border-color: var(--bronze); box-shadow: 0 0 0 2px #f7d57f; background: #fffdf3; }
+.prefill-note { display: inline-block; margin-left: .5rem; padding: .05rem .45rem; border-radius: var(--radius); background: #fbefc8; color: var(--olive); font-size: .74rem; font-weight: 600; vertical-align: middle; }
+fieldset.prefilled { box-shadow: inset 3px 0 0 var(--gold); }
+.prefilled-check span { background: #fbefc8; border-radius: var(--radius); padding: 0 .2rem; }
 .doc-vis { border: 0; padding: 0; margin: 0 0 .8rem; display: grid; gap: .2rem; }
 .doc-vis legend { font-weight: 500; font-size: .9rem; padding: 0; margin-bottom: .3rem; }
 .doc-vis .check { min-height: 36px; align-items: center; }

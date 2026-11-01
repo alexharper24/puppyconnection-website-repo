@@ -118,6 +118,9 @@ async function main() {
     uploadPuppyDocument: ['POST', `/api/puppies/${B.draft}/documents?kind=health&visibility=public`, JPG],
     updateDocument: ['PUT', `/api/documents/${B.doc}`, { visibility: 'public' }],
     deleteDocument: ['DELETE', `/api/documents/${B.doc}`, null],
+    // Alex, 2026-11-01. The breeder's own copy of a document, and Rotate left or right.
+    ownDocumentFile: ['GET', `/api/documents/${B.doc}/file`, null],
+    rotateDocument: ['POST', `/api/documents/${B.doc}/rotate?turn=90`, {}],
   };
   const covered = idRoutes.every((m) => attacks[m[3]]);
   check(0, `every id route in the portal router is attacked (${idRoutes.map((m) => m[3]).join(', ')})`, covered,
@@ -150,6 +153,8 @@ async function main() {
   const bDoc = bDetail.litters.flatMap((l) => l.puppies).find((p) => p.id === B.draft).documents;
   check(2, "B's mom and document are unchanged afterwards", bParent?.name === 'b mom' && !bParent.archived_at && !bParent.photo_key && bParent.documents.length === 0 &&
     bDoc.length === 1 && bDoc[0].visibility === 'private');
+  // Fill from a document reads the litter's breed, so B's litter answers 404 before anything is read.
+  check(2, "A cannot fill a puppy form against B's litter", (await A.c.req('POST', `/api/extract?form=puppy&litter=${B.litter}`, JPG, { headers: { 'content-type': 'image/jpeg' } })).status === 404);
   check(2, "A cannot pick B's mom on A's own litter", (await A.c.put(`/api/litters/${A.litter}`, { breed_id: 'breed-havanese', mom_id: B.parent, version: 1 })).status === 404);
   check(2, "C's own logo is there, so the 404s above were the ownership rule", (await C.c.get(`/brand/${C.id}/logo`)).status === 200);
 

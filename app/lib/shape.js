@@ -20,7 +20,7 @@
 import { brandUrl } from './store.js';
 import { videoUrls } from './stream.js';
 import { gonePuppies } from './inactivity.js';
-import { testLabels, DOC_KINDS } from './parents.js';
+import { testLabels, DOC_KINDS, docVersion } from './parents.js';
 import { breedList } from './healthtests.js';
 
 export const DATA_FILES = ['data/breeds.json', 'data/breeders.json', 'data/litters.json', 'data/puppies.json'];
@@ -84,8 +84,9 @@ export async function exportSite(env) {
   // puppies and parents, each read from its public view. A parent photo is named media/parent/<id>
   // with a v= that changes with the file, and a document media/doc/<id>.
   const docs = { puppy: {}, parent: {} };
-  for (const d of (await db.prepare('SELECT id, puppy_id, parent_id, kind, title, content_type FROM public_documents ORDER BY id').all()).results) {
-    const one = { title: d.title, kind: DOC_KINDS[d.kind] || d.kind, src: `media/doc/${d.id}`, pdf: d.content_type === 'application/pdf' };
+  // The v= changes when the breeder turns the file (Alex, 2026-11-01), so a family's browser fetches it fresh.
+  for (const d of (await db.prepare('SELECT id, puppy_id, parent_id, kind, title, content_type, r2_key FROM public_documents ORDER BY id').all()).results) {
+    const one = { title: d.title, kind: DOC_KINDS[d.kind] || d.kind, src: `media/doc/${d.id}?v=${docVersion(d.r2_key)}`, pdf: d.content_type === 'application/pdf' };
     if (d.puppy_id) (docs.puppy[d.puppy_id] ||= []).push(one); else (docs.parent[d.parent_id] ||= []).push(one);
   }
   const breedName = Object.fromEntries([...breedList().map((b) => [b.slug, b.name]), ...breeds.map((b) => [b.slug, b.name])]);

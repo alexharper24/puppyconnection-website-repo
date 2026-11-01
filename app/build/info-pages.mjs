@@ -59,7 +59,7 @@ export const HIW_FAQ = [
  [
   "Who do I communicate with?",
   [
-   "After making an inquiry, you'll communicate directly with the breeder regarding their puppies, breeding program, contracts, pricing, and availability."
+   "After making an inquiry, you'll communicate with the breeder or their designated representative regarding their puppies, breeding program, contracts, pricing, and availability."
   ]
  ],
  [
@@ -138,7 +138,7 @@ export const INFO_PAGES = [
     file: 'how-it-works.html', name: 'How it works',
     faq: HIW_FAQ,
     title: 'How Puppy Connection Works | Find a Puppy from a Family Breeder',
-    desc: 'How to find a puppy on Puppy Connection: browse by breed or state, see each puppy and its breeder, then contact the breeder directly. How breeders list.',
+    desc: 'How to find a puppy on Puppy Connection: browse by breed or state, then connect with the breeder or their designated representative. How breeders list.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">How it works</p><h1>How Puppy Connection works</h1>
 <p class="lede">Finding the right puppy begins with finding the right breeder.</p></div></section>
 <section class="band" style="padding-top:0"><div class="wrap split intro-split"><div class="intro-block">
@@ -155,8 +155,8 @@ export const INFO_PAGES = [
 <ol class="hiw-steps">
 <li><div class="hiw-arch">${photoImg(10, HIW_SIZES).replace('<img ', '<img style="object-position:50% 0%" ')}</div><span class="hiw-num" aria-hidden="true">1</span><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg><h3>Browse</h3><span class="hiw-rule" aria-hidden="true"></span><p>Explore <a href="puppies.html">puppies</a> from trusted, responsible breeders across a <a href="breeds.html">variety of breeds</a>. Use filters to find the perfect match for your family.</p></li>
 <li><div class="hiw-arch">${photoImg(11, HIW_SIZES).replace('<img ', '<img style="object-position:50% 0%" ')}</div><span class="hiw-num" aria-hidden="true">2</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5.5c3-1.5 6-1.5 9 0v14c-3-1.5-6-1.5-9 0z"/><path d="M21 5.5c-3-1.5-6-1.5-9 0v14c3-1.5 6-1.5 9 0z"/></svg><h3>Learn</h3><span class="hiw-rule" aria-hidden="true"></span><p>Review <a href="breeders.html">breeder profiles</a>, puppy details, health information and <a href="guides.html">helpful resources</a> so you can make an informed decision.</p></li>
-<li><div class="hiw-arch">${photoImg(12, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">3</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><h3>Connect</h3><span class="hiw-rule" aria-hidden="true"></span><p>Reach out directly to the breeder by phone or email from the puppy's page. Ask questions and start the conversation. Your conversation is with the breeder, never with us.</p></li>
-<li><div class="hiw-arch">${photoImg(13, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">4</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M12 17s-3-1.8-3-3.6a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8c0 1.8-3 3.6-3 3.6z"/></svg><h3>Welcome home</h3><span class="hiw-rule" aria-hidden="true"></span><p>When you've found the one, work directly with the breeder to complete the adoption and prepare for your new family member. If you are not local, <a href="transportation.html">Furry Freight can deliver your puppy</a>.</p></li>
+<li><div class="hiw-arch">${photoImg(12, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">3</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/></svg><h3>Connect</h3><span class="hiw-rule" aria-hidden="true"></span><p>Connect with the breeder or their designated representative by phone or email from the puppy's page. Ask questions and start the conversation. Your conversation is with them, never with us.</p></li>
+<li><div class="hiw-arch">${photoImg(13, HIW_SIZES)}</div><span class="hiw-num" aria-hidden="true">4</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 3l9 8"/><path d="M5 10v10h14V10"/><path d="M12 17s-3-1.8-3-3.6a1.6 1.6 0 0 1 3-.8 1.6 1.6 0 0 1 3 .8c0 1.8-3 3.6-3 3.6z"/></svg><h3>Welcome home</h3><span class="hiw-rule" aria-hidden="true"></span><p>When you've found the one, work with the breeder or their designated representative to complete the adoption and prepare for your new family member. If you are not local, <a href="transportation.html">Furry Freight can deliver your puppy</a>.</p></li>
 </ol>
 <p class="disclaimer" style="margin-top:1.2rem">Puppy Connection does not sell puppies. Read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a> before you choose.</p>
 </div></section>

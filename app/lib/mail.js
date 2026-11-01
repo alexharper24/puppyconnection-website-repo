@@ -29,8 +29,12 @@ function signOff() {
 
 // Alex, 2026-10-31: the one-password note for someone invited to more than one kennel. Since the same day a person
 // with no password yet is never held back on a kennel, so the one password they choose here opens every kennel named.
+// Alex, 2026-11-01: more than two go one per line, because the network's address is main contact of 15 kennels.
 const oneAccount = (business, others) => (others && others.length
-  ? `\n\nThis address is also set up to manage ${others.join(' and ')}. It is one account with one password for all of your kennels, so once you choose your password, every kennel sits under the one sign-in and any other invitation can be ignored.\n\n`
+  ? (others.length > 2
+    ? `\n\nThis address is also set up to manage these ${others.length} kennels.\n\n${others.map((k) => `  ${k}`).join('\n')}\n\n`
+    : `\n\nThis address is also set up to manage ${others.join(' and ')}. `) +
+    'It is one account with one password for all of your kennels, so once you choose your password, every kennel sits under the one sign-in and any other invitation can be ignored.\n\n'
   : '');
 
 // Alex, 2026-10-31: one email for several kennels given in one step. The subject counts them and the body lists them.

@@ -42,4 +42,4 @@ Ask for both parents' adult weights and their patella, heart and eye results. As
 
 ## See Pomeranian puppies
 
-Every Pomeranian on Puppy Connection carries its breeder's own asking price. Open a listing to see the puppy and contact the breeder directly with your questions.
+Every Pomeranian on Puppy Connection carries its breeder's own asking price. Open a listing to see the puppy and connect with the breeder or their designated representative with your questions.

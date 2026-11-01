@@ -46,4 +46,4 @@ Ask for both parents' patella, eye and BAER results. Ask how the litter was born
 
 ## See Boston Terrier puppies
 
-Boston Terrier puppies listed on Puppy Connection show the price each breeder has set. Open a listing to see the puppy and contact the breeder directly.
+Boston Terrier puppies listed on Puppy Connection show the price each breeder has set. Open a listing to see the puppy and connect with the breeder or their designated representative.

@@ -460,7 +460,7 @@
       l.puppies.forEach(function (x) {
         if (x.publication_state === 'archived') return;
         if (x.operator_hold && x.hold_kind === 'photos') out.push({ x: x, text: 'taken offline by Puppy Connection until new photos are uploaded.' + (x.hold_reason ? ' ' + x.hold_reason : ''), order: 0 });
-        else if (x.schedule && x.schedule.stage === 'warned') out.push({ x: x, text: 'add a new photo by ' + day(x.schedule.by) + ' to keep it on the site.', order: 1, by: x.schedule.by });
+        else if (x.schedule && x.schedule.stage === 'warned') out.push({ x: x, text: 'add a new photo' + (x.schedule.by ? ' by ' + day(x.schedule.by) : '') + ' to keep it on the site.', order: 1, by: x.schedule.by });
         else if (x.schedule && x.schedule.stage === 'offline') out.push({ x: x, text: 'off the site. Add a new photo by ' + day(x.schedule.by) + ' and it comes back free.', order: 2, by: x.schedule.by });
       });
     });
@@ -758,7 +758,7 @@
     if (x.held_by) return { tone: 'gold', text: 'In checkout. A payment has started and not finished. If it is not finished, the puppy is free to pay for again within the hour.' };
     var place = x.availability === 'placed' ? ' Buyers see it marked placed.' : x.availability === 'pending' ? ' Buyers see it marked pending.' : '';
     if (x.is_public && x.schedule && x.schedule.stage === 'warned') {
-      return { tone: 'gold', text: 'Listed, and it needs a new photo. Add one by ' + day(x.schedule.by) + ' to keep it on the site.' + place, photos: true };
+      return { tone: 'gold', text: 'Listed, and it needs a new photo. Add one' + (x.schedule.by ? ' by ' + day(x.schedule.by) : '') + ' to keep it on the site.' + place, photos: true };
     }
     if (x.is_public) {
       var until = expiring() && x.expires_at ? ' until ' + day(x.expires_at) : '';

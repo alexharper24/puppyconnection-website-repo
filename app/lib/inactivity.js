@@ -16,6 +16,11 @@
 //
 // Adopted puppies, puppies on an operator hold and imported Wix listings whose breeder has never
 // signed in are left out. The wording of each email is in lib/mail.js.
+//
+// photo_clock_stop (migrations/0084, Alex 2026-11-01) stops the clock at the first warning while it
+// is 1. Nothing goes to the last warning, offline or removed, and the warning names no offline date,
+// so Amber decides each overdue listing by hand. A listing already past the offline week by its own
+// photo date is warned at once, ahead of the go-live date and the imported breeder's sign-in date.
 
 import { now } from './util.js';
 import { auditStmt, dirtyStmt, settings } from './store.js';
@@ -25,13 +30,13 @@ const DAY = 86400000;
 const iso = (ms) => new Date(ms).toISOString().slice(0, 19) + 'Z';
 
 export async function inactivitySettings(env) {
-  const { results } = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('inactivity_days', 'photo_clock_start')").all();
+  const { results } = await env.DB.prepare("SELECT key, value FROM settings WHERE key IN ('inactivity_days', 'photo_clock_start', 'photo_clock_stop')").all();
   const v = Object.fromEntries(results.map((r) => [r.key, r.value]));
   const [r1, r2, off, gone] = String(v.inactivity_days || '28,35,42,84').split(',').map(Number);
   // migrations/0033. No clock runs before photo_clock_start, the go-live date Alex sets (2026-10-19),
   // so every listing counts its four weeks from that day at the earliest. Empty means no hold.
   const start = /^\d{4}-\d{2}-\d{2}$/.test(v.photo_clock_start || '') ? `${v.photo_clock_start}T00:00:00Z` : '';
-  return { r1, r2, off, gone, start };
+  return { r1, r2, off, gone, start, stop: v.photo_clock_stop === '1' };
 }
 
 /** The date the clock runs from, for a puppy row and its breeder, never before the go-live date. */
@@ -50,6 +55,8 @@ export function scheduleFor(p, b, s) {
   const a = Date.parse(anchorOf(p, b, s));
   const since = p.stage_at ? Date.parse(p.stage_at) : null;
   const later = (...ms) => iso(Math.max(...ms));
+  // While the clock is stopped a warned listing has no date to meet.
+  if (s.stop && (p.inactive_stage === 'reminded_1' || p.inactive_stage === 'reminded_2')) return { stage: 'warned', by: null };
   if (p.inactive_stage === 'reminded_1') return { stage: 'warned', by: later(a + s.off * DAY, since + 2 * 7 * DAY) };
   if (p.inactive_stage === 'reminded_2') return { stage: 'warned', by: later(a + s.off * DAY, since + 7 * DAY) };
   if (p.inactive_stage === 'offline') return { stage: 'offline', by: later(a + s.gone * DAY, since + (s.gone - s.off) * DAY) };
@@ -101,6 +108,7 @@ export async function inactivityJob(env, { portalOrigin = env.PORTAL_ORIGIN || '
   // not adopted, not on hold, and its breeder has signed in at least once.
   const { results } = await env.DB.prepare(
     `SELECT p.id, p.name, p.slug, p.breeder_id, p.inactive_stage, p.stage_at, p.publication_state, b.email,
+            COALESCE(p.last_photo_at, p.published_at, p.created_at) AS own,
             CASE WHEN b.legacy = 1 AND b.first_signin_at > COALESCE(p.last_photo_at, p.published_at, p.created_at)
                  THEN b.first_signin_at ELSE COALESCE(p.last_photo_at, p.published_at, p.created_at) END AS anchor
        FROM puppies p JOIN breeders b ON b.id = p.breeder_id
@@ -112,6 +120,10 @@ export async function inactivityJob(env, { portalOrigin = env.PORTAL_ORIGIN || '
   for (const p of results) {
     if (s.start && p.anchor < s.start) p.anchor = s.start;
     const stage = p.inactive_stage, since = p.stage_at || '';
+    if (s.stop) {
+      if (!stage && p.publication_state === 'published' && (p.anchor <= at(s.r1) || p.own <= at(s.off))) moves.reminded_1.push(p);
+      continue;
+    }
     if (stage === 'offline') { if (p.anchor <= at(s.gone) && since <= offlineWait) moves.removed.push(p); continue; }
     if (p.publication_state !== 'published') continue;
     if (stage === 'reminded_2') { if (p.anchor <= at(s.off) && since <= week) moves.offline.push(p); continue; }
@@ -133,7 +145,7 @@ export async function inactivityJob(env, { portalOrigin = env.PORTAL_ORIGIN || '
       await env.DB.batch(stmts);
       const first = step === 'reminded_1';
       await sendMail(env, g.email, 'photo_reminder', {
-        items: g.rows.map((p) => ({ name: p.name, link: photoLink(p) })), first,
+        items: g.rows.map((p) => ({ name: p.name, link: photoLink(p) })), first, held: s.stop,
         offlineOn: day(Math.max(Date.parse(p0(g).anchor) + s.off * DAY, t + (first ? 14 : 7) * DAY)), portalUrl: `${portalOrigin}/#/litters`,
       });
     }

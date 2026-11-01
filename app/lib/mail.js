@@ -162,7 +162,18 @@ export const TEMPLATES = {
   // Workplan A12, the photo-based listing schedule (lib/inactivity.js). Pre-written and automatic,
   // the wording lives here in code. Each email explains the rule, what happens next and why a
   // current listing helps, and links straight to each puppy's photos in the portal.
-  photo_reminder: ({ items, first, offlineOn, portalUrl }) => ({
+  // held: the photo clock is stopped at this warning (lib/inactivity.js), so no offline date is given.
+  photo_reminder: ({ items, first, held, offlineOn, portalUrl }) => (held ? {
+    subject: items.length === 1 ? `Add a new photo of ${items[0].name} to keep the listing up` : 'Add new photos to keep your listings up',
+    text: `${items.length === 1 ? 'This listing has' : 'These listings have'} had no new photo for more than four weeks:\n\n` +
+      items.map((i) => `${i.name}\nAdd a photo: ${i.link}`).join('\n\n') +
+      `\n\nPuppy Connection keeps a listing on the site while it has a new photo at least every four weeks. ` +
+      `Puppies change fast, and families are far more likely to get in touch about a puppy when the photos show how it looks today.\n\n` +
+      'Please add a new photo of each puppy that is still available. One photo of a puppy is enough, and nothing else changes. ' +
+      'If a puppy has gone home, mark it placed in the breeder portal and it stops getting reminders.' +
+      (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
+    link: items[0] && items[0].link,
+  } : {
     subject: first
       ? (items.length === 1 ? `Add a new photo of ${items[0].name} to keep the listing up` : 'Add new photos to keep your listings up')
       : (items.length === 1 ? `${items[0].name} goes offline next week without a new photo` : 'Your listings go offline next week without new photos'),

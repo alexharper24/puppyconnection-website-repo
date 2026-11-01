@@ -1252,8 +1252,9 @@
           : ph.quality === 'review' ? '<span class="pill pill-warn cover">Being looked at</span>' : ph.quality === 'pending' ? '<span class="pill pill-warn cover">Checking</span>' : '';
         return '<div class="photo" data-id="' + esc(ph.id) + '"' + (canEdit ? ' draggable="true"' : '') + (ph.quality === 'sent_back' ? ' style="outline:2px solid #b42318"' : '') + '>' + (flag || (i === 0 ? '<span class="pill pill-gold cover">Cover</span>' : '')) +
           '<img src="' + esc(cardUrl(ph.url)) + '" alt="Photo ' + (i + 1) + ' of ' + esc(x.name) + '">' +
+          (canEdit ? '<label class="photo-pick" title="Select to remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"></label>' : '') +
           (canEdit ? '<div class="tools"><button type="button" data-move="-1" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>&larr;</button>' +
-            '<span class="pick-remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"><button type="button" data-remove aria-label="Remove photo">Remove</button></span>' +
+            '<button type="button" data-remove aria-label="Remove photo">Remove</button>' +
             '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' +
             '<div class="tools tools-2"><label class="sr" for="ph-pos-' + esc(ph.id) + '">Position</label><select id="ph-pos-' + esc(ph.id) + '" data-pos aria-label="Position of photo ' + (i + 1) + '">' +
               x.photos.map(function (_, k) { return '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k === 0 ? '1, cover' : String(k + 1)) + '</option>'; }).join('') + '</select>' +

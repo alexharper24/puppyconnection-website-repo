@@ -26,6 +26,8 @@ const APP = path.resolve(HERE, '..');
 const PORTAL = process.env.PORTAL || 'http://localhost:8787';
 const WRANGLER = process.env.WRANGLER_JS || path.resolve(APP, '../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js');
 const JPG = new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures/gps-test.jpg')));
+// The same photo at 1,200 by 800 with its location metadata, over the 1,000 px floor parent photos share with puppies.
+const BIG = new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures/gps-test-1200.jpg')));
 const PDF = new TextEncoder().encode('%PDF-1.4\n1 0 obj << /Type /Catalog >> endobj\ntrailer << /Root 1 0 R >>\n%%EOF\n');
 
 let fails = 0, passes = 0;
@@ -106,13 +108,27 @@ async function portalChecks() {
   const saved = (await A.c.get('/api/parents')).data.parents.find((p) => p.id === mom);
   check('the mom is saved with her tests as labels, her Other test and her pedigree',
     saved && saved.test_labels.length === 3 && saved.health_other === 'BAER hearing test, normal' && /Champion Rio/.test(saved.pedigree) && saved.registry === 'AKC');
-  const photo = await raw(A.c, `/api/parents/${mom}/photo`, JPG, 'image/jpeg');
-  check('the mom takes a photo', photo.status === 201);
+  // Alex, 2026-11-01. A mom or dad photo gets the puppy photo floor and quality check, and one that
+  // does not pass is never stored, so the parent keeps no photo or the one she had.
+  const small = await raw(A.c, `/api/parents/${mom}/photo`, JPG, 'image/jpeg');
+  check('a parent photo under 1,000 pixels is refused with the size and the fix',
+    small.status === 422 && /600 pixels across/.test(small.data.error) && /at least 1,000 pixels/.test(small.data.error) && /was not added/.test(small.data.error), JSON.stringify(small.data));
+  const blurred = await A.c.req('POST', `/api/parents/${mom}/photo`, BIG, { headers: { 'content-type': 'image/jpeg', 'x-sim-photo-check': 'blurry,turned_away' } });
+  check('a parent photo the check sends back is refused with its reasons, said about a dog',
+    blurred.status === 422 && /The photo is blurred/.test(blurred.data.error) && /The dog is turned away/.test(blurred.data.error) && !/puppy/i.test(blurred.data.error), JSON.stringify(blurred.data));
+  check('a refused parent photo stores nothing and is recorded with its reasons',
+    !sql(`SELECT photo_key FROM parent_dogs WHERE id = '${mom}'`)[0].photo_key &&
+    sql(`SELECT after_json FROM audit_log WHERE action = 'parent.photo.sent_back' AND entity_id = '${mom}'`).some((r) => /blurry/.test(r.after_json)));
+  const photo = await raw(A.c, `/api/parents/${mom}/photo`, BIG, 'image/jpeg');
+  check('the mom takes a photo that passes the floor and the check', photo.status === 201, JSON.stringify(photo.data));
   const momPhotoUrl = (await A.c.get('/api/parents')).data.parents.find((p) => p.id === mom).photo_url;
   check('her photo is the breeder\'s to see, and nobody else\'s before she is on a public litter',
     (await A.c.get(momPhotoUrl)).status === 200 && (await anon.get(momPhotoUrl)).status === 404 && (await B.c.get(momPhotoUrl)).status === 404);
   const stored = sql(`SELECT photo_key FROM parent_dogs WHERE id = '${mom}'`)[0].photo_key;
-  check('the photo is stored under parents/ with its metadata stripped', /^parents\//.test(stored) && (await A.c.get(momPhotoUrl)).data.length < JPG.length);
+  check('the photo is stored under parents/ with its metadata stripped', /^parents\//.test(stored) && (await A.c.get(momPhotoUrl)).data.length < BIG.length);
+  const replace = await A.c.req('POST', `/api/parents/${mom}/photo`, BIG, { headers: { 'content-type': 'image/jpeg', 'x-sim-photo-check': 'dark' } });
+  check('a replacement that does not pass leaves the photo families see in place',
+    replace.status === 422 && sql(`SELECT photo_key FROM parent_dogs WHERE id = '${mom}'`)[0].photo_key === stored);
 
   // A litter that names them, and the rules around it.
   const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese', born_on: '2026-09-01', mom_id: mom, dad_id: dad, mom_weight_lb: '12', dad_weight_lb: '14' })).data.id;
@@ -198,7 +214,8 @@ async function portalChecks() {
     /puppy-parents/.test(page) && page.includes('>Daisy</h3>') && page.includes('>Duke</h3>') && page.includes('Patellas (knees)') && page.includes('media/parent/'));
   check('the puppy page links the public documents and never the private one',
     page.includes(`media/doc/${pubDoc.data.id}`) && page.includes(`media/doc/${momDoc.data.id}`) && !page.includes(privDoc.data.id) && !page.includes('Signed guarantee'));
-  check('the facts still give the parents\' weights, now with their names', page.includes('Daisy, 12 lbs adult weight') && page.includes('Duke, 14 lbs adult weight'));
+  // A saved parent's fact line shows the name only, since its card gives the weight (generate.mjs parentFact, Alex 2026-11-01).
+  check('the facts name the saved parents without repeating their weights', page.includes('Daisy') && page.includes('Duke') && !page.includes('Daisy, 12 lbs adult weight') && !page.includes('Duke, 14 lbs adult weight'));
   fs.rmSync(tmp, { recursive: true, force: true });
 
   // Removing a parent from the picker keeps it on the litter that has it.

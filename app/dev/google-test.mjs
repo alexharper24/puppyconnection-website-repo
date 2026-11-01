@@ -10,8 +10,14 @@
 import http from 'node:http';
 import { webcrypto as crypto } from 'node:crypto';
 import { verifyIdToken, b64url } from '../lib/google.js';
+import { totpCode, totpStep, unbase32 } from '../lib/accounts.js';
+import { sql } from './launch-features-test.mjs';
+
+const q = (v) => `'${String(v).replace(/'/g, "''")}'`;
 
 const PORTAL = process.env.PORTAL || 'http://localhost:8787';
+// The stand-in Google's port, matching GOOGLE_TOKEN_URL and GOOGLE_JWKS_URL in the portal's .dev.vars.
+const GPORT = Number(process.env.GOOGLE_PORT || 8799);
 const CLIENT_ID = 'local-test-client.apps.googleusercontent.com';
 const CLIENT_SECRET = 'local-test-secret';
 let fails = 0;
@@ -55,7 +61,7 @@ async function part1() {
 function fakeGoogle(k) {
   const pending = new Map();   // code -> { challenge, nonce, claims }
   const server = http.createServer(async (req, res) => {
-    const url = new URL(req.url, 'http://localhost:8799');
+    const url = new URL(req.url, `http://localhost:${GPORT}`);
     if (url.pathname === '/certs') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ keys: [k.jwk] })); }
     if (url.pathname === '/token') {
       let body = ''; for await (const c of req) body += c;
@@ -86,18 +92,28 @@ async function signIn(g, claims, tamper = {}) {
   return { start, loc, back, me };
 }
 
+let known = null;   // an address with an account, made in part 2 and used by One Tap in part 3
+
 async function part2(k) {
   const g = fakeGoogle(k);
-  await new Promise((r) => g.server.listen(8799, r));
+  await new Promise((r) => g.server.listen(GPORT, r));
   try {
+    // Alex, 2026-11-01. Google never makes an account: an address no kennel has added is sent back
+    // to the sign-in page with the way to get access, and nothing is created for it.
     const email = `google-${Date.now().toString(36)}@example.com`;
     const first = await signIn(g, { email, name: 'Pat Example' });
     check('the portal sends the browser to Google with PKCE, state and nonce',
       first.start.status === 302 && first.loc.searchParams.get('code_challenge_method') === 'S256' && first.loc.searchParams.get('state') && first.loc.searchParams.get('nonce') &&
       first.loc.searchParams.get('client_id') === CLIENT_ID && first.loc.searchParams.get('scope') === 'openid email profile', first.loc.toString());
-    check('a new Google user lands signed in as a pending breeder', first.back.status === 303 && first.back.headers.get('location') === '/' && first.me?.email === email && first.me?.status === 'pending', JSON.stringify(first.me));
-    const again = await signIn(g, { email: email.toUpperCase(), name: 'Pat Example' });
-    check('signing in with Google again reaches the same account', again.me?.id === first.me?.id, `${again.me?.id} vs ${first.me?.id}`);
+    check('a Google address no kennel has added is refused with no session', first.back.status === 303 && first.back.headers.get('location') === '/?google=unknown' && !first.me, `${first.back.headers.get('location')} ${JSON.stringify(first.me)}`);
+    const again = await signIn(g, { email, name: 'Pat Example' });
+    check('a second try is refused too, so the first made no account', again.back.headers.get('location') === '/?google=unknown' && !again.me);
+    check('the database holds no breeder, person or sign-up record for the refused address',
+      !sql(`SELECT id FROM breeders WHERE email = ${q(email)}`).length && !sql(`SELECT email FROM breeder_members WHERE email = ${q(email)}`).length &&
+      !sql(`SELECT id FROM audit_log WHERE action = 'breeder.signup' AND after_json LIKE ${q(`%${email}%`)}`).length);
+    const portalJs = await (await fetch(`${PORTAL}/portal.js`)).text();
+    check('the sign-in page explains how to get access for ?google=unknown',
+      /google=unknown/.test(portalJs) && /choose <a href="\/" data-mode="signup">Create an account<\/a> and sign up with your email and a password/.test(portalJs) && /ask Puppy Connection or the kennel/.test(portalJs));
 
     // an account made by email sign-up and a password is reached by Google with the same address
     const linkEmail = `link-${Date.now().toString(36)}@example.com`;
@@ -109,6 +125,24 @@ async function part2(k) {
     const linkMe = await (await fetch(`${PORTAL}/api/me`, { headers: { cookie: linkSession } })).json();
     const viaGoogle = await signIn(g, { email: linkEmail });
     check('Google reaches the account a password sign-up created', viaGoogle.me?.id === linkMe.id && viaGoogle.me?.profile?.business_name === 'Link Kennel', JSON.stringify(viaGoogle.me));
+    const viaGoogleUpper = await signIn(g, { email: linkEmail.toUpperCase() });
+    check('the same address in capitals reaches the same account', viaGoogleUpper.me?.id === linkMe.id);
+
+    // a person a kennel added, before they ever set a password, signs in with Google
+    const member = `member-${Date.now().toString(36)}@example.com`;
+    const add = await fetch(`${PORTAL}/api/account/members`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json', cookie: linkSession }, body: JSON.stringify({ email: member, name: 'Extra Person' }) });
+    const asMember = await signIn(g, { email: member });
+    check('a person a kennel added signs in with Google', add.ok && asMember.back.status === 303 && !!asMember.me && asMember.me.id === linkMe.id, `${add.status} ${asMember.back.headers.get('location')} ${JSON.stringify(asMember.me)}`);
+    known = linkEmail;
+
+    // Alex, 2026-11-01. The authenticator is for password sign-in only, so Google does not ask for it.
+    const start = await (await fetch(`${PORTAL}/api/account/authenticator`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json', cookie: linkSession }, body: '{}' })).json();
+    const secret = unbase32(String(start.secret || '').replace(/\s/g, ''));
+    const confirm = await fetch(`${PORTAL}/api/account/authenticator/confirm`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json', cookie: linkSession }, body: JSON.stringify({ code: await totpCode(secret, totpStep()) }) });
+    const pw = await fetch(`${PORTAL}/auth/password`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json' }, body: JSON.stringify({ email: linkEmail, password: 'correct horse battery staple' }) });
+    const pwBody = await pw.json().catch(() => ({}));
+    const g2 = await signIn(g, { email: linkEmail });
+    check('with the authenticator on, a password asks for the code and Google does not', confirm.ok && pwBody.need_code === true && g2.me?.id === linkMe.id, `${confirm.status} ${JSON.stringify(pwBody)} ${JSON.stringify(g2.me)}`);
 
     const forged = await signIn(g, { email: `forged-${Date.now()}@example.com` }, { state: 'not-the-state' });
     check('a callback whose state does not match this browser is refused', forged.back.headers.get('location') === '/?google=failed' && !forged.me);
@@ -129,18 +163,23 @@ async function part2(k) {
 // token carrying it, and the page posts that token to /auth/google/onetap.
 async function part3(k) {
   const g = fakeGoogle(k);
-  await new Promise((r) => g.server.listen(8799, r));
+  await new Promise((r) => g.server.listen(GPORT, r));
   try {
     const n = await fetch(`${PORTAL}/auth/google/nonce`);
     const { nonce, client_id } = await n.json();
     const cookie = (n.headers.get('set-cookie') || '').split(';')[0];
     check('the page gets a nonce and the client ID for One Tap', !!nonce && client_id === CLIENT_ID && /^pc_gnonce=/.test(cookie));
     const post = (credential, headers = {}) => fetch(`${PORTAL}/auth/google/onetap`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json', cookie, ...headers }, body: JSON.stringify({ credential }) });
-    const email = `onetap-${Date.now().toString(36)}@example.com`;
+    const stranger = `onetap-${Date.now().toString(36)}@example.com`;
+    const refused = await post(await sign(k, good({ email: stranger, nonce })));
+    const refusedBody = await refused.json().catch(() => ({}));
+    check('a One Tap token for an address no kennel has added is refused with the way to get access',
+      refused.status === 403 && /Create an account/.test(refusedBody.error || '') && !(refused.headers.getSetCookie?.() || []).some((c) => /pc_session=./.test(c)), `${refused.status} ${JSON.stringify(refusedBody)}`);
+    const email = known;
     const ok = await post(await sign(k, good({ email, nonce })));
     const session = (ok.headers.getSetCookie?.() || []).map((c) => c.split(';')[0]).find((c) => /pc_session=./.test(c));
     const me = session ? await (await fetch(`${PORTAL}/api/me`, { headers: { cookie: session } })).json() : null;
-    check('a One Tap token signs the breeder in', ok.status === 200 && me?.email === email, JSON.stringify(me));
+    check('a One Tap token signs a known breeder in', ok.status === 200 && !!me?.id, JSON.stringify(me));
     check('a One Tap token from another sign-in (nonce) is refused', (await post(await sign(k, good({ email, nonce: 'someone-elses' })))).status === 400);
     const noCookie = await fetch(`${PORTAL}/auth/google/onetap`, { method: 'POST', headers: { origin: PORTAL, 'content-type': 'application/json' }, body: JSON.stringify({ credential: await sign(k, good({ email, nonce })) }) });
     check('a One Tap token with no sign-in started in this browser is refused', noCookie.status === 400);

@@ -325,6 +325,8 @@ const httpsLink = (v, what) => {
   return url;
 };
 
+export const PRICE_NEEDED = 'Give the puppy a price. Families see it on the listing, and a puppy needs one before you can pay to list it.';
+
 /** registries is the list from settings(); a registry outside it is refused when it is given. */
 export function puppyFields(body, registries) {
   const name = clean(body.name, 80);
@@ -337,8 +339,12 @@ export function puppyFields(body, registries) {
   const registry = clean(body.registry, 40);
   if (registry && registries && !registries.includes(registry)) throw bad(`Registration is one of ${registries.join(', ')}.`);
   const includes = Array.isArray(body.includes) ? body.includes.map((x) => clean(x, 80)).filter(Boolean).slice(0, 40) : [];
+  // Alex, 2026-11-01. A puppy cannot be paid for without a price, so every save asks for one. A
+  // puppy marked placed is no longer offered, so it may still save without one.
+  const price = cents(body.price);
+  if (price == null && availability !== 'placed') throw bad(PRICE_NEEDED);
   return {
-    name, sex, color: clean(body.color, 60), coat: clean(body.coat, 40), price_cents: cents(body.price), deposit_cents: cents(body.deposit),
+    name, sex, color: clean(body.color, 60), coat: clean(body.coat, 40), price_cents: price, deposit_cents: cents(body.deposit),
     description: clean(body.description, 4000), breeder_url: url, includes_json: JSON.stringify(includes), availability,
     registry, markings: clean(body.markings, 200), health_notes: clean(body.health_notes, 2000), vaccinations: clean(body.vaccinations, 1000),
     deworming: clean(body.deworming, 1000), disclosures: clean(body.disclosures, 2000), deposit_url: httpsLink(body.deposit_url, 'The deposit link'),

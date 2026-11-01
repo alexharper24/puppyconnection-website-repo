@@ -19,6 +19,8 @@
     var BREED = 'Mini Bernedoodle';
     var FEE = 14.99;
     var CHAPTERS = ['Sign in', 'Moms and dads', 'Start a litter', 'Add the puppies', 'Pay to list'];
+    var WELCOME = ['With your email and password, or with Google.', 'Save each parent once, with a photo and their health testing.',
+      'Choose the breed and the dates, and pick the mom and dad.', 'Add each puppy with its price and photos.', 'Pay $14.99 per puppy, and it appears on the site within a few minutes.'];
     // Health tests the portal lists for a Mini Bernedoodle, from the Bernese and Miniature Poodle lists in lib/healthtests.js.
     var TESTS = ['AKC DNA profile', 'Hips (x-ray evaluation)', 'Elbows (OFA)', 'Eyes (exam by a board-certified ophthalmologist)', 'Heart (cardiac exam)',
       'Degenerative myelopathy (DNA)', 'Patellas (knees)', 'PRA-prcd (DNA)'];
@@ -85,7 +87,11 @@
     function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
     function gate() { return S.playing || S.instant ? null : new Promise(function (r) { waiters.push(r); }); }
     function release() { var w = waiters; waiters = []; w.forEach(function (r) { r(); }); }
+    // Alex, 2026-11-01. Every step and pause runs at this pace, so people can follow along. The
+    // cursor's glide in walkthrough.css is timed to match.
+    var PACE = 1.35;
     async function wait(ms) {
+      ms *= PACE;
       var t = S.token; S.virtual += ms;
       if (S.instant) return;
       var left = ms;
@@ -378,6 +384,30 @@
 
     // ---------- scenes ----------
     var SCENES = [
+      // The welcome, before the first chapter, so no chapter button is marked.
+      { ch: -1,
+        setup: function () {
+          C.classList.add('plain');
+          C.innerHTML = '<div class="plain-card wt-welcome"><div class="plain-mark"><img src="' + LOGO + '" alt="Puppy Connection"></div>' +
+            '<h1>Welcome to Puppy Connection</h1><p>This short walkthrough shows how to list a litter, from signing in to your puppies appearing on the site.</p>' +
+            '<ol class="steps">' + CHAPTERS.map(function (c, i) {
+              return '<li data-w><span class="dot">' + (i + 1) + '</span><div><b>' + c + '</b><div class="muted small">' + WELCOME[i] + '</div></div></li>';
+            }).join('') + '</ol></div>';
+          addCursor();
+        },
+        run: async function () {
+          cap('Welcome to Puppy Connection. Here is how to list a litter, in five steps.');
+          await wait(2200);
+          var items = $$('[data-w]');
+          for (var k = 0; k < items.length; k++) {
+            if (k) items[k - 1].classList.remove('now');
+            items[k].classList.add('now');
+            await wait(1300);
+          }
+          items[items.length - 1].classList.remove('now');
+          await wait(1200);
+        } },
+
       { ch: 0,
         setup: function () {
           C.classList.add('plain');
@@ -668,7 +698,7 @@
       for (var k = 0; k < SCENES.length; k++) {
         build(off); S.virtual = 0; S.caps = [];
         SCENES[k].setup(); await SCENES[k].run();
-        DUR.push(S.virtual + 1500);
+        DUR.push(S.virtual + 1500 * PACE);
       }
       off.innerHTML = '';
       C = keep.C; S.instant = keep.instant; S.virtual = keep.virtual; S.caps = keep.caps;

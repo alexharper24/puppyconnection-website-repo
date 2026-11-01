@@ -50,7 +50,7 @@
 .wt-note { margin: 0; color: var(--muted); font-size: .85rem; max-width: 70ch; }
 
 /* the cursor, the tap mark and the highlight ring drawn over the scenes */
-.wt-cursor { position: absolute; left: 0; top: 0; z-index: 100; pointer-events: none; transition: transform .6s cubic-bezier(.45,0,.2,1); }
+.wt-cursor { position: absolute; left: 0; top: 0; z-index: 100; pointer-events: none; transition: transform .85s cubic-bezier(.45,0,.2,1); }
 .wt-cursor svg { display: block; width: 24px; height: 24px; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,.35)); }
 .phone .wt-cursor .arrow, .desk .wt-cursor .touch { display: none; }
 .phone .wt-cursor svg { width: 34px; height: 34px; margin: -17px 0 0 -17px; }
@@ -147,6 +147,17 @@
 .pc .steps .dot { flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: .8rem;
   font-weight: 700; background: var(--ground); border: 1px solid var(--line-strong); }
 .pc .steps .now .dot { background: var(--gold); border-color: #e6c264; }
+/* The welcome screen's list, where each step lights up in turn. */
+.pc .wt-welcome .steps li { padding-inline: .4rem; border-radius: var(--radius); transition: background-color .3s; }
+.pc .wt-welcome .steps li.now { background: #fdf6e1; }
+.pc.plain:has(.wt-welcome) { padding-top: 1.5rem; }
+.pc .wt-welcome { width: min(560px, 100%); }
+.pc .wt-welcome .plain-mark { padding-block: 1rem .9rem; margin-bottom: 1.2rem; }
+.pc .wt-welcome .steps li { padding-block: .4rem; }
+.pc.phone.plain:has(.wt-welcome) { padding-top: .75rem; }
+.pc.phone .wt-welcome .plain-mark { padding-block: .7rem .6rem; margin-bottom: 1rem; }
+.pc.phone .wt-welcome .plain-mark img { width: 7rem; }
+.pc.phone .wt-welcome h1 { font-size: 1.4rem; }
 .pc .empty { text-align: center; padding: 2.4rem 1rem; color: var(--muted); border: 1px dashed var(--line-strong); border-radius: var(--radius); margin: 1rem; }
 .pc .empty b { display: block; color: var(--ink); font: 600 1.05rem var(--serif); margin-bottom: .3rem; }
 .pc .empty .btn { margin-top: .8rem; }

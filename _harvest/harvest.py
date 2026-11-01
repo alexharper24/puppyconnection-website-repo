@@ -44,7 +44,7 @@ def parse(path,slug):
         base=re.sub(r'/v1/.*$','',u)
         big=base+'/v1/fill/w_1400,h_1050,al_c,q_88,usm_0.66_1.00_0.01/file.jpg'
         if big not in urls: urls.append(big)
-    o['images']=urls[:10]
+    o['images']=urls[:15]  # up to 15 photos per puppy (Alex, 2026-11-01)
     b=re.findall(r'https?://(?:www\.)?([a-z0-9-]{5,}\.(?:com|net))',raw)
     b=[x for x in b if not re.search(r'wix|parastorage|puppy-connection|google|facebook|instagram|filesusr|youtube|calendly|appspot|cloudfront|schema|crazyegg|thunderbolt',x)]
     o['breeder_domain']=b[0] if b else None

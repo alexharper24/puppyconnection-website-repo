@@ -22,7 +22,7 @@ if prod:
     for i in im:
         u=i.get('url') if isinstance(i,dict) else i
         if u and u not in urls: urls.append(u)
-    out['images']=urls[:12]
+    out['images']=urls[:15]  # up to 15 photos per puppy (Alex, 2026-11-01)
 b=re.findall(r'https?://(?:www\.)?([a-z0-9-]{5,}\.(?:com|net))',raw)
 b=[x for x in b if not re.search(r'wix|parastorage|puppy-connection|google|facebook|instagram|filesusr|youtube|calendly|appspot|cloudfront|schema|crazyegg|thunderbolt',x)]
 out['breeder_domain']=b[0] if b else None

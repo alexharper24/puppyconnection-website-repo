@@ -14,11 +14,28 @@
 #   python -I app/ops/photo_copies.py <files folder> <photo id> [<photo id> ...]
 #
 # Prints one JSON line per photo: {"id", "display": [w, h, bytes], "card": [...], "share": [...]}.
-import json, os, sys
+import io, json, os, sys
 
-from PIL import Image
+from PIL import Image, ImageCms
 
 SIZES = (('display', 1600, 'WEBP', 'webp'), ('card', 640, 'WEBP', 'webp'), ('share', 1200, 'JPEG', 'jpg'))
+
+
+def srgb(img):
+    """The image in sRGB. The stripped original keeps its ICC profile (lib/images.js drops only EXIF, XMP, IPTC and
+    comments), but Pillow writes WebP and JPEG without it, so a Display P3, Adobe RGB or ProPhoto photo came out
+    washed out until it is converted (the breed photos, Alex 2026-10-30; added here 2026-11-01)."""
+    img.load()
+    icc = img.info.get('icc_profile')
+    if icc and img.mode in ('RGB', 'RGBA', 'CMYK', 'L'):
+        try:
+            prof = ImageCms.ImageCmsProfile(io.BytesIO(icc))
+            if 'srgb' not in (ImageCms.getProfileDescription(prof) or '').lower():
+                mode = 'RGBA' if img.mode == 'RGBA' else 'RGB'
+                img = ImageCms.profileToProfile(img, prof, ImageCms.createProfile('sRGB'), renderingIntent=0, outputMode=mode)
+        except (OSError, ImageCms.PyCMSError):
+            pass  # an unreadable profile: keep the pixels as they are, which is what every browser shows anyway
+    return img
 
 
 def make(folder, pid):
@@ -29,8 +46,7 @@ def make(folder, pid):
         dst = os.path.join(folder, f'{pid}.{name}.{ext}')
         if not os.path.exists(dst):
             if img is None:
-                img = Image.open(src)
-                img.load()
+                img = srgb(Image.open(src))
             k = min(1.0, edge / max(img.size))
             im = img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS) if k < 1 else img.copy()
             if fmt == 'JPEG' or im.mode not in ('RGB', 'RGBA'):

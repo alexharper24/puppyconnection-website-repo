@@ -93,9 +93,34 @@ export async function parentsFor(env, breederId, base = '') {
 /** Every document a breeder has uploaded, for the editors. Staff see the files in the admin. */
 export async function documentsFor(env, breederId) {
   const { results } = await env.DB.prepare(
-    'SELECT id, puppy_id, parent_id, kind, title, visibility, content_type, bytes, created_at FROM documents WHERE breeder_id = ? ORDER BY created_at',
+    'SELECT id, puppy_id, parent_id, kind, title, visibility, content_type, bytes, r2_key, created_at FROM documents WHERE breeder_id = ? ORDER BY created_at',
   ).bind(breederId).all();
-  return results.map((d) => ({ ...d, kind_label: DOC_KINDS[d.kind] || d.kind, url: `/media/doc/${d.id}` }));
+  // url is the public address, for a public document. file is the breeder's own copy of either
+  // kind, for the preview and Rotate (Alex, 2026-11-01). Both carry v, which changes with the file.
+  return results.map(({ r2_key: key, ...d }) => ({ ...d, kind_label: DOC_KINDS[d.kind] || d.kind,
+    url: `/media/doc/${d.id}?v=${docVersion(key)}`, file: `/api/documents/${d.id}/file?v=${docVersion(key)}` }));
+}
+
+/**
+ * A short tag that changes whenever a document's file does, for the v= on its address. A turned
+ * file is written under a new key (replaceDocumentFile), so families never get the old one from a
+ * cache. Taken from the end of the key's file name, as parentPhotoUrl does for a parent photo.
+ */
+export function docVersion(key) {
+  return String(key || '').split('/').pop().split('.')[0].slice(-8).toLowerCase();
+}
+
+/**
+ * Put a document's new file, a turned one, under a new key beside the old one, keeping its id and
+ * visibility. type is the new file's checked type. Returns the new key, for the caller to save
+ * and then delete the old one.
+ */
+export async function replaceDocumentFile(env, doc, bytes, type = doc.content_type) {
+  const ext = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[type];
+  if (!ext) throw bad('Documents must be a PDF or a JPEG, PNG or WebP image.');
+  const key = `${String(doc.r2_key).slice(0, String(doc.r2_key).lastIndexOf('/') + 1)}${doc.id}-${ulid().slice(-6).toLowerCase()}.${ext}`;
+  await env.FILES.put(key, bytes, { httpMetadata: { contentType: type } });
+  return key;
 }
 
 // ------------------------------------------------------------------ uploads
@@ -130,8 +155,9 @@ export const docKey = (visibility, breederId, id, ext) => `${visibility === 'pub
 /** Move a document's file to match a new visibility. Returns the new key. */
 export async function moveDocument(env, doc, visibility) {
   if (doc.visibility === visibility) return doc.r2_key;
-  const ext = String(doc.r2_key).split('.').pop();
-  const key = docKey(visibility, doc.breeder_id, doc.id, ext);
+  // Only the folder changes, so a turned file keeps the name its v= comes from (docVersion).
+  const key = String(doc.r2_key).replace(/^(docs|private)\//, visibility === 'public' ? 'docs/' : 'private/');
+  if (key === doc.r2_key) throw notFound();
   const obj = await env.FILES.get(doc.r2_key);
   if (!obj) throw notFound();
   await env.FILES.put(key, await obj.arrayBuffer(), { httpMetadata: { contentType: doc.content_type } });

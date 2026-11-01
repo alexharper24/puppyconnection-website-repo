@@ -35,8 +35,10 @@ import {
 import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle, randomString } from '../lib/google.js';
 import {
   parentFields, PARENT_EDIT_COLS, checkLitterParents, parentsFor, documentsFor, storeDocument, moveDocument, DOC_KINDS, MAX_DOCS, MAX_DOC_BYTES,
-  healthCatalog,
+  healthCatalog, cleanDocument, replaceDocumentFile, docVersion,
 } from '../lib/parents.js';
+import { extractFromDocument, extractRefusal } from '../lib/docextract.js';
+import { rotatePdf } from '../lib/pdfrotate.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
 import {
   personFor, kennelsFor, onKennel, checkMakeMain, acceptKennelStmts, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
@@ -345,7 +347,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=31"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=32"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
@@ -1912,6 +1914,118 @@ async function documentFile(request, env, ctx, id) {
   return res;
 }
 
+/**
+ * The breeder's own copy of one of their documents, public or private, for the preview in the
+ * documents section and for Rotate (Alex, 2026-11-01). Only the signed-in breeder who owns it gets
+ * it, and it is never cached, so /media/doc keeps its rule that a private file is served only in
+ * the admin.
+ */
+async function ownDocumentFile(request, env, ctx, id) {
+  const { breeder } = await needSession(request, env);
+  const doc = await owned(env, 'document', id, breeder.id);
+  const obj = await env.FILES.get(doc.r2_key);
+  if (!obj) throw notFound();
+  return new Response(obj.body, {
+    headers: { 'content-type': doc.content_type, 'x-content-type-options': 'nosniff', 'content-disposition': 'inline', 'cache-control': 'private, no-store' },
+  });
+}
+
+/**
+ * Rotate left or right (Alex, 2026-11-01). A breeder who uploaded a sideways or upside-down scan
+ * turns it so families see it upright. The document keeps its id, title and visibility. A PDF is
+ * turned here, page by page, with no redrawing (lib/pdfrotate.js). An image is turned in the
+ * browser on a canvas, which every browser can do and a Worker cannot without an image library,
+ * and the turned image comes back as the body, checked like any upload and stripped of metadata.
+ * The new file goes under a new key, so its v= changes and no cache keeps the old one.
+ */
+async function rotateDocument(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const doc = await owned(env, 'document', id, breeder.id);
+  const turn = Number(new URL(request.url).searchParams.get('turn'));
+  if (![90, 180, 270].includes(turn)) throw bad('Choose Rotate left or Rotate right.');
+  let bytes, type = doc.content_type;
+  if (doc.content_type === 'application/pdf') {
+    const obj = await env.FILES.get(doc.r2_key);
+    if (!obj) throw notFound();
+    try {
+      bytes = await rotatePdf(new Uint8Array(await obj.arrayBuffer()), turn);
+    } catch (e) {
+      console.error('rotate pdf', String(e.message || e).slice(0, 120));
+      throw bad('This PDF could not be turned here. Turn it in a PDF app and upload it again.');
+    }
+  } else {
+    if (Number(request.headers.get('content-length') || 0) > MAX_DOC_BYTES) throw bad('The turned image is larger than 10 MB.');
+    const file = cleanDocument(new Uint8Array(await request.arrayBuffer()));
+    if (file.type === 'application/pdf') throw bad('Send the turned image.');
+    // A browser that cannot write WebP sends a PNG instead, so the type may change with the turn.
+    bytes = file.bytes; type = file.type;
+  }
+  if (bytes.length > MAX_DOC_BYTES) throw bad('The turned file would be larger than 10 MB.');
+  const key = await replaceDocumentFile(env, doc, bytes, type);
+  const stmts = [
+    env.DB.prepare('UPDATE documents SET r2_key = ?, content_type = ?, bytes = ?, updated_at = ? WHERE id = ? AND breeder_id = ? AND r2_key = ?')
+      .bind(key, type, bytes.length, now(), id, breeder.id, doc.r2_key),
+    auditStmt(env, ...who(breeder), 'document.rotate', doc.puppy_id ? 'puppy' : 'parent', doc.puppy_id || doc.parent_id, null, { document: id, turn }),
+  ];
+  if (doc.visibility === 'public' && await docOnSite(env, doc)) stmts.push(dirtyStmt(env));
+  const [up] = await env.DB.batch(stmts);
+  if (!up.meta || !up.meta.changes) {
+    // Another turn landed first. Keep that one and drop this file.
+    await env.FILES.delete(key);
+    throw new HttpError(409, 'This document changed while you were turning it. Please try again.');
+  }
+  await env.FILES.delete(doc.r2_key);
+  return json({ ok: true, file: `/api/documents/${id}/file?v=${docVersion(key)}` });
+}
+
+/**
+ * Fill a form from a document (Alex, 2026-11-01, lib/docextract.js). Reads the uploaded file with
+ * Workers AI and returns the fields the form has, checked against its own lists. Nothing is saved
+ * and the file is not kept here: the portal holds it and attaches it as a private document when
+ * the breeder saves. No document text is logged or stored, only the form, type and size.
+ */
+async function extractDocument(request, env) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const url = new URL(request.url);
+  const form = url.searchParams.get('form');
+  if (form !== 'parent' && form !== 'puppy') throw bad('Choose a mom, dad or puppy form.');
+  // Ownership first, so another breeder's litter answers 404 like every other id (access tests).
+  const litterId = form === 'puppy' ? url.searchParams.get('litter') : null;
+  const lit = litterId ? await owned(env, 'litter', litterId, breeder.id) : null;
+  if (!env.AI) throw new HttpError(503, 'Filling from a document is not available here.');
+  if (Number(request.headers.get('content-length') || 0) > MAX_DOC_BYTES) throw bad('Documents can be up to 10 MB. A scan at a lower resolution, or one page per file, will fit.');
+  const refusal = await extractRefusal(env, breeder.id);
+  if (refusal) throw new HttpError(429, refusal);
+  const file = cleanDocument(new Uint8Array(await request.arrayBuffer()));
+  const s = await settings(env);
+  let ctx;
+  if (form === 'parent') {
+    const site = (await env.DB.prepare('SELECT slug, name FROM breeds').all()).results;
+    const sex = url.searchParams.get('sex');
+    ctx = { registries: s.registries, breeds: healthCatalog(site).map((b) => ({ slug: b.slug, name: b.name })), sex: sex === 'female' || sex === 'male' ? sex : null };
+  } else {
+    // The litter's breed gives the coat types and color suggestions the puppy form offers.
+    const breed = lit ? await env.DB.prepare('SELECT colors, coats FROM breeds WHERE id = ?').bind(lit.breed_id).first() : null;
+    const list = (v) => String(v || '').split(',').map((x) => x.trim()).filter(Boolean);
+    ctx = { registries: s.registries, colors: list(breed && breed.colors), coats: list(breed && breed.coats) };
+  }
+  // Counted before the call, so two at once cannot both slip under the limit.
+  await auditStmt(env, ...who(breeder), 'document.extract', 'breeder', breeder.id, null, { form, type: file.type, bytes: file.bytes.length }).run();
+  let r;
+  try {
+    r = await extractFromDocument(env, { bytes: file.bytes, type: file.type, name: file.type === 'application/pdf' ? 'document.pdf' : `document.${file.ext}`, form, ctx });
+  } catch (e) {
+    console.error('extract failed', String(e.message || e).slice(0, 160));
+    throw new HttpError(502, 'The document could not be read just now. Please try again in a minute, or fill the form in by hand.');
+  }
+  console.log('extract', JSON.stringify({ form, type: file.type, bytes: file.bytes.length, ms: r.ms, chars: r.chars, filled: Object.keys(r.fields), tokens: r.usage && r.usage.total_tokens }));
+  return json({ fields: r.fields, includes: r.includes || [], kind: r.kind, sex: r.sex || null, empty: r.empty, message: r.reason || null });
+}
+
 // ------------------------------------------------------------------ listings and payment
 
 async function listings(request, env) {
@@ -2116,6 +2230,8 @@ function config(request, env) {
     mailbox: env.EMAIL_MODE === 'log' && isLocal(request, env),
     email_mode: env.EMAIL_MODE || 'off',
     payments_mode: env.PAYMENTS_MODE || 'off',
+    // Fill a form from a document (lib/docextract.js) needs the Workers AI binding.
+    prefill: !!env.AI,
   });
 }
 
@@ -2294,6 +2410,9 @@ const ROUTES = [
   ['POST', /^\/api\/puppies\/([\w-]+)\/documents$/, uploadPuppyDocument],
   ['PUT', /^\/api\/documents\/([\w-]+)$/, updateDocument],
   ['DELETE', /^\/api\/documents\/([\w-]+)$/, deleteDocument],
+  ['GET', /^\/api\/documents\/([\w-]+)\/file$/, ownDocumentFile],
+  ['POST', /^\/api\/documents\/([\w-]+)\/rotate$/, rotateDocument],
+  ['POST', /^\/api\/extract$/, extractDocument],
   ['GET', /^\/media\/parent\/([\w-]+)$/, parentPhoto],
   ['GET', /^\/media\/parent\/([\w-]+)\/card$/, (r, e, c, id) => parentPhoto(r, e, c, id, true)],
   ['GET', /^\/media\/doc\/([\w-]+)$/, documentFile],

@@ -37,15 +37,16 @@ portal_build:
   cleared_with: "demo reset, account closing (retention), removing a person from a kennel, and the daily backup list"
   portal: "portal.js opens a panel (Skip for now, then Get started at the end), Help has Watch the walkthrough, Escape closes. portal.css v36, portal.js v47"
   tests: "app/dev/walkthrough-test.mjs 17 passed. multikennel-test 85 passed, retention, restore and demo all passed (2026-11-01, local)"
-  rehearsal: "0087 rehearsed on main's schema with foreign keys on, run 1 added one empty table, run 2 changed nothing (2026-11-01). Not yet rehearsed on a staging or production export"
+  rehearsal: "0087 rehearsed on main's schema, then on the live export production-2026-11-01-pre0087.sql (4.4 MB, 51 tables), foreign keys on, run 1 added one empty table, run 2 changed nothing, 0 key violations (2026-11-01)"
+  applied: "2026-11-01 to the live database puppyconnection (4556bf68, account 4f6e9dc2), the only one, since staging became production at launch. app/ops/d1-apply.mjs needs WRANGLER_JS set when run from a worktree"
 open:
-  - { id: w5, item: "Back up, rehearse and apply 0087 on staging, then production", blocked_on: Alex approval }
   - { id: w6, item: "Decide whether people who already signed in before the deploy should also see it once (as built they do)", blocked_on: Alex }
   - { id: w1, item: "Alex reviews the artifact and gives corrections", blocked_on: Alex }
   - { id: w2, item: "Decide whether and how it plays on a breeder's first sign-in", blocked_on: Alex }
   - { id: w4, item: "Alex approves the 1080p MP4 or asks for a phone-shaped one", blocked_on: Alex }
   - { id: w3, item: "Recheck the sign-in, checkout and parent photo scenes once the parallel session's changes land", blocked_on: parallel session }
 closed:
+  - { id: w5, item: "Back up, rehearse and apply 0087", date: 2026-11-01, evidence: "Backup downloaded to the main checkout app/.state/production-2026-11-01-pre0087.sql. Rehearsal PASS twice. Applied in 1 batch. Read back: walkthrough_seen exists with 0 rows, breeders 43 and puppies 319 as in the backup" }
   - { id: w0, item: "Build and publish the first draft", date: 2026-11-01, evidence: "All nine scenes rendered with no console errors at desktop and phone widths in the local browser, and the artifact published as version 1" }
 ---
 

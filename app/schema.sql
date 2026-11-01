@@ -200,6 +200,16 @@ CREATE TABLE IF NOT EXISTS credentials (
   updated_at       TEXT NOT NULL
 );
 
+-- Alex, 2026-11-01. The breeder walkthrough opens by itself the first time a person signs in to an
+-- approved kennel, the main contact or anyone managing it, so a person on two kennels sees it once
+-- on each. A row here means it has been closed, skipped or watched to the end for that kennel.
+CREATE TABLE IF NOT EXISTS walkthrough_seen (
+  email       TEXT NOT NULL COLLATE NOCASE,
+  breeder_id  TEXT NOT NULL REFERENCES breeders(id),
+  seen_at     TEXT NOT NULL,
+  PRIMARY KEY (email, breeder_id)
+);
+
 -- A26. Ten one-time recovery codes per address with an authenticator, stored as SHA-256 only.
 CREATE TABLE IF NOT EXISTS recovery_codes (
   id         TEXT PRIMARY KEY,

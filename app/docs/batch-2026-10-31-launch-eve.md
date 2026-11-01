@@ -49,6 +49,7 @@ tasks:
   - {id: t38-cutover, status: done, date: 2026-11-01, evidence: "Amber set the Cloudflare nameservers; zone active; Access covers admin.puppy-connection.com; Wix apex A x3 and www CNAME deleted; PR 92 merged, portal and admin deployed, site repo 103534a; apex-to-www 301 rule with query string; PR 96 and site repo 8d19393 open robots.txt with the sitemap; 29 sampled Wix addresses all land on 200 pages; six Wix automations inactive", item: "Cutover to puppy-connection.com, www canonical"}
   - {id: t40-after-cutover, status: open, blocked_on: alex, item: "Resend shows the domain verified; Search Console and Bing sitemap https://www.puppy-connection.com/sitemap.xml; Business Profile website to www; GA4 Realtime; Ahrefs crawl"}
   - {id: t41-google-origin, status: done, evidence: "Alex 2026-11-01: password and Google sign-in both work on portal.puppy-connection.com after https://portal.puppy-connection.com went on the OAuth client's JavaScript origins", item: "Google sign-in on the new portal address"}
+  - {id: t42-sage-litter, status: held, asked: "Alex 2026-11-01", item: "Sage background for litter boxes or puppy cards in the portal. Preview built with six options (A today, B and C sage puppy cards, D sage edge, E and F sage litter box with white cards); Claude leaned E. Held by Alex 2026-11-01"}
   - {id: t39-rdb-invites, status: deferred, item: "RDB invitations not sent tonight (Alex 2026-10-31)"}
 excluded: []
 ---

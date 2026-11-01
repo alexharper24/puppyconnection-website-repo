@@ -69,6 +69,9 @@ const readyLabel = (iso, nowMs) => {
 };
 // The three dots count toward n, so a clipped meta description stays within its limit (audit 2026-10-31).
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : `${t.slice(0, t.lastIndexOf(' ', n - 4) > 40 ? t.lastIndexOf(' ', n - 4) : n - 3)}...`; };
+// Amber, 2026-11-01: descriptions close on the designated representative sentence, which is long, so it is
+// added only when the whole description still fits in n characters, rather than cutting it off with an ellipsis.
+const withTail = (s, tail, n) => { const t = `${String(s || '').trim()} ${tail}`; return t.length <= n ? t : clip(s, n); };
 
 // The concept's image helpers, for photos still on Wix. A photo in R2 is served by the site Worker
 // at media/<id>, and a slot 640 px wide or less takes its card copy at media/<id>/card.
@@ -923,7 +926,7 @@ ${mates.length ? `<section class="band band-warm">
       noindex: p.litterDone || (p.placed && !!p.unlist_after && Date.parse(p.unlist_after) <= now),
       // SEO plan P11. "for sale" only while the puppy is, since an adopted puppy's page stays up.
       title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
-      desc: clip(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when} Contact the breeder directly.`, 155),
+      desc: withTail(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when}`, 'Connect with the breeder or their designated representative.', 155),
       body, trail: [['Available puppies', `${base}puppies.html`], [p.name, `${base}${pageFor.puppy(p.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       // Product snippet markup (Alex, 2026-10-11). Puppy Connection is not the seller, so this
       // is not merchant listing markup: the Offer names the breeder as seller, and a puppy with
@@ -989,7 +992,7 @@ ${hl ? `<section class="band" style="padding-top:0">
     <div class="breed-buy bt-buy">
       <p class="eyebrow">${open.length ? 'Available now' : 'Recently listed'}</p>
       <div class="bb-row"><span class="bb-count">${open.length ? `${open.length} ${open.length === 1 ? 'puppy' : 'puppies'}` : 'None listed today'}</span>${priceSpan(shown) ? `<span class="bb-price">${priceSpan(shown)}</span>` : ''}</div>
-      <p class="bb-note">${priceSpan(shown) ? 'Each breeder sets their own price. ' : ''}You contact the breeder directly.</p>
+      <p class="bb-note">${priceSpan(shown) ? 'Each breeder sets their own price. ' : ''}You connect with the breeder or their designated representative.</p>
       <a class="btn btn-primary bb-btn" href="#available">See the puppies</a>
     </div>
   </div>
@@ -1003,7 +1006,7 @@ ${hl ? `<section class="band" style="padding-top:0">
       : BREED_FALLBACK[b.slug] ? `<figure class="breed-photo">${fallbackImg(b, '(max-width:940px) 92vw, 40vw')}</figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">${open.length ? `${open.length} available now${priceSpan(shown) ? `, ${priceSpan(shown)}` : ''}` : 'How this works'}</p>
-        <p class="breeder-note">Choose a puppy, then contact its breeder directly. Each breeder sets their own price, and Puppy Connection lists puppies and does not sell them.</p>
+        <p class="breeder-note">Choose a puppy, then connect with its breeder or their designated representative. Each breeder sets their own price, and Puppy Connection lists puppies and does not sell them.</p>
         <div class="btn-row"><a class="btn btn-primary" href="#available">See what is available</a></div>
       </div>
     </aside>
@@ -1027,9 +1030,9 @@ ${others.length ? `<section class="band">
     const n = open.length;
     write(pageFor.breed(b.slug), {
       title: `${b.name} Puppies for Sale${where ? ` in ${where}` : ''} | Puppy Connection`,
-      desc: clip(n
-        ? `${n} ${b.name} ${n === 1 ? 'puppy' : 'puppies'} for sale from ${by.length === 1 ? 'a small family breeder' : 'small family breeders'}${where ? ` in ${where}` : ''}${priceRange(open)}. See each puppy and contact its breeder directly.`
-        : `${b.name} puppies from small family breeders. None are listed right now, so see recent litters here or browse the other breeds.`, 155),
+      desc: n
+        ? withTail(`${n} ${b.name} ${n === 1 ? 'puppy' : 'puppies'} for sale from ${by.length === 1 ? 'a small family breeder' : 'small family breeders'}${where ? ` in ${where}` : ''}${priceRange(open)}.`, 'See each puppy and connect with its breeder or their designated representative.', 155)
+        : clip(`${b.name} puppies from small family breeders. None are listed right now, so see recent litters here or browse the other breeds.`, 155),
       body, trail: [['Breeds', `${base}breeds.html`], [b.name, `${base}${pageFor.breed(b.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       // SEO plan P14. The puppies the page lists, in the order it shows them.
       ld: [{ '@type': 'ItemList', name: `${b.name} puppies`, numberOfItems: shown.length,
@@ -1060,7 +1063,7 @@ ${others.length ? `<section class="band">
         : BREED_FALLBACK[b.slug] ? `<figure class="breed-photo gp-photo">${fallbackImg(b, '(max-width:940px) 92vw, 40vw')}</figure>` : ''}
       <div class="breeder-box">
         <p class="eyebrow">${open.length ? `${open.length} available now` : 'Listings'}</p>
-        <p class="breeder-note">${open.length ? `See every ${esc(b.name)} puppy listed now, then contact its breeder directly.` : `No ${esc(b.name)} puppies are listed right now. New litters appear on the breed page as breeders add them.`}</p>
+        <p class="breeder-note">${open.length ? `See every ${esc(b.name)} puppy listed now, then connect with its breeder or their designated representative.` : `No ${esc(b.name)} puppies are listed right now. New litters appear on the breed page as breeders add them.`}</p>
         <div class="btn-row"><a class="btn btn-primary" href="${pageFor.breed(b.slug)}">${esc(b.name)} puppies for sale</a></div>
       </div>
       ${siblings.length ? `<section class="guide-panel" aria-label="More ${esc(b.name)} guides"><p class="eyebrow">More ${esc(b.name)} guides</p><ul class="guide-list">${siblings.map((x) => `<li><a href="${pageFor.guide(x.slug)}">${esc(x.question)}</a></li>`).join('')}</ul></section>` : ''}
@@ -1149,7 +1152,7 @@ ${withGuides.map((b) => {
     const aside = `<aside>
       ${b.logo ? `<figure class="breeder-logo${b.logo.dark ? ' on-dark' : ''}"${logoFill(b)}><img src="${esc(b.logo.card)}" alt="${esc(b.name)} logo" decoding="async"></figure>` : ''}
       <div class="breeder-box">
-        <p class="eyebrow">Talk to this breeder</p>
+        <p class="eyebrow">Connect with this breeder</p>
         ${contact ? `<ul class="contact-list">${contact}</ul>` : '<p class="disclaimer">Contact details for this breeder are being confirmed.</p>'}
         <p class="disclaimer">Puppy Connection is not part of the sale.</p>
         <p class="small" style="margin:.6rem 0 0"><a href="${esc(`${portal}/report?breeder=${encodeURIComponent(b.slug)}`)}" rel="nofollow">Report this breeder</a></p>
@@ -1200,7 +1203,7 @@ ${others.length ? `<section class="band">
 </main>`;
     write(pageFor.breeder(b.slug), {
       title: `${b.name} | Puppy Connection`,
-      desc: clip(b.about[0] || `Puppies listed by ${b.name}${place(b) ? ` in ${place(b)}` : ''}. Contact the breeder directly.`, 155),
+      desc: b.about[0] ? clip(b.about[0], 155) : withTail(`Puppies listed by ${b.name}${place(b) ? ` in ${place(b)}` : ''}.`, 'Connect with the breeder or their designated representative.', 155),
       body, trail: [['Breeders', `${base}breeders.html`], [b.name, `${base}${pageFor.breeder(b.slug)}`]], image: absolute(kennelPhoto && kennelPhoto.src),
       images: [kennelPhoto && absolute(kennelPhoto.src)],
     });
@@ -1241,7 +1244,7 @@ ${others.length ? `<section class="band">
     <p class="eyebrow"><a href="puppies.html" style="color:inherit">Puppies</a></p>
     <h1>Puppies for sale in ${esc(S)}</h1>
     <div class="prose" style="margin-top:1rem">
-      <p>These are the puppies listed by breeders in ${esc(S)}${towns.length ? `, from ${esc(towns.slice(0, 6).join(', ').replace(/, ([^,]*)$/, ' and $1'))}` : ''}. Each one is raised and sold by the breeder named on its page, and you contact that breeder directly.</p>
+      <p>These are the puppies listed by breeders in ${esc(S)}${towns.length ? `, from ${esc(towns.slice(0, 6).join(', ').replace(/, ([^,]*)$/, ' and $1'))}` : ''}. Each one is raised and sold by the breeder named on its page, and you connect with that breeder or their designated representative.</p>
       ${breedsHere.length ? `<p>Breeds listed in ${esc(S)} right now: ${linkList(breedsHere.map((x) => [pageFor.breed(x.slug), x.name]))}.</p>` : ''}
       ${stateFacts(shown)}
       <p>Before you choose, read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a>, and ask the breeder about the parents, their health testing and what the puppy goes home with.</p>
@@ -1259,7 +1262,7 @@ ${others.length ? `<section class="band">
     write(pageFor.statePuppies(S), {
       noindex: !pups.length,
       title: `Puppies for Sale in ${S} | Puppy Connection`,
-      desc: clip(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from small family breeders in ${S}${price ? `, priced ${price}` : ''}. See each puppy and contact its breeder directly.`, 155),
+      desc: withTail(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from small family breeders in ${S}${price ? `, priced ${price}` : ''}.`, 'See each puppy and connect with its breeder or their designated representative.', 155),
       body: pupBody, trail: [['Available puppies', `${base}puppies.html`], [`Puppies in ${S}`, `${base}${pageFor.statePuppies(S)}`]],
       image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       ld: [{ '@type': 'ItemList', name: `Puppies for sale in ${S}`, numberOfItems: shown.length,
@@ -1290,7 +1293,7 @@ ${others.length ? `<section class="band">
     write(pageFor.stateBreeders(S), {
       noindex: !pups.length,
       title: `Dog Breeders in ${S} | Puppy Connection`,
-      desc: clip(`The small family dog breeders in ${S} who list puppies on Puppy Connection. See each breeder's puppies and contact them directly.`, 155),
+      desc: withTail(`The small family dog breeders in ${S} who list puppies on Puppy Connection.`, 'See each breeder\'s puppies and connect with the breeder or their designated representative.', 155),
       body: brBody, trail: [['Breeders', `${base}breeders.html`], [`Breeders in ${S}`, `${base}${pageFor.stateBreeders(S)}`]],
       ld: [{ '@type': 'ItemList', name: `Dog breeders in ${S}`, numberOfItems: brs.length,
         itemListElement: brs.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
@@ -1333,7 +1336,7 @@ ${listNone('breeds')}
     // SEO plan P7. "dog breeders in indiana" is the breeder search, and the network starts in
     // Indiana and the Midwest and grows from there (Alex, 2026-10-07).
     title: 'Dog Breeders in Indiana and the Midwest | Puppy Connection', current: 'breeders.html',
-    desc: 'The small family dog breeders in Indiana and the Midwest who list their puppies on Puppy Connection. See each breeder\'s puppies and contact them directly.',
+    desc: 'Small family dog breeders in Indiana and the Midwest who list puppies on Puppy Connection. Connect with each breeder or their designated representative.',
     ld: [{ '@type': 'ItemList', name: 'Dog breeders on Puppy Connection', numberOfItems: breedersListing.length,
       itemListElement: breedersListing.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
     trail: [['Breeders', `${base}breeders.html`]],

@@ -368,7 +368,9 @@ async function setPasswordContext(env, row) {
   if (row.purpose === 'invite') {
     // Alex, 2026-10-31: someone invited to several kennels sets one password for all of them.
     const others = await otherKennelNames(env, row.email, row.breeder_id);
-    const more = others.length ? ` This one password also signs you in to ${others.join(' and ')} once you open ${others.length > 1 ? 'those invitations' : 'that invitation'}.` : '';
+    // Alex, 2026-11-01: the other kennels open with this password, with no invitation of their own to open.
+    const list = others.length > 2 ? `${others.slice(0, -1).join(', ')} and ${others[others.length - 1]}` : others.join(' and ');
+    const more = others.length ? ` This one password also signs you in to ${list}, and each time you sign in you choose which kennel to open.` : '';
     return { heading: `Manage ${name} on Puppy Connection`, intro: `Choose a password to sign in to ${name} in the breeder portal.${more}`, name };
   }
   // Workplan A27. A reset for a person on several kennels names none of them, because one password signs in to all.

@@ -40,4 +40,4 @@ The standard describes the size for a mature male as about 50 pounds and a matur
 
 ## See English Bulldog puppies
 
-English Bulldogs on Puppy Connection are listed by their own breeders. {{count}} Open a listing to see the litter and contact the breeder directly about the parents' health.
+English Bulldogs on Puppy Connection are listed by their own breeders. {{count}} Open a listing to see the litter and connect with the breeder or their designated representative about the parents' health.

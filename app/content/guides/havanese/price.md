@@ -46,4 +46,4 @@ Ask whether both parents have eye, hearing, hip and patella results on file with
 
 ## See Havanese puppies
 
-The Havanese puppies listed on Puppy Connection each show the price their breeder has set. Open one to see the puppy and contact the breeder directly.
+The Havanese puppies listed on Puppy Connection each show the price their breeder has set. Open one to see the puppy and connect with the breeder or their designated representative.

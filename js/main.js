@@ -865,7 +865,7 @@
     var cbox = document.querySelector('#pContact');
     if (cbox && biz) {
       var any = theirs.filter(function (x) { return x.breeder_phone || x.breeder_email; })[0] || {};
-      cbox.innerHTML = '<p class="eyebrow">Talk to this breeder</p>' +
+      cbox.innerHTML = '<p class="eyebrow">Connect with this breeder</p>' +
         '<ul class="contact-list">' +
         '<li><a href="https://' + esc(biz.domain) + '" target="_blank" rel="noopener"><b>Website</b> ' + esc(biz.domain) + '</a></li>' +
         (any.breeder_phone ? '<li><a href="tel:' + esc(String(any.breeder_phone).replace(/[^\d+]/g, '')) + '"><b>Call</b> ' + esc(any.breeder_phone) + '</a></li>' : '') +

@@ -5,7 +5,7 @@ objective: "A short animated walkthrough of the breeder journey, from sign-in to
 source: "app/portal/public/walkthrough.js and walkthrough.css, the one player. app/docs/walkthrough/index.html is the review page that loads them"
 artifact: "https://claude.ai/artifact/Y1AwRdwZc58bxnpVy7Pet4 (private, version 1, 2026-11-01)"
 video: "app/docs/walkthrough/render.py writes breeder-walkthrough.mp4 (1920x1080, 30 fps, H.264) beside index.html, gitignored. --phone writes a 1080x1920 version"
-running_time: "2:08, the sum of the scene timeline as the page computes it"
+running_time: "3:11 on a laptop and 3:15 on a phone after the slower pace and the welcome screen (2026-11-01), the sum of the scene timeline as the page computes it"
 facts_from: app/docs/breeder-journey-storyboard.md
 reference_screens: "Local portal on 127.0.0.1:8797 with setup.mjs --reset --demo, signed in as the made-up demo kennel Maple Brook Doodles. Nothing was run against the live portal."
 sample_names:
@@ -21,6 +21,7 @@ held_for_parallel_session:
   - "Checkout is a plain card with the total and Pay, with no fine print."
   - "Parent photos are added with no photo check shown, so nothing claims either rule."
 scenes:
+  - { id: s0, chapter: none, what: "Welcome to Puppy Connection, the five steps listed and lit in turn (added 2026-11-01, with every scene slowed to 1.35 times)", status: built }
   - { id: s1, chapter: Sign in, what: "Sign-in card, Continue with Google highlighted, then email and password typed and Sign in pressed", status: built }
   - { id: s2, chapter: Moms and dads, what: "Overview, menu to Moms and dads, Add a mom, Fill from a document fills name, breed and health tests", status: built }
   - { id: s3, chapter: Moms and dads, what: "Mom photo added, Add mom pressed, dad saved the same way, both on the page", status: built }
@@ -40,6 +41,7 @@ portal_build:
   rehearsal: "0087 rehearsed on main's schema, then on the live export production-2026-11-01-pre0087.sql (4.4 MB, 51 tables), foreign keys on, run 1 added one empty table, run 2 changed nothing, 0 key violations (2026-11-01)"
   applied: "2026-11-01 to the live database puppyconnection (4556bf68, account 4f6e9dc2), the only one, since staging became production at launch. app/ops/d1-apply.mjs needs WRANGLER_JS set when run from a worktree"
 open:
+  - { id: w8, item: "Merge and deploy the slower pace and the welcome screen", blocked_on: Alex approval }
   - { id: w6, item: "Decide whether people who already signed in before the deploy should also see it once (as built they do)", blocked_on: Alex }
   - { id: w1, item: "Alex reviews the artifact and gives corrections", blocked_on: Alex }
   - { id: w2, item: "Decide whether and how it plays on a breeder's first sign-in", blocked_on: Alex }

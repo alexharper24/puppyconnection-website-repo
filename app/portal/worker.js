@@ -347,7 +347,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=39"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=40"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
@@ -822,7 +822,12 @@ async function me(request, env) {
   out.signed_in_as = sess.operator ? null : sess.email;
   out.authenticator_nudge = !sess.operator && !(cred && (cred.totp_enabled_at || cred.totp_nudge_dismissed_at));
   // Workplan A27. How many kennels this person signs in to, so the header offers Switch kennel when it is more than one.
-  out.kennel_count = sess.operator ? 1 : (await kennelsFor(env, sess.email)).length;
+  const kennels = sess.operator ? [] : await kennelsFor(env, sess.email);
+  out.kennel_count = sess.operator ? 1 : kennels.length;
+  // Alex, 2026-11-01. The header lists them in a drop-down, so it needs each name and state.
+  out.kennels = kennels.length > 1
+    ? kennels.map((k) => ({ id: k.breeder_id, name: k.business_name, status_label: KENNEL_STATUS[k.status] || '' }))
+    : [];
   // Alex, 2026-11-01. The walkthrough opens by itself the first time this person is in this kennel
   // once it is approved, the main contact or anyone managing it, until they close it (migrations/0087).
   // Until the table exists (deployed ahead of the migration) it stays shut rather than failing /api/me.

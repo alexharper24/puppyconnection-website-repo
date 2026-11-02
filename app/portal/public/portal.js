@@ -946,7 +946,7 @@
               '<div class="row-actions">' +
               (canEdit && (x.is_public || x.availability !== 'available') ? '<button class="btn btn-sm btn-quiet" data-avail="' + esc(x.id) + '" data-to="' + live[0] + '">' + live[1] + '</button>' : '') +
               (canEdit ? '<button class="btn btn-sm btn-quiet" data-dup="' + esc(x.id) + '">Duplicate</button>' : '') +
-              (x.site_url ? '<a class="btn btn-sm btn-quiet" href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') +
+              (x.site_url ? '<a class="btn btn-sm btn-quiet" href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View on site</a>' : '') +
               // Alex, 2026-11-01. Remove from the card, without opening the puppy.
               (canEdit ? '<button class="btn btn-sm btn-quiet btn-danger rm-pup" data-remove-puppy="' + esc(x.id) + '">Remove</button>' : '') + '</div></div>';
           }).join('') + '</div>' : '<p class="muted small">No puppies in this litter yet.</p>') + '</section>';
@@ -1161,12 +1161,14 @@
   var INCLUDE_GROUPS = [
     ['Health', ['Veterinary exam', 'Health certificate', 'Health guarantee', 'Current vaccinations', 'Dewormed', 'Microchipped', 'Parents health tested', 'Genetic (DNA) testing']],
     ['Registration and lines', ['Registered', 'Registrable', 'Pedigree', 'Champion bloodline', 'Champion sired', 'Show quality']],
-    ['Goes home with', ['Puppy starter kit', 'Food sample', 'Blanket or toy with the litter scent', 'Crate training started', 'Potty training started', 'Raised with children', 'Raised with other pets']],
+    ['Goes home with', ['Puppy starter kit', 'Food sample', 'Blanket or toy', 'Crate training started', 'Potty training started', 'Raised with children', 'Raised with other pets']],
     ['Pickup and delivery', ['Available for on-site pickup', 'Available for local delivery', 'Available for shipping']],
   ];
   function includesField(list, dis) {
     var known = {}, picked = {};
     INCLUDE_GROUPS.forEach(function (g) { g[1].forEach(function (o) { known[o.toLowerCase()] = o; }); });
+    // Alex, 2026-11-02, renamed from the longer wording. A puppy saved with it shows the new box ticked and saves the new name.
+    known['blanket or toy with the litter scent'] = 'Blanket or toy';
     var other = [];
     (list || []).forEach(function (v) { var k = known[String(v).toLowerCase()]; if (k) picked[k] = true; else other.push(v); });
     return '<fieldset class="field includes-field"><legend>Comes with</legend><div class="includes-groups">' + INCLUDE_GROUPS.map(function (g) {
@@ -1189,7 +1191,7 @@
     openDrawer(x ? x.name : 'Add a puppy',
       (x ? '<div class="chips">' + puppyChips(x) + '</div>' + standingLine(x) +
         (x.site_url ? '<p class="small" style="margin:.4rem 0 0"><a href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View ' + esc(x.name) + ' on the site</a></p>' : '') +
-        (x.is_public ? '<p class="hint" style="margin:.4rem 0 0">Changes you save here, photos included, show on the site within a few minutes.</p>' : '') +
+        (x.is_public ? '<p class="hint save-note" style="margin:.4rem 0 0">Changes you save here, photos included, show on the site within a few minutes.</p>' : '') +
         '<div style="margin-bottom:.8rem"></div>' : '') +
       '<form id="puppy" novalidate>' + (x ? '<input type="hidden" name="version" value="' + esc(x.version) + '">' : '') +
       (canEdit ? prefillBox('puppy', 'puppy') : '') +
@@ -1846,9 +1848,10 @@
       (canEdit && docs.length < max ? '<form class="doc-form" novalidate><div class="grid-2"><div class="field"><label for="doc-kind-' + owner + '">What it is</label><select id="doc-kind-' + owner + '" name="kind">' +
           Object.keys(K).map(function (k) { return '<option value="' + esc(k) + '">' + esc(K[k]) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field"><label for="doc-title-' + owner + '">Name</label><input id="doc-title-' + owner + '" name="title" type="text" maxlength="120"><div class="hint">Optional. The file name is used otherwise.</div></div></div>' +
+        // Alex, 2026-11-02. The upload sits right under What it is and Name.
+        '<label for="doc-file-' + owner + '" class="btn btn-sm doc-up">Choose a file and upload</label><input id="doc-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>' +
         '<fieldset class="field doc-vis"><legend>Who can see it</legend><label class="check"><input type="radio" name="visibility" value="public"><span>Families, on the site</span></label>' +
         '<label class="check"><input type="radio" name="visibility" value="private" checked><span>Puppy Connection staff only</span></label></fieldset>' +
-        '<label for="doc-file-' + owner + '" class="btn btn-sm">Choose a file and upload</label><input id="doc-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>' +
         '<p class="error" data-doc-error hidden></p></form>' : '') + '</section>';
   }
   /* pdf.js (Mozilla, Apache 2.0, the legacy build of 6.2.108 under /vendor/pdfjs) draws the first

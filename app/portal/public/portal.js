@@ -783,7 +783,7 @@
       });
       var rm = $('[data-unbrand]', box);
       if (rm) rm.addEventListener('click', function () {
-        if (!confirm(kind === 'logo' ? 'Remove your logo?' : 'Remove your kennel photo?')) return;
+        if (!pcConfirm(rm, kind === 'logo' ? 'Remove your logo?' : 'Remove your kennel photo?', { yes: 'Remove', danger: true })) return;
         api('DELETE', '/api/profile/' + kind).then(function () { return done(kind === 'logo' ? 'Logo removed' : 'Kennel photo removed'); })
           .catch(function (e2) { err.hidden = false; err.textContent = e2.message; });
       });
@@ -911,7 +911,7 @@
           (l.mom_weight_lb || l.dad_weight_lb ? '. Parents ' + (l.mom_weight_lb ? esc(l.mom_weight_lb) + ' lb mom' : '') + (l.mom_weight_lb && l.dad_weight_lb ? ', ' : '') + (l.dad_weight_lb ? esc(l.dad_weight_lb) + ' lb dad' : '') : '') +
           // Workplan A19. The saved mom and dad, by name.
           (l.mom_id || l.dad_id ? '. ' + [l.mom_id ? 'Mom ' + esc(parentName(l.mom_id)) : '', l.dad_id ? 'Dad ' + esc(parentName(l.dad_id)) : ''].filter(Boolean).join(', ') : '') + '</div></div>' +
-          (canEdit ? '<div class="btn-row" style="margin:0"><button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button><button class="btn btn-sm" data-add-many="' + esc(l.id) + '">Add several</button><button class="btn btn-sm btn-primary" data-add-puppy="' + esc(l.id) + '">Add a puppy</button></div>' : '') + '</div>' +
+          (canEdit ? '<div class="btn-row" style="margin:0"><button class="btn btn-sm btn-danger" data-remove-litter="' + esc(l.id) + '">Remove litter</button><button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button><button class="btn btn-sm" data-add-many="' + esc(l.id) + '">Add several</button><button class="btn btn-sm btn-primary" data-add-puppy="' + esc(l.id) + '">Add a puppy</button></div>' : '') + '</div>' +
           (pups.length ? '<div class="puppy-grid">' + pups.map(function (x) {
             var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
             var live = x.availability === 'placed' ? ['available', 'Mark available'] : ['placed', 'Mark placed'];
@@ -923,7 +923,9 @@
               '<div class="row-actions">' +
               (canEdit && (x.is_public || x.availability !== 'available') ? '<button class="btn btn-sm btn-quiet" data-avail="' + esc(x.id) + '" data-to="' + live[0] + '">' + live[1] + '</button>' : '') +
               (canEdit ? '<button class="btn btn-sm btn-quiet" data-dup="' + esc(x.id) + '">Duplicate</button>' : '') +
-              (x.site_url ? '<a class="btn btn-sm btn-quiet" href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') + '</div></div>';
+              (x.site_url ? '<a class="btn btn-sm btn-quiet" href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') +
+              // Alex, 2026-11-01. Remove from the card, without opening the puppy.
+              (canEdit ? '<button class="btn btn-sm btn-quiet btn-danger rm-pup" data-remove-puppy="' + esc(x.id) + '">Remove</button>' : '') + '</div></div>';
           }).join('') + '</div>' : '<p class="muted small">No puppies in this litter yet.</p>') + '</section>';
       });
       shell(html);
@@ -967,6 +969,23 @@
           b.disabled = true;
           api('PUT', '/api/puppies/' + x.id + '/availability', { availability: b.dataset.to, version: x.version })
             .then(function () { toast(x.name + (b.dataset.to === 'placed' ? ' marked placed' : ' marked available')); litters(); })
+            .catch(function (err) { b.disabled = false; toast(err.message); });
+        });
+      });
+      $$('[data-remove-puppy]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var x = findPuppy(b.dataset.removePuppy);
+          if (!pcConfirm(b, 'Remove ' + x.name + ' from your listings?', { yes: 'Remove', danger: true })) return;
+          b.disabled = true;
+          api('POST', '/api/puppies/' + x.id + '/archive', {}).then(function () { toast(x.name + ' removed'); litters(); })
+            .catch(function (err) { b.disabled = false; toast(err.message); });
+        });
+      });
+      $$('[data-remove-litter]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          if (!pcConfirm(b, 'Remove this litter and every puppy in it from your listings? Placed puppies leave the site with it.', { yes: 'Remove litter', danger: true })) return;
+          b.disabled = true;
+          api('POST', '/api/litters/' + b.dataset.removeLitter + '/archive', {}).then(function () { toast('Litter removed'); litters(); })
             .catch(function (err) { b.disabled = false; toast(err.message); });
         });
       });
@@ -1053,7 +1072,7 @@
         });
         var ar = $('#archive-litter', d);
         if (ar) ar.addEventListener('click', function () {
-          if (!confirm('Remove this litter and every puppy in it from your listings? Placed puppies leave the site with it.')) return;
+          if (!pcConfirm(ar, 'Remove this litter and every puppy in it from your listings? Placed puppies leave the site with it.', { yes: 'Remove litter', danger: true })) return;
           api('POST', '/api/litters/' + l.id + '/archive', {}).then(function () { closeDrawer(); toast('Litter removed'); litters(); }).catch(function (err) { showError(form, err); });
         });
       });
@@ -1195,7 +1214,7 @@
         if (canEdit) wirePrefill(d, form, 'puppy', { litter: x ? x.litter_id : litterId });
         var ar = $('#archive-puppy', d);
         if (ar) ar.addEventListener('click', function () {
-          if (!confirm('Remove ' + x.name + ' from your listings?')) return;
+          if (!pcConfirm(ar, 'Remove ' + x.name + ' from your listings?', { yes: 'Remove', danger: true })) return;
           api('POST', '/api/puppies/' + x.id + '/archive', {}).then(function () { closeDrawer(); toast('Puppy removed'); litters(); }).catch(function (err) { showError(form, err); });
         });
         if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); wireDocs(d, canEdit, '/api/puppies/' + x.id + '/documents', function () { return loadListings().then(function () { puppyDrawer(findPuppy(x.id)); litters(); }); }); carryUpload(d); }
@@ -1274,7 +1293,7 @@
     if (!canEdit) return;
     $$('[data-remove-video]', d).forEach(function (b) {
       b.addEventListener('click', function () {
-        if (!confirm('Remove this video?')) return;
+        if (!pcConfirm(b, 'Remove this video?', { yes: 'Remove', danger: true })) return;
         b.disabled = true;
         api('DELETE', '/api/videos/' + b.closest('.video').dataset.id).then(function () { toast('Video removed'); reopen(); })
           .catch(function (err) { b.disabled = false; toast(err.message); });
@@ -1389,7 +1408,8 @@
       var light = brightness(src);
       if (src.close) src.close();
       if (edge < MIN_EDGE) throw new Error(file.name + ' is ' + edge + ' pixels across. Photos need to be at least ' + MIN_EDGE + ' pixels, so use the original from your phone or camera rather than a screenshot or a saved copy.');
-      if (light < DARK && !confirm(file.name + ' looks dark, so families may not see the ' + (what || 'puppy') + ' well. Upload it anyway?')) throw new Error('skip');
+      if (light < DARK) return pcAsk(file.name + ' looks dark, so families may not see the ' + (what || 'puppy') + ' well. Upload it anyway?', { yes: 'Upload anyway' })
+        .then(function (ok) { if (!ok) throw new Error('skip'); });
     }, function () { /* a file the browser cannot decode goes up as it is, and the server checks it */ });
   }
   function shrink(file) {
@@ -1471,7 +1491,7 @@
     if (pickAll) pickAll.addEventListener('click', function () { var all = picked().length !== picks.length; picks.forEach(function (c) { c.checked = all; }); syncPicks(); });
     if (pickBtn) pickBtn.addEventListener('click', function () {
       var ids = picked().map(function (c) { return c.closest('.photo').dataset.id; });
-      if (!ids.length || !confirm('Remove ' + plural(ids.length, 'photo', 'photos') + ' from ' + x.name + '?')) return;
+      if (!ids.length || !pcConfirm(pickBtn, 'Remove ' + plural(ids.length, 'photo', 'photos') + ' from ' + x.name + '?', { yes: 'Remove', danger: true })) return;
       pickBtn.disabled = true;
       var done = 0, chain = Promise.resolve();
       ids.forEach(function (id) { chain = chain.then(function () { return api('DELETE', '/api/photos/' + id).then(function () { done += 1; }); }); });
@@ -1905,7 +1925,7 @@
     });
     $$('[data-doc-remove]', sec).forEach(function (b) {
       b.addEventListener('click', function () {
-        if (!confirm('Remove this document?')) return;
+        if (!pcConfirm(b, 'Remove this document?', { yes: 'Remove', danger: true })) return;
         api('DELETE', '/api/documents/' + b.closest('.doc').dataset.id).then(function () { toast('Document removed'); reopen(); }).catch(function (err) { toast(err.message); });
       });
     });
@@ -2153,7 +2173,7 @@
         '<section class="card"><h2>Your information</h2><p>Read how Puppy Connection uses and protects what you give us.</p><div class="btn-row"><a class="btn" href="/privacy" target="_blank" rel="noopener">Privacy policy</a><a class="btn" href="/terms" target="_blank" rel="noopener">Listing terms</a></div></section>', true);
       var soa = $('#signout-all');
       if (soa) soa.addEventListener('click', function () {
-        if (!confirm('Sign out of every device, including this one?')) return;
+        if (!pcConfirm(soa, 'Sign out of every device, including this one?', { yes: 'Sign out everywhere' })) return;
         api('POST', '/auth/signout-all', {}).then(function () { state.me = null; location.hash = '#/'; render(); toast('Signed out everywhere'); });
       });
       var pf = $('#pw-form');
@@ -2169,14 +2189,14 @@
       var toff = $('#totp-off');
       if (toff) toff.addEventListener('submit', function (e) {
         e.preventDefault();
-        if (!confirm('Turn off the authenticator? Your recovery codes stop working too.')) return;
+        if (!pcConfirm(toff, 'Turn off the authenticator? Your recovery codes stop working too.', { yes: 'Turn it off', danger: true })) return;
         api('POST', '/api/account/authenticator/off', { code: $('#off-code').value }).then(function () { toast('Authenticator turned off'); accountScreen(); })
           .catch(function (err) { showError(toff, err); });
       });
       var ao = $('#access-on');
       if (ao) ao.addEventListener('change', function () {
         var on = ao.checked;
-        if (!on && !confirm('Turn off Puppy Connection access? Any Puppy Connection session on your account ends straight away.')) { ao.checked = true; return; }
+        if (!on && !pcConfirm(ao, 'Turn off Puppy Connection access? Any Puppy Connection session on your account ends straight away.', { yes: 'Turn access off', danger: true })) { ao.checked = true; return; }
         api('PUT', '/api/account/access', { on: on }).then(function () { toast(on ? 'Puppy Connection access is on' : 'Puppy Connection access is off'); accountScreen(); })
           .catch(function (err) { ao.checked = !on; showError($('#access-card'), err); });
       });
@@ -2192,7 +2212,7 @@
       });
       $$('[data-remove-member]').forEach(function (b) {
         b.addEventListener('click', function () {
-          if (!confirm('Remove ' + b.getAttribute('data-email') + '? They will be signed out and can no longer sign in to your kennel.')) return;
+          if (!pcConfirm(b, 'Remove ' + b.getAttribute('data-email') + '? They will be signed out and can no longer sign in to your kennel.', { yes: 'Remove', danger: true })) return;
           api('DELETE', '/api/account/members/' + b.getAttribute('data-remove-member')).then(function (r) {
             if (r && r.signed_out) { state.me = null; location.hash = '#/'; render(); toast('You removed yourself and are signed out'); return; }
             toast('Person removed'); accountScreen();
@@ -2202,7 +2222,7 @@
       var cf = $('#close-form');
       if (cf) cf.addEventListener('submit', function (e) {
         e.preventDefault();
-        if (!confirm('Ask Puppy Connection to close your account?')) return;
+        if (!pcConfirm(cf, 'Ask Puppy Connection to close your account?', { yes: 'Ask to close', danger: true })) return;
         api('POST', '/api/account/close', { reason: $('#close-reason').value }).then(function () { toast('Request sent'); accountScreen(); })
           .catch(function (err) { showError(cf, err); });
       });

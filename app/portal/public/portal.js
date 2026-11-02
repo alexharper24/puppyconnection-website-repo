@@ -424,6 +424,28 @@
     b.setAttribute('aria-expanded', String(b.closest('.rail').classList.toggle('open')));
   });
 
+  // Each kennel posts to Choose a kennel, which checks the person is on it and opens it. Without the
+  // list (an older Worker) the button still goes to the Choose a kennel page.
+  function kennelMenu(me) {
+    if (!me.kennels || !me.kennels.length) return '<a class="btn btn-sm" id="switch-kennel" href="/choose">Switch kennel</a>';
+    return '<details class="kennel-menu"><summary class="btn btn-sm" id="switch-kennel">Switch kennel</summary><ul role="list">' +
+      me.kennels.map(function (k) {
+        var here = k.id === me.id;
+        return '<li><form method="post" action="/choose"><input type="hidden" name="kennel" value="' + esc(k.id) + '">' +
+          '<button type="submit"' + (here ? ' class="is-here" aria-current="true" disabled' : '') + '><b>' + esc(k.name || 'A kennel with no name yet') + '</b>' +
+          '<span>' + (here ? 'Open now' : esc(k.status_label || '')) + '</span></button></form></li>';
+      }).join('') + '</ul></details>';
+  }
+  // A press outside the open list, or Escape, closes it.
+  document.addEventListener('click', function (e) {
+    var open = document.querySelector('.kennel-menu[open]');
+    if (open && !open.contains(e.target)) open.removeAttribute('open');
+  });
+  document.addEventListener('keydown', function (e) {
+    var open = e.key === 'Escape' && document.querySelector('.kennel-menu[open]');
+    if (open) { open.removeAttribute('open'); open.querySelector('summary').focus(); }
+  });
+
   function shell(inner, narrow) {
     // The same screen drawn again after a save keeps the page where it was (Alex, 2026-10-31).
     var keepY = shell.lastRoute === state.route ? window.scrollY : 0;
@@ -449,7 +471,8 @@
       // Workplan A11. A quiet way back to the public site, in the same tab.
       ((state.config || {}).site_origin ? '<a class="btn btn-sm btn-quiet" href="' + esc(state.config.site_origin) + '/">Visit site</a>' : '') +
       // Workplan A27. A person on more than one kennel goes back to Choose a kennel from here.
-      (me.kennel_count > 1 && !me.operator ? '<a class="btn btn-sm" id="switch-kennel" href="/choose">Switch kennel</a>' : '') +
+      // Alex, 2026-11-01. Switch kennel opens a list of the person's kennels in place, and picking one opens it.
+      (me.kennel_count > 1 && !me.operator ? kennelMenu(me) : '') +
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
       (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +

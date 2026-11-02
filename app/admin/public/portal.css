@@ -742,3 +742,30 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .kennel-menu li button b { font-weight: 600; }
 .kennel-menu li button span { font-size: .8rem; color: var(--muted); }
 .kennel-menu li button.is-here { cursor: default; box-shadow: inset 3px 0 0 var(--gold); background: none; }
+
+/* Drawer tidy-up (Alex, 2026-11-02). */
+/* Who signs in: in a narrow section each person reads across the full width, with their buttons
+   in a row beneath, and the add form keeps Name and Email side by side. */
+.dsec:has(> .member-list, > .member-form) { container-type: inline-size; }
+@container (max-width: 600px) {
+  .dsec .member-list li { display: grid; grid-template-columns: minmax(0, 1fr); gap: .5rem; }
+  .dsec .member-list li > div.meta { overflow-wrap: break-word; }
+  .dsec .member-list li .btn-row { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: .4rem; }
+  .dsec .member-list li .btn-row .btn { width: auto; }
+  .dsec .member-form { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+  /* Add and invite shares the row with Add them to more kennels, whose list opens beneath both. */
+  .dsec .member-form > .btn { grid-column: 2; grid-row: 2; justify-self: end; align-self: start; width: auto; min-width: var(--act-w); position: relative; z-index: 1; }
+  .dsec .member-form .also-kennels { grid-column: 1 / -1; grid-row: 2; }
+}
+/* Documents: the upload sits under What it is and Name, and the Name hint keeps to one line. */
+/* A slightly smaller hint fits on one line wherever the panel is wide enough, and wraps where it is not. */
+.doc-form .grid-2 { grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr); }
+.doc-form .hint, .save-note { font-size: .78rem; }
+.doc-form .doc-up { margin: 0 0 1rem; }
+@media (max-width: 560px) { .doc-form .grid-2 { grid-template-columns: minmax(0, 1fr); } }
+/* Comes with: each group is its own box with a clear heading. */
+.includes-groups { gap: .75rem; }
+.includes-group { border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--paper); padding: .55rem .8rem .4rem; }
+.includes-title { margin: 0 0 .35rem; padding-bottom: .35rem; border-bottom: 1px solid var(--line); font-size: .82rem; letter-spacing: .08em; color: var(--ink); }
+/* Puppy card actions: Remove stays on the line with the others on a narrow card. */
+.puppy-card .row-actions { gap: 0 1rem; }

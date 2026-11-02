@@ -5,7 +5,7 @@ objective: "A short animated walkthrough of the breeder journey, from sign-in to
 source: "app/portal/public/walkthrough.js and walkthrough.css, the one player. app/docs/walkthrough/index.html is the review page that loads them"
 artifact: "https://claude.ai/artifact/Y1AwRdwZc58bxnpVy7Pet4 (private, version 1, 2026-11-01)"
 video: "app/docs/walkthrough/render.py writes breeder-walkthrough.mp4 (1920x1080, 30 fps, H.264) beside index.html, gitignored. --phone writes a 1080x1920 version"
-running_time: "3:11 on a laptop and 3:15 on a phone after the slower pace and the welcome screen (2026-11-01), the sum of the scene timeline as the page computes it"
+running_time: "3:18 in the rendered 1080p MP4, 3:11 on a laptop and 3:15 on a phone after the slower pace and the welcome screen (2026-11-01), the sum of the scene timeline as the page computes it"
 facts_from: app/docs/breeder-journey-storyboard.md
 reference_screens: "Local portal on 127.0.0.1:8797 with setup.mjs --reset --demo, signed in as the made-up demo kennel Maple Brook Doodles. Nothing was run against the live portal."
 sample_names:
@@ -41,13 +41,13 @@ portal_build:
   rehearsal: "0087 rehearsed on main's schema, then on the live export production-2026-11-01-pre0087.sql (4.4 MB, 51 tables), foreign keys on, run 1 added one empty table, run 2 changed nothing, 0 key violations (2026-11-01)"
   applied: "2026-11-01 to the live database puppyconnection (4556bf68, account 4f6e9dc2), the only one, since staging became production at launch. app/ops/d1-apply.mjs needs WRANGLER_JS set when run from a worktree"
 open:
-  - { id: w8, item: "Merge and deploy the slower pace and the welcome screen", blocked_on: Alex approval }
   - { id: w6, item: "Decide whether people who already signed in before the deploy should also see it once (as built they do)", blocked_on: Alex }
   - { id: w1, item: "Alex reviews the artifact and gives corrections", blocked_on: Alex }
   - { id: w2, item: "Decide whether and how it plays on a breeder's first sign-in", blocked_on: Alex }
   - { id: w4, item: "Alex approves the 1080p MP4 or asks for a phone-shaped one", blocked_on: Alex }
   - { id: w3, item: "Recheck the sign-in, checkout and parent photo scenes once the parallel session's changes land", blocked_on: parallel session }
 closed:
+  - { id: w8, item: "Merge and deploy the slower pace and the welcome screen", date: 2026-11-01, evidence: "PR 137 merged (51f342e) after merging main's dialog.js change into index.html, portal.js v49. The first MP4 render hung because the paced waits left fractions of a millisecond that a fake clock repeated until the browser crashed, so 08476f9 rounds them. Portal deployed from main with wrangler.production.jsonc, version b5f9ab0e. Admin was not redeployed, as nothing under app/admin or app/lib changed since its 22:00Z deploy. Live portal serves portal.js?v=49, walkthrough.js?v=2 and walkthrough.css?v=2 with status 200, and the live walkthrough.js holds the welcome scene and the rounding. MP4 rendered at 198.1 s, 5,944 frames" }
   - { id: w7, item: "Merge and deploy the portal walkthrough", date: 2026-11-01, evidence: "PR 127 merged (b420d47) after resolving the cache-number clash with main, portal.css v38 and portal.js v47. Deployed from main with wrangler.production.jsonc, portal fb1ef157 and admin 25d65ead. Live portal serves portal.css?v=38, portal.js?v=47, walkthrough.js 200 (52 KB) and walkthrough.css 200 (28 KB). The signed-in panel was not checked on the live portal, because that needs a breeder sign-in" }
   - { id: w5, item: "Back up, rehearse and apply 0087", date: 2026-11-01, evidence: "Backup downloaded to the main checkout app/.state/production-2026-11-01-pre0087.sql. Rehearsal PASS twice. Applied in 1 batch. Read back: walkthrough_seen exists with 0 rows, breeders 43 and puppies 319 as in the backup" }
   - { id: w0, item: "Build and publish the first draft", date: 2026-11-01, evidence: "All nine scenes rendered with no console errors at desktop and phone widths in the local browser, and the artifact published as version 1" }

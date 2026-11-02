@@ -91,7 +91,7 @@
     // cursor's glide in walkthrough.css is timed to match.
     var PACE = 1.35;
     async function wait(ms) {
-      ms *= PACE;
+      ms = Math.round(ms * PACE);
       var t = S.token; S.virtual += ms;
       if (S.instant) return;
       var left = ms;
@@ -99,7 +99,7 @@
         chk(t);
         var g = gate(); if (g) { await g; chk(t); }
         var t0 = performance.now();
-        await sleep(Math.min(left, 40));
+        await sleep(Math.max(1, Math.min(left, 40)));
         chk(t);
         var d = performance.now() - t0; left -= d; S.elapsed += d;
       }
@@ -698,7 +698,7 @@
       for (var k = 0; k < SCENES.length; k++) {
         build(off); S.virtual = 0; S.caps = [];
         SCENES[k].setup(); await SCENES[k].run();
-        DUR.push(S.virtual + 1500 * PACE);
+        DUR.push(S.virtual + Math.round(1500 * PACE));
       }
       off.innerHTML = '';
       C = keep.C; S.instant = keep.instant; S.virtual = keep.virtual; S.caps = keep.caps;

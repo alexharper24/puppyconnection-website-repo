@@ -8,6 +8,7 @@
 // Cloudflare serves the generated pages straight from the assets folder. This Worker runs only
 // for the paths in run_worker_first (wrangler.jsonc there):
 //   /                     the home page, because html_handling "none" turns off / -> index.html
+//   /index.html           a 301 to /, so Google keeps one address for the home page (2026-11-04)
 //   /media/<id>[/card|/share]  a puppy photo from R2, uploaded or imported, only while its puppy is
 //                         public. /share is the JPEG for og:image, where a photo has one
 //   /media/parent/<id>[/card]  a saved mom or dad's photo, only while it is on a public litter
@@ -32,6 +33,7 @@ export default {
     const url = new URL(request.url);
     try {
       if (url.pathname === '/') return env.ASSETS.fetch(new Request(new URL('/index.html', url), request));
+      if (url.pathname === '/index.html') return Response.redirect(new URL('/' + url.search, url).href, 301);
       const m = url.pathname.match(/^\/media\/([\w-]+)(?:\/(card|share))?$/);
       if (m) return (await serveMedia(env, m[1], { card: m[2] === 'card', share: m[2] === 'share' })) || notFound();
       const pm = url.pathname.match(/^\/media\/parent\/([\w-]+)(\/card)?$/);

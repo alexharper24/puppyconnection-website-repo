@@ -21,7 +21,9 @@ tasks:
     evidence: "175 photos checked (size under 500 px, contrast, dog found, card crops): Samuel and Shawn pass with the whole dog in both card crops; no photo of the 18 imported puppies is small or flat; only the two gallery photos above had no dog found"
     item: "Review the puppies added since the Wix photo refresh (Samuel and Shawn, Sweet Puppy Paws, 2026-10-31) and the f2 puppies with the same checks as the refresh: size, contrast, dog found, and the card crops"
   - id: f4-publish
-    status: in_progress
+    status: done
+    closed: 2026-11-04
+    evidence: "Live build generation 644: data.js phone crop positions Quest 71.4%, Quinn 58.6%, Qeleigh 60.7%, Apollo 41.4%, Brittany 56.4%, Cosette 39.3%, Sawyer 45.7%, Alexa, Harold and Junior 50%; 0 available listings without a phone crop position"
     progress: "Backup production-2026-11-04-pre0090.sql Downloaded; rehearse_migration PASS (run 1: photos 120 changed via 120 audit rows, run 2: 0 changes, 0 key violations); d1-apply 4 of 4 batches; site_state generation 644, marker cleared by the publish"
     item: "Apply one migration with d1-apply after a backup and two rehearsals, read it back, publish, and check the live cards"
 ---

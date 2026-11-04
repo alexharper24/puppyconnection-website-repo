@@ -26,6 +26,17 @@ tasks:
     evidence: "Live build generation 644: data.js phone crop positions Quest 71.4%, Quinn 58.6%, Qeleigh 60.7%, Apollo 41.4%, Brittany 56.4%, Cosette 39.3%, Sawyer 45.7%, Alexa, Harold and Junior 50%; 0 available listings without a phone crop position"
     progress: "Backup production-2026-11-04-pre0090.sql Downloaded; rehearse_migration PASS (run 1: photos 120 changed via 120 audit rows, run 2: 0 changes, 0 key violations); d1-apply 4 of 4 batches; site_state generation 644, marker cleared by the publish"
     item: "Apply one migration with d1-apply after a backup and two rehearsals, read it back, publish, and check the live cards"
+  - id: f5-faces-at-edge
+    status: done
+    closed: 2026-11-04
+    evidence: "Live build 645; Samuel's phone card at 375 px reads object-position 71.4% 50% with his face centred"
+    asked: "Alex 2026-11-04: mobile still doesn't show right for at least Samuel"
+    found: "Phone cards of all 154 drawn at full size from the live data.js (scratchpad phone_sheet.py). The first pass passed a face that touched the edge; this pass flags any face at or past the edge: Samuel, Apple Jacks, Atlas (Cocker Spaniel), Celestia, Charlie, Dixon, Emerald, Georgia, Gunner, Jillian, Josie, Jules, Lars, Leanna, Persephone, Sabrina Jane"
+    progress: "0091 by app/ops/photo_focus_hand.py from points set on a grid over each photo and checked as before and after phone crops. Backup production-2026-11-04-pre0091.sql Downloaded, rehearse PASS (16 changed, second run 0), d1-apply 1 of 1, read back 22 photo.focus audit rows today (6 + 16), Samuel 0.6, site generation 645. Charlie's right ear touches the edge of the original photo, so his card cannot show it whole"
+  - id: f6-prevent
+    status: open
+    blocked_on: alex
+    item: "Prevent faces cut on the phone card: a tap-the-face step with a live card preview where the breeder sets the cover and in the admin, measuring any photo stored without a size or focus on the next run, and a face-aware automatic point. Alex decides; new build work goes to the quoting session"
 ---
 
 # Photo focus, 2026-11-04

@@ -480,8 +480,12 @@
       // stays open, and the banner stays until they accept.
       // Workplan A6. A breeder on the current terms who has not yet confirmed they are the seller
       // gets the same banner and drawer, asking only for that.
-      (me.terms && me.terms.needs_accept ? (me.terms.accepted_version === me.terms.version
+      // Alex, 2026-11-05. Only the breeder can accept, so an operator is told where it stands instead.
+      (me.terms && me.terms.needs_accept && me.operator ? '<p class="notice terms-banner" id="terms-banner">This kennel has not yet accepted the current listing terms and confirmed it is the seller. The breeder is asked when they sign in.</p>'
+        : me.terms && me.terms.needs_accept ? (me.terms.accepted_version === me.terms.version
         ? '<div class="notice terms-banner" id="terms-banner"><p><b>Please confirm you are the seller.</b> Puppy Connection does not sell puppies, so each breeder confirms once that they sell the puppies they list.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and confirm</button></div>'
+        // Alex, 2026-11-05. A kennel Puppy Connection added has never accepted any version, so it is asked plainly.
+        : !me.terms.accepted_version ? '<div class="notice terms-banner" id="terms-banner"><p><b>Please read the listing terms.</b> Puppy Connection set up your account, so read the listing terms once, accept them and confirm you are the seller.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and accept</button></div>'
         : '<div class="notice terms-banner" id="terms-banner"><p><b>The listing terms have changed.</b> Puppy Connection published a new version' +
         (me.terms.published_at ? ' on ' + esc(day(me.terms.published_at)) : '') + '. Please read it and accept it.</p><button class="btn btn-sm btn-gold" id="terms-read">Read and accept</button></div>') : '') +
       operatorBanner() + nudgeBanner() + photoBanner() + inner + '<footer class="work-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer></div></main></div></div>';

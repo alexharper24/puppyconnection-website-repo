@@ -4,6 +4,7 @@ asked_by: "Alex 2026-11-05: operators such as Amber and Hope create a breeder in
 read_first: [app/admin/worker.js, app/lib/accounts.js, app/lib/store.js, app/portal/worker.js]
 decisions:
   - "Staff may add a breeder (STAFF_ALLOWED gets POST /api/breeders), because Hope is staff. Manage as this breeder and the drawer's Send invitation stay owner-only as before, so the invitation is offered as an unticked box on the add form, which staff can use"
+  - "Alex, 2026-11-05 after the deploy: staff get Manage as this breeder too, so Hope can add litters and puppies to a kennel she adds. Turning access on or off and the people on a kennel stay owner-only"
   - "Access is recorded with the existing management arrangement path (ACCESS_HOW.existing, accessStmts), so the audit carries access.on beside breeder.create"
   - "The profile is checked by the portal's own rules: profileFields, the submit rule (business name, a public phone or email, city and state) and the extras rule (Facebook page, up to 20 breeds from the list), the last two moved into lib/store.js so both Workers share them"
   - "The breeder has not accepted the listing terms or confirmed they are the seller, so the portal asks them on first sign-in. No reference is asked, because the operator is the one vouching"

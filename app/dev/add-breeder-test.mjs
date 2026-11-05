@@ -119,6 +119,15 @@ try {
   r = await admin.post('/api/breeders', { ...good, email: `staff-${stamp}@breeders.test`, business_name: `Staff Kennel ${stamp}` });
   check('staff add a breeder (Hope is staff)', r.status === 201 && r.data.access.on, `${r.status} ${JSON.stringify(r.data).slice(0, 200)}`);
   check('staff are still refused approvals', (await admin.post(`/api/breeders/${id}/suspend`, { reason: 'x' })).status === 403);
+  // Alex, 2026-11-05. Staff open a kennel with Manage as this breeder, and still cannot change access or people.
+  const sm = await admin.post(`/api/breeders/${r.data.breeder.id}/manage`, {});
+  check('staff get a Manage as hand-over', sm.status === 200 && /\/auth\/handoff\?t=/.test(sm.data.url || ''), JSON.stringify(sm.data));
+  const sop = new Client(PORTAL);
+  await sop.get(new URL(sm.data.url).pathname + new URL(sm.data.url).search);
+  const sl = await sop.post('/api/litters', { breed_id: breeds[0].id });
+  check('staff add a litter as the breeder', (sl.status === 201 || sl.status === 200) && !!sl.data.id, JSON.stringify(sl.data));
+  check('staff are refused turning access off', (await admin.put(`/api/breeders/${id}/access`, { on: false })).status === 403);
+  check('staff are refused sending an invitation', (await admin.post(`/api/breeders/${id}/people/invite`, { email })).status === 403);
 } finally {
   sql("UPDATE people SET role = 'owner' WHERE email = 'amber@puppyconnection.test'");
 }

@@ -333,7 +333,8 @@ async function changeEmail(req, env, ctx, id, who) {
 
 // ------------------------------------------------------------------ people, access and Manage as this breeder (workplan A24 to A26)
 
-// Every route here is owner-only, because STAFF_ALLOWED does not name it. The rules for who can be
+// Every route here is owner-only, because STAFF_ALLOWED does not name it, except Manage as this breeder,
+// which staff have too (Alex, 2026-11-05). The rules for who can be
 // added are the portal's own (lib/accounts.js), so the two can never accept different things.
 
 const opActor = (who) => ['operator', who.email];
@@ -1685,8 +1686,10 @@ const STAFF_ALLOWED = [
   // The email log is owner-only (Alex, 2026-10-24), because list emails name the people on the mailing list.
   ['GET', /^\/api\/(whoami|stats|attention|listings|breeds|site|audit)$/],
   ['GET', /^\/api\/breeders(\/[\w-]+)?$/],
-  // Alex, 2026-11-05. Staff add a breeder, because Hope is staff. Manage as this breeder stays with the owners.
+  // Alex, 2026-11-05. Staff add a breeder, because Hope is staff, and open one with Manage as this breeder to
+  // add its litters and puppies. Turning access on or off and the people on a kennel stay with the owners.
   ['POST', /^\/api\/breeders$/],
+  ['POST', /^\/api\/breeders\/[\w-]+\/manage$/],
   ['GET', /^\/(media|brand)\//],
   ['GET', /^\/dev\/mail$/],
   ['GET', /^\/api\/puppies\/[\w-]+\/photos$/],

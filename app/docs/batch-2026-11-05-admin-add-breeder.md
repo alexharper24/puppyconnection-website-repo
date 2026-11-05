@@ -30,7 +30,9 @@ tasks:
     evidence: "Browser pane on local 8788: the missing-state error, the same-name dialog, an add with Havanese ticked, the drawer shows Approved and access On; Manage as opened the portal as Amber on the new kennel and the portal screens added a Havanese litter and the puppy Waffles"
     item: "Browser pane against the local admin: add a breeder, then Manage as this breeder adds a litter and a puppy"
   - id: a6-ship
-    status: pending
+    status: done
+    closed: 2026-11-05
+    evidence: "PR 150 squashed to f0e924e and deployed from main with wrangler.production.jsonc after the history showed the PR 148 versions as the latest: portal c9fcbcf7, admin fa4b99e9. portal.puppy-connection.com serves portal.js?v=53 with both new banner lines; the admin is behind Access, so its read-back is the version id. No breeder was created in production"
     item: "PR, merge, deploy portal and admin from main with wrangler.production.jsonc, read back that the route answers"
 ---
 

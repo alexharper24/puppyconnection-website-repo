@@ -1606,10 +1606,10 @@
       'The unsubscribe link and your mailing address are added at the end of every email.</div></div></div>' +
       '<div class="camp-look" id="camp-look"><div class="camp-look-bar"><span class="camp-look-title">Preview</span>' +
       '<div class="seg" role="group" aria-label="Preview width"><button type="button" class="on" data-look-w="phone" aria-pressed="true">Phone</button><button type="button" data-look-w="desktop" aria-pressed="false">Desktop</button></div>' +
-      '<div class="seg" role="group" aria-label="Sample person"><button type="button" class="on" data-look-n="Jordan Lee" aria-pressed="true">With a name</button><button type="button" data-look-n="" aria-pressed="false">No name stored</button></div></div>' +
+      '<div class="seg" role="group" aria-label="Show the email as it reaches" id="camp-look-who" hidden><button type="button" class="on" data-look-n="Jordan Lee" aria-pressed="true">As Jordan Lee</button><button type="button" data-look-n="" aria-pressed="false">As someone with no name</button></div></div>' +
       '<p class="small muted camp-look-subj" id="camp-look-subj"></p><p class="notice notice-alert small" id="camp-look-warn" hidden></p>' +
       '<div class="camp-frame" id="camp-frame"><iframe id="camp-iframe" title="Preview of the email" sandbox="allow-same-origin"></iframe></div>' +
-      '<p class="hint">Drawn the way the list gets it. With a name shows a sample person, Jordan Lee.</p></div></div>' +
+      '<p class="hint" id="camp-look-hint">Drawn the way the list gets it.</p></div></div>' +
       (edit ? audienceField(c) : '') +
       '<div class="btn-row"><button class="btn" type="submit">Save draft</button>' +
       (edit ? '<button class="btn" type="button" id="camp-test">Send me a test</button><button class="btn btn-primary" type="button" id="camp-send">' + sendLabel(c, 'subscribers') + '</button>' : '') +
@@ -1650,19 +1650,25 @@
     var frame = $('#camp-frame'), ifr = $('#camp-iframe');
     var DEVICE = { phone: 375, desktop: 700 };
     function fit() {
+      frame.dataset.width = look.w;
       var dw = DEVICE[look.w], cw = frame.clientWidth || dw, k = Math.min(1, cw / dw);
       ifr.style.width = dw + 'px'; ifr.style.height = '0px';
       var doc = ifr.contentDocument, h = doc && doc.documentElement ? doc.documentElement.scrollHeight : 600;
       ifr.style.height = h + 'px';
       ifr.style.transform = k < 1 ? 'scale(' + k + ')' : '';
       frame.style.height = Math.ceil(h * k) + 'px';
-      frame.dataset.width = look.w;
     }
     function draw() {
       var mine = ++seq;
       api('POST', '/api/campaign-preview', { subject: $('#camp-subject').value, body: $('#camp-body').value, name: look.n }).then(function (r) {
         if (mine !== seq) return;
         $('#camp-look-subj').textContent = 'Subject: ' + r.subject;
+        // The person choice only matters while the email says {first name}.
+        var named = /\{\s*first name/i.test($('#camp-subject').value + ' ' + $('#camp-body').value);
+        $('#camp-look-who').hidden = !named;
+        $('#camp-look-hint').textContent = named
+          ? 'Drawn the way the list gets it. {first name} shows as Jordan for a made-up person, or as the fallback word for someone on the list with no name stored.'
+          : 'Drawn the way the list gets it.';
         var warn = $('#camp-look-warn');
         warn.hidden = !r.unknown.length;
         warn.textContent = r.unknown.length ? r.unknown.join(', ') + ' cannot be filled in. Use {first name}, or take the braces out. The email cannot be sent until then.' : '';

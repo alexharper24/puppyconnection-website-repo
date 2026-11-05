@@ -167,6 +167,30 @@ export function profileFields(body) {
   };
 }
 
+/**
+ * What a profile still needs before it can be submitted for approval, as words for the message, or
+ * an empty list. The portal's Submit and the admin's Add a breeder both use it.
+ */
+export function profileMissing(f) {
+  const missing = [];
+  if (!f.business_name) missing.push('business name');
+  if (!f.public_phone && !f.public_email) missing.push('a public phone or email');
+  if (!f.city || !f.state) missing.push('city and state');
+  return missing;
+}
+
+/** The optional extras (plan P2.3): { facebook_url, breed_ids }, checked against the breeds table. */
+export async function extrasFields(env, body) {
+  const facebook = facebookUrl(body.facebook_url);
+  const ids = Array.isArray(body.breed_ids) ? [...new Set(body.breed_ids.map(String))] : [];
+  if (ids.length > 20) throw bad('Choose up to 20 breeds.');
+  if (ids.length) {
+    const { results } = await env.DB.prepare(`SELECT id FROM breeds WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
+    if (results.length !== ids.length) throw bad('Choose breeds from the list.');
+  }
+  return { facebook_url: facebook, breed_ids: ids };
+}
+
 // Workplan A13 (Amber, 2026-10-19). Who can vouch for a new breeder, in the order sign-up shows them.
 export const REFERENCE_ROLES = {
   akc: 'AKC representative',

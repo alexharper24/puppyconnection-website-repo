@@ -14,10 +14,14 @@ tasks:
     evidence: "admin-features: ticking three people with one unsubscribed counts two, the draft lists its picks, a wrong count is refused, unticking works, the send starts for the ticked person only, the campaign records selected, a sent email refuses ticks. Delivery: the selected campaign from the first local run went out to the ticked person only (dev_mailbox). The test's 10-second wait for delivery fails locally the same way as the existing send checks on main"
     item: "A send to selected people: tick people on the Mailing list page for the draft, then send to only them. Never reaches anyone who unsubscribed"
   - id: s3-ship
-    status: open
+    status: done
+    closed: 2026-11-05
+    evidence: "PR 148 (d83be2f) from main: portal 2b02f79f, admin cbd3c297 with wrangler.production.jsonc"
     item: "Migration 0092 with backup and two rehearsals, local tests, merge, deploy portal and admin from main, read back"
   - id: s4-transport-link
-    status: open
+    status: done
+    closed: 2026-11-05
+    evidence: "site repo a77664b; live transportation.html See delivery rates opens the 1600 px map, 200 image/jpeg 267,785 bytes"
     asked: "Amber via Alex 2026-11-05: the transportation page link goes to Furry Freight's rate map instead of the booking section"
     item: "Furry Freight has no page or anchor for the map, so the button opens the map image itself (Wix resized copy, 268 KB) as See delivery rates. The puppy page delivery band still says Get a quote to the booking page"
 ---

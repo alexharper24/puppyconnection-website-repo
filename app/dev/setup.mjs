@@ -53,6 +53,8 @@ fs.copyFileSync(path.join(APP, 'portal/public/portal.css'), path.join(APP, 'admi
 fs.copyFileSync(path.join(APP, 'portal/public/combo.js'), path.join(APP, 'admin/public/combo.js'));
 // The confirmation dialog (dialog.js) is shared the same way (Alex, 2026-11-01).
 fs.copyFileSync(path.join(APP, 'portal/public/dialog.js'), path.join(APP, 'admin/public/dialog.js'));
+// Tap the face (facepick.js) is shared the same way (Alex, 2026-11-04).
+fs.copyFileSync(path.join(APP, 'portal/public/facepick.js'), path.join(APP, 'admin/public/facepick.js'));
 
 execFileSync(process.execPath, [path.join(HERE, 'seed.mjs')], { stdio: 'inherit' });
 

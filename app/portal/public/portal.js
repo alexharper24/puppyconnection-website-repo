@@ -1363,7 +1363,7 @@
     return '<section id="photo-step" style="margin-top:1.4rem"><h3>Photos</h3>' +
       (x.operator_hold && x.hold_kind === 'photos' ? '<p class="error">Taken off the site until new photos are uploaded.' + (x.hold_reason ? ' ' + esc(x.hold_reason) : '') + ' A new photo that passes the photo check brings it back.</p>' : '') +
       '<p class="photo-standard"><b>Photo standard.</b> ' + esc(PHOTO_STANDARD) + '</p>' +
-      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. New photos go first, and the first photo is the cover.</p>' +
+      '<p class="hint">A new photo at least every four weeks keeps the listing on the site. New photos go first, and the first photo is the cover. Use Face on a photo to show where the puppy’s face is, so the cards on the site keep it in view.</p>' +
       (canEdit ? '<div class="upload"><label for="ph-input" class="btn btn-sm">Add photos</label><input id="ph-input" type="file" accept="image/*" multiple hidden>' +
         '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across and up to 15 MB each. Each photo is checked that the puppy can be seen clearly.</div><p class="error" id="ph-error" hidden></p></div>' : '') +
       (canEdit && x.photos.length > 1 ? '<div class="photo-batch"><button type="button" class="btn btn-sm btn-quiet" data-pick-all>Select all</button>' +
@@ -1379,6 +1379,7 @@
             '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' +
             '<div class="tools tools-2"><label class="sr" for="ph-pos-' + esc(ph.id) + '">Position</label><select id="ph-pos-' + esc(ph.id) + '" data-pos aria-label="Position of photo ' + (i + 1) + '">' +
               x.photos.map(function (_, k) { return '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k === 0 ? '1, cover' : String(k + 1)) + '</option>'; }).join('') + '</select>' +
+              '<button type="button" data-face' + (i === 0 && ph.focus_x == null ? ' class="face-needed"' : '') + '>Face</button>' +
               (i > 0 ? '<button type="button" data-cover>Make cover</button>' : '') + '</div>' : '') + '</div>';
       }).join('') + '</div>' +
       (x.photos.some(function (ph) { return ph.quality === 'sent_back'; }) ? '<p class="error" style="white-space:pre-line">' + x.photos.filter(function (ph) { return ph.quality === 'sent_back'; }).map(function (ph) {
@@ -1455,7 +1456,7 @@
         return (s.card ? api('POST', '/api/photos/' + r.id + '/card', undefined, s.card).catch(function () {}) : Promise.resolve())
           // Workplan A9. The quality check. If it cannot run now, the photo is checked within 15 minutes.
           .then(function () { if (checking) checking(); return api('POST', '/api/photos/' + r.id + '/check', {}).catch(function () { return { quality: 'pending' }; }); })
-          .then(function (c) { c.name = file.name; return c; });
+          .then(function (c) { c.name = file.name; c.id = r.id; return c; });
       });
     });
   }
@@ -1493,7 +1494,12 @@
         var ok = results.filter(function (c) { return c.quality !== 'sent_back' && c.quality !== 'review'; }).length;
         if (ok) toast(ok === 1 ? 'Photo added' : ok + ' photos added');
         var msg = problems.concat(checkSummary(results) ? [checkSummary(results)] : []).join('\n');
-        return reopen().then(function () { if (msg) { var box = $('#ph-error'); if (box) { box.hidden = false; box.style.whiteSpace = 'pre-line'; box.textContent = msg; } } });
+        // Tap the face (Alex, 2026-11-04). New photos go first, so the last one up is the new cover.
+        var cover = results.filter(function (c) { return c.quality !== 'sent_back' && c.quality !== 'review'; }).pop();
+        return reopen().then(function () {
+          if (msg) { var box = $('#ph-error'); if (box) { box.hidden = false; box.style.whiteSpace = 'pre-line'; box.textContent = msg; } }
+          if (cover) pickFace(cover.id, true);
+        });
       }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; reopen(); });
     });
     $$('[data-remove]', d).forEach(function (b) {
@@ -1530,10 +1536,23 @@
       if (i < 0 || j < 0 || j >= ids.length || i === j) return;
       ids.splice(j, 0, ids.splice(i, 1)[0]);
       api('PUT', '/api/puppies/' + x.id + '/photo-order', { ids: ids }).then(function () { if (j === 0) toast('Cover photo set'); return reopen(); })
+        .then(function () { if (j === 0) pickFace(id, true); })
         .catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; });
     }
     $$('[data-move]', d).forEach(function (b) {
       b.addEventListener('click', function () { var id = b.closest('.photo').dataset.id; moveTo(id, x.photos.map(function (p) { return p.id; }).indexOf(id) + Number(b.dataset.move)); });
+    });
+    /* Tap the face (Alex, 2026-11-04). Opens on a new cover by itself, and from Face on any photo. */
+    function pickFace(id, asCover) {
+      var ph = findPuppy(x.id).photos.filter(function (p) { return p.id === id; })[0];
+      if (!ph || !window.pcFacePick) return;
+      pcFacePick({ src: cardUrl(ph.url), name: x.name, fx: ph.focus_x, fy: ph.focus_y }).then(function (r) {
+        if (!r) return;
+        return api('PUT', '/api/photos/' + id + '/focus', r).then(function () { toast(asCover ? 'Cover framed' : 'Face saved'); return reopen(); });
+      }).catch(function (err) { var box = $('#ph-error'); if (box) { box.hidden = false; box.textContent = err.message; } });
+    }
+    $$('[data-face]', d).forEach(function (b) {
+      b.addEventListener('click', function () { var id = b.closest('.photo').dataset.id; pickFace(id, x.photos[0] && x.photos[0].id === id); });
     });
     $$('[data-cover]', d).forEach(function (b) {
       b.addEventListener('click', function () { moveTo(b.closest('.photo').dataset.id, 0); });

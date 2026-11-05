@@ -39,6 +39,7 @@ import {
 } from '../lib/parents.js';
 import { extractFromDocument, extractRefusal } from '../lib/docextract.js';
 import { rotatePdf } from '../lib/pdfrotate.js';
+import { focusBody, focusStmt, focusBinds } from '../lib/focusedit.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
 import {
   personFor, kennelsFor, onKennel, checkMakeMain, acceptKennelStmts, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
@@ -347,7 +348,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=41"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=42"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
@@ -1605,6 +1606,22 @@ async function deletePhoto(request, env, ctx, id) {
   return json({ ok: true });
 }
 
+/** Tap the face (Alex, 2026-11-04). The breeder sets where the cards are cut, from facepick.js. */
+async function setPhotoFocus(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireApproved(breeder);
+  const photo = await owned(env, 'photo', id, breeder.id);
+  const f = focusBody(await readJson(request));
+  const stmts = [
+    focusStmt(env, photo, f).bind(...focusBinds(photo, f), id),
+    auditStmt(env, ...who(breeder), 'photo.focus', 'puppy', photo.puppy_id, { photo: id, focus_x: photo.focus_x, focus_y: photo.focus_y }, { photo: id, focus_x: f.fx, focus_y: f.fy }),
+  ];
+  if (await hasPublic(env, 'id = ?', photo.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true, focus_x: f.fx, focus_y: f.fy });
+}
+
 // The card copy is a second, smaller file the portal makes in the browser at upload, so a
 // listing card or a thumbnail never downloads the full photo. It sits beside the full copy
 // in R2, and a photo without one is served at full size.
@@ -2103,7 +2120,7 @@ async function listings(request, env) {
       p.documents = docs[p.id] || [];
       // Workplan A12. Where the puppy is in the photo schedule and by when it needs a new photo.
       p.schedule = scheduleFor(p, breeder, inact);
-      p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons) }));
+      p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons), focus_x: ph.focus_x, focus_y: ph.focus_y }));
       // Workplan A9. A photo the check sent back or is holding does not count toward the listing.
       const usable = p.photos.filter((ph) => !ph.quality || ph.quality === 'pass' || ph.quality === 'pending').length;
       p.is_public = pubIds.has(p.id);
@@ -2489,6 +2506,7 @@ const ROUTES = [
   ['POST', /^\/dev\/stream\/upload\/(\w+)$/, (r, e, c, uid) => simUpload(r, e, uid)],
   ['GET', /^\/dev\/stream\/(\w+)\/(iframe|video)$/, (r, e, c, uid, what) => simServe(e, uid, what)],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, uploadCard],
+  ['PUT', /^\/api\/photos\/([\w-]+)\/focus$/, setPhotoFocus],
   ['POST', /^\/api\/photos\/([\w-]+)\/check$/, checkMyPhoto],
   ['GET', /^\/still-available$/, () => stillAvailablePage()],
   ['GET', /^\/media\/([\w-]+)$/, media],

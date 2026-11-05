@@ -112,7 +112,7 @@ export async function puppyPhotos(env, puppyIds) {
   for (let i = 0; i < puppyIds.length; i += 90) {
     const ids = puppyIds.slice(i, i + 90);
     const { results } = await env.DB.prepare(
-      `SELECT id, puppy_id, r2_key, external_url, position, aspect, quality, quality_reasons FROM photos
+      `SELECT id, puppy_id, r2_key, external_url, position, aspect, quality, quality_reasons, focus_x, focus_y FROM photos
         WHERE puppy_id IN (${ids.map(() => '?').join(',')}) ORDER BY puppy_id, position`,
     ).bind(...ids).all();
     for (const p of results) (by[p.puppy_id] ||= []).push(p);

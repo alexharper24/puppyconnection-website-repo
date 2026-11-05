@@ -706,7 +706,8 @@
             (photos.length > 1 ? '<label class="photo-pick" title="Select to remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"></label>' : '') +
             '<div class="btn-row"><button class="btn btn-sm" data-move="-1"' + (i ? '' : ' disabled') + ' aria-label="Move earlier">Earlier</button>' +
             '<button class="btn btn-sm" data-move="1"' + (i < photos.length - 1 ? '' : ' disabled') + ' aria-label="Move later">Later</button>' +
-            '<button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first</span>') + '</li>';
+            '<button class="btn btn-sm" data-face>Face</button>' +
+            '<button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first' + (ph.focus_x == null ? ', face not set' : '') + '</span>') + '</li>';
         }).join('') + '</ul>' : '<p class="muted">No photos yet.</p>') +
         '<div class="field"><label for="ph-add">Add photos</label><input id="ph-add" type="file" accept="image/*" multiple></div>' +
         '<p class="notice notice-alert small" id="ph-err" hidden></p>' +
@@ -718,17 +719,19 @@
         $('[data-back]', d).addEventListener('click', function () { breederDrawer(data.breeder.id); });
         $('#ph-add', d).addEventListener('change', function (e) {
           var files = Array.prototype.slice.call(e.target.files || []);
-          var chain = Promise.resolve();
+          var chain = Promise.resolve(), last = null;
           files.forEach(function (f) {
             chain = chain.then(function () {
               return shrinkImage(f).then(function (sz) {
                 return rawApi('POST', '/api/puppies/' + p.id + '/photos', sz.full).then(function (r) {
+                  last = r.id;
                   if (sz.card) return rawApi('POST', '/api/photos/' + r.id + '/card', sz.card).catch(function () {});
                 });
               });
             });
           });
-          chain.then(function () { toast(files.length === 1 ? 'Photo added' : files.length + ' photos added'); again(); }).catch(function (e2) { fail(e2); });
+          // Tap the face (Alex, 2026-11-04). A new photo goes first, so the last one up is the cover.
+          chain.then(function () { toast(files.length === 1 ? 'Photo added' : files.length + ' photos added'); if (last) pickFace(last, true, true); else again(); }).catch(function (e2) { fail(e2); });
         });
         // Alex, 2026-11-01. Tick several photos and remove them in one go.
         var picks = $$('[data-pick]', d), pickBtn = $('[data-remove-picked]', d), pickAll = $('[data-pick-all]', d);
@@ -750,6 +753,20 @@
           ids.forEach(function (id) { chain = chain.then(function () { return api('DELETE', '/api/photos/' + id).then(function () { done += 1; }); }); });
           chain.then(function () { toast(done + (done === 1 ? ' photo removed' : ' photos removed')); again(); }).catch(function (e) { fail(e); again(); });
         });
+        /* Tap the face (Alex, 2026-11-04). Fresh tells it to read the photo list again, after an upload or a move. */
+        function pickFace(id, asCover, fresh) {
+          (fresh ? api('GET', '/api/puppies/' + p.id + '/photos') : Promise.resolve(photos)).then(function (list) {
+            var ph = list.filter(function (x) { return x.id === id; })[0];
+            if (!ph || !window.pcFacePick) return again();
+            return pcFacePick({ src: ph.card || ph.url, name: p.name, fx: ph.focus_x, fy: ph.focus_y }).then(function (r) {
+              if (!r) return again();
+              return api('PUT', '/api/photos/' + id + '/focus', r).then(function () { toast(asCover ? 'Cover framed' : 'Face saved'); again(); });
+            });
+          }).catch(function (e) { fail(e); });
+        }
+        $$('[data-face]', d).forEach(function (b) {
+          b.addEventListener('click', function () { var id = b.closest('li').dataset.id; pickFace(id, photos[0] && photos[0].id === id, false); });
+        });
         $$('[data-remove]', d).forEach(function (b) {
           b.addEventListener('click', function () {
             if (!pcConfirm(b, 'Remove this photo from ' + p.name + '?', { yes: 'Remove', danger: true })) return;
@@ -762,7 +779,7 @@
             var i = ids.indexOf(id), j = i + Number(b.dataset.move);
             if (j < 0 || j >= ids.length) return;
             ids.splice(j, 0, ids.splice(i, 1)[0]);
-            api('PUT', '/api/puppies/' + p.id + '/photo-order', { ids: ids }).then(again).catch(fail);
+            api('PUT', '/api/puppies/' + p.id + '/photo-order', { ids: ids }).then(function () { if (j === 0) pickFace(id, true, true); else again(); }).catch(fail);
           });
         });
       });

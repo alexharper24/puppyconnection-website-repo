@@ -458,6 +458,10 @@ async function features() {
       const ids = photos.map((x) => x.id);
       const order = [...ids].reverse();
       check('staff reorder the photos', (await admin.put(`/api/puppies/${pupId}/photo-order`, { ids: order })).status === 200 && (await admin.get(`/api/puppies/${pupId}/photos`)).data[0].id === order[0]);
+      // Tap the face (Alex, 2026-11-04). Staff set the point, a bad point is refused, and the photo list carries it.
+      check('staff set a photo’s face point', (await admin.put(`/api/photos/${r.data.id}/focus`, { fx: 0.62, fy: 0.3, w: 1600, h: 1067 })).status === 200 &&
+        (await admin.get(`/api/puppies/${pupId}/photos`)).data.some((x) => x.id === r.data.id && x.focus_x === 0.62 && x.focus_y === 0.3));
+      check('a face point outside the photo is refused', (await admin.put(`/api/photos/${r.data.id}/focus`, { fx: 1.4, fy: 0.3 })).status === 400);
       check('staff remove a photo', (await admin.req('DELETE', `/api/photos/${r.data.id}`)).status === 200 && !(await admin.get(`/api/puppies/${pupId}/photos`)).data.some((x) => x.id === r.data.id));
       await admin.put(`/api/puppies/${pupId}/photo-order`, { ids: ids.filter((x) => x !== r.data.id) });
     } finally {

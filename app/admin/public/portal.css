@@ -769,3 +769,23 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .includes-title { margin: 0 0 .35rem; padding-bottom: .35rem; border-bottom: 1px solid var(--line); font-size: .82rem; letter-spacing: .08em; color: var(--ink); }
 /* Puppy card actions: Remove stays on the line with the others on a narrow card. */
 .puppy-card .row-actions { gap: 0 1rem; }
+
+/* Tap the face (facepick.js, Alex 2026-11-04). The photo whole with the chosen point, then the phone and desktop cards. */
+.face-dialog { width: min(720px, calc(100% - 1.5rem)); }
+.face-dialog .face-title { margin: 0 0 .3rem; font-family: var(--serif); font-size: 1.25rem; font-weight: 500; }
+.face-dialog .face-hint { margin: 0 0 .9rem; font-size: .95rem; color: var(--ink-soft); }
+.face-stage { position: relative; display: block; width: fit-content; max-width: 100%; margin: 0 auto 1rem; cursor: crosshair; line-height: 0; outline-offset: 3px; }
+.face-stage img { display: block; max-width: 100%; max-height: min(52vh, 420px); border-radius: var(--radius); user-select: none; -webkit-user-select: none; }
+.face-stage:focus-visible { outline: 2px solid var(--olive); }
+.face-dot { position: absolute; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 3px solid #fff; border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--ink), 0 2px 8px rgba(0,0,0,.4); pointer-events: none; }
+.face-cards { display: flex; gap: 1rem; align-items: flex-end; justify-content: center; margin: 0 0 1.1rem; }
+.face-card { margin: 0; text-align: center; }
+.face-card figcaption { margin-top: .3rem; font-size: .85rem; color: var(--muted); }
+.face-card-box { overflow: hidden; border: 1px solid var(--line-strong); border-radius: var(--radius); background: var(--cream); }
+.face-card.is-phone .face-card-box { width: 120px; aspect-ratio: 4 / 5; }
+.face-card.is-desk .face-card-box { width: 210px; aspect-ratio: 3 / 2; }
+.face-card-box img { display: block; width: 100%; height: 100%; object-fit: cover; }
+@media (max-width: 480px) { .face-card.is-phone .face-card-box { width: 96px; } .face-card.is-desk .face-card-box { width: 168px; } }
+/* Face on a cover with no point set yet stands out, so the step is not missed. */
+.photo .tools button.face-needed { background: var(--gold); border-color: var(--bronze); color: var(--ink); font-weight: 600; }

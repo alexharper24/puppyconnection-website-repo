@@ -39,6 +39,7 @@ import {
   checklist, checklistSummary, checklistItem, addChecklistItem, editChecklistItem, tickChecklistItem, moveChecklistItem,
   archiveChecklistItem, commentChecklistItem, addChecklistPart, editChecklistPart, tickChecklistPart, moveChecklistPart, archiveChecklistPart,
 } from '../lib/checklist.js';
+import { focusBody, focusStmt, focusBinds } from '../lib/focusedit.js';
 
 /** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
 async function listJobs(req, env) {
@@ -1110,7 +1111,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=41"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=42"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }
@@ -1400,9 +1401,24 @@ const cardKeyOf = (key) => `${key}.card`;
 const isPublicPuppy = async (env, id) => !!(await env.DB.prepare('SELECT 1 AS x FROM public_puppies WHERE id = ?').bind(id).first());
 
 async function adminPuppyPhotos(req, env, ctx, id) {
-  const { results } = await env.DB.prepare('SELECT id, position, aspect, r2_key, external_url FROM photos WHERE puppy_id = ? ORDER BY position').bind(id).all();
+  const { results } = await env.DB.prepare('SELECT id, position, aspect, r2_key, external_url, focus_x, focus_y FROM photos WHERE puppy_id = ? ORDER BY position').bind(id).all();
   // Uploaded photos come from R2 through /media; imported ones still live at their Wix address.
-  return json(results.map((r) => ({ id: r.id, position: r.position, aspect: r.aspect, url: photoUrl(r), card: r.r2_key ? `/media/${r.id}/card` : r.external_url })));
+  return json(results.map((r) => ({ id: r.id, position: r.position, aspect: r.aspect, url: photoUrl(r), card: r.r2_key ? `/media/${r.id}/card` : r.external_url, focus_x: r.focus_x, focus_y: r.focus_y })));
+}
+
+/** Tap the face (Alex, 2026-11-04), set by Puppy Connection on a breeder's photo. */
+async function adminSetPhotoFocus(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
+  if (!photo) throw notFound();
+  const f = focusBody(await readJson(req));
+  const stmts = [
+    focusStmt(env, photo, f).bind(...focusBinds(photo, f), id),
+    auditStmt(env, 'operator', who.email, 'photo.focus', 'puppy', photo.puppy_id, { photo: id, focus_x: photo.focus_x, focus_y: photo.focus_y }, { photo: id, focus_x: f.fx, focus_y: f.fy }),
+  ];
+  if (await isPublicPuppy(env, photo.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true, focus_x: f.fx, focus_y: f.fy });
 }
 
 async function adminUploadPhoto(req, env, ctx, puppyId, who) {
@@ -1547,6 +1563,7 @@ const STAFF_ALLOWED = [
   ['PUT', /^\/api\/litters\/[\w-]+$/],
   ['POST', /^\/api\/site\/publish$/],
   ['POST', /^\/api\/photos\/[\w-]+\/card$/],
+  ['PUT', /^\/api\/photos\/[\w-]+\/focus$/],
   ['DELETE', /^\/api\/photos\/[\w-]+$/],
   ['DELETE', /^\/api\/videos\/[\w-]+$/],
   // Workplan A5. Staff read and close reports. Suspending the breeder stays with the owners.
@@ -1592,6 +1609,7 @@ const ROUTES = [
   ['GET', /^\/api\/puppies\/([\w-]+)\/photos$/, adminPuppyPhotos],
   ['POST', /^\/api\/puppies\/([\w-]+)\/photos$/, adminUploadPhoto],
   ['PUT', /^\/api\/puppies\/([\w-]+)\/photo-order$/, adminOrderPhotos],
+  ['PUT', /^\/api\/photos\/([\w-]+)\/focus$/, adminSetPhotoFocus],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, adminUploadCard],
   ['DELETE', /^\/api\/photos\/([\w-]+)$/, adminDeletePhoto],
   ['GET', /^\/api\/subscribers$/, listSubscribers],

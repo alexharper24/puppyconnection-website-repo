@@ -34,8 +34,10 @@ tasks:
     found: "Phone cards of all 154 drawn at full size from the live data.js (scratchpad phone_sheet.py). The first pass passed a face that touched the edge; this pass flags any face at or past the edge: Samuel, Apple Jacks, Atlas (Cocker Spaniel), Celestia, Charlie, Dixon, Emerald, Georgia, Gunner, Jillian, Josie, Jules, Lars, Leanna, Persephone, Sabrina Jane"
     progress: "0091 by app/ops/photo_focus_hand.py from points set on a grid over each photo and checked as before and after phone crops. Backup production-2026-11-04-pre0091.sql Downloaded, rehearse PASS (16 changed, second run 0), d1-apply 1 of 1, read back 22 photo.focus audit rows today (6 + 16), Samuel 0.6, site generation 645. Charlie's right ear touches the edge of the original photo, so his card cannot show it whole"
   - id: f6-prevent
-    status: open
-    blocked_on: alex
+    status: done
+    closed: 2026-11-04
+    asked: "Alex 2026-11-04: build the tap-the-face step and add it to production"
+    evidence: "PR 146 (bd07970), portal a339549d and admin 34fc74c7 deployed from main with wrangler.production.jsonc. Live portal loads facepick.js?v=1, portal.js?v=52 and portal.css?v=42, and PUT /api/photos/x/focus answers 401 Please sign in. Locally: the access test attacks the route from another breeder (404), admin-features staff set and refused-point checks pass, the admin drawer saved a point with its audit row and publish marker, the portal opened the dialog after Make cover and after a real upload, and it fits at 390 px. Left open: the face-aware automatic point and the measuring job for photos stored without a size, which Alex has not asked for"
     item: "Prevent faces cut on the phone card: a tap-the-face step with a live card preview where the breeder sets the cover and in the admin, measuring any photo stored without a size or focus on the next run, and a face-aware automatic point. Alex decides; new build work goes to the quoting session"
 ---
 

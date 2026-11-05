@@ -99,6 +99,8 @@ async function main() {
     // C's logo and kennel photo, which stay private while C is pending.
     addPuppies: ['POST', `/api/litters/${B.litter}/puppies`, { girls: 2 }],
     duplicatePuppy: ['POST', `/api/puppies/${B.draft}/duplicate`, {}],
+    // Litter moves (4b7faf7). B's puppy split off into a new litter. A's own puppy into B's litter is checked below.
+    movePuppy: ['POST', `/api/puppies/${B.draft}/move`, { new_litter: true }],
     setAvailability: ['PUT', `/api/puppies/${B.draft}/availability`, { availability: 'placed', version: 1 }],
     brandLogo: ['GET', `/brand/${C.id}/logo`, null],
     brandKennel: ['GET', `/brand/${C.id}/kennel`, null],
@@ -156,6 +158,8 @@ async function main() {
     bDoc.length === 1 && bDoc[0].visibility === 'private');
   // Fill from a document reads the litter's breed, so B's litter answers 404 before anything is read.
   check(2, "A cannot fill a puppy form against B's litter", (await A.c.req('POST', `/api/extract?form=puppy&litter=${B.litter}`, JPG, { headers: { 'content-type': 'image/jpeg' } })).status === 404);
+  check(2, "A cannot move A's own puppy into B's litter", (await A.c.post(`/api/puppies/${A.draft}/move`, { litter_id: B.litter })).status === 404);
+  check(2, "B's puppies are all still in B's one litter", (await admin.get(`/api/breeders/${B.id}`)).data.litters.length === 1);
   check(2, "A cannot pick B's mom on A's own litter", (await A.c.put(`/api/litters/${A.litter}`, { breed_id: 'breed-havanese', mom_id: B.parent, version: 1 })).status === 404);
   check(2, "C's own logo is there, so the 404s above were the ownership rule", (await C.c.get(`/brand/${C.id}/logo`)).status === 200);
 
@@ -212,9 +216,14 @@ async function main() {
   check(7, 'the export holds no draft', !exp.data.listings.some((l) => l.puppy_name?.endsWith(' draft')));
   check(7, 'the export holds no sign-in address, status or internal field',
     ![A.email, B.email, C.email, D.email].some((e) => text.includes(e)) && !/"(status_reason|stripe_customer_id|email_verified_at|decided_by)"/.test(text));
-  sql(`UPDATE puppies SET expires_at = '2020-01-01T00:00:00Z' WHERE id = '${A.paid}'`);
+  // Matched by slug, not by name. Every run names A's paid puppy "a paid", so a puppy left live by an
+  // earlier run on the same database made this fail by name (2026-11-05).
+  const paidSlug = (await admin.get(`/api/breeders/${A.id}`)).data.litters.flatMap((l) => l.puppies).find((p) => p.id === A.paid).slug;
+  check(7, "A's paid listing is in the export before it expires", exp.data.listings.some((l) => l.slug === paidSlug), paidSlug);
+  const upd = sql(`UPDATE puppies SET expires_at = '2020-01-01T00:00:00Z' WHERE id = '${A.paid}'`);
+  if (!upd.ok) throw new Error(`could not expire the listing: ${upd.out.slice(0, 300)}`);
   const exp2 = await admin.get('/api/export');
-  check(7, 'an expired listing leaves the export even before the expiry job runs', !exp2.data.listings.some((l) => l.puppy_name === 'a paid'));
+  check(7, 'an expired listing leaves the export even before the expiry job runs', !exp2.data.listings.some((l) => l.slug === paidSlug));
 
   // 8. Admin cross-breeder operations keep the owner and are audited
   const bPaid = (await admin.get(`/api/breeders/${B.id}`)).data.litters.flatMap((l) => l.puppies).find((p) => p.id === B.paid);

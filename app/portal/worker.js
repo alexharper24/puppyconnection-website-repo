@@ -13,7 +13,7 @@ import { addSubscriber, unsubscribeToken } from '../lib/subscribers.js';
 import {
   owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
-  BRAND, facebookUrl, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
+  BRAND, extrasFields, profileMissing, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
   PUPPY_EDIT_COLS, puppySet, puppyValues, referenceFields, referenceStmt, loadReference, REFERENCE_ROLES,
 } from '../lib/store.js';
 import { sendMail, noticeTo, noticeOps, alertOps, alertOnce, failTest } from '../lib/mail.js';
@@ -907,10 +907,7 @@ async function submitProfile(request, env, ctx) {
   const body = await readJson(request);
   if (body.accept_terms !== true) throw bad('Please accept the listing terms first.');
   if (!breeder.seller_confirmed_at && body.confirm_seller !== true) throw bad(SELLER_UNTICKED);
-  const missing = [];
-  if (!breeder.business_name) missing.push('business name');
-  if (!breeder.public_phone && !breeder.public_email) missing.push('a public phone or email');
-  if (!breeder.city || !breeder.state) missing.push('city and state');
+  const missing = profileMissing(breeder);
   if (missing.length) throw bad(`Your profile still needs ${missing.join(', ')}.`);
   // Workplan A13. Sign-up cannot finish without one reference who can confirm the breeder is real.
   const ref = referenceFields(body.reference);
@@ -963,13 +960,7 @@ async function saveExtras(request, env, ctx) {
   const { breeder } = await needSession(request, env);
   requireEditableProfile(breeder);
   const body = await readJson(request);
-  const facebook = facebookUrl(body.facebook_url);
-  const ids = Array.isArray(body.breed_ids) ? [...new Set(body.breed_ids.map(String))] : [];
-  if (ids.length > 20) throw bad('Choose up to 20 breeds.');
-  if (ids.length) {
-    const { results } = await env.DB.prepare(`SELECT id FROM breeds WHERE id IN (${ids.map(() => '?').join(',')})`).bind(...ids).all();
-    if (results.length !== ids.length) throw bad('Choose breeds from the list.');
-  }
+  const { facebook_url: facebook, breed_ids: ids } = await extrasFields(env, body);
   const before = { facebook_url: breeder.facebook_url || null, breeds: (await breederBreeds(env, breeder.id)).map((b) => b.id) };
   const t = now();
   const stmts = [

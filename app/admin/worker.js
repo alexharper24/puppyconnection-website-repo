@@ -8,7 +8,7 @@ import {
 } from '../lib/util.js';
 import {
   loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithPuppies, photoUrl,
-  profileFields, profileStmt, profileBefore, noticeContactChange, breederBreeds, brandUrl, serveBrand,
+  profileFields, profileStmt, profileBefore, noticeContactChange, profileMissing, extrasFields, breederBreeds, brandUrl, serveBrand,
   litterFields, puppyFields, litterInput, puppyInput, currentTerms, contactChanges, puppySet, puppyValues, loadReference,
 } from '../lib/store.js';
 import { sendMail } from '../lib/mail.js';
@@ -20,7 +20,7 @@ import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
 import {
   kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, sendInvitation, resetAuthenticatorStmts,
-  accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES, checkMakeMain, onKennel,
+  accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES, checkMakeMain, onKennel, EMAIL_RX,
 } from '../lib/accounts.js';
 import { checkLitterParents, parentsFor, documentsFor } from '../lib/parents.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
@@ -251,6 +251,59 @@ async function decide(req, env, ctx, id, who, action) {
     }).catch((e) => console.error(e)));
   }
   return breederDetail(req, env, ctx, id);
+}
+
+/**
+ * Add a breeder from the admin (Alex, 2026-11-05), so Amber or Hope can set up a kennel and list for it
+ * the same day. The profile is checked by the portal's own rules, and the kennel starts approved with
+ * Puppy Connection access recorded as the existing management arrangement, so Manage as this breeder
+ * works at once. The breeder accepts the listing terms and confirms they are the seller themselves on
+ * first sign-in. An address may already be the main contact of other kennels (migrations/0085). The
+ * invitation goes only when the operator ticks it, and a second kennel with the same name is refused
+ * once with its name, so a double click does not make two.
+ */
+async function createBreeder(req, env, ctx, unused, who) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  const email = String(body.email || '').trim().toLowerCase();
+  if (!EMAIL_RX.test(email) || email.length > 200) throw bad('Enter a valid email address for the main contact.');
+  const f = profileFields(body);
+  const missing = profileMissing(f);
+  if (missing.length) throw bad(`The profile still needs ${missing.join(', ')}.`);
+  const x = await extrasFields(env, body);
+  if (body.invite === true) needPortal(env);
+  const same = await env.DB.prepare('SELECT b.id, p.business_name FROM breeder_profiles p JOIN breeders b ON b.id = p.breeder_id WHERE p.business_name = ? COLLATE NOCASE LIMIT 1')
+    .bind(f.business_name).first();
+  if (same && body.allow_duplicate !== true) {
+    throw new HttpError(409, `A kennel named ${same.business_name} already exists. Add this one anyway only if it is a different kennel.`, { duplicate: same.id });
+  }
+  const id = ulid();
+  const t = now();
+  const slug = await uniqueSlug(env, f.business_name, id);
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO breeders (id, email, status, profile_submitted_at, decided_at, decided_by, created_at, updated_at)
+       VALUES (?, ?, 'approved', ?, ?, ?, ?, ?)`,
+    ).bind(id, email, t, t, who.email, t, t),
+    env.DB.prepare(
+      `INSERT INTO breeder_profiles (breeder_id, business_name, slug, contact_name, public_phone, public_email, website_url, city, state, description, facebook_url, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, f.business_name, slug, f.contact_name, f.public_phone, f.public_email, f.website_url, f.city, f.state, f.description, x.facebook_url, t),
+    ...x.breed_ids.map((bid) => env.DB.prepare('INSERT INTO breeder_breeds (breeder_id, breed_id) VALUES (?, ?)').bind(id, bid)),
+    auditStmt(env, 'operator', who.email, 'breeder.create', 'breeder', id, null, { email, status: 'approved', ...f, ...x }),
+    ...accessStmts(env, id, true, { by: who.email, how: ACCESS_HOW.existing, actor: opActor(who), before: 0 }),
+    dirtyStmt(env),
+  ]);
+  // The kennel exists once the batch lands, so an invitation that fails is reported, not thrown.
+  let invited = false, inviteError = null;
+  if (body.invite === true) {
+    try {
+      await sendInvitation(env, { breeder: { id, email, business_name: f.business_name }, email, by: 'Puppy Connection', actor: opActor(who), portalOrigin: env.PORTAL_ORIGIN });
+      invited = true;
+    } catch (e) { console.error(e); inviteError = e.message || 'The invitation could not be sent.'; }
+  }
+  const out = await (await breederDetail(req, env, ctx, id)).json();
+  return json({ ...out, invited, invite_error: inviteError }, 201);
 }
 
 async function changeEmail(req, env, ctx, id, who) {
@@ -1632,6 +1685,8 @@ const STAFF_ALLOWED = [
   // The email log is owner-only (Alex, 2026-10-24), because list emails name the people on the mailing list.
   ['GET', /^\/api\/(whoami|stats|attention|listings|breeds|site|audit)$/],
   ['GET', /^\/api\/breeders(\/[\w-]+)?$/],
+  // Alex, 2026-11-05. Staff add a breeder, because Hope is staff. Manage as this breeder stays with the owners.
+  ['POST', /^\/api\/breeders$/],
   ['GET', /^\/(media|brand)\//],
   ['GET', /^\/dev\/mail$/],
   ['GET', /^\/api\/puppies\/[\w-]+\/photos$/],
@@ -1716,6 +1771,7 @@ const ROUTES = [
   ['GET', /^\/api\/whoami$/, whoami],
   ['GET', /^\/api\/stats$/, stats],
   ['GET', /^\/api\/breeders$/, listBreeders],
+  ['POST', /^\/api\/breeders$/, createBreeder],
   ['GET', /^\/api\/breeders\/([\w-]+)$/, breederDetail],
   ['POST', /^\/api\/breeders\/([\w-]+)\/(approve|decline|suspend|reinstate|reopen)$/, null],
   ['PUT', /^\/api\/breeders\/([\w-]+)\/email$/, changeEmail],

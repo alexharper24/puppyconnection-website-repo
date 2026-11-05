@@ -405,12 +405,64 @@
     var p = params(), f = p.status || '';
     Promise.all([refreshStats(), api('GET', '/api/breeders' + (f ? '?status=' + f : ''))]).then(function (r) {
       var tabs = [['', 'All'], ['status=queue', 'Waiting'], ['status=signing_up', 'Signing up'], ['status=approved', 'Approved'], ['status=suspended', 'Suspended'], ['status=declined', 'Declined'], ['status=closing', 'Asked to close']];
-      shell(head('Breeders', 'Every breeder account, including the ones imported from Wix. Open one to see their puppies, payments and history.') +
+      shell(head('Breeders', 'Every breeder account, including the ones imported from Wix. Open one to see their puppies, payments and history.',
+        '<button class="btn btn-primary" type="button" id="add-breeder">Add a breeder</button>') +
         listPanel({ id: 'breeders', find: 'Name, email or town', q: p.q, tabs: seg('breeders', f ? 'status=' + f : '', tabs, 'Breeder status') }));
+      $('#add-breeder').addEventListener('click', addBreederDrawer);
       list($('#breeders'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST,
         emptyTitle: 'No breeders here', emptyText: 'Nobody has this status right now.', wire: function (box) { wireRows(box, breederDrawer); } });
       var id = state.route.split('?')[0].split('/')[1]; if (id) breederDrawer(decodeURIComponent(id));
     });
+  }
+
+  /* Alex, 2026-11-05. An operator adds a kennel with its whole profile. It is approved at once and
+     Puppy Connection access is recorded, so Manage as this breeder works straight away. The server
+     checks the profile with the portal's own rules, and the invitation goes only when ticked. */
+  function addBreederDrawer() {
+    api('GET', '/api/breeds').then(function (breeds) {
+      openDrawer('Add a breeder', '<form id="add-form" novalidate>' +
+        '<p class="hint">The kennel is approved as soon as you add it, with Puppy Connection access recorded, so you can open it with Manage as this breeder to add litters and puppies. The breeder accepts the listing terms when they first sign in.</p>' +
+        field('email', 'Main contact email', '', { type: 'email', hint: 'The address they sign in with. It can already be the main contact of other kennels.' }) +
+        field('business_name', 'Business name', '') +
+        '<div class="grid-2">' + field('public_phone', 'Public phone', '', { type: 'tel' }) + field('public_email', 'Public email', '', { type: 'email' }) + '</div>' +
+        '<div class="grid-2">' + field('city', 'Town or city', '') + field('state', 'State', '') + '</div>' +
+        field('website_url', 'Website', '', { type: 'url', hint: 'Starts with https://' }) +
+        field('contact_name', 'Contact name', '', { hint: 'Private, for Puppy Connection only.' }) +
+        field('description', 'About their kennel', '', { textarea: true }) +
+        field('facebook_url', 'Facebook page', '', { type: 'url', hint: 'Optional. A facebook.com address.' }) +
+        '<fieldset class="breed-picks" id="add-breeds"><legend>Breeds they raise</legend>' + breeds.map(function (r) {
+          return '<label class="check"><input type="checkbox" name="breed" value="' + esc(r.id) + '"> ' + esc(r.name) + '</label>';
+        }).join('') + '</fieldset>' +
+        '<label class="check"><input type="checkbox" id="add-invite"> Email the main contact an invitation to choose a password</label>' +
+        '<p class="hint">Leave it unticked to send the invitation later from Who signs in.</p>' +
+        '<div class="btn-row"><button class="btn btn-primary" type="submit">Add breeder</button><button class="btn btn-quiet" type="button" data-cancel>Cancel</button></div></form>',
+      function (d) {
+        var f = $('#add-form', d);
+        if (window.PCPicker) window.PCPicker.checks($('#add-breeds', d), { label: 'Find a breed', none: 'No other breed matches that' });
+        $('[data-cancel]', d).addEventListener('click', closeDrawer);
+        function send(allowDuplicate) {
+          var body = formBody(f);
+          body.breed_ids = $$('input[name=breed]:checked', f).map(function (c) { return c.value; });
+          delete body.breed;
+          body.invite = $('#add-invite', d).checked;
+          if (allowDuplicate) body.allow_duplicate = true;
+          var btn = $('button[type=submit]', f); btn.disabled = true;
+          var old = $('.error', f); if (old) old.remove();
+          return api('POST', '/api/breeders', body).then(function (r) {
+            toast(r.invite_error ? 'Breeder added. The invitation was not sent: ' + r.invite_error : r.invited ? 'Breeder added and invitation sent' : 'Breeder added');
+            refreshStats();
+            location.hash = '#/breeders/' + encodeURIComponent(r.breeder.id);
+          }).catch(function (err) {
+            btn.disabled = false;
+            if (err.status === 409 && !allowDuplicate) {
+              return window.pcAsk(err.message, { yes: 'Add anyway' }).then(function (yes) { if (yes) return send(true); });
+            }
+            showError(f, err);
+          });
+        }
+        f.addEventListener('submit', function (e) { e.preventDefault(); send(false); });
+      });
+    }).catch(function (err) { toast(err.message); });
   }
 
   /* Workplan A19 and A20. A breeder's moms and dads with their health testing, and every document

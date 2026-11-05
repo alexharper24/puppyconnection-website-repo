@@ -212,6 +212,7 @@ node app/dev/google-test.mjs    # Continue with Google, against a stand-in Googl
 node app/dev/legal-staging-test.mjs     # the privacy and terms pages and the staging mode
 node app/dev/portal-features-test.mjs   # plan P2: standing, site links, extras, batches, views, account
 node app/dev/admin-features-test.mjs    # plan P3: every admin route operator-only, edits, notes, breeds, terms, publish, refunds, reports
+node app/dev/add-breeder-test.mjs       # Add a breeder from the admin (2026-11-05): the portal's profile rules, approved with access on, Manage as adds a litter and a puppy, the invitation only when ticked, a shared main contact, staff
 node app/dev/publish-test.mjs   # plan P4.3 and P4.4: the publish against a stand-in GitHub on 8798, the generator, the binding, the cron, CPU, and the generated site's Worker on 8795
 node app/dev/wix-import-test.mjs        # plan P4.7: the Wix import into a copy, with a made-up pairing and a stand-in Wix on 8797
 node app/dev/restore-test.mjs   # plan P4.8: the nightly backup restored into a fresh local database, table by table

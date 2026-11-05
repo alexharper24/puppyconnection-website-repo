@@ -1429,15 +1429,25 @@
             [['', 'Newest 200'], ['1000', 'Newest 1,000'], ['all', 'Everyone']].map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === show ? ' selected' : '') + '>' + o[1] + '</option>'; }).join('') + '</select>' +
             (d.rows.length < n(st || 'subscribed') ? '<span class="small muted" data-shown-note>Showing the newest ' + d.rows.length.toLocaleString('en-US') + ' of ' + n(st || 'subscribed').toLocaleString('en-US') + '. The filter searches only these.</span>' : '') }));
       $('#subs-show').addEventListener('change', function () { location.hash = '#/list' + (query(st, this.value) ? '?' + query(st, this.value) : ''); });
+      var draft = campaignDraft(cmp), picks = {}, picking = !!draft && !gone;
+      (draft && draft.picked || []).forEach(function (x) { picks[x] = true; });
       list($('#subs'), { rows: d.rows, text: function (s) { return [s.email, s.name].join(' '); }, pick: function (s) { return SOURCE_NAMES[s.source]; },
-        head: sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from', 'hide-sm') + sh('at', gone ? 'Unsubscribed' : st ? 'Added' : 'Joined', 'hide-sm') + (gone ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
+        head: (picking ? '<th class="act"><span class="sr">Tick for the email</span></th>' : '') + sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from', 'hide-sm') + sh('at', gone ? 'Unsubscribed' : st ? 'Added' : 'Joined', 'hide-sm') + (gone ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
         sorts: { email: function (s) { return s.email; }, name: function (s) { return s.name; }, source: function (s) { return SOURCE_NAMES[s.source]; }, at: function (s) { return gone ? s.unsubscribed_at : s.created_at; } },
         sortFirst: { at: -1 },
         row: function (s) {
-          return '<tr><td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td class="hide-sm">' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when hide-sm">' + esc(day(gone ? s.unsubscribed_at : s.created_at)) + '</td>' +
+          return '<tr>' + (picking ? '<td class="act"><input type="checkbox" data-pick-sub="' + esc(s.id) + '"' + (picks[s.id] ? ' checked' : '') + ' aria-label="Tick ' + esc(s.email) + ' for the email"></td>' : '') +
+            '<td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td class="hide-sm">' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when hide-sm">' + esc(day(gone ? s.unsubscribed_at : s.created_at)) + '</td>' +
             (gone ? '' : '<td class="act"><button class="btn btn-sm btn-quiet" data-unsub="' + esc(s.id) + '" data-email="' + esc(s.email) + '">Unsubscribe</button></td>') + '</tr>';
         },
         wire: function (box) {
+          $$('[data-pick-sub]', box).forEach(function (cb) {
+            cb.addEventListener('change', function () {
+              var body = cb.checked ? { add: [cb.dataset.pickSub] } : { remove: [cb.dataset.pickSub] };
+              api('PUT', '/api/campaigns/' + draft.id + '/picks', body).then(function (r) { if (cb.checked) picks[cb.dataset.pickSub] = true; else delete picks[cb.dataset.pickSub]; setPicked(r.selected); })
+                .catch(function (err) { cb.checked = !cb.checked; toast(err.message); });
+            });
+          });
           $$('[data-unsub]', box).forEach(function (b) {
             b.addEventListener('click', function () {
               if (!pcConfirm(b, 'Unsubscribe ' + b.dataset.email + '? They will stay off the list unless they sign up again themselves.', { yes: 'Unsubscribe', danger: true })) return;
@@ -1447,6 +1457,26 @@
         },
         emptyTitle: gone ? 'Nobody has unsubscribed' : st ? 'No contacts outside the list' : 'Nobody on the list yet', emptyText: st ? '' : 'Import the Wix list, or wait for sign-ups from the site.' });
       wireEmails(cmp);
+      // The count beside Selected people and the send button follow every tick.
+      function setPicked(n) {
+        draft.audiences.selected = n;
+        var lab = $('#aud-selected-n'); if (lab) lab.textContent = n.toLocaleString('en-US');
+        var on = $('input[name="camp-audience"]:checked'), sb = $('#camp-send');
+        if (sb && on && on.value === 'selected') sb.textContent = sendLabel(cmp, 'selected');
+      }
+      var ps = $('#pick-shown'), pc = $('#pick-clear');
+      if (ps) ps.addEventListener('click', function () {
+        var boxes = $$('#subs [data-pick-sub]').filter(function (b) { return !b.checked && b.offsetParent !== null; });
+        if (!boxes.length) { toast(picking ? 'Everyone shown is already ticked' : 'Open On the list or Never subscribed to tick people'); return; }
+        api('PUT', '/api/campaigns/' + draft.id + '/picks', { add: boxes.map(function (b) { return b.dataset.pickSub; }) })
+          .then(function (r) { boxes.forEach(function (b) { b.checked = true; picks[b.dataset.pickSub] = true; }); setPicked(r.selected); toast(plural(boxes.length, 'person', 'people') + ' ticked'); })
+          .catch(function (err) { toast(err.message); });
+      });
+      if (pc) pc.addEventListener('click', function () {
+        api('PUT', '/api/campaigns/' + draft.id + '/picks', { clear: true })
+          .then(function (r) { picks = {}; $$('#subs [data-pick-sub]').forEach(function (b) { b.checked = false; }); setPicked(r.selected); toast('Ticks cleared'); })
+          .catch(function (err) { toast(err.message); });
+      });
       $('#sub-form').addEventListener('submit', function (e) {
         e.preventDefault();
         api('POST', '/api/subscribers', { name: $('#sub-name').value, email: $('#sub-email').value }).then(function () { toast('Added'); listScreen(); })
@@ -1485,15 +1515,22 @@
   var CAMPAIGN_STATUS = { draft: 'Draft', sending: 'Sending', sent: 'Sent' };
   /* Launch workplan C5. Each send goes to subscribers only, or to every contact who has not
      unsubscribed, with the count for each shown before anything is sent. */
-  var AUDIENCE_NAMES = { subscribers: 'Subscribers', all: 'All contacts' };
-  function audienceCounts(c) { return c.audiences || { subscribers: c.subscribed, all: c.subscribed }; }
+  var AUDIENCE_NAMES = { subscribers: 'Subscribers', all: 'All contacts', selected: 'Selected people' };
+  function campaignDraft(c) { return c.campaigns.filter(function (x) { return x.status === 'draft'; })[0] || null; }
+  function audienceCounts(c) {
+    var a = c.audiences || { subscribers: c.subscribed, all: c.subscribed }, d = campaignDraft(c);
+    return { subscribers: a.subscribers, all: a.all, selected: d && d.audiences ? d.audiences.selected : 0 };
+  }
   function sendLabel(c, a) { var n = audienceCounts(c)[a]; return 'Send to ' + n.toLocaleString('en-US') + ' ' + (n === 1 ? 'person' : 'people'); }
   function audienceField(c) {
     var n = audienceCounts(c);
     return '<fieldset class="field" style="border:0;padding:0;margin:0 0 1rem;display:grid;gap:.4rem"><legend style="font-weight:600;padding:0;margin-bottom:.3rem">Send to</legend>' +
       '<label class="check"><input type="radio" name="camp-audience" value="subscribers" checked> Subscribers only, ' + n.subscribers.toLocaleString('en-US') + ' people</label>' +
       '<label class="check"><input type="radio" name="camp-audience" value="all"> All contacts who have not unsubscribed, ' + n.all.toLocaleString('en-US') + ' people</label>' +
-      '<div class="hint">All contacts adds imported contacts who never subscribed, for announcements such as the new site.</div></fieldset>';
+      // A send to selected people (Alex, 2026-11-05). The people are ticked in the list below and saved on the draft as they are ticked.
+      '<label class="check"><input type="radio" name="camp-audience" value="selected"> Selected people, <span id="aud-selected-n">' + n.selected.toLocaleString('en-US') + '</span> ticked</label>' +
+      '<div class="hint">All contacts adds imported contacts who never subscribed, for announcements such as the new site. For selected people, tick each person in the list below, using the filter to find them. Someone who unsubscribed cannot be ticked.</div>' +
+      '<div class="btn-row" style="margin-top:.2rem"><button class="btn btn-sm btn-quiet" type="button" id="pick-shown">Tick everyone on this page</button><button class="btn btn-sm btn-quiet" type="button" id="pick-clear">Clear ticks</button></div></fieldset>';
   }
   function emailsPanel(c) {
     var drafts = c.campaigns.filter(function (x) { return x.status === 'draft'; });
@@ -1542,7 +1579,7 @@
     });
     if (sbtn) sbtn.addEventListener('click', function () {
       var a = audience(), n = audienceCounts(c)[a];
-      if (!pcConfirm(sbtn, 'Send "' + $('#camp-subject').value + '" to ' + n.toLocaleString('en-US') + ' people (' + AUDIENCE_NAMES[a].toLowerCase() + ')? Save any changes first. This cannot be undone.', { yes: 'Send to the list' })) return;
+      if (!pcConfirm(sbtn, 'Send "' + $('#camp-subject').value + '" to ' + n.toLocaleString('en-US') + ' people (' + AUDIENCE_NAMES[a].toLowerCase() + ')? Save any changes first. This cannot be undone.', { yes: a === 'selected' ? 'Send to these people' : 'Send to the list' })) return;
       api('POST', '/api/campaigns/' + f.dataset.id + '/send', { audience: a, confirm_count: n }).then(function (r) { toast('Sending to ' + r.total + ' people'); listScreen(); })
         .catch(function (err) { showError(f, err); });
     });

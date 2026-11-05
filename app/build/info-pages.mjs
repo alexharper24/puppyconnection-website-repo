@@ -238,7 +238,7 @@ ${HIW_FAQ.map(([q, a]) => `<h3>${q}</h3>\n${a.map((x) => `<p>${x}</p>`).join('\n
 <ul class="includes"><li>Climate-controlled transportation</li><li>Experienced pet handlers</li><li>Regular communication and travel updates</li><li>Comfortable travel accommodations</li><li>Pickup and delivery coordination</li><li>Care throughout the journey</li></ul>
 <p>Puppy Connection does not require buyers to use Furry Freight, and transportation is arranged independently between the buyer, breeder, and transportation provider.</p>
 <p>For more information or to request a transportation quote:</p>
-<div class="btn-row"><a class="btn btn-primary" href="https://www.furryfreightdelivery.com/schedule-a-delivery" target="_blank" rel="noopener">Get a delivery quote</a><a class="btn btn-ghost" href="tel:+12605855209">Call or text (260) 585-5209</a></div>
+<div class="btn-row"><a class="btn btn-primary" href="https://static.wixstatic.com/media/8d80ac_751de6e7a72f4656bd16580adb16a9b6~mv2.png/v1/fit/w_1600,h_1600,q_90/delivery-rate-map.jpg" target="_blank" rel="noopener">See delivery rates</a><a class="btn btn-ghost" href="tel:+12605855209">Call or text (260) 585-5209</a></div>
 <p class="fine">Email <a href="mailto:furryfreightpetdelivery@gmail.com">furryfreightpetdelivery@gmail.com</a> or visit <a href="https://www.furryfreightdelivery.com/" target="_blank" rel="noopener">furryfreightdelivery.com</a>.</p>
 </div>
 </div>

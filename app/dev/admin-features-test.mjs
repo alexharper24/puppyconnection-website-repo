@@ -429,6 +429,25 @@ async function features() {
     check('the unsubscribed address gets nothing from a send to all contacts', (await mailTo(`send-gone-${stamp}@families.test`)).every((m) => m.subject !== `Announcement ${stamp}`)
       && !sql(`SELECT 1 FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id WHERE cs.campaign_id = '${aid}' AND s.status = 'unsubscribed' AND cs.status = 'sent'`).length);
     check('the campaign records that it went to all contacts', sql(`SELECT audience FROM campaigns WHERE id = '${aid}'`)[0].audience === 'all');
+
+    // A send to selected people (Alex, 2026-11-05). Only the ticked people who have not unsubscribed get it.
+    const sid = (await admin.post('/api/campaigns', { subject: `Picked ${stamp}`, body: 'Just for you.' })).data.id;
+    const idOf = (e) => sql(`SELECT id FROM subscribers WHERE email = '${e}'`)[0].id;
+    const pa = idOf(`send-a-${stamp}@families.test`), pc = idOf(`send-contact-${stamp}@families.test`), pg = idOf(`send-gone-${stamp}@families.test`);
+    r = await admin.put(`/api/campaigns/${sid}/picks`, { add: [pa, pc, pg] });
+    check('ticking three people, one unsubscribed, counts two', r.status === 200 && r.data.selected === 2, JSON.stringify(r.data));
+    const drafts = (await admin.get('/api/campaigns')).data.campaigns.filter((x) => x.id === sid)[0];
+    check('the draft lists its ticked people and the selected count', drafts.picked.length === 2 && drafts.audiences.selected === 2 && !drafts.picked.includes(pg));
+    check('a selected send refuses a count other than the ticked people', (await admin.post(`/api/campaigns/${sid}/send`, { audience: 'selected', confirm_count: 3 })).status === 400);
+    r = await admin.put(`/api/campaigns/${sid}/picks`, { remove: [pc] });
+    check('unticking someone takes them off', r.data.selected === 1);
+    r = await admin.post(`/api/campaigns/${sid}/send`, { audience: 'selected', confirm_count: 1 });
+    check('the selected send starts for the ticked person only', r.status === 200 && r.data.total === 1, JSON.stringify(r.data));
+    for (let i = 0; i < 20; i += 1) { state = sql(`SELECT status FROM campaigns WHERE id = '${sid}'`)[0]; if (state.status === 'sent') break; await sleep(500); }
+    check('the ticked person gets it and nobody else on the list does', (await mailTo(`send-a-${stamp}@families.test`)).some((m) => m.subject === `Picked ${stamp}`)
+      && (await mailTo(`send-contact-${stamp}@families.test`)).every((m) => m.subject !== `Picked ${stamp}`) && (await mailTo(`send-gone-${stamp}@families.test`)).every((m) => m.subject !== `Picked ${stamp}`));
+    check('the campaign records that it went to selected people', sql(`SELECT audience FROM campaigns WHERE id = '${sid}'`)[0].audience === 'selected');
+    check('a sent email cannot have people ticked', (await admin.put(`/api/campaigns/${sid}/picks`, { add: [pc] })).status === 400);
   }
 
   // ---------------------------------------------------------------- people and staff

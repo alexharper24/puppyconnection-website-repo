@@ -17,8 +17,10 @@ export const PER_REQUEST = 100;
 // Whom a send goes to (launch workplan C5, Alex 2026-10-19). Subscribers only, or every contact who
 // has not unsubscribed, because the list also works as a mailing service for announcements such as
 // the new site. An unsubscribed address is in neither, and the unsubscribe link in every email
-// works the same for a contact as for a subscriber.
-export const AUDIENCES = { subscribers: ['subscribed'], all: ['subscribed', 'contact'] };
+// works the same for a contact as for a subscriber. A send to selected people (migrations/0092, Alex
+// 2026-11-05) reaches the people ticked on the draft in campaign_picks who are on the list or never
+// subscribed, so ticking someone who unsubscribed never reaches them.
+export const AUDIENCES = { subscribers: ['subscribed'], all: ['subscribed', 'contact'], selected: ['subscribed', 'contact'] };
 export function audienceOf(v) {
   if (v === undefined || v === null || v === '') return 'subscribers';
   if (!AUDIENCES[v]) throw new Error(`Unknown audience ${v}.`);
@@ -26,8 +28,13 @@ export function audienceOf(v) {
 }
 const statusList = (audience) => AUDIENCES[audienceOf(audience)].map((x) => `'${x}'`).join(', ');
 
-/** How many people a send to this audience would reach now. */
-export async function audienceCount(env, audience) {
+/** How many people a send to this audience would reach now. A selected send counts the draft's picks. */
+export async function audienceCount(env, audience, campaignId) {
+  if (audienceOf(audience) === 'selected') {
+    const { n } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM campaign_picks p JOIN subscribers s ON s.id = p.subscriber_id
+      WHERE p.campaign_id = ? AND s.status IN (${statusList('selected')})`).bind(campaignId || '').first();
+    return n;
+  }
   const { n } = await env.DB.prepare(`SELECT COUNT(*) AS n FROM subscribers WHERE status IN (${statusList(audience)})`).first();
   return n;
 }
@@ -70,8 +77,12 @@ export async function startCampaign(env, id, audience = 'subscribers') {
   const t = now();
   const a = audienceOf(audience);
   const r = await env.DB.batch([
-    env.DB.prepare(`INSERT OR IGNORE INTO campaign_sends (campaign_id, subscriber_id, status)
-      SELECT ?, id, 'pending' FROM subscribers WHERE status IN (${statusList(a)})`).bind(id),
+    a === 'selected'
+      ? env.DB.prepare(`INSERT OR IGNORE INTO campaign_sends (campaign_id, subscriber_id, status)
+          SELECT ?, s.id, 'pending' FROM campaign_picks p JOIN subscribers s ON s.id = p.subscriber_id
+           WHERE p.campaign_id = ? AND s.status IN (${statusList(a)})`).bind(id, id)
+      : env.DB.prepare(`INSERT OR IGNORE INTO campaign_sends (campaign_id, subscriber_id, status)
+          SELECT ?, id, 'pending' FROM subscribers WHERE status IN (${statusList(a)})`).bind(id),
     env.DB.prepare("UPDATE campaigns SET status = 'sending', audience = ?, send_started_at = ?, updated_at = ? WHERE id = ? AND status = 'draft'").bind(a, t, t, id),
   ]);
   if (r[1].meta.changes !== 1) throw new Error('That email has already been sent or is sending.');

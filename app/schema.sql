@@ -850,8 +850,9 @@ CREATE TABLE IF NOT EXISTS campaigns (
   total           INTEGER NOT NULL DEFAULT 0,
   sent_count      INTEGER NOT NULL DEFAULT 0,
   failed_count    INTEGER NOT NULL DEFAULT 0,
-  -- migrations/0040. Subscribers only, or all contacts who have not unsubscribed.
-  audience        TEXT NOT NULL DEFAULT 'subscribers' CHECK (audience IN ('subscribers','all'))
+  -- migrations/0040. Subscribers only, or all contacts who have not unsubscribed, or (migrations/0092) the people
+  -- picked on the draft in campaign_picks.
+  audience        TEXT NOT NULL DEFAULT 'subscribers' CHECK (audience IN ('subscribers','all','selected'))
 );
 
 CREATE TABLE IF NOT EXISTS campaign_sends (
@@ -864,6 +865,14 @@ CREATE TABLE IF NOT EXISTS campaign_sends (
   PRIMARY KEY (campaign_id, subscriber_id)
 );
 CREATE INDEX IF NOT EXISTS campaign_sends_pending ON campaign_sends(campaign_id, status);
+
+-- migrations/0092. The people ticked on a draft for a send to selected people (Alex, 2026-11-05).
+CREATE TABLE IF NOT EXISTS campaign_picks (
+  campaign_id   TEXT NOT NULL REFERENCES campaigns(id),
+  subscriber_id TEXT NOT NULL REFERENCES subscribers(id),
+  picked_at     TEXT NOT NULL,
+  PRIMARY KEY (campaign_id, subscriber_id)
+);
 
 -- Launch checklist (workplan A17). The items Alex and Amber work through to go-live and the
 -- Gate 1, 2 and 3 additions. Status, owner and parts live here, and the workplan keeps the

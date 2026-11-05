@@ -1248,7 +1248,34 @@ async function listCampaigns(req, env) {
   ).all();
   // The count for each audience, shown on the send button before anything is sent (launch workplan C5).
   const n = await audienceCount(env, 'subscribers'), all = await audienceCount(env, 'all');
+  // A send to selected people (Alex, 2026-11-05). Each draft carries the ids ticked on it and how many of them a send would reach.
+  for (const c of results) {
+    if (c.status !== 'draft') continue;
+    c.picked = (await env.DB.prepare('SELECT subscriber_id FROM campaign_picks WHERE campaign_id = ?').bind(c.id).all()).results.map((r) => r.subscriber_id);
+    c.audiences = { subscribers: n, all, selected: await audienceCount(env, 'selected', c.id) };
+  }
   return json({ campaigns: results, subscribed: n, audiences: { subscribers: n, all }, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
+}
+
+/** Tick or untick people on a draft for a send to selected people. Someone who unsubscribed cannot be ticked. */
+async function pickCampaign(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const c = await draftOf(env, id);
+  if (c.status !== 'draft') throw bad('That email has been sent, so its people can no longer be changed.');
+  const body = await readJson(req);
+  const list = (v) => (Array.isArray(v) ? v.filter((x) => typeof x === 'string' && /^[\w-]{1,64}$/.test(x)) : []);
+  const add = list(body.add), remove = list(body.remove);
+  if (add.length + remove.length > 5000) throw bad('Pick up to 5,000 people at a time.');
+  const t = now();
+  const stmts = [];
+  if (body.clear === true) stmts.push(env.DB.prepare('DELETE FROM campaign_picks WHERE campaign_id = ?').bind(id));
+  for (const sid of add) {
+    stmts.push(env.DB.prepare("INSERT OR IGNORE INTO campaign_picks (campaign_id, subscriber_id, picked_at) SELECT ?, id, ? FROM subscribers WHERE id = ? AND status != 'unsubscribed'").bind(id, t, sid));
+  }
+  for (const sid of remove) stmts.push(env.DB.prepare('DELETE FROM campaign_picks WHERE campaign_id = ? AND subscriber_id = ?').bind(id, sid));
+  stmts.push(auditStmt(env, 'operator', who.email, 'campaign.picks', 'campaign', id, null, { added: add.length, removed: remove.length, cleared: body.clear === true }));
+  for (let i = 0; i < stmts.length; i += 50) await env.DB.batch(stmts.slice(i, i + 50));
+  return json({ ok: true, selected: await audienceCount(env, 'selected', id) });
 }
 
 function campaignInput(body) {
@@ -1293,6 +1320,7 @@ async function deleteCampaign(req, env, ctx, id, who) {
   const c = await draftOf(env, id);
   if (c.status !== 'draft') throw bad('A sent email stays in the list as a record.');
   await env.DB.batch([
+    env.DB.prepare('DELETE FROM campaign_picks WHERE campaign_id = ?').bind(id),
     env.DB.prepare("DELETE FROM campaigns WHERE id = ? AND status = 'draft'").bind(id),
     auditStmt(env, 'operator', who.email, 'campaign.delete', 'campaign', id, { subject: c.subject }, null),
   ]);
@@ -1313,11 +1341,11 @@ async function sendCampaign(req, env, ctx, id, who) {
   if (!(await mailingAddress(env))) throw bad('Add the mailing address first. The law on marketing email requires one in every email.');
   const body = await readJson(req);
   let audience;
-  try { audience = audienceOf(body.audience); } catch { throw bad('Choose subscribers only, or all contacts.'); }
-  const n = await audienceCount(env, audience);
-  if (!n) throw bad(audience === 'all' ? 'There are no contacts to send to.' : 'Nobody is on the list yet.');
+  try { audience = audienceOf(body.audience); } catch { throw bad('Choose subscribers only, all contacts, or selected people.'); }
+  const n = await audienceCount(env, audience, id);
+  if (!n) throw bad(audience === 'all' ? 'There are no contacts to send to.' : audience === 'selected' ? 'Tick the people to send to in the list first.' : 'Nobody is on the list yet.');
   // The count the operator saw must still be the count, so a send never reaches more people than they confirmed.
-  if (Number(body.confirm_count) !== n) throw bad(`${audience === 'all' ? 'All contacts come' : 'The list comes'} to ${n} people now. Check the number and send again.`);
+  if (Number(body.confirm_count) !== n) throw bad(`${audience === 'all' ? 'All contacts come' : audience === 'selected' ? 'The people ticked come' : 'The list comes'} to ${n} people now. Check the number and send again.`);
   const total = await startCampaign(env, id, audience);
   await auditStmt(env, 'operator', who.email, 'campaign.send', 'campaign', id, null, { subject: c.subject, audience, total }).run();
   ctx.waitUntil(runCampaigns(env).catch((e) => console.error('campaign run failed', e)));
@@ -1601,6 +1629,7 @@ const ROUTES = [
   ['DELETE', /^\/api\/campaigns\/([\w-]+)$/, deleteCampaign],
   ['POST', /^\/api\/campaigns\/([\w-]+)\/test$/, testCampaign],
   ['POST', /^\/api\/campaigns\/([\w-]+)\/send$/, sendCampaign],
+  ['PUT', /^\/api\/campaigns\/([\w-]+)\/picks$/, pickCampaign],
   ['PUT', /^\/api\/mailing-address$/, putMailingAddress],
   ['GET', /^\/api\/people$/, listPeople],
   ['POST', /^\/api\/people$/, addPerson],

@@ -108,3 +108,17 @@ export async function serveDocument(env, id, { allowPrivate = async () => false 
     },
   });
 }
+
+/**
+ * A picture in a list email (Alex, 2026-11-05), stored by the admin under email/<id>. Anyone may
+ * have it, because it went out in an email, and its id never changes its file, so it is cached for
+ * a year. Returns null when it should answer 404.
+ */
+export async function serveEmailPicture(env, id) {
+  if (!/^[0-9A-Za-z]{10,40}$/.test(String(id || ''))) return null;
+  const obj = await env.FILES.get(`email/${id}`);
+  if (!obj) return null;
+  return new Response(obj.body, {
+    headers: { 'content-type': obj.httpMetadata?.contentType || 'image/jpeg', 'cache-control': 'public, max-age=31536000, immutable' },
+  });
+}

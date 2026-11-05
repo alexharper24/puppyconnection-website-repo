@@ -40,7 +40,7 @@ import {
 import { extractFromDocument, extractRefusal } from '../lib/docextract.js';
 import { rotatePdf } from '../lib/pdfrotate.js';
 import { focusBody, focusStmt, focusBinds } from '../lib/focusedit.js';
-import { serveParentPhoto, serveDocument } from '../lib/media.js';
+import { serveParentPhoto, serveDocument, serveEmailPicture } from '../lib/media.js';
 import {
   personFor, kennelsFor, onKennel, checkMakeMain, acceptKennelStmts, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
   spendAuthToken, peekAuthToken, sendInvitation, hashPassword, checkPassword, passwordProblem, useSecondFactor, failureState,
@@ -2501,6 +2501,8 @@ const ROUTES = [
   ['POST', /^\/api\/photos\/([\w-]+)\/check$/, checkMyPhoto],
   ['GET', /^\/still-available$/, () => stillAvailablePage()],
   ['GET', /^\/media\/([\w-]+)$/, media],
+  // A picture in a list email, at the full address mail clients load (lib/campaigns.js).
+  ['GET', /^\/email-image\/([0-9A-Za-z]+)$/, async (r, e, c, id) => (await serveEmailPicture(e, id)) || new Response('Not found', { status: 404 })],
   ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id) => media(r, e, c, id, true)],
   ['POST', /^\/api\/checkouts$/, startCheckout],
   ['GET', /^\/api\/checkouts$/, myCheckouts],

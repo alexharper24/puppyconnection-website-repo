@@ -1592,9 +1592,24 @@
       '<textarea id="mail-addr" style="min-height:64px" placeholder="Street address or PO box, city, state and ZIP">' + esc(c.address || '') + '</textarea>' +
       '<div class="hint">The law on marketing email requires a postal address in every email. A PO box is fine.</div></div>' +
       '<button class="btn btn-sm" type="submit">Save address</button></form>' +
-      '<form id="camp-form" novalidate' + (edit ? ' data-id="' + esc(edit.id) + '"' : '') + '><div class="field"><label for="camp-subject">Subject</label><input id="camp-subject" type="text" maxlength="150" value="' + esc(edit ? edit.subject : '') + '"></div>' +
-      '<div class="field"><label for="camp-body">Email</label><textarea id="camp-body" style="min-height:180px">' + esc(edit ? edit.body : '') + '</textarea>' +
-      '<div class="hint">Plain text. Leave a blank line between paragraphs. The unsubscribe link and your mailing address are added at the end of every email.</div></div>' +
+      '<form id="camp-form" novalidate' + (edit ? ' data-id="' + esc(edit.id) + '"' : '') + '><div class="camp-grid"><div class="camp-write">' +
+      '<div class="field"><label for="camp-subject">Subject</label><input id="camp-subject" type="text" maxlength="150" value="' + esc(edit ? edit.subject : '') + '"></div>' +
+      '<div class="field"><label for="camp-body">Email</label>' +
+      '<div class="btn-row camp-tools"><button class="btn btn-sm" type="button" id="camp-pic">Add a picture</button><button class="btn btn-sm" type="button" id="camp-name">Add first name</button>' +
+      '<input id="camp-pic-file" type="file" accept="image/*" hidden></div>' +
+      '<div id="camp-pic-form" class="camp-pic-form" hidden><img id="camp-pic-img" alt=""><div class="field"><label for="camp-pic-alt">What the picture shows</label>' +
+      '<input id="camp-pic-alt" type="text" maxlength="200" placeholder="Two Goldendoodle puppies on a blanket"><div class="hint">Read aloud to people who cannot see pictures, and shown when an email app holds pictures back.</div></div>' +
+      '<div class="btn-row"><button class="btn btn-sm btn-primary" type="button" id="camp-pic-put">Put it in the email</button><button class="btn btn-sm btn-quiet" type="button" id="camp-pic-cancel">Cancel</button></div></div>' +
+      '<textarea id="camp-body" style="min-height:260px">' + esc(edit ? edit.body : '') + '</textarea>' +
+      '<div class="hint">Leave a blank line between paragraphs. A picture goes where its line is. {first name} becomes each person\'s first name, and anyone with no name stored gets "there", so "Hi {first name}," reads "Hi there,". To use another word, write {first name or friend}. ' +
+      (c.audiences ? Number(c.named || 0).toLocaleString('en-US') + ' of the ' + c.audiences.all.toLocaleString('en-US') + ' people you can send to have a name stored. ' : '') +
+      'The unsubscribe link and your mailing address are added at the end of every email.</div></div></div>' +
+      '<div class="camp-look" id="camp-look"><div class="camp-look-bar"><span class="camp-look-title">Preview</span>' +
+      '<div class="seg" role="group" aria-label="Preview width"><button type="button" class="on" data-look-w="phone" aria-pressed="true">Phone</button><button type="button" data-look-w="desktop" aria-pressed="false">Desktop</button></div>' +
+      '<div class="seg" role="group" aria-label="Sample person"><button type="button" class="on" data-look-n="Jordan Lee" aria-pressed="true">With a name</button><button type="button" data-look-n="" aria-pressed="false">No name stored</button></div></div>' +
+      '<p class="small muted camp-look-subj" id="camp-look-subj"></p><p class="notice notice-alert small" id="camp-look-warn" hidden></p>' +
+      '<div class="camp-frame" id="camp-frame"><iframe id="camp-iframe" title="Preview of the email" sandbox="allow-same-origin"></iframe></div>' +
+      '<p class="hint">Drawn the way the list gets it. With a name shows a sample person, Jordan Lee.</p></div></div>' +
       (edit ? audienceField(c) : '') +
       '<div class="btn-row"><button class="btn" type="submit">Save draft</button>' +
       (edit ? '<button class="btn" type="button" id="camp-test">Send me a test</button><button class="btn btn-primary" type="button" id="camp-send">' + sendLabel(c, 'subscribers') + '</button>' : '') +
@@ -1608,12 +1623,111 @@
         }).join('') + '</tbody></table></div>' : '') +
       '<p class="small muted">A large list goes out in batches of about 400 every 15 minutes, so 3,000 people take about two hours.</p></section>';
   }
+  /* The list email editor (Alex, 2026-11-05). A picture is drawn as a JPEG up to 1200 px wide on the
+     email's cream, because Outlook for Windows shows no WebP and a transparent PNG would turn black,
+     then stored and named in the email by a line of its own. The preview beside the editor is the
+     admin running the same renderer a send runs, redrawn a moment after each change. */
+  var EMAIL_PIC_EDGE = 1200;
+  function emailPicture(file) {
+    return decodeImage(file).then(function (src) {
+      var k = Math.min(1, EMAIL_PIC_EDGE / src.width), cv = document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(src.width * k)); cv.height = Math.max(1, Math.round(src.height * k));
+      var g = cv.getContext('2d'); g.fillStyle = '#f5f2ea'; g.fillRect(0, 0, cv.width, cv.height);
+      g.imageSmoothingQuality = 'high'; g.drawImage(src, 0, 0, cv.width, cv.height);
+      if (src.close) src.close();
+      return new Promise(function (ok) { cv.toBlob(function (b) { ok(b || file); }, 'image/jpeg', 0.85); });
+    }).catch(function () { return file; });
+  }
+  function insertBlock(ta, line) {
+    var v = ta.value, at = ta.selectionStart == null ? v.length : ta.selectionStart;
+    var before = v.slice(0, at).replace(/\s+$/, ''), after = v.slice(at).replace(/^\s+/, '');
+    ta.value = (before ? before + '\n\n' : '') + line + (after ? '\n\n' + after : '');
+    var pos = (before ? before.length + 2 : 0) + line.length;
+    ta.focus(); ta.setSelectionRange(pos, pos);
+  }
+  function wirePreview(f) {
+    var look = { w: 'phone', n: 'Jordan Lee' }, seq = 0, timer = null;
+    var frame = $('#camp-frame'), ifr = $('#camp-iframe');
+    var DEVICE = { phone: 375, desktop: 700 };
+    function fit() {
+      var dw = DEVICE[look.w], cw = frame.clientWidth || dw, k = Math.min(1, cw / dw);
+      ifr.style.width = dw + 'px'; ifr.style.height = '0px';
+      var doc = ifr.contentDocument, h = doc && doc.documentElement ? doc.documentElement.scrollHeight : 600;
+      ifr.style.height = h + 'px';
+      ifr.style.transform = k < 1 ? 'scale(' + k + ')' : '';
+      frame.style.height = Math.ceil(h * k) + 'px';
+      frame.dataset.width = look.w;
+    }
+    function draw() {
+      var mine = ++seq;
+      api('POST', '/api/campaign-preview', { subject: $('#camp-subject').value, body: $('#camp-body').value, name: look.n }).then(function (r) {
+        if (mine !== seq) return;
+        $('#camp-look-subj').textContent = 'Subject: ' + r.subject;
+        var warn = $('#camp-look-warn');
+        warn.hidden = !r.unknown.length;
+        warn.textContent = r.unknown.length ? r.unknown.join(', ') + ' cannot be filled in. Use {first name}, or take the braces out. The email cannot be sent until then.' : '';
+        // The same email at another width does not reload the frame, so it is only fitted again.
+        if (ifr.srcdoc === r.html) fit(); else { ifr.style.width = DEVICE[look.w] + 'px'; ifr.srcdoc = r.html; }
+      }).catch(function () {});
+    }
+    function later() { clearTimeout(timer); timer = setTimeout(draw, 350); }
+    ifr.addEventListener('load', function () {
+      fit();
+      var doc = ifr.contentDocument;
+      if (doc) Array.prototype.forEach.call(doc.images, function (im) { if (!im.complete) im.addEventListener('load', fit); });
+    });
+    window.addEventListener('resize', fit);
+    $('#camp-subject').addEventListener('input', later);
+    $('#camp-body').addEventListener('input', later);
+    function pick(attr, set) {
+      Array.prototype.forEach.call(f.querySelectorAll('[' + attr + ']'), function (b) {
+        b.addEventListener('click', function () {
+          set(b);
+          Array.prototype.forEach.call(f.querySelectorAll('[' + attr + ']'), function (x) { x.setAttribute('aria-pressed', String(x === b)); x.classList.toggle('on', x === b); });
+          draw();
+        });
+      });
+    }
+    pick('data-look-w', function (b) { look.w = b.dataset.lookW; });
+    pick('data-look-n', function (b) { look.n = b.dataset.lookN; });
+    draw();
+    return draw;
+  }
+  function wirePictures(f, redraw) {
+    var ta = $('#camp-body'), pf = $('#camp-pic-form'), input = $('#camp-pic-file'), btn = $('#camp-pic'), alt = $('#camp-pic-alt'), held = null;
+    function close() { pf.hidden = true; held = null; alt.value = ''; btn.disabled = false; $('#camp-pic-img').removeAttribute('src'); }
+    btn.addEventListener('click', function () { input.click(); });
+    input.addEventListener('change', function () {
+      var file = input.files && input.files[0];
+      input.value = '';
+      if (!file) return;
+      btn.disabled = true; btn.textContent = 'Adding the picture...';
+      emailPicture(file).then(function (blob) { return rawApi('POST', '/api/email-pictures', blob); }).then(function (r) {
+        held = r; btn.textContent = 'Add a picture';
+        $('#camp-pic-img').src = r.url;
+        pf.hidden = false; alt.focus();
+      }).catch(function (err) { btn.disabled = false; btn.textContent = 'Add a picture'; showError(ta.parentNode, err); });
+    });
+    $('#camp-pic-put').addEventListener('click', function () {
+      var words = alt.value.replace(/[{}\n]/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!words) { showError(ta.parentNode, new Error('Say what the picture shows first.')); alt.focus(); return; }
+      insertBlock(ta, '{picture ' + held.id + ': ' + words + '}');
+      close(); redraw();
+    });
+    $('#camp-pic-cancel').addEventListener('click', close);
+    $('#camp-name').addEventListener('click', function () {
+      var v = ta.value, at = ta.selectionStart == null ? v.length : ta.selectionStart, end = ta.selectionEnd == null ? at : ta.selectionEnd;
+      ta.value = v.slice(0, at) + '{first name}' + v.slice(end);
+      ta.focus(); ta.setSelectionRange(at + 12, at + 12); redraw();
+    });
+  }
   function wireEmails(c) {
     $('#addr-form').addEventListener('submit', function (e) {
       e.preventDefault();
       api('PUT', '/api/mailing-address', { address: $('#mail-addr').value }).then(function () { toast('Address saved'); listScreen(); }).catch(function (err) { showError($('#addr-form'), err); });
     });
     var f = $('#camp-form');
+    wirePictures(f, wirePreview(f));
     f.addEventListener('submit', function (e) {
       e.preventDefault();
       var body = { subject: $('#camp-subject').value, body: $('#camp-body').value };

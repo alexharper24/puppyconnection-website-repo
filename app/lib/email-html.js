@@ -112,9 +112,11 @@ function linkify(line, linkColor) {
 
 /**
  * Split plain text into blocks: { kind: 'p', lines }, { kind: 'list', lines: [{ indent, text }] }
- * and { kind: 'url', url }. A blank line ends a paragraph, as it does in the text part.
+ * and { kind: 'url', url }. A blank line ends a paragraph, as it does in the text part. A list
+ * email passes picture(line), which returns { src, alt } for a line that names a picture, and
+ * that line becomes { kind: 'img', src, alt }.
  */
-export function textBlocks(text) {
+export function textBlocks(text, { picture } = {}) {
   const blocks = [];
   for (const para of String(text).replace(/\r\n/g, '\n').split(/\n{2,}/)) {
     let cur = null;
@@ -122,6 +124,8 @@ export function textBlocks(text) {
     for (const raw of para.split('\n')) {
       if (!raw.trim()) continue;
       const line = raw.replace(/\s+$/, '');
+      const pic = picture && picture(line.trim());
+      if (pic) { flush(); blocks.push({ kind: 'img', src: pic.src, alt: pic.alt }); continue; }
       if (ONLY_URL.test(line.trim())) { flush(); blocks.push({ kind: 'url', url: line.trim() }); continue; }
       const indent = /^\s*/.exec(line)[0].length;
       const kind = indent >= 2 ? 'list' : 'p';
@@ -160,7 +164,16 @@ function button(text, href) {
 
 const P = `margin:0 0 18px;font-family:${SANS};font-size:17px;line-height:27px;color:${C.body};`;
 
+// The body column is 600 less 2 x 48 padding. A picture fills it, and shrinks with the phone layout.
+const PICTURE_WIDTH = 504;
+
 function block(b) {
+  if (b.kind === 'img') {
+    return '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:4px 0 22px;">'
+      + `<img src="${esc(b.src)}" alt="${esc(b.alt)}" width="${PICTURE_WIDTH}" `
+      + `style="display:block;border:0;outline:none;width:100%;max-width:${PICTURE_WIDTH}px;height:auto;border-radius:4px;font-family:${SANS};font-size:15px;line-height:22px;color:${C.muted};">`
+      + '</td></tr></table>';
+  }
   if (b.kind === 'p') return `<p style="${P}">${b.lines.map((l) => linkify(l, C.olive)).join('<br>')}</p>`;
   if (b.kind === 'list') {
     const base = Math.min(...b.lines.map((l) => l.indent));
@@ -266,9 +279,12 @@ function visitLabel(url) {
   try { return `Visit ${new URL(url).hostname.replace(/^www\./, '')}`; } catch { return 'Open the link'; }
 }
 
-/** The HTML part of a mailing-list email. address is empty when none is set, and is then left out. */
-export function campaignHtml({ subject, body, address, why, unsub, logoUrl }) {
-  const blocks = textBlocks(body);
+/**
+ * The HTML part of a mailing-list email. address is empty when none is set, and is then left out.
+ * picture(line) turns a line naming a picture into its full address and alt text (lib/campaigns.js).
+ */
+export function campaignHtml({ subject, body, address, why, unsub, logoUrl, picture }) {
+  const blocks = textBlocks(body, { picture });
   let opener = '';
   const first = blocks[0];
   if (first && first.kind === 'p' && first.lines.length === 1 && first.lines[0].length <= 120 && GREETING.test(first.lines[0].trim())) {

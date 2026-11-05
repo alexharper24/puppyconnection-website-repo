@@ -450,6 +450,50 @@ async function features() {
     check('a sent email cannot have people ticked', (await admin.put(`/api/campaigns/${sid}/picks`, { add: [pc] })).status === 400);
   }
 
+  // ---------------------------------------------------------------- the list email editor (Alex, 2026-11-05)
+  {
+    const stamp = Date.now().toString(36);
+    let r = await admin.req('POST', '/api/email-pictures', JPG, { headers: { 'content-type': 'image/jpeg' } });
+    const pic = r.data;
+    check('an owner adds a picture for an email, and gets its full address on the portal', r.status === 201 && /^[0-9A-Z]{26}$/.test(pic.id || '') && pic.url === `${PORTAL}/email-image/${pic.id}`, JSON.stringify(r.data));
+    const served = await fetch(pic.url);
+    const bytes = new Uint8Array(await served.arrayBuffer());
+    check('the portal serves the picture to anyone, as a JPEG cached for a year', served.status === 200 && served.headers.get('content-type') === 'image/jpeg'
+      && /max-age=31536000/.test(served.headers.get('cache-control') || '') && bytes.length > 1000, `${served.status} ${served.headers.get('content-type')} ${served.headers.get('cache-control')}`);
+    check('the stored picture has no GPS metadata', !Buffer.from(bytes).includes(Buffer.from('GPS')));
+    check('a picture that does not exist answers 404', (await fetch(`${PORTAL}/email-image/01JZZZZZZZZZZZZZZZZZZZZZZZ`)).status === 404);
+    const webp = new Uint8Array([0x52, 0x49, 0x46, 0x46, 0x1a, 0, 0, 0, 0x57, 0x45, 0x42, 0x50, 0x56, 0x50, 0x38, 0x4c, 0x0d, 0, 0, 0, 0x2f, 0, 0, 0, 0x10, 0x07, 0x10, 0x11, 0x11, 0x88, 0x88, 0xfe, 0x07, 0]);
+    check('a WebP picture is refused, because Outlook cannot show it', (await admin.req('POST', '/api/email-pictures', webp, { headers: { 'content-type': 'image/webp' } })).status === 400);
+    check('a file that is not a picture is refused', (await admin.req('POST', '/api/email-pictures', new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]), { headers: { 'content-type': 'image/jpeg' } })).status === 400);
+    const page = await fetch(`${ADMIN}/`, { headers: { accept: 'text/html' } });
+    check('the admin page lets the preview load pictures from the portal', (page.headers.get('content-security-policy') || '').includes(`img-src 'self' ${new URL(PORTAL).origin}`), page.headers.get('content-security-policy'));
+
+    const body = `Hi {first name}, we have news.\n\n{picture ${pic.id}: Two puppies on a blanket}\n\nCome and see them.`;
+    r = await admin.post('/api/campaign-preview', { subject: `For {first name} ${stamp}`, body, name: 'jordan lee' });
+    check('the preview fills in the sample first name in the subject and the greeting', r.status === 200 && r.data.subject === `For Jordan ${stamp}` && r.data.html.includes('Hi Jordan, we have news.'), JSON.stringify(r.data).slice(0, 200));
+    check('the preview shows the picture at its portal address with its alt text', r.data.html.includes(`src="${pic.url}"`) && r.data.html.includes('alt="Two puppies on a blanket"'));
+    check('the preview text part names the picture and keeps the unsubscribe link', r.data.text.includes('[Picture: Two puppies on a blanket]') && /unsubscribe\?t=/.test(r.data.text));
+    r = await admin.post('/api/campaign-preview', { subject: 'x', body, name: '' });
+    check('with no name stored the preview says "there"', r.data.html.includes('Hi there, we have news.'));
+    r = await admin.post('/api/campaign-preview', { subject: 'x', body: 'Dear {last name}' });
+    check('the preview reports a field it cannot fill in', JSON.stringify(r.data.unknown) === '["{last name}"]');
+
+    r = await admin.post('/api/campaigns', { subject: `Pictures ${stamp}`, body });
+    const pid = r.data.id;
+    r = await admin.post(`/api/campaigns/${pid}/test`, {});
+    const test = (await mailTo('amber@puppyconnection.test')).find((m) => m.subject === `[Test] Pictures ${stamp}`);
+    const opName = sql("SELECT name FROM people WHERE email = 'amber@puppyconnection.test'")[0].name.split(/\s+/)[0];
+    check('a test copy greets the owner by their own first name and names the picture', r.status === 200 && !!test && test.body.includes(`Hi ${opName}, we have news.`) && test.body.includes('[Picture: Two puppies on a blanket]'), JSON.stringify(test || {}).slice(0, 200));
+    await admin.put(`/api/campaigns/${pid}`, { subject: `Pictures ${stamp}`, body: 'Dear {last name}, hello.' });
+    r = await admin.post(`/api/campaigns/${pid}/test`, {});
+    check('a test is refused while the email has a field it cannot fill in', r.status === 400 && /\{last name\}/.test(r.data.error || ''), JSON.stringify(r.data));
+    check('a send is refused for the same reason', (await admin.post(`/api/campaigns/${pid}/send`, { confirm_count: 1 })).status === 400);
+    await admin.put(`/api/campaigns/${pid}`, { subject: `Pictures ${stamp}`, body: '{picture 01JYYYYYYYYYYYYYYYYYYYYYYY: Gone}\n\nHello.' });
+    r = await admin.post(`/api/campaigns/${pid}/test`, {});
+    check('a test is refused while a picture it names is missing', r.status === 400 && /picture/i.test(r.data.error || ''), JSON.stringify(r.data));
+    await admin.req('DELETE', `/api/campaigns/${pid}`);
+  }
+
   // ---------------------------------------------------------------- people and staff
   {
     const stamp = Date.now().toString(36);

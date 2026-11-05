@@ -35,6 +35,11 @@ tasks:
     closed: 2026-11-05
     evidence: "PR 150 squashed to f0e924e and deployed from main with wrangler.production.jsonc after the history showed the PR 148 versions as the latest: portal c9fcbcf7, admin fa4b99e9. portal.puppy-connection.com serves portal.js?v=53 with both new banner lines; the admin is behind Access, so its read-back is the version id. No breeder was created in production"
     item: "PR, merge, deploy portal and admin from main with wrangler.production.jsonc, read back that the route answers"
+  - id: a7-staff-manage
+    status: done
+    closed: 2026-11-05
+    evidence: "PR 157 (4f541a8) deployed from main after the history showed the list email editor version cbf10864 as the latest: admin c53c0eea. add-breeder-test 42 of 42 and admin-features 148 of 148 locally"
+    item: "Staff use Manage as this breeder (Alex approved 2026-11-05)"
 ---
 
 # Add a breeder from the admin, 2026-11-05

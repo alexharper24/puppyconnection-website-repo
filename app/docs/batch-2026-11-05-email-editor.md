@@ -32,7 +32,9 @@ tasks:
     evidence: "admin-features 148 passed 0 failed, email-html 298 passed 0 failed, run against this worktree on 8767 and 8768 because 8787 and 8788 were serving another worktree. jobs-test failed 5 for the environment only, as its link check reached Teapup on 8791 and the fresh database had never run four of the jobs"
     item: "Checks in dev/admin-features-test.mjs and dev/email-html-test.mjs, and a look in the Browser pane against the local admin on 8788"
   - id: e5-ship
-    status: pending
+    status: done
+    closed: 2026-11-05
+    evidence: "PR 152 (dd65f93) from main, after merging main's add-a-breeder change and moving admin.js to v=60. Portal 469ae01f, admin cbf10864, both with wrangler.production.jsonc. Read back: portal.puppy-connection.com/email-image/<unknown id> answers 404 from the new route. The admin sits behind Access, so the editor itself was not opened on production. No migration, so no database change"
     item: "Merge to main, deploy the portal and the admin with wrangler.production.jsonc, read back the image address and the preview on production"
 ---
 

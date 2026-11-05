@@ -31,7 +31,8 @@ import { provider, handleEvent } from '../lib/payments.js';
 import { siteStatus, publishNow } from '../lib/publish.js';
 import { csvResponse } from '../lib/csv.js';
 import { addSubscriber, parseSubscriberCsv, readSubscriberRows, EMAIL_OK } from '../lib/subscribers.js';
-import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest, audienceCount, audienceOf } from '../lib/campaigns.js';
+import { mailingAddress, startCampaign, runCampaigns, sendCampaignTest, audienceCount, audienceOf, renderCampaign, unknownFields, pictureIds, ADDRESS_NOT_SET } from '../lib/campaigns.js';
+import { emailLogoUrl } from '../lib/email-html.js';
 import { cleanImage } from '../lib/images.js';
 import { randomToken } from '../lib/util.js';
 import { resetDemo, demoResetAllowed, RESET_PHRASE } from '../lib/demo.js';
@@ -1254,7 +1255,9 @@ async function listCampaigns(req, env) {
     c.picked = (await env.DB.prepare('SELECT subscriber_id FROM campaign_picks WHERE campaign_id = ?').bind(c.id).all()).results.map((r) => r.subscriber_id);
     c.audiences = { subscribers: n, all, selected: await audienceCount(env, 'selected', c.id) };
   }
-  return json({ campaigns: results, subscribed: n, audiences: { subscribers: n, all }, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
+  // How many of everyone reachable have a name stored, so the editor can say how many get the {first name} fallback.
+  const { named } = await env.DB.prepare("SELECT COUNT(*) AS named FROM subscribers WHERE status IN ('subscribed', 'contact') AND TRIM(COALESCE(name, '')) != ''").first();
+  return json({ campaigns: results, subscribed: n, audiences: { subscribers: n, all }, named, address: await mailingAddress(env), email_mode: env.EMAIL_MODE || 'off' });
 }
 
 /** Tick or untick people on a draft for a send to selected people. Someone who unsubscribed cannot be ticked. */
@@ -1327,10 +1330,23 @@ async function deleteCampaign(req, env, ctx, id, who) {
   return json({ ok: true });
 }
 
+/**
+ * What stops an email going out as written (Alex, 2026-11-05): a field in braces the send cannot
+ * fill in, or a picture whose file is not in R2. Checked before a test and before a send.
+ */
+async function readyToSend(env, c) {
+  const unknown = unknownFields(c.subject, c.body);
+  if (unknown.length) throw bad(`${unknown.join(', ')} cannot be filled in. Use {first name}, or take the braces out.`);
+  for (const pid of pictureIds(c.body)) {
+    if (!(await env.FILES.head(`email/${pid}`))) throw bad('A picture in the email is missing. Remove its line and add the picture again.');
+  }
+}
+
 async function testCampaign(req, env, ctx, id, who) {
   requireSameOrigin(req);
   const c = await draftOf(env, id);
-  await sendCampaignTest(env, c, who.email);
+  await readyToSend(env, c);
+  await sendCampaignTest(env, c, who.email, who.person && who.person.name);
   return json({ ok: true, to: who.email });
 }
 
@@ -1339,6 +1355,7 @@ async function sendCampaign(req, env, ctx, id, who) {
   const c = await draftOf(env, id);
   if (c.status !== 'draft') throw bad('That email has already been sent or is sending.');
   if (!(await mailingAddress(env))) throw bad('Add the mailing address first. The law on marketing email requires one in every email.');
+  await readyToSend(env, c);
   const body = await readJson(req);
   let audience;
   try { audience = audienceOf(body.audience); } catch { throw bad('Choose subscribers only, all contacts, or selected people.'); }
@@ -1350,6 +1367,40 @@ async function sendCampaign(req, env, ctx, id, who) {
   await auditStmt(env, 'operator', who.email, 'campaign.send', 'campaign', id, null, { subject: c.subject, audience, total }).run();
   ctx.waitUntil(runCampaigns(env).catch((e) => console.error('campaign run failed', e)));
   return json({ ok: true, total });
+}
+
+/**
+ * A picture for a list email (Alex, 2026-11-05). The browser draws it as a JPEG up to 1200 px wide,
+ * because Outlook for Windows shows no WebP. It is stored in R2 under email/<id> with no table row,
+ * since the email's own text names it, and the portal serves it to mail clients at /email-image/<id>.
+ */
+const EMAIL_PICTURE_BYTES = 4 * 1024 * 1024;
+const EMAIL_PICTURE_EDGE = 2400;
+async function uploadEmailPicture(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const raw = new Uint8Array(await req.arrayBuffer());
+  if (raw.length > EMAIL_PICTURE_BYTES) throw bad('A picture for an email can be up to 4 MB.');
+  const img = cleanImage(raw);
+  if (img.type === 'image/webp') throw bad('Pictures in an email must be JPEG or PNG, because Outlook cannot show WebP.');
+  if (img.size && Math.max(img.size.w, img.size.h) > EMAIL_PICTURE_EDGE) throw bad(`A picture for an email can be up to ${EMAIL_PICTURE_EDGE} pixels on its longest side.`);
+  const pid = ulid();
+  await env.FILES.put(`email/${pid}`, img.bytes, { httpMetadata: { contentType: img.type } });
+  await auditStmt(env, 'operator', who.email, 'campaign.picture', 'email_picture', pid, null, { bytes: img.bytes.length, type: img.type }).run();
+  return json({ id: pid, url: `${String(env.PORTAL_ORIGIN || '').replace(/\/+$/, '')}/email-image/${pid}`, width: img.size ? img.size.w : null, height: img.size ? img.size.h : null }, 201);
+}
+
+/**
+ * The live preview beside the editor. It runs the same renderCampaign a send runs, with a sample
+ * name or none, so what Amber sees is what the list gets. Nothing is saved or sent.
+ */
+async function previewCampaign(req, env) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  const c = { subject: String(body.subject || '').slice(0, 150) || '(no subject yet)', body: String(body.body || '').slice(0, 20000) };
+  const address = await mailingAddress(env);
+  const msg = renderCampaign(c, { token: 'preview', portalOrigin: env.PORTAL_ORIGIN || '', address: address || ADDRESS_NOT_SET,
+    status: body.status === 'contact' ? 'contact' : 'subscribed', logoUrl: emailLogoUrl(env), name: String(body.name || '').slice(0, 100) });
+  return json({ subject: msg.subject, html: msg.html, text: msg.text, unknown: unknownFields(c.subject, c.body) });
 }
 
 async function putMailingAddress(req, env, ctx, id, who) {
@@ -1600,6 +1651,19 @@ const STAFF_ALLOWED = [
   ['POST', /^\/api\/photo-review\/[\w-]+\/(keep|send_back)$/],
   ['POST', /^\/api\/listing-reports\/[\w-]+\/(handled|dismissed)$/],
 ];
+// The admin's pages may show pictures from the portal and the email logo from the public site,
+// because the list email preview loads both from the same public addresses the email uses (Alex,
+// 2026-11-05). Only a clean origin is added.
+function pageHeaders(env) {
+  const extra = [];
+  for (const u of [env.PORTAL_ORIGIN, emailLogoUrl(env)]) {
+    let origin = '';
+    try { origin = new URL(u || '').origin; } catch { /* not set */ }
+    if (/^https?:\/\/[\w.:-]+$/.test(origin) && !extra.includes(origin)) extra.push(origin);
+  }
+  if (!extra.length) return SECURITY_HEADERS;
+  return { ...SECURITY_HEADERS, 'content-security-policy': SECURITY_HEADERS['content-security-policy'].replace("img-src 'self'", `img-src 'self' ${extra.join(' ')}`) };
+}
 const staffMay = (method, pathname) => STAFF_ALLOWED.some(([m, rx]) => m === method && rx.test(pathname));
 
 const ROUTES = [
@@ -1630,6 +1694,8 @@ const ROUTES = [
   ['POST', /^\/api\/campaigns\/([\w-]+)\/test$/, testCampaign],
   ['POST', /^\/api\/campaigns\/([\w-]+)\/send$/, sendCampaign],
   ['PUT', /^\/api\/campaigns\/([\w-]+)\/picks$/, pickCampaign],
+  ['POST', /^\/api\/campaign-preview$/, previewCampaign],
+  ['POST', /^\/api\/email-pictures$/, uploadEmailPicture],
   ['PUT', /^\/api\/mailing-address$/, putMailingAddress],
   ['GET', /^\/api\/people$/, listPeople],
   ['POST', /^\/api\/people$/, addPerson],
@@ -1728,7 +1794,7 @@ export default {
       }
       if (url.pathname.startsWith('/api/')) throw notFound();
       const asset = await env.ASSETS.fetch(new Request(new URL(url.pathname === '/' ? '/index.html' : url.pathname, url), request));
-      const out = withHeaders(asset, SECURITY_HEADERS);
+      const out = withHeaders(asset, pageHeaders(env));
       // Alex, 2026-11-01. An operator's browser is Puppy Connection's own: the public site reads this cookie
       // to keep its visits out of Google Analytics reports and the breeders' view and click counts.
       if (url.hostname.endsWith('puppy-connection.com') && (url.pathname === '/' || url.pathname.endsWith('.html'))) {

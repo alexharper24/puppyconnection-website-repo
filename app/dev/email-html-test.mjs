@@ -15,7 +15,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { TEMPLATES } from '../lib/mail.js';
 import { TEMPLATE_HTML, CONTACT, emailLogoUrl, esc, templateHtml } from '../lib/email-html.js';
-import { renderCampaign, ADDRESS_NOT_SET } from '../lib/campaigns.js';
+import { renderCampaign, ADDRESS_NOT_SET, firstName, personalize, unknownFields, pictureIds } from '../lib/campaigns.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(HERE, '..');
@@ -155,6 +155,26 @@ check('a test copy with no address set shows no placeholder in the HTML', NO_PLA
 fs.mkdirSync(SAMPLES, { recursive: true });
 fs.writeFileSync(path.join(SAMPLES, 'password-reset.html'), rendered.password_reset);
 fs.writeFileSync(path.join(SAMPLES, 'invitation.html'), rendered.invitation);
+// The editor's pictures and first name (Alex, 2026-11-05).
+const NAMES = [['', ''], ['mary smith', 'Mary'], ['MARY', 'Mary'], ['Smith, Mary', 'Mary'], ['Mrs. Smith', ''], ['J. Smith', ''], ['McKenzie Lee', 'McKenzie'], ['bob@example.com', ''], ['  Ana  ', 'Ana']];
+for (const [n, want] of NAMES) check(`first name of ${JSON.stringify(n)} is ${JSON.stringify(want)}`, firstName(n) === want, firstName(n));
+check('{first name} falls back to "there" and {first name or friend} to its own word', personalize('Hi {first name}, {First Name or friend}', '') === 'Hi there, friend');
+check('{first name} is filled from a full name', personalize('Hi {first name},', 'jordan lee') === 'Hi Jordan,');
+check('an unknown field is reported, a picture line is not', JSON.stringify(unknownFields('Hi {last name}', '{picture 01JAAAAAAAAAAAAAAAAAAAAAAA: A pup}')) === '["{last name}"]');
+const PIC_ID = '01JBBBBBBBBBBBBBBBBBBBBBBB';
+const withPic = { subject: 'News for {first name}', body: `Hi {first name}, we have news.\n\n{picture ${PIC_ID}: Two puppies on a "blanket" <b>}\n\nMore words.` };
+check('pictureIds finds the picture', JSON.stringify(pictureIds(withPic.body)) === JSON.stringify([PIC_ID]));
+const named = renderCampaign(withPic, { token: 't4', portalOrigin: P, address: ADDR, logoUrl: LOGO, name: 'Jordan Lee' });
+const unnamed = renderCampaign(withPic, { token: 't5', portalOrigin: P, address: ADDR, logoUrl: LOGO, name: '' });
+check('the subject is personalized', named.subject === 'News for Jordan' && unnamed.subject === 'News for there');
+check('the greeting becomes the opener with the first name', named.html.includes('Hi Jordan, we have news.') && unnamed.html.includes('Hi there, we have news.'));
+check('the picture is an img at its full https address on the portal', named.html.includes(`src="${P}/email-image/${PIC_ID}"`) && P.startsWith('https://'));
+check('the picture alt text is escaped', named.html.includes('alt="Two puppies on a &quot;blanket&quot; &lt;b&gt;"'));
+check('the picture keeps the 504 px column width', /<img src="[^"]*email-image[^"]*" alt="[^"]*" width="504" style="[^"]*max-width:504px/.test(named.html));
+check('the text part names the picture and never shows the field', named.text.includes('[Picture: Two puppies on a "blanket" <b>]') && !/\{picture|\{first name/i.test(named.text + named.html));
+check('the text part keeps the address and the unsubscribe link', named.text.includes(ADDR) && named.text.includes('/unsubscribe'));
+check('the html part keeps the unsubscribe link and the headers', named.html.includes('unsubscribe here') && named.headers['List-Unsubscribe'].includes('t4'));
+
 fs.writeFileSync(path.join(SAMPLES, 'mailing-list.html'), renderCampaign(SAMPLE, { token: 'sample-unsubscribe-token', portalOrigin: P, address: '', logoUrl: LOGO }).html);
 console.log(`\nwrote ${path.relative(APP, SAMPLES)}/password-reset.html, invitation.html, mailing-list.html`);
 

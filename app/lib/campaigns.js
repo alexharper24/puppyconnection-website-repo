@@ -52,20 +52,85 @@ export async function mailingAddress(env) {
 // address out instead, because Alex took the postal-address placeholder out of the design (2026-10-25).
 export const ADDRESS_NOT_SET = '(mailing address not set yet)';
 
+// ---------- what the editor lets Amber write (Alex, 2026-11-05) ----------
+//
+// The editor shows plain words in braces, never code. {first name} is the first word of the
+// person's stored name, and {first name or friend} names the word used when no name is stored.
+// A picture is a line of its own, {picture <id>: what the picture shows}, where the id names the
+// file the admin stored in R2 under email/<id> and the words after the colon are its alt text.
+// The portal serves it at PORTAL_ORIGIN/email-image/<id>, a full https address a mail client can
+// load. A picture is never deleted, because a sent email keeps pointing at it.
+
+export const NAME_FALLBACK = 'there';
+const FIRST_NAME = /\{\s*first name(?:\s+or\s+([^{}\n]{1,40}?))?\s*\}/gi;
+const PICTURE = /^\{\s*picture\s+([0-9A-Za-z]{10,40})\s*:\s*([^{}\n]{0,300}?)\s*\}$/i;
+const ANY_FIELD = /\{[^{}\n]{0,80}\}/g;
+const TITLES = /^(mr|mrs|ms|miss|mx|dr)\.?$/i;
+
+/** The first name to greet someone by, from a stored name that may be empty or a full name. '' when there is none. */
+export function firstName(name) {
+  let s = String(name || '').trim();
+  if (!s || s.includes('@')) return '';
+  // "Smith, Mary", as some exports write it.
+  if (/^[^,\s]+,\s*\S/.test(s)) s = s.slice(s.indexOf(',') + 1).trim();
+  const word = s.split(/\s+/)[0];
+  if (TITLES.test(word)) return '';
+  const w = word.replace(/[^\p{L}'\u2019-]/gu, '');
+  if (w.replace(/[^\p{L}]/gu, '').length < 2) return '';
+  // "mary" and "MARY" read as Mary. A name already in mixed case, such as McKenzie, keeps its own.
+  if (w !== w.toLowerCase() && w !== w.toUpperCase()) return w;
+  return w.toLowerCase().replace(/(^|[-'\u2019])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
+}
+
+/** Fill in {first name} for one person. */
+export function personalize(text, name) {
+  const first = firstName(name);
+  return String(text).replace(FIRST_NAME, (m, alt) => first || (alt ? alt.trim() : NAME_FALLBACK));
+}
+
+/** The picture a line names, as { id, alt }, or null. */
+export function pictureLine(line) {
+  const m = PICTURE.exec(String(line).trim());
+  return m ? { id: m[1], alt: m[2].trim() } : null;
+}
+
+/** Every picture id the email names, so a send can check each file is there. */
+export function pictureIds(body) {
+  return String(body).split(/\r?\n/).map(pictureLine).filter(Boolean).map((p) => p.id);
+}
+
+export function pictureUrl(portalOrigin, id) { return `${String(portalOrigin || '').replace(/\/+$/, '')}/email-image/${id}`; }
+
+/** Anything in braces the email cannot fill in, such as {last name}, so the editor can say so before it goes out. */
+export function unknownFields(...texts) {
+  const out = [];
+  for (const t of texts) {
+    for (const line of String(t || '').split(/\r?\n/)) {
+      if (pictureLine(line)) continue;
+      for (const m of line.replace(FIRST_NAME, '').matchAll(ANY_FIELD)) if (!out.includes(m[0])) out.push(m[0]);
+    }
+  }
+  return out;
+}
+
 /**
- * The email one person receives. status is theirs on the list, which sets the reason line. The
- * text part is unchanged and the html part is design B (lib/email-html.js), with the author's own
- * greeting shown as the opening line when the email starts with one.
+ * The email one person receives. status is theirs on the list, which sets the reason line, and
+ * name is their stored name, for {first name}. The text part says what each picture shows, and
+ * the html part is design B (lib/email-html.js) with each picture at its full address, and with
+ * the author's own greeting shown as the opening line when the email starts with one.
  */
-export function renderCampaign(c, { token, portalOrigin, address, status = 'subscribed', logoUrl }) {
+export function renderCampaign(c, { token, portalOrigin, address, status = 'subscribed', logoUrl, name = '' }) {
   const unsub = unsubscribeUrl(portalOrigin, token);
-  const body = String(c.body).replace(/\r\n/g, '\n').trim();
+  const body = personalize(String(c.body).replace(/\r\n/g, '\n').trim(), name);
+  const subject = personalize(c.subject, name);
   const why = status === 'contact' ? "You're getting this because you have been in touch with Puppy Connection." : "You're getting this because you signed up for Puppy Connection emails.";
-  const text = `${body}\n\n--\nPuppy Connection\n${address}\n\n${why} `
+  const textBody = body.split('\n').map((l) => { const p = pictureLine(l); return p ? (p.alt ? `[Picture: ${p.alt}]` : '[Picture]') : l; }).join('\n');
+  const text = `${textBody}\n\n--\nPuppy Connection\n${address}\n\n${why} `
     + `To stop getting them, open this link:\n${unsub}\n`;
-  const html = campaignHtml({ subject: c.subject, body, address: address === ADDRESS_NOT_SET ? '' : address, why, unsub, logoUrl });
+  const picture = (line) => { const p = pictureLine(line); return p ? { src: pictureUrl(portalOrigin, p.id), alt: p.alt } : null; };
+  const html = campaignHtml({ subject, body, address: address === ADDRESS_NOT_SET ? '' : address, why, unsub, logoUrl, picture });
   return {
-    subject: c.subject,
+    subject,
     text,
     html,
     headers: { 'List-Unsubscribe': `<${unsub}>`, 'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click' },
@@ -131,7 +196,7 @@ export async function runCampaigns(env, { batches = BATCHES } = {}) {
     let sent = 0, failed = 0, skipped = 0;
     while (left > 0) {
       const { results: rows } = await env.DB.prepare(
-        `SELECT cs.subscriber_id, s.email, s.status, s.unsub_token FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id
+        `SELECT cs.subscriber_id, s.email, s.name, s.status, s.unsub_token FROM campaign_sends cs JOIN subscribers s ON s.id = cs.subscriber_id
           WHERE cs.campaign_id = ? AND cs.status = 'pending' LIMIT ?`,
       ).bind(c.id, PER_REQUEST).all();
       if (!rows.length) break;
@@ -141,7 +206,7 @@ export async function runCampaigns(env, { batches = BATCHES } = {}) {
       const may = AUDIENCES[audienceOf(c.audience)];
       const go = rows.filter((r) => may.includes(r.status) && (!allow.length || allow.includes(r.email.toLowerCase())));
       const skip = rows.filter((r) => !go.includes(r));
-      const results = go.length ? await deliver(env, go.map((r) => ({ to: r.email, ...renderCampaign(c, { token: r.unsub_token, portalOrigin, address, status: r.status, logoUrl }) }))) : [];
+      const results = go.length ? await deliver(env, go.map((r) => ({ to: r.email, ...renderCampaign(c, { token: r.unsub_token, portalOrigin, address, status: r.status, logoUrl, name: r.name }) }))) : [];
       const stmts = [
         ...go.map((r, i) => env.DB.prepare('UPDATE campaign_sends SET status = ?, provider_id = ?, error = ?, sent_at = ? WHERE campaign_id = ? AND subscriber_id = ?')
           .bind(results[i].ok ? 'sent' : 'failed', results[i].id || null, results[i].error || null, t, c.id, r.subscriber_id)),
@@ -162,10 +227,10 @@ export async function runCampaigns(env, { batches = BATCHES } = {}) {
   return out;
 }
 
-/** A test copy to one address, the operator's own, marked as a test in the subject. */
-export async function sendCampaignTest(env, c, to) {
+/** A test copy to one address, the operator's own, marked as a test in the subject, greeting them by their own name. */
+export async function sendCampaignTest(env, c, to, name = '') {
   const address = await mailingAddress(env);
-  const msg = renderCampaign(c, { token: 'test-copy', portalOrigin: env.PORTAL_ORIGIN || '', address: address || ADDRESS_NOT_SET, logoUrl: emailLogoUrl(env) });
+  const msg = renderCampaign(c, { token: 'test-copy', portalOrigin: env.PORTAL_ORIGIN || '', address: address || ADDRESS_NOT_SET, logoUrl: emailLogoUrl(env), name });
   const [r] = await deliver(env, [{ to, ...msg, subject: `[Test] ${msg.subject}` }]);
   if (!r.ok) throw new Error('The email service refused the test copy.');
   return r;

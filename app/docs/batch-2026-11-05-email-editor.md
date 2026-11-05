@@ -32,8 +32,9 @@ tasks:
     evidence: "admin-features 148 passed 0 failed, email-html 298 passed 0 failed, run against this worktree on 8767 and 8768 because 8787 and 8788 were serving another worktree. jobs-test failed 5 for the environment only, as its link check reached Teapup on 8791 and the fresh database had never run four of the jobs"
     item: "Checks in dev/admin-features-test.mjs and dev/email-html-test.mjs, and a look in the Browser pane against the local admin on 8788"
   - id: e6-gmail-test
-    status: open
-    blocked_on: alex
+    status: done
+    closed: 2026-11-05
+    evidence: "Alex 2026-11-05, after opening the test copy in Gmail: Looks right"
     asked: "Alex 2026-11-05: Send me a test"
     sent: "2026-11-05T20:09:24Z to alex24harper@gmail.com through the production admin, Resend id 01a1ad54-97aa-7eff-8453-804007d53b84. The draft held {first name} in the subject and greeting and one picture, email-image/01M6PN7ZXX8W4P2AF6PX1AZXQT (200 image/jpeg, 113,255 bytes, one-year cache). The draft was deleted afterwards and production holds no campaigns"
     item: "Alex confirms in Gmail that the picture shows, the greeting reads Hi Alex, and the layout holds on phone and desktop"

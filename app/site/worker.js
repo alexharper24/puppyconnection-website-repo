@@ -13,6 +13,7 @@
 import { gate, json } from '../lib/util.js';
 import { buildExport, siteDataJs } from '../lib/export.js';
 import { recordBeacon } from '../lib/stats.js';
+import { reportDaily } from '../lib/report-daily.js';
 import { serveBrand } from '../lib/store.js';
 
 // data.js is built from several queries, and every page loads it. One build is kept per
@@ -93,6 +94,7 @@ export default {
       const m = url.pathname.match(/^\/media\/([\w-]+)(?:\/(card|share))?$/);
       if (m) return await media(env, m[1], m[2] === 'card', m[2] === 'share');
       if (url.pathname === '/api/beacon') return (await recordBeacon(request, env)).response;
+      if (url.pathname === '/api/report/daily') return await reportDaily(request, env, url);
       const brand = url.pathname.match(/^\/brand\/([\w-]+)\/(logo|kennel)$/);
       if (brand) return (await serveBrand(env, brand[1], brand[2], { card: url.searchParams.get('size') === 'card' })) || new Response('Not found.', { status: 404 });
       if (url.pathname === '/data/base.json') return new Response('Not found.', { status: 404 });

@@ -40,6 +40,7 @@ import {
 import { extractFromDocument, extractRefusal } from '../lib/docextract.js';
 import { rotatePdf } from '../lib/pdfrotate.js';
 import { focusBody, focusStmt, focusBinds } from '../lib/focusedit.js';
+import { listWithoutPayment, litterCompIds } from '../lib/listing.js';
 import { serveParentPhoto, serveDocument, serveEmailPicture } from '../lib/media.js';
 import {
   personFor, kennelsFor, onKennel, checkMakeMain, acceptKennelStmts, credentialFor, kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, newAuthToken,
@@ -2141,6 +2142,19 @@ async function startCheckout(request, env) {
   return json(out, 201);
 }
 
+/**
+ * List without payment (Alex, 2026-11-07). Only an operator's Manage as session may, never the breeder's
+ * own sign-in, and only for this kennel's puppies. The rules are lib/listing.js, shared with the admin.
+ */
+async function compListings(request, env) {
+  requireSameOrigin(request);
+  const s = await needSession(request, env);
+  if (!s.operator) throw forbidden('Only Puppy Connection can list a puppy without payment.');
+  const body = await readJson(request);
+  const ids = body.litter_id ? await litterCompIds(env, String(body.litter_id), s.breeder.id) : body.puppy_ids;
+  return json({ ok: true, ...(await listWithoutPayment(env, ids, { type: 'operator', email: s.operator.email }, body.basis, s.breeder.id)) });
+}
+
 async function myCheckouts(request, env) {
   const { breeder } = await needSession(request, env);
   const { results } = await env.DB.prepare(
@@ -2505,6 +2519,7 @@ const ROUTES = [
   ['GET', /^\/email-image\/([0-9A-Za-z]+)$/, async (r, e, c, id) => (await serveEmailPicture(e, id)) || new Response('Not found', { status: 404 })],
   ['GET', /^\/media\/([\w-]+)\/card$/, (r, e, c, id) => media(r, e, c, id, true)],
   ['POST', /^\/api\/checkouts$/, startCheckout],
+  ['POST', /^\/api\/listings\/comp$/, compListings],
   ['GET', /^\/api\/checkouts$/, myCheckouts],
   ['GET', /^\/checkout\/success$/, checkoutSuccess],
   ['GET', /^\/checkout\/cancel$/, checkoutCancel],

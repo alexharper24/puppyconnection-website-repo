@@ -2017,6 +2017,11 @@
         l.puppies.forEach(function (x) { if (x.publication_state !== 'archived') rows.push({ x: x, breed: l.breed_name, l: l }); });
       });
       var ready = rows.filter(function (r) { return !r.x.pay_block; });
+      var litterIds = [], litterName = {};
+      // Named by its puppies, because two litters of one breed born the same day read alike.
+      ready.forEach(function (r) {
+        if (litterIds.indexOf(r.l.id) < 0) { litterIds.push(r.l.id); litterName[r.l.id] = r.breed + ': ' + r.x.name; } else litterName[r.l.id] += ', ' + r.x.name;
+      });
       var blocked = rows.filter(function (r) { return r.x.pay_block && !r.x.is_public; });
       var html = head('Pay to list', 'Each puppy costs ' + esc(money(L.fee_cents)) + ' to list ' + term(L) + '. Pay for a whole litter at once.') +
         (q.indexOf('canceled=1') >= 0 ? '<p class="notice">Payment canceled. Nothing was charged, and the puppies are free to pay for again.</p>' : '') +
@@ -2025,14 +2030,19 @@
       html += '<form id="payform" class="card"><h2>Ready to list</h2>' +
         (ready.length ? '<label class="check" for="all" style="margin-bottom:.4rem"><input type="checkbox" id="all" aria-label="Select all"> Select all</label>' + ready.map(function (r) {
           var img = r.x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(r.x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
-          return '<label class="pay-row check"><input type="checkbox" name="p" value="' + esc(r.x.id) + '" aria-label="' + esc('Pay for ' + r.x.name) + '">' + img +
+          return '<label class="pay-row check"><input type="checkbox" name="p" value="' + esc(r.x.id) + '" data-litter="' + esc(r.l.id) + '" aria-label="' + esc('Pay for ' + r.x.name) + '">' + img +
             '<span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' +
             (r.x.publication_state === 'published' ? 'Renew, listed until ' + esc(day(r.x.expires_at)) : r.x.publication_state === 'expired' ? 'Listing ended, renew it' : 'Draft') + '</span>' +
             // Workplan A21. What would make it stronger, before the breeder pays. It never blocks.
             (function (g) { return g.length ? '<br><span class="why quality-note">Could be stronger: ' + esc(g.map(function (x) { return { desc: 'a fuller description', health: 'health details', parents: 'both parents', photos: 'more photos', born: 'a birth date' }[x[0]]; }).join(', ')) + '. <a href="#/litters?photos=' + esc(r.x.id) + '">Open it</a></span>' : ''; })(qualityGaps(r.x, r.l, null)) + '</span></label>';
         }).join('') : '<p class="muted">Nothing is ready to pay for right now. A puppy shows here once it has a price and enough photos, which you add in <a href="#/litters">Litters and puppies</a>.</p>') +
         '<div class="total" style="margin-top:1rem"><span>Total</span><b id="total">$0</b></div>' +
-        '<div class="btn-row"><button class="btn btn-gold" type="submit" id="paybtn" disabled>Continue to payment</button></div></form>';
+        '<div class="btn-row"><button class="btn btn-gold" type="submit" id="paybtn" disabled>Continue to payment</button>' +
+        // Alex, 2026-11-07. Only in an operator's Manage as session, and the portal refuses it from any other.
+        (me.operator && ready.length ? '<button class="btn" type="button" id="compbtn" disabled>List without payment</button>' : '') + '</div>' +
+        (me.operator && litterIds.length > 1 ? '<p class="small muted" style="margin-top:.6rem">Select a litter: ' + litterIds.map(function (id) {
+          return '<button class="btn btn-sm" type="button" data-pick-litter="' + esc(id) + '">' + esc(litterName[id]) + '</button>';
+        }).join(' ') + '</p>' : '') + '</form>';
       if (blocked.length) {
         html += '<div class="card"><h2>Not ready yet</h2>' + blocked.map(function (r) {
           return '<div class="pay-row"><span><b>' + esc(r.x.name) + '</b> <span class="muted">' + esc(r.breed) + '</span><br><span class="why">' + esc(standing(r.x).text) + '</span></span></div>';
@@ -2045,7 +2055,25 @@
         $('#total').textContent = money(n * L.fee_cents) || '$0';
         $('#paybtn').disabled = !n;
         $('#paybtn').textContent = n ? 'Pay ' + money(n * L.fee_cents) + ' for ' + n + ' listing' + (n === 1 ? '' : 's') : 'Continue to payment';
+        var cb = $('#compbtn'); if (cb) { cb.disabled = !n; cb.textContent = n ? 'List ' + n + ' without payment' : 'List without payment'; }
       }
+      $$('[data-pick-litter]', form).forEach(function (b) {
+        b.addEventListener('click', function () { $$('input[name=p]', form).forEach(function (c) { c.checked = c.dataset.litter === b.dataset.pickLitter; }); update(); });
+      });
+      var comp = $('#compbtn');
+      if (comp) comp.addEventListener('click', function () {
+        var ids = $$('input[name=p]:checked', form).map(function (c) { return c.value; });
+        pcChoose('List ' + (ids.length === 1 ? 'this puppy' : 'these ' + ids.length + ' puppies') + ' without payment? Choose Listing package when the listing package the breeder bought covers it, or Free when Puppy Connection waives the fee.',
+          [['package', 'Listing package'], ['free', 'Free']]).then(function (basis) {
+          if (!basis) return;
+          comp.disabled = true;
+          api('POST', '/api/listings/comp', { puppy_ids: ids, basis: basis }).then(function (r) {
+            state.listings = null;
+            toast('Listed ' + r.listed + (r.listed === 1 ? ' puppy' : ' puppies') + (basis === 'package' ? ' under the package' : ' free'));
+            pay();
+          }).catch(function (err) { comp.disabled = false; showError(form, err); });
+        });
+      });
       $$('input[name=p]', form).forEach(function (c) { c.addEventListener('change', update); });
       var all = $('#all'); if (all) all.addEventListener('change', function () { $$('input[name=p]', form).forEach(function (c) { c.checked = all.checked; }); update(); });
       var pre = (q.match(/(?:^|&)p=([^&]+)/) || [])[1];

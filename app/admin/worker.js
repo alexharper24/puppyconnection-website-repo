@@ -41,6 +41,7 @@ import {
   archiveChecklistItem, commentChecklistItem, addChecklistPart, editChecklistPart, tickChecklistPart, moveChecklistPart, archiveChecklistPart,
 } from '../lib/checklist.js';
 import { focusBody, focusStmt, focusBinds } from '../lib/focusedit.js';
+import { listWithoutPayment, litterCompIds } from '../lib/listing.js';
 
 /** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
 async function listJobs(req, env) {
@@ -493,7 +494,7 @@ async function listListings(req, env) {
   }[filter];
   if (!where) throw bad('Unknown filter.');
   const { results } = await env.DB.prepare(
-    `SELECT p.id, p.slug, p.name, p.breeder_id, p.price_cents, p.payment_state, p.publication_state, p.availability,
+    `SELECT p.id, p.slug, p.name, p.breeder_id, p.price_cents, p.payment_state, p.comp_basis, p.publication_state, p.availability,
             p.operator_hold, p.hold_kind, p.hold_reason, p.expires_at, p.version, br.name AS breed, bp.business_name,
             (SELECT COUNT(*) FROM photos ph WHERE ph.puppy_id = p.id) AS photos,
             (SELECT ph.id FROM photos ph WHERE ph.puppy_id = p.id ORDER BY ph.position LIMIT 1) AS cover_id,
@@ -535,29 +536,22 @@ async function holdPuppy(req, env, ctx, id, who) {
   return json({ ok: true });
 }
 
-/** A listing Amber grants without payment, which the Wix migration needs (spec 5). */
+/**
+ * A listing Amber grants without payment, which the Wix migration needs (spec 5). Staff may too, and a whole
+ * litter at once (Alex, 2026-11-07), choosing 'package' for the listing package the breeder bought or 'free'.
+ * lib/listing.js holds the rules, shared with the portal's Manage as session.
+ */
 async function compPuppy(req, env, ctx, id, who) {
   requireSameOrigin(req);
-  const p = await env.DB.prepare('SELECT * FROM puppies WHERE id = ?').bind(id).first();
-  if (!p) throw notFound();
-  if (p.publication_state === 'archived') throw bad('That puppy was removed by the breeder.');
-  const s = await settings(env);
-  const t = now();
-  const base = p.expires_at && p.expires_at > t ? p.expires_at : t;
-  await env.DB.batch([
-    env.DB.prepare(
-      `UPDATE puppies SET payment_state = CASE WHEN payment_state = 'paid' THEN 'paid' ELSE 'comped' END,
-         publication_state = 'published', published_at = COALESCE(published_at, ?), expires_at = ?, updated_at = ?, version = version + 1,
-         -- Workplan A12. Listing a puppy free starts its photo clock, as a payment does.
-         last_photo_at = ?,
-         inactive_stage = NULL, stage_at = NULL, inactive_at = NULL
-       WHERE id = ?`,
-    ).bind(t, s.listingDays > 0 ? addDays(base, s.listingDays) : null, t, t, id),
-    auditStmt(env, 'operator', who.email, 'puppy.comp', 'puppy', id, { payment_state: p.payment_state, publication_state: p.publication_state },
-      { breeder_id: p.breeder_id, days: s.listingDays }),
-    dirtyStmt(env),
-  ]);
-  return json({ ok: true });
+  const body = await readJson(req);
+  return json({ ok: true, ...(await listWithoutPayment(env, [id], { type: 'operator', email: who.email }, body.basis || 'free')) });
+}
+
+async function compLitter(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const body = await readJson(req);
+  const ids = await litterCompIds(env, id);
+  return json({ ok: true, ...(await listWithoutPayment(env, ids, { type: 'operator', email: who.email }, body.basis)) });
 }
 
 /**
@@ -860,11 +854,19 @@ async function reportData(env) {
       WHERE c.status = 'paid' AND c.paid_at IS NOT NULL GROUP BY 1`,
   ).all()).results;
   const comped = (await env.DB.prepare(
-    "SELECT substr(published_at, 1, 7) AS month, COUNT(*) AS comped FROM puppies WHERE payment_state = 'comped' AND published_at IS NOT NULL GROUP BY 1",
+    // Alex, 2026-11-07. Listings the breeder's listing package covers (paid outside Puppy Connection) count apart
+    // from comped ones. Rows comped before migrations/0094 have no basis and count as comped.
+    `SELECT substr(published_at, 1, 7) AS month, SUM(CASE WHEN comp_basis = 'package' THEN 0 ELSE 1 END) AS comped,
+            SUM(CASE WHEN comp_basis = 'package' THEN 1 ELSE 0 END) AS package
+       FROM puppies WHERE payment_state = 'comped' AND published_at IS NOT NULL GROUP BY 1`,
   ).all()).results;
   const byMonth = {};
-  for (const r of paid) byMonth[r.month] = { month: r.month, paid_listings: r.paid_listings, comped_listings: 0, revenue_cents: r.revenue_cents, refunded_cents: r.refunded_cents };
-  for (const r of comped) (byMonth[r.month] ||= { month: r.month, paid_listings: 0, comped_listings: 0, revenue_cents: 0, refunded_cents: 0 }).comped_listings = r.comped;
+  for (const r of paid) byMonth[r.month] = { month: r.month, paid_listings: r.paid_listings, package_listings: 0, comped_listings: 0, revenue_cents: r.revenue_cents, refunded_cents: r.refunded_cents };
+  for (const r of comped) {
+    const m = (byMonth[r.month] ||= { month: r.month, paid_listings: 0, package_listings: 0, comped_listings: 0, revenue_cents: 0, refunded_cents: 0 });
+    m.comped_listings = r.comped;
+    m.package_listings = r.package;
+  }
   const months = Object.values(byMonth).sort((a, b) => (a.month < b.month ? 1 : -1));
 
   const breeds = (await env.DB.prepare(
@@ -926,8 +928,8 @@ async function reports(req, env) {
 
 const dollars = (c) => (c == null ? null : (c / 100).toFixed(2));
 const REPORT_CSV = {
-  months: (d) => [['Month', 'Paid listings', 'Comped listings', 'Revenue (USD)', 'Refunded (USD)', 'Net (USD)'],
-    d.months.map((m) => [m.month, m.paid_listings, m.comped_listings, dollars(m.revenue_cents), dollars(m.refunded_cents), dollars(m.revenue_cents - m.refunded_cents)])],
+  months: (d) => [['Month', 'Paid listings', 'Listing package listings', 'Comped listings', 'Revenue (USD)', 'Refunded (USD)', 'Net (USD)'],
+    d.months.map((m) => [m.month, m.paid_listings, m.package_listings, m.comped_listings, dollars(m.revenue_cents), dollars(m.refunded_cents), dollars(m.revenue_cents - m.refunded_cents)])],
   breeds: (d) => [['Breed', 'Live on the site', 'Marked placed', 'Drafts'], d.breeds.map((b) => [b.breed, b.live, b.placed, b.draft])],
   summary: (d) => [['Measure', 'Count'], [['Live on the site', d.summary.live], ['Marked placed', d.summary.placed], ['Drafts', d.summary.draft],
     ['On hold', d.summary.held], ['Approved breeders', d.summary.approved_breeders], ['Marked pending', d.summary.pending],
@@ -1698,6 +1700,8 @@ const STAFF_ALLOWED = [
   ['POST', /^\/api\/puppies\/[\w-]+\/(hold|photos)$/],
   ['PUT', /^\/api\/puppies\/[\w-]+(\/photo-order)?$/],
   ['PUT', /^\/api\/litters\/[\w-]+$/],
+  // Alex, 2026-11-07. Hope lists puppies without payment for the breeders she manages, one at a time or a litter.
+  ['POST', /^\/api\/(puppies|litters)\/[\w-]+\/comp$/],
   ['POST', /^\/api\/site\/publish$/],
   ['POST', /^\/api\/photos\/[\w-]+\/card$/],
   ['PUT', /^\/api\/photos\/[\w-]+\/focus$/],
@@ -1793,6 +1797,7 @@ const ROUTES = [
   ['GET', /^\/api\/listings$/, listListings],
   ['POST', /^\/api\/puppies\/([\w-]+)\/hold$/, holdPuppy],
   ['POST', /^\/api\/puppies\/([\w-]+)\/comp$/, compPuppy],
+  ['POST', /^\/api\/litters\/([\w-]+)\/comp$/, compLitter],
   ['PUT', /^\/api\/puppies\/([\w-]+)$/, editPuppy],
   ['PUT', /^\/api\/litters\/([\w-]+)$/, editLitter],
   ['GET', /^\/api\/breeds$/, listBreedsAdmin],

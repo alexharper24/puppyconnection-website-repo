@@ -267,10 +267,23 @@ async function main() {
     { ACCESS_TEAM_DOMAIN: 'PASTE_TEAM_DOMAIN', ACCESS_AUD: 'PASTE_APPLICATION_AUD', DB: null });
   check(10, 'a breeder session cookie is not an operator identity', !withCookie.ok);
 
+  // 11. No breeder lists a puppy without payment on their own (Alex, 2026-11-07). Only an operator's
+  // Manage as session may, which admin-features-test.mjs proves from the other side.
+  for (const [label, body] of [['one of their puppies', { puppy_ids: [A.draft], basis: 'free' }], ['their litter', { litter_id: A.litter, basis: 'package' }],
+    ["B's puppy", { puppy_ids: [B.draft], basis: 'free' }]]) {
+    const r = await A.c.post('/api/listings/comp', body);
+    check(11, `A cannot list ${label} without payment`, r.status === 403, `got ${r.status}`);
+  }
+  const aDraft = (await admin.get(`/api/breeders/${A.id}`)).data.litters.flatMap((l) => l.puppies).find((p) => p.id === A.draft);
+  check(11, "A's draft is still an unpaid draft", aDraft.publication_state === 'draft' && aDraft.payment_state === 'unpaid');
+  await A.c.put(`/api/puppies/${A.draft}`, { comp_basis: 'package', payment_state: 'comped', publication_state: 'published', version: aDraft.version });
+  const afterEdit = sql(`SELECT comp_basis, payment_state, publication_state FROM puppies WHERE id = '${A.draft}'`).out;
+  check(11, 'a puppy edit cannot set a comp basis, the payment state or publish', /"payment_state":\s*"unpaid"/.test(afterEdit) && /"comp_basis":\s*null/.test(afterEdit) && /"publication_state":\s*"draft"/.test(afterEdit), afterEdit.slice(0, 300));
+
   const byTest = {};
   for (const r of results) (byTest[r.test] ||= []).push(r.ok);
   console.log('\nby test: ' + Object.entries(byTest).map(([t, v]) => `${t}:${v.every(Boolean) ? 'pass' : 'FAIL'}`).join('  '));
-  console.log(failures ? `${failures} failed` : 'all ten acceptance tests pass');
+  console.log(failures ? `${failures} failed` : 'all the acceptance tests pass');
   process.exit(failures ? 1 : 0);
 }
 

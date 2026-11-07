@@ -542,8 +542,10 @@
         SPLIT +
         (litters.length ? sec('Litters (' + litters.length + ')', litters.map(function (l) {
           var n = l.puppies.filter(function (p) { return p.publication_state !== 'archived'; }).length;
+          var unlisted = l.puppies.filter(function (p) { return p.publication_state === 'draft' || p.publication_state === 'expired'; }).length;
           return '<div class="pay-row"><span><b>' + esc(l.breed_name) + '</b> <span class="muted small">' + (l.born_on ? 'born ' + esc(day(l.born_on)) + ', ' : '') + plural(n, 'puppy', 'puppies') + '</span></span>' +
-            '<button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button></div>';
+            '<span class="btn-row">' + (unlisted ? '<button class="btn btn-sm" data-comp-litter="' + esc(l.id) + '" data-n="' + unlisted + '">List ' + plural(unlisted, 'puppy', 'puppies') + ' free</button>' : '') +
+            '<button class="btn btn-sm" data-edit-litter="' + esc(l.id) + '">Edit litter</button></span></div>';
         }).join('')) : '') +
         // Workplan A19 and A20. The saved moms and dads, and every document, private ones included.
         parentsAdmin(data.parents || [], pups) +
@@ -561,6 +563,15 @@
         function (d) {
           $$('[data-do]', d).forEach(function (btn) { btn.addEventListener('click', function () { decide(d, b, btn.dataset.do); }); });
           wireHolds(d, function () { breederDrawer(id); });
+          $$('[data-comp-litter]', d).forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              askCompBasis('List the ' + plural(Number(btn.dataset.n), 'unlisted puppy', 'unlisted puppies') + ' in this litter without payment?').then(function (basis) {
+                if (!basis) return;
+                api('POST', '/api/litters/' + btn.dataset.compLitter + '/comp', { basis: basis }).then(function (r) { toast('Listed ' + plural(r.listed, 'puppy', 'puppies')); breederDrawer(id); })
+                  .catch(function (err) { toast(err.message); });
+              });
+            });
+          });
           var ch = $('#close-handled', d);
           if (ch) ch.addEventListener('click', function () {
             api('POST', '/api/breeders/' + b.id + '/close-request/resolve', {}).then(function () { toast('Marked closed'); refreshStats(); breederDrawer(id); })
@@ -965,7 +976,9 @@
     else if (p.publication_state === 'expired') c.push('<span class="pill pill-warn">Expired</span>');
     else if (p.publication_state === 'draft') c.push('<span class="pill">Draft</span>');
     else if (p.publication_state === 'published') c.push('<span class="pill pill-warn">Paid, hidden</span>');
-    if (p.payment_state === 'comped') c.push('<span class="pill pill-gold" title="Listed free. Puppy Connection waived the listing fee.">Comped</span>');
+    if (p.payment_state === 'comped') c.push(p.comp_basis === 'package'
+      ? '<span class="pill pill-gold" title="Listed without payment because the listing package the breeder bought covers it.">Package</span>'
+      : '<span class="pill pill-gold" title="Listed free. Puppy Connection waived the listing fee.">Comped</span>');
     if (p.operator_hold) c.push('<span class="pill pill-alert"' + (p.hold_reason ? ' title="' + esc(p.hold_reason) + '"' : '') + '>' + (p.hold_kind === 'photos' ? 'Offline for photos' : 'On hold') + '</span>');
     if (p.availability && p.availability !== 'available') c.push('<span class="pill">' + (p.availability === 'placed' ? 'Placed' : 'Pending') + '</span>');
     return c.join('');
@@ -976,6 +989,12 @@
       : '<button class="btn btn-sm btn-danger" data-hold="' + esc(p.id) + '" data-on="1">Hold</button>' +
         // Workplan A14. Off the site until the breeder uploads photos that pass the photo check.
         '<button class="btn btn-sm" data-photo-hold="' + esc(p.id) + '">Offline until new photos</button>');
+  }
+  // Alex, 2026-11-07. A listing without payment is either covered by the listing package the breeder
+  // bought, which is paid outside Puppy Connection, or free. Reports counts the two apart.
+  function askCompBasis(question) {
+    return pcChoose(question + ' Choose Listing package when the listing package the breeder bought covers it, or Free when Puppy Connection waives the fee.',
+      [['package', 'Listing package'], ['free', 'Free']]);
   }
   function wireHolds(root, after) {
     $$('[data-hold]', root).forEach(function (b) {
@@ -995,8 +1014,11 @@
     });
     $$('[data-comp]', root).forEach(function (b) {
       b.addEventListener('click', function () {
-        if (!pcConfirm(b, 'List this puppy without payment? It is recorded as comped.', { yes: 'List free' })) return;
-        api('POST', '/api/puppies/' + b.dataset.comp + '/comp', {}).then(function () { toast('Listed free'); after(); });
+        askCompBasis('List this puppy without payment?').then(function (basis) {
+          if (!basis) return;
+          api('POST', '/api/puppies/' + b.dataset.comp + '/comp', { basis: basis }).then(function () { toast(basis === 'package' ? 'Listed under the package' : 'Listed free'); after(); })
+            .catch(function (err) { toast(err.message); });
+        });
       });
     });
   }
@@ -1775,8 +1797,8 @@
       var panels = {
         // Views and clicks over time (Alex, 2026-11-01), drawn by traffic.js.
         traffic: '<section class="card" id="r-traffic"></section>',
-        months: table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {
-          return '<tr><td>' + month(m.month) + '</td><td class="num">' + m.paid_listings + '</td><td class="num hide-sm">' + m.comped_listings + '</td>' +
+        months: table('r-months', 'Listings and revenue by month', '<th>Month</th><th class="num">Paid</th><th class="num hide-sm" title="Listed without payment because the listing package the breeder bought covers it">Package</th><th class="num hide-sm">Comped</th><th class="num">Revenue</th><th class="num hide-sm">Refunded</th><th class="num">Net</th>', d.months, function (m) {
+          return '<tr><td>' + month(m.month) + '</td><td class="num">' + m.paid_listings + '</td><td class="num hide-sm">' + m.package_listings + '</td><td class="num hide-sm">' + m.comped_listings + '</td>' +
             '<td class="num">' + esc(money(m.revenue_cents)) + '</td><td class="num hide-sm">' + esc(money(m.refunded_cents)) + '</td><td class="num">' + esc(money(m.revenue_cents - m.refunded_cents)) + '</td></tr>';
         }, 'No listings have been paid for or comped yet.', 'months'),
         breeds: table('r-breeds', 'Listings by breed', '<th>Breed</th><th class="num">Live</th><th class="num">Placed</th><th class="num">Drafts</th>', d.breeds, function (b) {

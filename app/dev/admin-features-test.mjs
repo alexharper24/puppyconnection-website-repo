@@ -534,6 +534,68 @@ async function features() {
     check('an owner still reads the email log (staff are refused it, Alex 2026-10-24)', (await admin.get('/api/email-log')).status === 200);
   }
 
+  // ---------------------------------------------------------------- listing without payment (Alex, 2026-11-07)
+  {
+    const L = await breeder('lwp', true);
+    const one = await listedPuppy(L, 'Pepper');
+    const two = (await L.c.post('/api/puppies', { litter_id: one.litter, name: 'Nutmeg', price: '1500' })).data.id;
+    await img(L.c, `/api/puppies/${two}/photos`);
+    const lit2 = await listedPuppy(L, 'Ginger');
+    const three = (await L.c.post('/api/puppies', { litter_id: lit2.litter, name: 'Clove', price: '1500' })).data.id;
+    await img(L.c, `/api/puppies/${three}/photos`);
+    const row = (id) => sql(`SELECT payment_state, comp_basis, publication_state FROM puppies WHERE id = '${id}'`)[0];
+
+    check('List free refuses a basis that is neither package nor free', (await admin.post(`/api/puppies/${one.id}/comp`, { basis: 'monthly' })).status === 400);
+    let r = await admin.post(`/api/puppies/${one.id}/comp`, { basis: 'package' });
+    const x = row(one.id);
+    check('an owner lists a puppy under the listing package', r.status === 200 && x.payment_state === 'comped' && x.comp_basis === 'package' && x.publication_state === 'published', JSON.stringify([r.status, x]));
+    const au = sql(`SELECT after_json FROM audit_log WHERE action = 'puppy.comp' AND entity_id = '${one.id}' ORDER BY at DESC LIMIT 1`)[0];
+    check('the audit row records the basis', JSON.parse(au.after_json).basis === 'package');
+    check('List free with no basis stays free, as before', (await admin.post(`/api/puppies/${two}/comp`, {})).status === 200 && row(two).comp_basis === 'free');
+    check('a litter with nothing left to list is refused', (await admin.post(`/api/litters/${one.litter}/comp`, { basis: 'free' })).status === 400);
+
+    // Staff (Hope) may list one puppy or a whole litter.
+    sql("UPDATE people SET role = 'staff' WHERE email = 'amber@puppyconnection.test'");
+    try {
+      r = await admin.post(`/api/litters/${lit2.litter}/comp`, { basis: 'free' });
+      check('staff list a whole litter free', r.status === 200 && r.data.listed === 2 && row(lit2.id).comp_basis === 'free' && row(three).payment_state === 'comped', JSON.stringify(r.data));
+    } finally {
+      sql("UPDATE people SET role = 'owner' WHERE email = 'amber@puppyconnection.test'");
+    }
+
+    const rep = (await admin.get('/api/reports')).data;
+    const mon = rep.months.find((m) => m.month === new Date().toISOString().slice(0, 7));
+    check('Reports counts package listings apart from comped ones', mon && mon.package_listings >= 1 && mon.comped_listings >= 3, JSON.stringify(mon));
+    const csv = await admin.get('/api/reports/months.csv');
+    check('the monthly CSV has a listing package column', /Listing package listings/.test(typeof csv.data === 'string' ? csv.data : ''));
+
+    // The portal. Only an operator's Manage as session lists without payment.
+    const M = await breeder('lwpm', true);
+    const m1 = await listedPuppy(M, 'Saffron');
+    const m2 = (await M.c.post('/api/puppies', { litter_id: m1.litter, name: 'Sage', price: '1500' })).data.id;
+    await img(M.c, `/api/puppies/${m2}/photos`);
+    const m3 = await listedPuppy(M, 'Thyme');
+    check("the breeder's own session cannot list without payment", (await M.c.post('/api/listings/comp', { puppy_ids: [m1.id], basis: 'free' })).status === 403
+      && (await M.c.post('/api/listings/comp', { litter_id: m1.litter, basis: 'package' })).status === 403 && row(m1.id).payment_state === 'unpaid');
+    await M.c.put('/api/account/access', { on: true });
+    const mint = await admin.post(`/api/breeders/${M.id}/manage`, {});
+    const op = new Client(PORTAL);
+    await op.get(new URL(mint.data.url).pathname + new URL(mint.data.url).search);
+    check('an operator session opens on the kennel', !!(await op.get('/api/me')).data.operator);
+    check("the operator cannot list another kennel's puppy", (await op.post('/api/listings/comp', { puppy_ids: [b1.id], basis: 'free' })).status === 404);
+    r = await op.post('/api/listings/comp', { litter_id: m1.litter, basis: 'package' });
+    check('the operator lists a litter under the package through Manage as', r.status === 200 && r.data.listed === 2 && row(m1.id).comp_basis === 'package' && row(m2).comp_basis === 'package', JSON.stringify(r.data));
+    r = await op.post('/api/listings/comp', { puppy_ids: [m3.id], basis: 'free' });
+    check('the operator lists one puppy free through Manage as', r.status === 200 && row(m3.id).comp_basis === 'free' && row(m3.id).publication_state === 'published');
+    const opAudit = sql(`SELECT actor_type, actor FROM audit_log WHERE action = 'puppy.comp' AND entity_id = '${m3.id}'`)[0];
+    check('the audit row names the operator', opAudit.actor_type === 'operator' && opAudit.actor === 'amber@puppyconnection.test', JSON.stringify(opAudit));
+    // A puppy of its own, because a1 is refunded and b1 disputed earlier in this suite.
+    const paidPup = await listedPuppy(L, 'Rosemary');
+    await pay(L.c, [paidPup.id]);
+    check('a paid puppy listed again stays paid', row(paidPup.id).payment_state === 'paid' && (await admin.post(`/api/puppies/${paidPup.id}/comp`, { basis: 'package' })).status === 200
+      && row(paidPup.id).payment_state === 'paid' && row(paidPup.id).comp_basis === null, JSON.stringify(row(paidPup.id)));
+  }
+
   // ---------------------------------------------------------------- put the placeholder terms back
   await admin.put('/api/terms/draft', { body: TERMS_PLACEHOLDER });
   const back = await admin.post('/api/terms/publish', {});

@@ -265,7 +265,7 @@ ${HIW_FAQ.map(([q, a]) => `<h3>${q}</h3>\n${a.map((x) => `<p>${x}</p>`).join('\n
   {
     file: 'reviews.html', name: 'Reviews',
     title: 'Reviews | Puppy Connection',
-    desc: 'What families say about finding their puppy through Puppy Connection.',
+    desc: 'What families say about finding their puppy through Puppy Connection, from the first search to bringing their puppy home from a family breeder.',
     body: `<section class="band" style="padding-bottom:1.4rem"><div class="wrap head-row"><div class="head-text"><p class="eyebrow">Reviews</p><h1>What families say</h1>
 <p class="lede">Reviews families have left for Puppy Connection on Google, in their own words.</p></div>
 <div class="btn-row head-actions"><a class="btn btn-primary" href="https://search.google.com/local/reviews?placeid=ChIJkfPWTL6XFogRqYXvz4YXd0c" target="_blank" rel="noopener">Read our reviews on Google</a><a class="btn btn-ghost" href="https://g.page/r/CamF78-GF3dHEAI/review" target="_blank" rel="noopener">Leave a review</a><a class="btn btn-ghost" href="puppies.html">See available puppies</a></div></div></section>

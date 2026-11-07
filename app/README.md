@@ -519,6 +519,12 @@ settings, terms and operators are not touched. The audit log and email log are k
   audience's count, which the server checks again. A contact's email says they have been in touch
   rather than that they signed up, and carries the same one-click unsubscribe. Unsubscribed
   addresses are in neither audience and are skipped if they leave mid-send.
+- **Listing without payment** (Alex, 2026-11-07, `lib/listing.js`, migrations/0094). Owners and staff list a
+  puppy or a whole litter without payment, from List free in the admin or from List without payment on the
+  portal's Pay screen in a Manage as session. Each one is recorded as comped, with `comp_basis` set to
+  `package` for the $100 per puppy package Hope sells, which is paid to her outside Puppy Connection, or
+  `free`. The portal refuses the route from a breeder's own sign-in, and Reports counts package and comped
+  listings in separate columns. Rows comped before 0094 have no basis and count as comped.
 - **Saved moms and dads** (workplan A19, migrations/0050, `lib/parents.js`). A breeder saves each
   parent once in Moms and dads and picks them on a litter, and the generated puppy page shows both,
   with photo, registration, health testing, pedigree and public documents. The litter's own mom and

@@ -373,6 +373,8 @@ CREATE TABLE IF NOT EXISTS puppies (
   hypoallergenic    INTEGER NOT NULL DEFAULT 0,
   payment_state     TEXT NOT NULL DEFAULT 'unpaid'
                     CHECK (payment_state IN ('unpaid','paid','comped','refunded','disputed')),
+  -- migrations/0094. Why a comped listing was given: 'package' (Hope's $100 package, paid outside) or 'free'.
+  comp_basis        TEXT CHECK (comp_basis IN ('package','free')),
   publication_state TEXT NOT NULL DEFAULT 'draft'
                     CHECK (publication_state IN ('draft','published','expired','archived')),
   availability      TEXT NOT NULL DEFAULT 'available'

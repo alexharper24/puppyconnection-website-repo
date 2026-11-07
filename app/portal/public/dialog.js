@@ -9,7 +9,10 @@
    returns true, so the handler runs on unchanged.
 
    opts.yes is the confirm button's label (default Continue), opts.no the cancel label (default
-   Cancel), and opts.danger marks an action that removes or turns something off. */
+   Cancel), and opts.danger marks an action that removes or turns something off.
+
+   pcChoose(message, choices, opts) shows one button per [value, label] in choices beside Cancel and
+   resolves the chosen value, or null on Cancel (listing without payment, Alex 2026-11-07). */
 (function () {
   'use strict';
 
@@ -34,15 +37,23 @@
       yes.className = 'btn ' + (opts.danger ? 'btn-danger-solid' : 'btn-primary');
       yes.value = 'yes';
       yes.textContent = opts.yes || 'Continue';
-      row.appendChild(no); row.appendChild(yes);
+      row.appendChild(no);
+      if (opts.choices) opts.choices.forEach(function (c, i) {
+        var b = document.createElement('button');
+        b.className = 'btn' + (i === 0 ? ' btn-primary' : '');
+        b.value = 'choice:' + c[0];
+        b.textContent = c[1];
+        row.appendChild(b);
+      });
+      else row.appendChild(yes);
       form.appendChild(p); form.appendChild(row);
       dlg.appendChild(form);
       // A press on the dimmed page around the dialog cancels, as Escape does.
       dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close('no'); });
       dlg.addEventListener('close', function () {
-        var ok = dlg.returnValue === 'yes';
+        var v = dlg.returnValue || '';
         dlg.remove();
-        resolve(ok);
+        resolve(opts.choices ? (v.indexOf('choice:') === 0 ? v.slice(7) : null) : v === 'yes');
       });
       document.body.appendChild(dlg);
       dlg.showModal();
@@ -62,6 +73,13 @@
     return false;
   }
 
+  function pcChoose(message, choices, opts) {
+    var o = {}; for (var k in (opts || {})) o[k] = opts[k];
+    o.choices = choices;
+    return pcAsk(message, o);
+  }
+
   window.pcAsk = pcAsk;
+  window.pcChoose = pcChoose;
   window.pcConfirm = pcConfirm;
 })();

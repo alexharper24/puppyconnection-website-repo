@@ -71,7 +71,14 @@ const readyLabel = (iso, nowMs) => {
 const clip = (s, n) => { const t = String(s || '').replace(/\s+/g, ' ').trim(); return t.length <= n ? t : `${t.slice(0, t.lastIndexOf(' ', n - 4) > 40 ? t.lastIndexOf(' ', n - 4) : n - 3)}...`; };
 // Amber, 2026-11-01: descriptions close on the designated representative sentence, which is long, so it is
 // added only when the whole description still fits in n characters, rather than cutting it off with an ellipsis.
-const withTail = (s, tail, n) => { const t = `${String(s || '').trim()} ${tail}`; return t.length <= n ? t : clip(s, n); };
+const SHORT_TAILS = ['Connect with the breeder or their designated representative.', 'Connect with the breeder or their representative.', 'Connect with the breeder.'];
+// A closing line on a meta description, the longest of the given lines that fits n, so a description is not cut short of
+// the 110 characters search results want (Ahrefs found 94 under 110 on 2026-11-07, all where the one line did not fit).
+const puppyTitle = (p) => { const t = `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`; return t.length <= 70 ? t : `${p.name}, ${p.b.name} Puppy | Puppy Connection`; };
+const withTail = (s, tail, n) => {
+  for (const t of [].concat(tail, SHORT_TAILS)) { const out = `${String(s || '').trim()} ${t}`; if (out.length <= n) return out; }
+  return clip(s, n);
+};
 
 // The concept's image helpers, for photos still on Wix. A photo in R2 is served by the site Worker
 // at media/<id>, and a slot 640 px wide or less takes its card copy at media/<id>/card.
@@ -951,7 +958,8 @@ ${mates.length ? `<section class="band band-warm">
     write(pageFor.puppy(p.slug), {
       noindex: p.litterDone || (p.placed && !!p.unlist_after && Date.parse(p.unlist_after) <= now),
       // SEO plan P11. "for sale" only while the puppy is, since an adopted puppy's page stays up.
-      title: `${p.name}, ${p.b.name} Puppy${p.placed ? '' : ' for Sale'} | Puppy Connection`,
+      // "for Sale" stays unless the title would run past 70 characters (six Cavalier titles did, Ahrefs 2026-11-07).
+      title: puppyTitle(p),
       desc: withTail(`${p.name} is a ${p.sex ? `${p.sex} ` : ''}${p.b.name} puppy${who}. ${when}`, 'Connect with the breeder or their designated representative.', 155),
       body, trail: [['Available puppies', `${base}puppies.html`], [p.name, `${base}${pageFor.puppy(p.slug)}`]], image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
       // Product snippet markup (Alex, 2026-10-11). Puppy Connection is not the seller, so this
@@ -1344,7 +1352,7 @@ ${others.length ? `<section class="band">
   const listNone = (noun) => `<p class="list-search-none" role="status" hidden>No ${noun} match &ldquo;<span class="list-search-q"></span>&rdquo;. <button type="button">Clear the search</button> to see them all.</p>`;
   write('breeds.html', {
     title: 'Breeds | Puppy Connection', current: 'breeds.html',
-    desc: 'Every breed currently listed on Puppy Connection, with guides and what is available now.',
+    desc: 'Every breed currently listed on Puppy Connection, with breed guides on size and price, and the puppies available now from family breeders.',
     trail: [['Breeds', `${base}breeds.html`]],
     // Ahrefs crawl 2026-10-28: list pages should carry ItemList data.
     ld: [{ '@type': 'ItemList', name: 'Breeds on Puppy Connection', numberOfItems: listedBreeds.length,

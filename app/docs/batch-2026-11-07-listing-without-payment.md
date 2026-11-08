@@ -34,7 +34,7 @@ verification:
   - "portal-features-test.mjs 12 failures, 11 needing the site Worker on 8791 (not runnable here, site/public not built) and 1 the known fresh-reset colors check"
 commits: ["0900a6a (PR 163)"]
 followups:
-  - "dev/setup.mjs copies portal/public/portal.css over admin/public/portal.css, which drops the list email editor rules that only the admin copy holds. Restored by hand in this batch, not fixed"
+  - "dev/setup.mjs copies portal/public/portal.css over admin/public/portal.css, which dropped the list email editor rules that only the admin copy held. Fixed in PR 165 (15774cf, deployed 2026-11-07): the rules moved into the portal copy and setup now stops on drift. Also restored LF on the eight files PR 163 turned CRLF"
   - "ops/d1-apply.mjs finds wrangler relative to the checkout, so from a worktree it needs WRANGLER_JS set"
 ---
 

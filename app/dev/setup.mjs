@@ -47,14 +47,24 @@ for (const worker of ['portal', 'admin']) {
 }
 
 // One stylesheet for both tools. The portal's copy is the source, and this keeps the admin's
-// copy identical so the two cannot drift.
-fs.copyFileSync(path.join(APP, 'portal/public/portal.css'), path.join(APP, 'admin/public/portal.css'));
-// The breed search (combo.js) is shared the same way (Alex, 2026-10-31).
-fs.copyFileSync(path.join(APP, 'portal/public/combo.js'), path.join(APP, 'admin/public/combo.js'));
-// The confirmation dialog (dialog.js) is shared the same way (Alex, 2026-11-01).
-fs.copyFileSync(path.join(APP, 'portal/public/dialog.js'), path.join(APP, 'admin/public/dialog.js'));
-// Tap the face (facepick.js) is shared the same way (Alex, 2026-11-04).
-fs.copyFileSync(path.join(APP, 'portal/public/facepick.js'), path.join(APP, 'admin/public/facepick.js'));
+// copy identical so the two cannot drift. The breed search (combo.js, Alex 2026-10-31), the
+// confirmation dialog (dialog.js, 2026-11-01) and Tap the face (facepick.js, 2026-11-04) are
+// shared the same way. Edit the portal's copy only. On 2026-11-07 the list email editor's rules
+// sat only in the admin's portal.css and a reset deleted them, so a copy that holds a line the
+// portal's lacks stops the reset instead of being overwritten.
+for (const file of ['portal.css', 'combo.js', 'dialog.js', 'facepick.js']) {
+  const from = path.join(APP, 'portal/public', file);
+  const to = path.join(APP, 'admin/public', file);
+  if (fs.existsSync(to)) {
+    const source = new Set(fs.readFileSync(from, 'utf8').split(/\r?\n/));
+    const extra = fs.readFileSync(to, 'utf8').split(/\r?\n/).filter((line) => line.trim() && !source.has(line));
+    if (extra.length) {
+      console.error(`app/admin/public/${file} has ${extra.length} line(s) app/portal/public/${file} lacks, starting:\n  ${extra[0]}\nMove them into the portal's copy, then run this again.`);
+      process.exit(1);
+    }
+  }
+  fs.copyFileSync(from, to);
+}
 
 execFileSync(process.execPath, [path.join(HERE, 'seed.mjs')], { stdio: 'inherit' });
 

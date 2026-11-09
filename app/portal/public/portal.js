@@ -403,15 +403,21 @@
 
   // ------------------------------------------------------------ shell
   // A pending or declined breeder sees only the screens that work for them (plan P1.5).
-  function nav(status) {
+  function nav(me) {
+    var status = me.status;
     var listing = [['', 'Overview'], ['litters', 'Litters and puppies'], ['parents', 'Moms and dads'], ['pay', 'Pay to list'], ['stats', 'Views and clicks']];
     var account = [['profile', 'Profile'], ['payments', 'Payments'], ['account', 'Account'], ['help', 'Help']];
+    // Alex, 2026-11-09. A kennel added in the portal drafts its listings while it waits, with no paying yet.
+    if (status === 'pending' && me.drafts_ok) return [['Your listings', listing.slice(0, 3)], ['Account', [['profile', 'Profile'], ['account', 'Account'], ['help', 'Help']]]];
     if (status === 'pending') return [['Getting started', [['', 'Overview'], ['profile', 'Profile']]], ['Account', [['account', 'Account'], ['help', 'Help']]]];
     if (status === 'declined') return [['Account', [['', 'Overview'], ['account', 'Account'], ['help', 'Help']]]];
     return [['Your listings', listing], ['Account', account]];
   }
   // The screens each status may open. Anything else goes back to the overview.
-  var OPEN_TO = { pending: ['', 'profile', 'account', 'help'], declined: ['', 'account', 'help'] };
+  var OPEN_TO = { pending: ['', 'profile', 'account', 'help', 'add-kennel'], declined: ['', 'account', 'help', 'add-kennel'] };
+  var DRAFTS_OPEN_TO = ['', 'profile', 'litters', 'parents', 'account', 'help', 'add-kennel'];
+  // Whether this kennel's parents, litters and puppies can be changed: approved, or added in the portal and waiting.
+  function drafting(me) { return me.status === 'approved' || (me.status === 'pending' && !!me.drafts_ok); }
 
   function statusPill(s) {
     return { pending: '<span class="pill pill-warn">Waiting for approval</span>', approved: '<span class="pill pill-ok">Approved</span>',
@@ -434,7 +440,7 @@
         return '<li><form method="post" action="/choose"><input type="hidden" name="kennel" value="' + esc(k.id) + '">' +
           '<button type="submit"' + (here ? ' class="is-here" aria-current="true" disabled' : '') + '><b>' + esc(k.name || 'A kennel with no name yet') + '</b>' +
           '<span>' + (here ? 'Open now' : esc(k.status_label || '')) + '</span></button></form></li>';
-      }).join('') + '</ul></details>';
+      }).join('') + (me.can_add_kennel ? '<li class="add-kennel"><a href="#/add-kennel"><b>Add a kennel</b><span>Puppy Connection approves it before it shows on the site</span></a></li>' : '') + '</ul></details>';
   }
   // A press outside the open list, or Escape, closes it.
   document.addEventListener('click', function (e) {
@@ -454,16 +460,16 @@
     document.body.className = '';
     var me = state.me;
     var route = state.route.split('?')[0];
-    var here = ''; nav(me.status).forEach(function (g) { g[1].forEach(function (n) { if (n[0] === route) here = n[1]; }); });
+    var here = ''; nav(me).forEach(function (g) { g[1].forEach(function (n) { if (n[0] === route) here = n[1]; }); });
     var foot = { pending: me.profile_submitted_at ? ['Waiting for approval', 'Puppy Connection will email you'] : ['Signing up', 'Finish your profile to submit'],
       approved: ['Approved', 'You can list and pay'], suspended: ['Paused', 'Changes and payments are on hold'], declined: ['Not approved', 'Reply to the email you received'] }[me.status] || ['', ''];
     app.innerHTML = '<div class="app"><aside class="rail" aria-label="Main menu">' +
       '<div class="rail-head"><a href="#/" aria-label="Puppy Connection breeder portal, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Breeder portal</span>' + '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav">Menu' + (here ? '<span>' + esc(here) + '</span>' : '') + '</button>' + '</div>' +
-      '<nav class="nav" id="nav">' + nav(me.status).map(function (g) {
+      '<nav class="nav" id="nav">' + nav(me).map(function (g) {
         return '<div class="nav-group">' + esc(g[0]) + '</div>' + g[1].map(function (n) {
           return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="is-on" aria-current="page"' : '') + '><span>' + esc(n[1]) + '</span></a>';
         }).join('');
-      }).join('') + (me.status === 'pending' ? '<p class="nav-note">Litters, puppies and payments open once Puppy Connection approves your account.</p>' : '') + '</nav>' +
+      }).join('') + (me.status === 'pending' ? '<p class="nav-note">' + (me.drafts_ok ? 'You can prepare litters, puppies and parents now. Paying and the site open once Puppy Connection approves this kennel.' : 'Litters, puppies and payments open once Puppy Connection approves your account.') + '</p>' : '') + '</nav>' +
       '<div class="rail-foot"><span class="dot' + (me.status === 'approved' ? '' : ' wait') + '"></span><div><b>' + esc(foot[0]) + '</b><span>' + esc(foot[1]) + '</span></div></div></aside>' +
       '<div class="main"><header class="topbar' + (narrow ? ' narrow' : '') + '"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
       // Plan P2.2. The breeder's own page on the public site, once they are public.
@@ -473,6 +479,8 @@
       // Workplan A27. A person on more than one kennel goes back to Choose a kennel from here.
       // Alex, 2026-11-01. Switch kennel opens a list of the person's kennels in place, and picking one opens it.
       (me.kennel_count > 1 && !me.operator ? kennelMenu(me) : '') +
+      // Alex, 2026-11-09. With one kennel, Add a kennel stands on its own; with more it sits in Switch kennel.
+      (me.can_add_kennel && !(me.kennel_count > 1 && me.kennels && me.kennels.length) ? '<a class="btn btn-sm" id="add-kennel" href="#/add-kennel">Add a kennel</a>' : '') +
       '<button class="btn btn-sm" id="signout">Sign out</button></div></header>' +
       '<main class="work" id="content"><div class="view' + (narrow ? ' view-narrow' : '') + '">' +
       (me.payments_mode === 'sim' && me.test_notices ? '<p class="notice notice-sim">This is the test version. Payments go to a practice checkout and no card is charged, and email appears in the <a href="/dev/mail" target="_blank" rel="noopener">test mailbox</a>.</p>' : '') +
@@ -616,6 +624,13 @@
     var me = state.me;
     var p = me.profile;
     var filled = !!(p.business_name && (p.public_phone || p.public_email) && p.city && p.state);
+    // Alex, 2026-11-09. A kennel added in the portal waits for approval with its listings open as drafts.
+    if (me.status === 'pending' && me.drafts_ok) {
+      listingsOverview(me, head('Welcome, ' + (p.business_name || 'your new kennel'), 'Puppy Connection is reviewing this kennel.') +
+        '<div class="notice" id="added-waiting"><p><b>Waiting for approval.</b> You added this kennel on ' + esc(day(me.profile_submitted_at)) + '. Puppy Connection will email you once it is approved.</p>' +
+        '<p>You can save its moms and dads, litters and puppies now. They stay as drafts, and you can pay to list them once it is approved.</p></div>');
+      return;
+    }
     var html = head('Welcome' + (p.business_name ? ', ' + p.business_name : ''), me.status === 'pending' ? 'Four steps to your first listing. You are on step ' + (me.profile_submitted_at ? 4 : filled ? 3 : 2) + '.' : 'Your listings at a glance.');
     if (me.status === 'pending') {
       var submitted = !!me.profile_submitted_at;
@@ -637,6 +652,11 @@
     if (me.status === 'suspended') {
       html += '<div class="notice notice-alert"><p><b>Your account is paused.</b> You can see your listings, but changes and payments are on hold until Puppy Connection reinstates it.</p></div>';
     }
+    listingsOverview(me, html);
+  }
+
+  // The listings half of the Overview, after the heading and any notice in html.
+  function listingsOverview(me, html) {
     loadListings().then(function (L) {
       var all = [];
       L.litters.forEach(function (l) { l.puppies.forEach(function (x) { if (x.publication_state !== 'archived') all.push(x); }); });
@@ -817,6 +837,79 @@
     });
   }
 
+  // ------------------------------------------------------------ add a kennel
+  /* Alex, 2026-11-09. The main contact of an approved kennel adds another with its whole profile.
+     It is created waiting for approval with them as main contact, the portal moves to it, and the
+     logo and kennel photo upload to it next. Puppy Connection is emailed to review it. */
+  function addKennelScreen() {
+    var me = state.me;
+    if (!me.can_add_kennel) { location.replace('#/'); return; }
+    function f(name, label, type, hint, attrs) {
+      return '<div class="field"><label for="k-' + name + '">' + esc(label) + '</label><input id="k-' + name + '" name="' + name + '" type="' + (type || 'text') + '"' + (attrs || '') + '>' + (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>';
+    }
+    function pic(kind, label, hint) {
+      return '<div class="brand-slot" data-kind="' + kind + '"><b>' + esc(label) + '</b><div class="hint">' + esc(hint) + '</div>' +
+        '<input id="k-in-' + kind + '" type="file" accept="image/*" aria-label="' + esc(label) + '"></div>';
+    }
+    loadBreeds().then(function () {
+      shell(head('Add a kennel', 'Fill in the new kennel\'s profile as buyers will see it. You become its main contact, and Puppy Connection approves it before it or its puppies show on the site.') +
+        '<form id="add-kennel-form" class="card" novalidate>' +
+        f('business_name', 'Business name', 'text', null, ' required') +
+        '<div class="grid-2">' + f('public_phone', 'Phone buyers can call', 'tel') + f('public_email', 'Email buyers can write to', 'email') + '</div>' +
+        '<div class="grid-2">' + f('city', 'Town or city') + f('state', 'State') + '</div>' +
+        '<p class="hint" style="margin-top:-.4rem">Town and state only. The street address is never shown.</p>' +
+        f('website_url', 'Website', 'url', 'Optional. Starts with https://') +
+        f('contact_name', 'Contact name', 'text', 'Private, for Puppy Connection only.') +
+        '<div class="field"><label for="k-description">About the kennel</label><textarea id="k-description" name="description"></textarea><div class="hint">A few short paragraphs. Leave a blank line between them.</div></div>' +
+        '<div class="brand-grid">' + pic('logo', 'Logo', 'Optional. Shown on the breeder page.') + pic('kennel', 'Kennel photo', 'Optional. One photo of the home, kennel or family with the dogs.') + '</div>' +
+        '<fieldset class="breed-picks"><legend>Breeds they raise</legend>' + state.breeds.map(function (b) {
+          return '<label class="check"><input type="checkbox" name="breed" value="' + esc(b.id) + '"> ' + esc(b.name) + '</label>';
+        }).join('') + '</fieldset>' +
+        f('facebook_url', 'Facebook page', 'url', 'Optional. The address of the kennel\'s Facebook page.', ' placeholder="https://www.facebook.com/yourkennel"') +
+        '<div class="terms-preview">' + termsParas(me.terms ? me.terms.body : '') + '</div>' +
+        '<label class="check" for="k-accept-terms"><input type="checkbox" id="k-accept-terms" name="accept_terms"> I have read and accept the <a href="/terms" target="_blank" rel="noopener">listing terms</a> for this kennel.</label>' +
+        '<label class="check" for="k-confirm-seller"><input type="checkbox" id="k-confirm-seller" name="confirm_seller"> I am the seller of every puppy this kennel lists. Puppy Connection does not sell puppies, and each sale is agreed between the kennel and the buyer.</label>' +
+        '<div class="btn-row"><button class="btn btn-gold" type="submit">Add the kennel and submit for approval</button><a class="btn btn-quiet" href="#/">Cancel</a></div></form>', true);
+      if (window.PCPicker) window.PCPicker.checks($('#add-kennel-form .breed-picks'), { label: 'Find a breed', none: 'No other breed matches that' });
+      var form = $('#add-kennel-form');
+      var allowDuplicate = false;
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var d = formData(form);
+        if (!d.accept_terms) return showError(form, new Error('Tick the box to accept the listing terms.'));
+        if (!d.confirm_seller) return showError(form, new Error('Tick the box to confirm the kennel is the seller of the puppies it lists.'));
+        var body = { business_name: d.business_name, public_phone: d.public_phone, public_email: d.public_email, city: d.city, state: d.state,
+          website_url: d.website_url, contact_name: d.contact_name, description: d.description, facebook_url: d.facebook_url,
+          breed_ids: $$('input[name=breed]:checked', form).map(function (c) { return c.value; }),
+          accept_terms: true, confirm_seller: true, allow_duplicate: allowDuplicate };
+        var btn = $('button[type=submit]', form);
+        btn.disabled = true;
+        api('POST', '/api/kennels', body).then(function () {
+          // The session is on the new kennel now, so the pictures upload to it.
+          var ups = ['logo', 'kennel'].map(function (kind) {
+            var input = $('#k-in-' + kind), file = input.files && input.files[0];
+            if (!file) return Promise.resolve(true);
+            return shrink(file).then(function (s) {
+              return api('POST', '/api/profile/' + kind, undefined, s.full).then(function () {
+                if (s.card) return api('POST', '/api/profile/' + kind + '/card', undefined, s.card).catch(function () {});
+              });
+            }).then(function () { return true; }, function () { return false; });
+          });
+          return Promise.all(ups).then(function (ok) {
+            toast(ok.every(Boolean) ? 'Kennel added and submitted for approval' : 'Kennel added. A picture did not upload, so add it under Profile.');
+            location.hash = '#/';
+          });
+        }).catch(function (err) {
+          btn.disabled = false;
+          if (err.status === 409 && err.data && err.data.duplicate && window.pcAsk) {
+            return window.pcAsk(err.message, { yes: 'Add it anyway' }).then(function (yes) { if (yes) { allowDuplicate = true; form.requestSubmit(); } });
+          }
+          showError(form, err);
+        });
+      });
+    });
+  }
+
   // ------------------------------------------------------------ litters and puppies
   function loadListings() {
     return api('GET', '/api/listings').then(function (L) { state.listings = L; return L; });
@@ -916,7 +1009,7 @@
 
   function litters() {
     var me = state.me;
-    var canEdit = me.status === 'approved';
+    var canEdit = drafting(me);
     Promise.all([loadListings(), loadBreeds()]).then(function (res) {
       var L = res[0];
       var active = L.litters.filter(function (l) { return !l.archived_at; });
@@ -1184,7 +1277,7 @@
   }
 
   function puppyDrawer(x, litterId) {
-    var canEdit = state.me.status === 'approved';
+    var canEdit = drafting(state.me);
     var dis = canEdit ? '' : ' disabled';
     var br = breedOfLitter(x ? x.litter_id : litterId);
     function seg(val) {
@@ -1589,7 +1682,7 @@
   function catalogFor(slug) { return ((state.parents && state.parents.breeds) || []).filter(function (b) { return b.slug === slug; })[0] || null; }
 
   function parentsView() {
-    var canEdit = state.me.status === 'approved';
+    var canEdit = drafting(state.me);
     loadParents().then(function (P) {
       var live = P.parents.filter(function (p) { return !p.archived_at; });
       var gone = P.parents.filter(function (p) { return p.archived_at; });
@@ -1635,7 +1728,7 @@
 
   function parentDrawer(p, sex) {
     var P = state.parents;
-    var canEdit = state.me.status === 'approved';
+    var canEdit = drafting(state.me);
     var dis = canEdit ? '' : ' disabled';
     sex = p ? p.sex : sex;
     var regs = (P.registries || []).slice();
@@ -2356,10 +2449,10 @@
       location.replace('#/litters');
       return;
     }
-    var allowed = OPEN_TO[state.me.status];
+    var allowed = drafting(state.me) && state.me.status === 'pending' ? DRAFTS_OPEN_TO : OPEN_TO[state.me.status];
     if (allowed && allowed.indexOf(r) < 0) { if (r) { location.replace('#/'); return; } }
     window.scrollTo(0, 0);
-    ({ '': overview, profile: profile, litters: litters, parents: parentsView, pay: pay, payments: payments, stats: stats, account: accountScreen, help: help }[r] || overview)();
+    ({ '': overview, profile: profile, litters: litters, parents: parentsView, pay: pay, payments: payments, stats: stats, account: accountScreen, help: help, 'add-kennel': addKennelScreen }[r] || overview)();
     if (state.me.walkthrough && !tourAuto) { tourAuto = true; openTour(true); }
   }
 

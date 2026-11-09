@@ -34,7 +34,8 @@ export async function loadBreeder(env, breederId) {
   return env.DB.prepare(
     `SELECT b.*, p.business_name, p.slug, p.contact_name, p.public_phone, p.public_email,
             p.website_url, p.city, p.state, p.description, p.version AS profile_version,
-            p.logo_key, p.kennel_key, p.facebook_url
+            p.logo_key, p.kennel_key, p.facebook_url,
+            (b.status = 'pending' AND EXISTS (SELECT 1 FROM breeders o WHERE o.email = b.email AND o.id != b.id AND o.status = 'approved')) AS drafts_ok
        FROM breeders b LEFT JOIN breeder_profiles p ON p.breeder_id = b.id
       WHERE b.id = ?`,
   ).bind(breederId).first();
@@ -48,6 +49,17 @@ export function requireApproved(breeder) {
     declined: 'Your account was not approved.',
   }[breeder.status] || 'Not allowed.';
   throw forbidden(why);
+}
+
+/**
+ * Alex, 2026-11-09. A kennel added in the portal by the main contact of an approved kennel can hold
+ * parents, litters and puppies as drafts while it waits for approval. Paying stays with
+ * requireApproved, and the public views show only approved kennels, so nothing reaches the site
+ * early. drafts_ok comes from loadBreeder.
+ */
+export function requireDrafting(breeder) {
+  if (breeder.status === 'pending' && breeder.drafts_ok) return;
+  requireApproved(breeder);
 }
 
 export const DEFAULT_REGISTRIES = 'AKC, AKC Canine Partners, APRI, ACA, CKC, UKC';

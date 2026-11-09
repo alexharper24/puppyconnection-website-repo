@@ -280,6 +280,24 @@ async function main() {
   const afterEdit = sql(`SELECT comp_basis, payment_state, publication_state FROM puppies WHERE id = '${A.draft}'`).out;
   check(11, 'a puppy edit cannot set a comp basis, the payment state or publish', /"payment_state":\s*"unpaid"/.test(afterEdit) && /"comp_basis":\s*null/.test(afterEdit) && /"publication_state":\s*"draft"/.test(afterEdit), afterEdit.slice(0, 300));
 
+  // 12. Add a kennel in the portal (Alex, 2026-11-09). Only the main contact of an approved kennel may,
+  // the new kennel's main contact is always the person signed in, and nothing in the portal approves it.
+  // Last, because the add moves A's session to the new kennel.
+  const KP = { business_name: `Added ${Date.now().toString(36)}`, public_phone: '555-0102', city: 'Goshen', state: 'IN', accept_terms: true, confirm_seller: true };
+  check(12, 'pending C cannot add a kennel', (await C.c.post('/api/kennels', KP)).status === 403);
+  check(12, "pending C's portal offers no Add a kennel", (await C.c.get('/api/me')).data.can_add_kennel === false);
+  check(12, 'suspended D cannot add a kennel', (await D.c.post('/api/kennels', KP)).status === 403);
+  const spoofAdd = await A.c.post('/api/kennels', { ...KP, email: B.email, breeder_id: B.id, status: 'approved' });
+  const added = spoofAdd.data && spoofAdd.data.id;
+  const addedRow = added ? sql(`SELECT email, status FROM breeders WHERE id = '${added}'`).out : '';
+  check(12, "an email, breeder id or status in the body is ignored, so the kennel is A's and pending",
+    spoofAdd.status === 201 && addedRow.includes(`"email": "${A.email}"`) && /"status":\s*"pending"/.test(addedRow), `${spoofAdd.status} ${addedRow.slice(0, 200)}`);
+  check(12, "B's kennels are unchanged, with none added under B's address", !sql(`SELECT id FROM breeders WHERE email = '${B.email}' AND id != '${B.id}'`).out.includes('"id"'));
+  check(12, 'the portal has no route that approves a kennel', (await A.c.post(`/api/breeders/${added}/approve`, {})).status === 404
+    && (await A.c.post('/api/profile/approve', {})).status === 404);
+  check(12, 'the added kennel cannot pay while it waits', (await A.c.post('/api/checkouts', { puppy_ids: ['x'] })).status === 403);
+  check(12, 'the added kennel is not in the public export', !(await admin.get('/api/export')).data.listings.some((l) => l.breeder_name === KP.business_name));
+
   const byTest = {};
   for (const r of results) (byTest[r.test] ||= []).push(r.ok);
   console.log('\nby test: ' + Object.entries(byTest).map(([t, v]) => `${t}:${v.every(Boolean) ? 'pass' : 'FAIL'}`).join('  '));

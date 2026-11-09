@@ -111,19 +111,28 @@ export const TEMPLATES = {
       (portalUrl ? `\n\n${portalUrl}` : '') + signOff(),
     link: portalUrl || undefined,
   }),
-  profile_submitted: ({ business, adminUrl }) => ({
-    subject: `New breeder waiting for approval: ${business}`,
-    text: `${business} has finished their profile and submitted it for approval.\n\nReview it here:\n${adminUrl}` + signOff(),
+  // Alex, 2026-11-09. A kennel added in the portal names who added it and how many approved kennels they run.
+  profile_submitted: ({ business, adminUrl, addedBy, runs }) => ({
+    subject: addedBy ? `New kennel waiting for approval: ${business}, added by ${addedBy}` : `New breeder waiting for approval: ${business}`,
+    text: (addedBy
+      ? `${addedBy}, the main contact of ${runs === 1 ? 'an approved kennel' : `${runs} approved kennels`}, added ${business} in the breeder portal and submitted it for approval.`
+      : `${business} has finished their profile and submitted it for approval.`) +
+      `\n\nReview it here:\n${adminUrl}` + signOff(),
     link: adminUrl,
   }),
-  approved: ({ business, portalUrl }) => ({
-    subject: 'Your Puppy Connection account is approved',
-    text: `Good news, ${business} is approved. You can now add litters and puppies and publish your listings.\n\n${portalUrl}` + signOff(),
+  // `added` marks a kennel added in the portal by someone who already runs an approved one (Alex, 2026-11-09).
+  approved: ({ business, portalUrl, added }) => ({
+    subject: added ? `${business} is approved on Puppy Connection` : 'Your Puppy Connection account is approved',
+    text: (added
+      ? `Good news, ${business} is approved. Any litters and puppies you prepared for it are waiting in the breeder portal, ready to pay for and list.`
+      : `Good news, ${business} is approved. You can now add litters and puppies and publish your listings.`) + `\n\n${portalUrl}` + signOff(),
     link: portalUrl,
   }),
-  declined: ({ business, message }) => ({
-    subject: 'About your Puppy Connection application',
-    text: `Thank you for applying to list ${business} on Puppy Connection. We are not able to approve the account at this time.` +
+  declined: ({ business, message, added }) => ({
+    subject: added ? `About ${business} on Puppy Connection` : 'About your Puppy Connection application',
+    text: (added
+      ? `Thank you for adding ${business} to Puppy Connection. We are not able to approve it at this time. Your other kennels are not affected.`
+      : `Thank you for applying to list ${business} on Puppy Connection. We are not able to approve the account at this time.`) +
       (message ? `\n\n${message}` : '') + signOff(),
   }),
   suspended: ({ business }) => ({

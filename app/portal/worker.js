@@ -11,7 +11,7 @@ import {
 import { privacyPage, termsPage } from './legal.js';
 import { addSubscriber, unsubscribeToken } from '../lib/subscribers.js';
 import {
-  owned, loadBreeder, requireApproved, settings, auditStmt, dirtyStmt, checkVersion,
+  owned, loadBreeder, requireApproved, requireDrafting, settings, auditStmt, dirtyStmt, checkVersion,
   littersWithPuppies, photoUrl, profileFields, profileStmt, profileBefore, noticeContactChange,
   BRAND, extrasFields, profileMissing, breederBreeds, brandUrl, serveBrand, litterFields, puppyFields, currentTerms, termsNeedAccept,
   PUPPY_EDIT_COLS, puppySet, puppyValues, referenceFields, referenceStmt, loadReference, REFERENCE_ROLES,
@@ -349,7 +349,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="icon" href="/favicon.ico?v=1" sizes="any"><link rel="icon" type="image/png" href="/favicon-32.png?v=1"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=43"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="icon" href="/favicon.ico?v=1" sizes="any"><link rel="icon" type="image/png" href="/favicon-32.png?v=1"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=44"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
@@ -662,6 +662,60 @@ async function chooseKennel(request, env) {
   return redirect('/', 303);
 }
 
+/**
+ * Alex, 2026-11-09. The main contact of an approved kennel adds another kennel from the portal, with
+ * its whole profile, and becomes its main contact. It starts pending and submitted, and Puppy
+ * Connection approves or declines it in Approvals the same way as a sign-up. No reference is asked,
+ * because the person already runs an approved kennel. The session moves to the new kennel, so the
+ * logo and kennel photo upload to it next, and its parents, litters and puppies can be drafted while
+ * it waits (requireDrafting). A second kennel with the same name is refused once with its name.
+ */
+async function addKennel(request, env, ctx) {
+  requireSameOrigin(request);
+  const s = await needOwnSession(request, env);
+  const email = String(s.email).toLowerCase();
+  const runs = await env.DB.prepare("SELECT COUNT(*) AS n FROM breeders WHERE email = ? AND status = 'approved'").bind(email).first();
+  if (!runs.n) throw forbidden('Only the main contact of an approved kennel can add another kennel.');
+  const waiting = await env.DB.prepare("SELECT COUNT(*) AS n FROM breeders WHERE email = ? AND status = 'pending'").bind(email).first();
+  if (waiting.n >= 10) throw bad('You have 10 kennels waiting for approval. Puppy Connection needs to review those before you add another.');
+  const body = await readJson(request);
+  if (body.accept_terms !== true) throw bad('Please accept the listing terms first.');
+  if (body.confirm_seller !== true) throw bad(SELLER_UNTICKED);
+  const f = profileFields(body);
+  const missing = profileMissing(f);
+  if (missing.length) throw bad(`The kennel still needs ${missing.join(', ')}.`);
+  const x = await extrasFields(env, body);
+  const same = await env.DB.prepare('SELECT b.id, p.business_name FROM breeder_profiles p JOIN breeders b ON b.id = p.breeder_id WHERE p.business_name = ? COLLATE NOCASE LIMIT 1')
+    .bind(f.business_name).first();
+  if (same && body.allow_duplicate !== true) {
+    throw new HttpError(409, `A kennel named ${same.business_name} already exists. Add this one anyway only if it is a different kennel.`, { duplicate: true });
+  }
+  const terms = await settings(env);
+  const id = ulid();
+  const t = now();
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO breeders (id, email, status, email_verified_at, profile_submitted_at, terms_version, terms_accepted_at, seller_confirmed_at, first_signin_at, created_at, updated_at)
+       VALUES (?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, email, t, t, terms.termsVersion, t, t, t, t, t),
+    env.DB.prepare(
+      `INSERT INTO breeder_profiles (breeder_id, business_name, contact_name, public_phone, public_email, website_url, city, state, description, facebook_url, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(id, f.business_name, f.contact_name, f.public_phone, f.public_email, f.website_url, f.city, f.state, f.description, x.facebook_url, t),
+    ...x.breed_ids.map((bid) => env.DB.prepare('INSERT INTO breeder_breeds (breeder_id, breed_id) VALUES (?, ?)').bind(id, bid)),
+    auditStmt(env, 'breeder', email, 'breeder.add', 'breeder', id, null, { email, status: 'pending', from_kennel: s.breeder.id, ...f, ...x }),
+    auditStmt(env, 'breeder', email, 'profile.submit', 'breeder', id, null, { terms_version: terms.termsVersion, seller_confirmed_at: t }),
+    env.DB.prepare('UPDATE sessions SET breeder_id = ?, last_seen_at = ? WHERE token_hash = ? AND revoked_at IS NULL').bind(id, t, s.hash),
+    auditStmt(env, 'breeder', email, 'session.kennel_switch', 'breeder', id, { kennel: s.breeder.id }, { email, kennel: id }),
+  ]);
+  // The same notice as a sign-up waiting for approval (NOTICE_TO), naming who added it.
+  const adminUrl = `${env.ADMIN_ORIGIN || ''}/#/approvals/${id}`;
+  for (const addr of await noticeTo(env, 'SELECT email FROM people')) {
+    ctx.waitUntil(sendMail(env, addr, 'profile_submitted', { business: f.business_name, adminUrl, addedBy: email, runs: runs.n }).catch((e) => console.error(e)));
+  }
+  return json({ id }, 201);
+}
+
 // ------------------------------------------------------------------ Continue with Google (plan P6.1)
 
 const GOOGLE_COOKIE = 'pc_google';
@@ -830,6 +884,10 @@ async function me(request, env) {
   out.kennels = kennels.length > 1
     ? kennels.map((k) => ({ id: k.breeder_id, name: k.business_name, status_label: KENNEL_STATUS[k.status] || '' }))
     : [];
+  // Alex, 2026-11-09. The main contact of an approved kennel may add another (addKennel), and a kennel
+  // added that way drafts its listings while it waits for approval.
+  out.can_add_kennel = !sess.operator && kennels.some((k) => k.main && k.status === 'approved');
+  out.drafts_ok = !!breeder.drafts_ok;
   // Alex, 2026-11-01. The walkthrough opens by itself the first time this person is in this kennel
   // once it is approved, the main contact or anyone managing it, until they close it (migrations/0087).
   // Until the table exists (deployed ahead of the migration) it stays shut rather than failing /api/me.
@@ -1295,7 +1353,7 @@ async function listBreeds(env) {
 async function createLitter(request, env) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const f = await checkLitterParents(env, breeder.id, litterFields(await readJson(request)));
   const breed = await env.DB.prepare('SELECT id FROM breeds WHERE id = ?').bind(f.breed_id).first();
   if (!breed) throw bad('Choose a breed from the list.');
@@ -1319,7 +1377,7 @@ async function hasPublic(env, whereSql, bind) {
 async function updateLitter(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const before = await owned(env, 'litter', id, breeder.id);
   const body = await readJson(request);
   const f = await checkLitterParents(env, breeder.id, litterFields(body), before);
@@ -1338,7 +1396,7 @@ async function updateLitter(request, env, ctx, id) {
 async function archiveLitter(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   await owned(env, 'litter', id, breeder.id);
   const t = now();
   const stmts = [
@@ -1354,7 +1412,7 @@ async function archiveLitter(request, env, ctx, id) {
 async function createPuppy(request, env) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const body = await readJson(request);
   const litter = await owned(env, 'litter', String(body.litter_id || ''), breeder.id);
   if (litter.archived_at) throw bad('That litter has been removed.');
@@ -1389,7 +1447,7 @@ function newPuppySlug(name, breedName, id) {
 async function addPuppies(request, env, ctx, litterId) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const litter = await owned(env, 'litter', litterId, breeder.id);
   if (litter.archived_at) throw bad('That litter has been removed.');
   const body = await readJson(request);
@@ -1430,7 +1488,7 @@ async function addPuppies(request, env, ctx, litterId) {
 async function duplicatePuppy(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const src = await owned(env, 'puppy', id, breeder.id);
   if (src.publication_state === 'archived') throw bad('That puppy has been removed.');
   const litter = await owned(env, 'litter', src.litter_id, breeder.id);
@@ -1458,7 +1516,7 @@ async function duplicatePuppy(request, env, ctx, id) {
 async function setAvailability(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const before = await owned(env, 'puppy', id, breeder.id);
   if (before.publication_state === 'archived') throw bad('That puppy has been removed.');
   const body = await readJson(request);
@@ -1477,7 +1535,7 @@ async function setAvailability(request, env, ctx, id) {
 async function updatePuppy(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const before = await owned(env, 'puppy', id, breeder.id);
   if (before.publication_state === 'archived') throw bad('That puppy has been removed.');
   const body = await readJson(request);
@@ -1498,7 +1556,7 @@ async function updatePuppy(request, env, ctx, id) {
 async function archivePuppy(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   await owned(env, 'puppy', id, breeder.id);
   const wasPublic = await hasPublic(env, 'id = ?', id);
   const stmts = [
@@ -1519,7 +1577,7 @@ async function archivePuppy(request, env, ctx, id) {
 async function movePuppy(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const puppy = await owned(env, 'puppy', id, breeder.id);
   const from = await owned(env, 'litter', puppy.litter_id, breeder.id);
   const body = await readJson(request);
@@ -1552,7 +1610,7 @@ async function movePuppy(request, env, ctx, id) {
 async function uploadPhoto(request, env, ctx, puppyId) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const puppy = await owned(env, 'puppy', puppyId, breeder.id);
   if (puppy.publication_state === 'archived') throw bad('That puppy has been removed.');
   const s = await settings(env);
@@ -1586,7 +1644,7 @@ async function uploadPhoto(request, env, ctx, puppyId) {
 async function deletePhoto(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const photo = await owned(env, 'photo', id, breeder.id);
   const stmts = [
     env.DB.prepare('DELETE FROM photos WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
@@ -1602,7 +1660,7 @@ async function deletePhoto(request, env, ctx, id) {
 async function setPhotoFocus(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const photo = await owned(env, 'photo', id, breeder.id);
   const f = focusBody(await readJson(request));
   const stmts = [
@@ -1623,7 +1681,7 @@ function cardKey(key) { return `${key}.card`; }
 async function uploadCard(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const photo = await owned(env, 'photo', id, breeder.id);
   if (!photo.r2_key) throw bad('That photo has no uploaded file.');
   const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
@@ -1662,7 +1720,7 @@ async function checkMyPhoto(request, env, ctx, id) {
 async function orderPhotos(request, env, ctx, puppyId) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   await owned(env, 'puppy', puppyId, breeder.id);
   const { ids } = await readJson(request);
   const { results } = await env.DB.prepare('SELECT id FROM photos WHERE puppy_id = ? AND breeder_id = ?').bind(puppyId, breeder.id).all();
@@ -1682,7 +1740,7 @@ const videoOrigin = (request, env) => env.PORTAL_ORIGIN || new URL(request.url).
 async function startVideo(request, env, ctx, puppyId) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   if (!streamMode(env)) throw bad('Video uploads are not switched on yet.');
   const puppy = await owned(env, 'puppy', puppyId, breeder.id);
   if (puppy.publication_state === 'archived') throw bad('That puppy has been removed.');
@@ -1710,7 +1768,7 @@ async function checkVideo(request, env, ctx, id) {
 async function deleteVideo(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const row = await owned(env, 'video', id, breeder.id);
   await removeVideo(env, row.stream_uid);
   const stmts = [
@@ -1759,7 +1817,7 @@ async function parentsScreen(request, env) {
 async function createParent(request, env) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const f = parentFields(await readJson(request), (await settings(env)).registries);
   const id = ulid();
   const t = now();
@@ -1776,7 +1834,7 @@ async function createParent(request, env) {
 async function updateParent(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const before = await owned(env, 'parent', id, breeder.id);
   const body = await readJson(request);
   // A registry since taken off the list stays valid on the parent that already has it.
@@ -1800,7 +1858,7 @@ async function updateParent(request, env, ctx, id) {
 async function archiveParent(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   await owned(env, 'parent', id, breeder.id);
   const off = (await readJson(request)).archived !== false;
   await env.DB.batch([
@@ -1820,7 +1878,7 @@ const PARENT_CARD_EDGE = 1000;
 async function uploadParentPhoto(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const p = await owned(env, 'parent', id, breeder.id);
   const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
   // A test can ask the local stand-in for a verdict. Nothing else can choose one.
@@ -1846,7 +1904,7 @@ async function uploadParentPhoto(request, env, ctx, id) {
 async function uploadParentCard(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const p = await owned(env, 'parent', id, breeder.id);
   if (!p.photo_key) throw bad('Add the photo first.');
   const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
@@ -1858,7 +1916,7 @@ async function uploadParentCard(request, env, ctx, id) {
 async function removeParentPhoto(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const p = await owned(env, 'parent', id, breeder.id);
   if (!p.photo_key) return json({ ok: true });
   const stmts = [
@@ -1905,7 +1963,7 @@ async function addDocument(request, env, breeder, { puppyId = null, parentId = n
 async function uploadPuppyDocument(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const puppy = await owned(env, 'puppy', id, breeder.id);
   if (puppy.publication_state === 'archived') throw bad('That puppy has been removed.');
   return addDocument(request, env, breeder, { puppyId: id });
@@ -1914,7 +1972,7 @@ async function uploadPuppyDocument(request, env, ctx, id) {
 async function uploadParentDocument(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   await owned(env, 'parent', id, breeder.id);
   return addDocument(request, env, breeder, { parentId: id });
 }
@@ -1923,7 +1981,7 @@ async function uploadParentDocument(request, env, ctx, id) {
 async function updateDocument(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const doc = await owned(env, 'document', id, breeder.id);
   const body = await readJson(request);
   const kind = body.kind == null ? doc.kind : String(body.kind);
@@ -1947,7 +2005,7 @@ async function updateDocument(request, env, ctx, id) {
 async function deleteDocument(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const doc = await owned(env, 'document', id, breeder.id);
   const stmts = [
     env.DB.prepare('DELETE FROM documents WHERE id = ? AND breeder_id = ?').bind(id, breeder.id),
@@ -2003,7 +2061,7 @@ async function ownDocumentFile(request, env, ctx, id) {
 async function rotateDocument(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const doc = await owned(env, 'document', id, breeder.id);
   const turn = Number(new URL(request.url).searchParams.get('turn'));
   if (![90, 180, 270].includes(turn)) throw bad('Choose Rotate left or Rotate right.');
@@ -2051,7 +2109,7 @@ async function rotateDocument(request, env, ctx, id) {
 async function extractDocument(request, env) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
-  requireApproved(breeder);
+  requireDrafting(breeder);
   const url = new URL(request.url);
   const form = url.searchParams.get('form');
   if (form !== 'parent' && form !== 'puppy') throw bad('Choose a mom, dad or puppy form.');
@@ -2436,6 +2494,7 @@ const ROUTES = [
   ['POST', /^\/auth\/signout-all$/, signOutAll],
   ['GET', /^\/choose$/, choosePage],
   ['POST', /^\/choose$/, chooseKennel],
+  ['POST', /^\/api\/kennels$/, addKennel],
   ['GET', /^\/auth\/google$/, googleStart],
   ['GET', /^\/auth\/google\/callback$/, googleCallback],
   ['GET', /^\/auth\/google\/nonce$/, oneTapNonce],

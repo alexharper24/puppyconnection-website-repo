@@ -736,11 +736,13 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .kennel-menu ul { position: absolute; right: 0; top: calc(100% + .35rem); z-index: 60; width: max-content; min-width: 15rem; max-width: min(22rem, calc(100vw - 2rem));
   margin: 0; padding: .3rem; list-style: none; background: var(--surface); border: 1px solid #978a68; border-radius: var(--r-lg); box-shadow: 0 10px 28px rgba(38,38,38,.18); }
 .kennel-menu form { margin: 0; }
-.kennel-menu li button { display: grid; gap: .1rem; width: 100%; min-height: var(--tap); padding: .45rem .7rem; text-align: left; cursor: pointer;
-  background: none; border: 0; border-radius: var(--radius); color: var(--ink); font: inherit; overflow-wrap: anywhere; }
-.kennel-menu li button:hover, .kennel-menu li button:focus-visible { background: var(--row-hover); }
-.kennel-menu li button b { font-weight: 600; }
-.kennel-menu li button span { font-size: .8rem; color: var(--muted); }
+.kennel-menu li button, .kennel-menu li a { display: grid; gap: .1rem; width: 100%; min-height: var(--tap); padding: .45rem .7rem; text-align: left; cursor: pointer;
+  background: none; border: 0; border-radius: var(--radius); color: var(--ink); font: inherit; overflow-wrap: anywhere; text-decoration: none; }
+.kennel-menu li button:hover, .kennel-menu li button:focus-visible, .kennel-menu li a:hover, .kennel-menu li a:focus-visible { background: var(--row-hover); }
+.kennel-menu li button b, .kennel-menu li a b { font-weight: 600; }
+.kennel-menu li button span, .kennel-menu li a span { font-size: .8rem; color: var(--muted); }
+/* Alex, 2026-11-09. Add a kennel sits under the kennels, set apart by a rule. */
+.kennel-menu li.add-kennel { margin-top: .3rem; padding-top: .3rem; border-top: 1px solid var(--line, #e4ddcc); }
 .kennel-menu li button.is-here { cursor: default; box-shadow: inset 3px 0 0 var(--gold); background: none; }
 
 /* Drawer tidy-up (Alex, 2026-11-02). */

@@ -528,7 +528,7 @@
           (data.closed ? '<div class="notice" id="closed-note"><p><b>Account closed</b> on ' + esc(day(data.closed.resolved_at)) + ' by ' + esc(data.closed.resolved_by || 'an operator') + '. ' +
             (data.closed.removed_at ? 'Its information was removed on ' + esc(day(data.closed.removed_at)) + '.' : 'Its information is removed by the daily job on or after ' + esc(day(data.closed.remove_after)) + '.') + '</p></div>' : '') +
           // Workplan A13. The reference a new breeder names, beside Approve, so it can be checked first.
-          (b.status === 'pending' && b.profile_submitted_at ? referenceCard(data.reference) : '') +
+          (b.status === 'pending' && b.profile_submitted_at ? (data.added ? addedCard(data.added) : referenceCard(data.reference)) : '') +
           '<div id="decide" class="dsec-foot">' + actions + '</div>') +
         // Plan P3.2. Private notes, never shown to the breeder.
         sec('Private notes',
@@ -935,6 +935,11 @@
       });
   }
 
+  // Alex, 2026-11-09. A kennel added in the breeder portal names who added it in place of a reference.
+  function addedCard(a) {
+    return '<div class="card ref-card" id="added-by"><h3>Added in the breeder portal</h3><p><b>' + esc(a.by) + '</b><br><span class="muted small">Added ' + esc(day(a.at)) +
+      '. Main contact of ' + (a.runs === 1 ? 'one approved kennel' : a.runs + ' approved kennels') + '.</span></p></div>';
+  }
   function referenceCard(r) {
     if (!r) return '<div class="card ref-card"><h3>Reference</h3><p class="muted small">None given. You can still approve them.</p></div>';
     var contact = /@/.test(r.contact) ? '<a href="mailto:' + esc(r.contact) + '">' + esc(r.contact) + '</a>' : '<a href="tel:' + esc(r.contact.replace(/[^\d+]/g, '')) + '">' + esc(r.contact) + '</a>';

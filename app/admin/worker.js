@@ -163,7 +163,11 @@ async function breederDetail(req, env, ctx, id) {
   const access = { on: !!b.manage_access, by: b.manage_access_by, at: b.manage_access_at, how: b.manage_access_how };
   // Workplan A13. The reference they named before submitting, shown beside Approve.
   const reference = await loadReference(env, id);
-  return json({ breeder: b, litters, parents, checkouts, audit, extras, members, people, access, portal: !!env.PORTAL_ORIGIN, reference, close_request: closeRequest || null,
+  // Alex, 2026-11-09. A kennel added in the breeder portal, who added it and how many approved kennels they run.
+  const addedRow = await env.DB.prepare("SELECT actor, at FROM audit_log WHERE action = 'breeder.add' AND entity = 'breeder' AND entity_id = ? ORDER BY id LIMIT 1").bind(id).first();
+  const added = addedRow ? { by: addedRow.actor, at: addedRow.at,
+    runs: (await env.DB.prepare("SELECT COUNT(*) AS n FROM breeders WHERE email = ? AND status = 'approved' AND id != ?").bind(addedRow.actor, id).first()).n } : null;
+  return json({ breeder: b, litters, added, parents, checkouts, audit, extras, members, people, access, portal: !!env.PORTAL_ORIGIN, reference, close_request: closeRequest || null,
     closed: closed ? { ...closed, remove_after: new Date(Date.parse(closed.resolved_at) + KEEP.closeDays * 86400000).toISOString().slice(0, 19) + 'Z' } : null, notes: await notesFor(env, id),
     terms: { current: terms.version, accepted: b.terms_version || null }, breeds, registries: (await settings(env)).registries });
 }
@@ -247,8 +251,10 @@ async function decide(req, env, ctx, id, who, action) {
   const res = await env.DB.batch(stmts);
   checkVersion(res[0], 'breeder');
   if (rules.mail) {
+    // Alex, 2026-11-09. A kennel added in the portal by someone who runs an approved kennel (drafts_ok)
+    // gets the wording for an added kennel rather than a first application.
     ctx.waitUntil(sendMail(env, b.email, rules.mail, {
-      business: b.business_name, portalUrl: env.PORTAL_ORIGIN || '', message: clean(body.message, 2000),
+      business: b.business_name, portalUrl: env.PORTAL_ORIGIN || '', message: clean(body.message, 2000), added: !!b.drafts_ok,
     }).catch((e) => console.error(e)));
   }
   return breederDetail(req, env, ctx, id);
@@ -1168,7 +1174,7 @@ async function devMail(req, env) {
   const { results } = await env.DB.prepare('SELECT * FROM dev_mailbox ORDER BY id DESC LIMIT 60').all();
   const e = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const rows = results.map((m) => `<article class="mail"><header><b>${e(m.subject)}</b><span>${e(m.to_addr)} at ${e(m.sent_at)}</span></header><pre>${e(m.body)}</pre></article>`).join('');
-  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=43"></head>
+  return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>All test mail | Puppy Connection</title><meta name="robots" content="noindex,nofollow"><link rel="stylesheet" href="/portal.css?v=44"></head>
 <body class="plain"><main class="plain-card"><p class="sim-flag">Every test email, newest first. Nothing is really sent.</p><h1>All test mail</h1>${rows || '<p>No mail yet.</p>'}<p><a href="/">Back to the admin</a></p></main></body></html>`,
   { headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' } });
 }

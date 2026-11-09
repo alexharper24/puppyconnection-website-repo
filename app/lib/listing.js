@@ -35,6 +35,10 @@ export async function listWithoutPayment(env, ids, actor, basis, breederId = nul
     const p = await env.DB.prepare('SELECT * FROM puppies WHERE id = ?').bind(id).first();
     if (!p || (breederId && p.breeder_id !== breederId)) throw notFound();
     if (p.publication_state === 'archived') throw bad(`${p.name || 'That puppy'} was removed by the breeder.`);
+    // Alex, 2026-11-09. A kennel added in the portal drafts puppies while pending, and its listing
+    // clock must not start before Puppy Connection approves it.
+    const k = await env.DB.prepare('SELECT status FROM breeders WHERE id = ?').bind(p.breeder_id).first();
+    if (!k || k.status !== 'approved') throw bad(`${p.name || 'That puppy'} belongs to a kennel that is not approved yet.`);
     const base = p.expires_at && p.expires_at > t ? p.expires_at : t;
     stmts.push(
       env.DB.prepare(

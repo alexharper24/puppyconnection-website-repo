@@ -33,8 +33,8 @@ tasks:
   - {id: b3-notice, status: done, evidence: "profile_submitted template takes addedBy and runs; sent to noticeTo (NOTICE_TO, else people); admin drawer shows Added in the breeder portal in place of the reference card (breederDetail.added from the breeder.add audit row)"}
   - {id: b4-decide, status: done, evidence: "decide() passes added (drafts_ok) so approved and declined mails read for an added kennel; approve sets the slug and marks the site dirty as before; drafts stay unpaid drafts until paid or listed without payment"}
   - {id: b5-audit, status: done, evidence: "breeder.add, profile.submit and session.kennel_switch under the person; approve and decline under the operator, as before"}
-  - {id: b6-tests, status: in_progress, item: "access-tests section 12, add-kennel-test.mjs, and the existing suites"}
-  - {id: b7-ship, status: pending, item: "Browser check, PR, fetch main, merge, deploy portal and admin from main with wrangler.production.jsonc, read back"}
+  - {id: b6-tests, status: done, evidence: "On a fresh local reset: add-kennel-test 43/43 (twice), access-tests 90/90 with section 12, add-breeder 42/42, multikennel 85/85, admin-features 163/163, email-html 298/298, walkthrough 17/17, signin 26/26, accounts 80/80. Browser pane: terms error, add, waiting overview, drafts menu, Switch kennel lists both and Add a kennel"}
+  - {id: b7-ship, status: done, closed: 2026-11-09, evidence: "PR 167 squashed to 2919ca3 and deployed from a detached origin/main after the history showed the PR 165 versions (portal 8e6852aa, admin a52f3d1c) as the latest. The first portal deploy (82b0ac30) showed 100% in the deployment list but both hostnames still served v=54 for seven minutes. A second identical deploy (portal de084d80, admin bbe03aea) went live within a minute. portal.puppy-connection.com serves portal.js?v=55 and POST /api/kennels answers 401 without a session. The admin redirects to Access, so its read-back is the version id. No kennel was created in production and no email was sent"}
 ---
 
 # Breeder wording and Add a kennel, 2026-11-09

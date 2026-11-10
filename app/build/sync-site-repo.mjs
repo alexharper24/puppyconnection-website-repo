@@ -37,6 +37,7 @@ export function fileList() {
     ['lib/util.js', 'app/lib/util.js'],
     ['lib/stats.js', 'app/lib/stats.js'],
     ['lib/media.js', 'app/lib/media.js'],
+    ['lib/report-daily.js', 'app/lib/report-daily.js'],
     ['build/generate.mjs', 'app/build/generate.mjs'],
     ['build/info-pages.mjs', 'app/build/info-pages.mjs'],
     ['build/guides.mjs', 'app/build/guides.mjs'],

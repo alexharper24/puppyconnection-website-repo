@@ -519,6 +519,18 @@ async function features() {
       const pupId = sql("SELECT p.id FROM puppies p WHERE p.publication_state != 'archived' AND (SELECT COUNT(*) FROM photos ph WHERE ph.puppy_id = p.id) BETWEEN 1 AND 10 LIMIT 1")[0].id;
       r = await admin.req('POST', `/api/puppies/${pupId}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } });
       check('staff add a photo to a puppy for its breeder, with location data removed', r.status === 201 && !!r.data.id, JSON.stringify(r.data));
+      // Alex, 2026-11-10. A photo staff add waits for the same quality check as the breeder's own.
+      check('a photo staff add waits for the quality check', sql(`SELECT quality FROM photos WHERE id = '${r.data.id}'`)[0].quality === 'pending');
+      const passed = await admin.post(`/api/photos/${r.data.id}/check`, {});
+      check('staff run the check and a photo that passes goes on the listing', passed.status === 200 && passed.data.quality === 'pass' &&
+        sql(`SELECT quality FROM photos WHERE id = '${r.data.id}'`)[0].quality === 'pass', JSON.stringify(passed.data));
+      const bad = await admin.req('POST', `/api/puppies/${pupId}/photos`, JPG, { headers: { 'content-type': 'image/jpeg' } });
+      const sent = await admin.req('POST', `/api/photos/${bad.data.id}/check`, {}, { headers: { 'x-sim-photo-check': 'blurry' } });
+      const listed = (await admin.get(`/api/puppies/${pupId}/photos`)).data.find((x) => x.id === bad.data.id);
+      check('a photo staff add that the check sends back stays off the site, and the list says why',
+        sent.data.quality === 'sent_back' && /blurred/.test(sent.data.messages.join(' ')) && listed.quality === 'sent_back' && /blurred/.test(listed.messages.join(' ')) &&
+        sql(`SELECT actor_type FROM audit_log WHERE action = 'photo.sent_back' AND after_json LIKE '%${bad.data.id}%'`).some((x) => x.actor_type === 'operator'), JSON.stringify(sent.data));
+      await admin.req('DELETE', `/api/photos/${bad.data.id}`);
       const photos = (await admin.get(`/api/puppies/${pupId}/photos`)).data;
       const ids = photos.map((x) => x.id);
       const order = [...ids].reverse();

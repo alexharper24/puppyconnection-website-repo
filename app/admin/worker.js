@@ -15,7 +15,7 @@ import { sendMail } from '../lib/mail.js';
 import { videoUrls, removeVideo } from '../lib/stream.js';
 import { listReports, closeReport } from '../lib/reports.js';
 import { pageKind } from '../lib/stats.js';
-import { reasonText } from '../lib/photocheck.js';
+import { reasonText, photoCheckMode, checkPhoto } from '../lib/photocheck.js';
 import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
 import {
@@ -1592,9 +1592,10 @@ const cardKeyOf = (key) => `${key}.card`;
 const isPublicPuppy = async (env, id) => !!(await env.DB.prepare('SELECT 1 AS x FROM public_puppies WHERE id = ?').bind(id).first());
 
 async function adminPuppyPhotos(req, env, ctx, id) {
-  const { results } = await env.DB.prepare('SELECT id, position, aspect, r2_key, external_url, focus_x, focus_y FROM photos WHERE puppy_id = ? ORDER BY position').bind(id).all();
+  const { results } = await env.DB.prepare('SELECT id, position, aspect, r2_key, external_url, focus_x, focus_y, quality, quality_reasons FROM photos WHERE puppy_id = ? ORDER BY position').bind(id).all();
   // Uploaded photos come from R2 through /media; imported ones still live at their Wix address.
-  return json(results.map((r) => ({ id: r.id, position: r.position, aspect: r.aspect, url: photoUrl(r), card: r.r2_key ? `/media/${r.id}/card` : r.external_url, focus_x: r.focus_x, focus_y: r.focus_y })));
+  return json(results.map((r) => ({ id: r.id, position: r.position, aspect: r.aspect, url: photoUrl(r), card: r.r2_key ? `/media/${r.id}/card` : r.external_url, focus_x: r.focus_x, focus_y: r.focus_y,
+    quality: r.quality, messages: reasonText(r.quality_reasons) })));
 }
 
 /** Tap the face (Alex, 2026-11-04), set by Puppy Connection on a breeder's photo. */
@@ -1627,14 +1628,35 @@ async function adminUploadPhoto(req, env, ctx, puppyId, who) {
   const key = `uploads/${p.breeder_id}/${id}.${ext}`;
   await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
   const aspect = img.size && img.size.h ? Math.round((img.size.w / img.size.h) * 1000) / 1000 : null;
+  // Alex, 2026-11-10. A photo staff add waits for the same quality check as the breeder's own
+  // (POST /api/photos/<id>/check, which the admin calls once the card copy is up, or the portal's
+  // job every 15 minutes), so it reaches the site only when it passes. With the check off it counts at once.
+  const quality = photoCheckMode(env) === 'off' ? null : 'pending';
   const stmts = [
-    env.DB.prepare(`INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, p.breeder_id, puppyId, key, img.type, img.bytes.length, count.first, aspect, now()),
+    env.DB.prepare(`INSERT INTO photos (id, breeder_id, puppy_id, r2_key, content_type, bytes, position, aspect, width, height, created_at, quality)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(id, p.breeder_id, puppyId, key, img.type, img.bytes.length, count.first, aspect,
+      img.size ? img.size.w : null, img.size ? img.size.h : null, now(), quality),
     auditStmt(env, 'operator', who.email, 'photo.add', 'puppy', puppyId, null, { photo: id, bytes: img.bytes.length, breeder_id: p.breeder_id }),
   ];
+  if (!quality) stmts.push(...await photoPassedStmts(env, puppyId, now(), { type: 'operator', email: who.email }));
   if (await isPublicPuppy(env, puppyId)) stmts.push(dirtyStmt(env));
   await env.DB.batch(stmts);
   return json({ id, url: `/media/${id}` }, 201);
+}
+
+/** The quality check on a photo staff added, as the portal runs it for the breeder's own (lib/photocheck.js). */
+async function adminCheckPhoto(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
+  if (!photo) throw notFound();
+  // A local test can ask the stand-in for a verdict. Nothing else can choose one.
+  const sim = isLocal(req, env) ? req.headers.get('x-sim-photo-check') : null;
+  const s = await settings(env);
+  const r = await checkPhoto(env, photo, s.photoCheckRoute, { sim });
+  if (r.judged && r.quality !== 'pass') {
+    await auditStmt(env, 'operator', who.email, `photo.${r.quality}`, 'puppy', photo.puppy_id, null, { photo: id, reasons: r.reasons, breeder_id: photo.breeder_id }).run();
+  }
+  return json({ quality: r.quality, reasons: r.reasons, messages: r.messages, route: s.photoCheckRoute });
 }
 
 async function adminUploadCard(req, env, ctx, id) {
@@ -1759,7 +1781,7 @@ const STAFF_ALLOWED = [
   // Alex, 2026-11-07. Hope lists puppies without payment for the breeders she manages, one at a time or a litter.
   ['POST', /^\/api\/(puppies|litters)\/[\w-]+\/comp$/],
   ['POST', /^\/api\/site\/publish$/],
-  ['POST', /^\/api\/photos\/[\w-]+\/card$/],
+  ['POST', /^\/api\/photos\/[\w-]+\/(card|check)$/],
   ['PUT', /^\/api\/photos\/[\w-]+\/focus$/],
   ['DELETE', /^\/api\/photos\/[\w-]+$/],
   // Alex, 2026-11-10. A mom or dad photo and its face, as staff already do for puppy photos.
@@ -1830,6 +1852,7 @@ const ROUTES = [
   ['POST', /^\/api\/parents\/([\w-]+)\/photo\/card$/, adminUploadParentCard],
   ['PUT', /^\/api\/parents\/([\w-]+)\/photo\/focus$/, adminSetParentFocus],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, adminUploadCard],
+  ['POST', /^\/api\/photos\/([\w-]+)\/check$/, adminCheckPhoto],
   ['DELETE', /^\/api\/photos\/([\w-]+)$/, adminDeletePhoto],
   ['GET', /^\/api\/subscribers$/, listSubscribers],
   ['POST', /^\/api\/subscribers$/, addSubscriberAdmin],

@@ -804,7 +804,7 @@
   function photoThumb(url) {
     return url && url.indexOf('wixstatic.com') >= 0 && url.indexOf('/v1/') < 0 ? url + '/v1/fill/w_320,h_240,al_t,q_80,enc_auto/i.jpg' : url;
   }
-  function photoDrawer(data, p) {
+  function photoDrawer(data, p, notice) {
     api('GET', '/api/puppies/' + p.id + '/photos').then(function (photos) {
       openDrawer('Photos of ' + p.name, WIDE +
                 (photos.length > 1 ? '<div class="photo-batch"><button type="button" class="btn btn-sm btn-quiet" data-pick-all>Select all</button>' +
@@ -815,7 +815,11 @@
             '<div class="btn-row"><button class="btn btn-sm" data-move="-1"' + (i ? '' : ' disabled') + ' aria-label="Move earlier">Earlier</button>' +
             '<button class="btn btn-sm" data-move="1"' + (i < photos.length - 1 ? '' : ' disabled') + ' aria-label="Move later">Later</button>' +
             '<button class="btn btn-sm" data-face>Face</button>' +
-            '<button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first' + (ph.focus_x == null ? ', face not set' : '') + '</span>') + '</li>';
+            '<button class="btn btn-sm btn-danger" data-remove>Remove</button></div>' + (i ? '' : '<span class="small muted">Shown first' + (ph.focus_x == null ? ', face not set' : '') + '</span>') +
+            // Alex, 2026-11-10. A photo the quality check holds back is not on the site, so staff see why.
+            (ph.quality === 'sent_back' ? '<span class="small" style="color:var(--danger,#9b2c2c)">Sent back, not on the site. ' + esc((ph.messages || []).join(' ')) + '</span>'
+              : ph.quality === 'review' ? '<span class="small muted">Waiting in Photo review, not on the site yet.</span>'
+              : ph.quality === 'pending' ? '<span class="small muted">Being checked, not on the site yet.</span>' : '') + '</li>';
         }).join('') + '</ul>' : '<p class="muted">No photos yet.</p>') +
         '<div class="field"><label for="ph-add">Add photos</label><input id="ph-add" type="file" accept="image/*" multiple></div>' +
         '<p class="notice notice-alert small" id="ph-err" hidden></p>' +
@@ -823,23 +827,37 @@
       function (d) {
         var err = $('#ph-err', d);
         function fail(e) { err.hidden = false; err.textContent = e.message; }
+        if (notice) { err.hidden = false; err.textContent = notice; }
         function again() { photoDrawer(data, p); }
         $('[data-back]', d).addEventListener('click', function () { breederDrawer(data.breeder.id); });
         $('#ph-add', d).addEventListener('change', function (e) {
           var files = Array.prototype.slice.call(e.target.files || []);
-          var chain = Promise.resolve(), last = null;
+          var chain = Promise.resolve(), last = null, added = 0, notes = [];
+          // Alex, 2026-11-10. The breeder's own checks: the browser screen (photoscreen.js), then the
+          // quality check once the card copy is up. A photo that does not pass stays off the site.
           files.forEach(function (f) {
             chain = chain.then(function () {
-              return shrinkImage(f).then(function (sz) {
+              return window.pcScreenPhoto(f).then(function () { return shrinkImage(f); }).then(function (sz) {
                 return rawApi('POST', '/api/puppies/' + p.id + '/photos', sz.full).then(function (r) {
-                  last = r.id;
-                  if (sz.card) return rawApi('POST', '/api/photos/' + r.id + '/card', sz.card).catch(function () {});
+                  return (sz.card ? rawApi('POST', '/api/photos/' + r.id + '/card', sz.card).catch(function () {}) : Promise.resolve())
+                    .then(function () { return api('POST', '/api/photos/' + r.id + '/check', {}).catch(function () { return { quality: 'pending' }; }); })
+                    .then(function (c) {
+                      added += 1;
+                      if (c.quality === 'pass' || !c.quality) last = r.id;
+                      else if (c.quality === 'sent_back') notes.push(f.name + ' was sent back and is not on the site. ' + (c.messages || []).join(' '));
+                      else if (c.quality === 'review') notes.push(f.name + ' waits in Photo review.');
+                      else notes.push(f.name + ' is still being checked and goes on the site when it passes.');
+                    });
                 });
-              });
+              }).catch(function (e3) { if (e3.message !== 'skip') notes.push(e3.message); });
             });
           });
-          // Tap the face (Alex, 2026-11-04). A new photo goes first, so the last one up is the cover.
-          chain.then(function () { toast(files.length === 1 ? 'Photo added' : files.length + ' photos added'); if (last) pickFace(last, true, true); else again(); }).catch(function (e2) { fail(e2); });
+          // Tap the face (Alex, 2026-11-04). A new photo goes first, so the last one that passed is the cover.
+          chain.then(function () {
+            if (added) toast(added === 1 ? 'Photo added' : added + ' photos added');
+            if (notes.length) return photoDrawer(data, p, notes.join(' '));
+            if (last) pickFace(last, true, true); else again();
+          }).catch(function (e2) { fail(e2); });
         });
         // Alex, 2026-11-01. Tick several photos and remove them in one go.
         var picks = $$('[data-pick]', d), pickBtn = $('[data-remove-picked]', d), pickAll = $('[data-pick-all]', d);

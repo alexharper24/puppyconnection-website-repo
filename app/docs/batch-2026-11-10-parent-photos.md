@@ -44,6 +44,11 @@ tasks:
     evidence: "PR 170 merged (aab046b). Backup production-2026-11-10-pre0095.sql Downloaded (main checkout app/.state). Rehearsal: 0095 run 1 changed parent_dogs only, run 2 stopped on duplicate column as its header says (as 0094 did), 0 key violations; 0096 on the backup plus 0095 PASS, run 1 8 parents, 8 audit rows and the marker, run 2 no change. d1-apply 0095 1 of 1 and 0096 1 of 1. Read back: all 8 public_parents have size and point, Lake Sai's at 0.5, 0.3, 8 parent.photo.focus audit rows, public_documents 2 before and after, publish ran (dirty 0, generation 964). Portal 016ff580 and admin d45a73e1 deployed from main with wrangler.production.jsonc, the admin with env.AI. Site repo 9428ff2 (sync changed build/generate.mjs only). Live puppy pages: Macy 0% 50%, Chuckie 50% 9.6%, Foxy Rose 50% 36.1%, Lake Sai's 50% 10%"
     found: "A site repo clone made with the global core.autocrlf true shows 83 of 250 files changed on --check. Clone with -c core.autocrlf=false and only the real change shows"
     item: "PR merged to main, migrations applied with backup and two rehearsals, portal and admin deployed with wrangler.production.jsonc, site published, live check"
+  - id: p8-admin-puppy-check
+    status: built
+    asked: "Alex 2026-11-10: Yes, add the check (staff puppy photo uploads in the admin skipped it)"
+    progress: "adminUploadPhoto stores a photo as pending with its size, POST /api/photos/:id/check in the admin runs lib/photocheck.js checkPhoto with the photo_check_route setting (staff allowed), and the drawer runs photoscreen.js first, says which photos were sent back or held, and labels them in the list. A staff photo that passes now restarts the listing's photo clock, as a breeder's does, because checkPhoto runs photoPassedStmts. admin.js v65. admin-features-test 170 of 170. Browser pane at 390 px: a 700 px photo refused with the size message, a 1,500 px photo passed, stored 1500 by 1000, and opened Face"
+    item: "Run photos staff add to a puppy in the admin through the same quality check as the breeder's own"
 ---
 
 # Parent photos, 2026-11-10

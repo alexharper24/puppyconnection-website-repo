@@ -441,16 +441,19 @@ function parentPos(photo) {
   const pos = objectPosition(photo, 4, 3);
   return pos ? ` style="object-position:${pos}"` : '';
 }
+// Each part of the card carries its own class because the stylesheet gives every part a fixed row
+// that both cards share, so the mother's and father's facts, health testing and health record line
+// up side by side even when one name wraps or one part is missing (Alex, 2026-11-11).
 function parentCard(role, par, weight, puppyName) {
-  const facts = [['Breed', par.breed], ['Registration', [par.registry, par.registration].filter(Boolean).join(' ') || null], ['Adult weight', weight != null ? `${weight} lbs` : null]].filter((f) => f[1]);
+  const facts = [['breed', 'Breed', par.breed], ['reg', 'Registration', [par.registry, par.registration].filter(Boolean).join(' ') || null], ['weight', 'Adult weight', weight != null ? `${weight} lbs` : null]].filter((f) => f[2]);
   return `<article class="parent-card">
         ${par.photo ? `<img src="${esc(par.photo.card)}"${parentPos(par.photo)} alt="${esc(par.name)}, ${role === 'Mother' ? 'mother' : 'father'} of ${esc(puppyName)}" loading="lazy" decoding="async">` : ''}
         <div class="parent-body">
           <p class="parent-role">${esc(role)}</p>
           <h3>${esc(par.name)}</h3>
-          ${facts.length ? `<dl class="parent-facts">${facts.map((f) => `<div><dt>${esc(f[0])}</dt><dd>${esc(f[1])}</dd></div>`).join('')}</dl>` : ''}
-          ${par.tests.length || par.other_tests.length ? `<p class="parent-sub">Health testing</p>${par.tests.length ? `<ul class="parent-tests">${par.tests.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}${plist(par.other_tests)}` : ''}
-          ${par.pedigree.length ? `<p class="parent-sub">Pedigree</p>${plist(par.pedigree)}` : ''}
+          ${facts.length ? `<dl class="parent-facts">${facts.map((f) => `<div class="pf-${f[0]}"><dt>${esc(f[1])}</dt><dd>${esc(f[2])}</dd></div>`).join('')}</dl>` : ''}
+          ${par.tests.length || par.other_tests.length ? `<p class="parent-sub parent-health">Health testing</p>${par.tests.length ? `<ul class="parent-tests">${par.tests.map((t) => `<li>${esc(t)}</li>`).join('')}</ul>` : ''}${par.other_tests.length ? `<div class="parent-other">${plist(par.other_tests)}</div>` : ''}` : ''}
+          ${par.pedigree.length ? `<div class="parent-pedigree"><p class="parent-sub">Pedigree</p>${plist(par.pedigree)}</div>` : ''}
           ${par.documents.length ? docList(par.documents) : ''}
         </div>
       </article>`;

@@ -590,19 +590,31 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
 .about-block{margin-top:1.8rem}
 .about-block p{max-width:none}
 /* The saved mom and dad, and the breeder's documents, on a puppy page (workplan A19 and A20) */
+/* Alex, 2026-11-11: the two cards share one set of rows through subgrid, so the role, name, each fact,
+   Health testing, the test list, other testing, pedigree and the health record links sit at the same
+   height on both cards. Every part has a fixed row, so a part missing on one card leaves its row empty
+   there and nothing below it moves up. Stacked on a phone, each card simply takes its own 11 rows. */
 .parent-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(15rem,100%),1fr));gap:1rem;margin-top:.6rem}
-.parent-card{border:var(--rule);background:var(--paper);display:flex;flex-direction:column;min-width:0}
-.parent-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block}
-.parent-body{padding:.9rem 1rem 1rem;min-width:0}
-.parent-role{font-family:var(--cond);font-size:.8rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:0}
-.parent-body h3{margin:.1rem 0 .5rem}
-.parent-facts{margin:0 0 .4rem}
+.parent-card{border:var(--rule);background:var(--paper);min-width:0;display:grid;grid-template-columns:minmax(0,1fr);
+  grid-row:span 11;grid-template-rows:subgrid;row-gap:0;padding-bottom:1rem}
+.parent-card img{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;grid-row:1}
+.parent-body,.parent-facts{display:contents}
+.parent-body > *,.parent-facts > div{margin-inline:1rem;min-width:0}
+.parent-role{font-family:var(--cond);font-size:.8rem;letter-spacing:.13em;text-transform:uppercase;color:var(--muted);margin:.9rem 1rem 0;grid-row:2}
+.parent-body h3{margin:.1rem 1rem .5rem;grid-row:3}
+.parent-facts .pf-breed{grid-row:4}
+.parent-facts .pf-reg{grid-row:5}
+.parent-facts .pf-weight{grid-row:6}
 .parent-facts div{display:flex;gap:.6rem;padding:.15rem 0}
 .parent-facts dt{color:var(--muted);flex:0 0 6.5rem}
 .parent-facts dd{margin:0;min-width:0;overflow-wrap:anywhere}
 .parent-sub{font-weight:600;margin:.7rem 0 .2rem}
-.parent-tests{margin:0;padding-left:1.1rem}
+.parent-health{grid-row:7;margin-inline:1rem}
+.parent-tests{margin:0 1rem;padding-left:1.1rem;grid-row:8}
 .parent-tests li{margin:.1rem 0}
+.parent-other{grid-row:9}
+.parent-pedigree{grid-row:10}
+.parent-card .doc-links{grid-row:11;margin:.5rem 1rem 0}
 .doc-links{list-style:none;padding:0;margin:.5rem 0 0}
 .doc-links li{padding:.45rem 0;border-top:var(--rule);overflow-wrap:anywhere}
 .doc-kind{color:var(--muted);font-size:.9em}

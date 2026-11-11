@@ -1512,29 +1512,9 @@
       }, 'image/webp', 0.82);
     });
   }
-  /* Workplan A9. A photo under MIN_EDGE on its longest side is refused here, and a dark one asks
-     first. The 100-photo sample's passing photos were all at least 1,080 px and none had a mean
-     brightness under 76, while the two dark ones it sent back measured 62 and 64. */
-  var MIN_EDGE = 1000, DARK = 70;
-  function brightness(src) {
-    try {
-      var c = document.createElement('canvas'); c.width = 48; c.height = 48;
-      var g = c.getContext('2d'); g.drawImage(src, 0, 0, 48, 48);
-      var d = g.getImageData(0, 0, 48, 48).data, sum = 0;
-      for (var i = 0; i < d.length; i += 4) sum += 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
-      return sum / (d.length / 4);
-    } catch (e) { return 255; }
-  }
-  function screen(file, what) {
-    return decode(file).then(function (src) {
-      var edge = Math.max(src.width, src.height);
-      var light = brightness(src);
-      if (src.close) src.close();
-      if (edge < MIN_EDGE) throw new Error(file.name + ' is ' + edge + ' pixels across. Photos need to be at least ' + MIN_EDGE + ' pixels, so use the original from your phone or camera rather than a screenshot or a saved copy.');
-      if (light < DARK) return pcAsk(file.name + ' looks dark, so families may not see the ' + (what || 'puppy') + ' well. Upload it anyway?', { yes: 'Upload anyway' })
-        .then(function (ok) { if (!ok) throw new Error('skip'); });
-    }, function () { /* a file the browser cannot decode goes up as it is, and the server checks it */ });
-  }
+  /* Workplan A9. The browser's size floor and dark check, shared with the admin in photoscreen.js
+     (Alex, 2026-11-10), so a mom or dad photo staff add meets the same rules. */
+  function screen(file, what) { return window.pcScreenPhoto(file, what); }
   function shrink(file) {
     return decode(file).then(function (src) {
       return draw(src, FULL_EDGE).then(function (full) {
@@ -1786,14 +1766,29 @@
     return '<section style="margin-top:1.4rem"><h3>Photo</h3>' +
       (p.photo_url ? '<img src="' + esc(p.photo_url) + '" alt="' + esc(p.name) + '" style="max-width:100%;max-height:16rem;border-radius:8px;display:block">' : '<p class="muted small">No photo yet. Families like to see the parents.</p>') +
       (canEdit ? '<div class="upload btn-row"><label for="pa-photo" class="btn btn-sm">' + (p.photo_url ? 'Replace photo' : 'Add a photo') + '</label><input id="pa-photo" type="file" accept="image/*" hidden>' +
-        (p.photo_url ? '<button type="button" class="btn btn-sm btn-quiet" id="pa-photo-remove">Remove photo</button>' : '') + '</div>' +
+        (p.photo_url ? '<button type="button" class="btn btn-sm' + (p.focus_x == null ? ' face-needed' : '') + '" id="pa-face">Face</button>' +
+          '<button type="button" class="btn btn-sm btn-quiet" id="pa-photo-remove">Remove photo</button>' : '') + '</div>' +
         '<div class="hint">JPEG, PNG or WebP, at least 1,000 pixels across. The photo is checked that the dog can be seen clearly, as puppy photos are.</div>' +
         '<p class="error" id="pa-photo-error" hidden></p>' : '') + '</section>';
   }
+  /* The parent card on a puppy page is 4:3 at every width (css/style.css .parent-card img), so Face
+     previews that one shape (Alex, 2026-11-10). */
+  var PARENT_CARDS = [{ label: 'Card on the puppy page', ratio: 4 / 3 }];
   function wireParentPhoto(d, p, canEdit) {
     if (!canEdit) return;
     function reopen() { return loadParents().then(function () { parentsView(); parentDrawer(findParent(p.id)); }); }
     var input = $('#pa-photo', d), errBox = $('#pa-photo-error', d);
+    /* Tap the face. Opens by itself after a new photo, and from Face. */
+    function pickFace(fresh) {
+      var q = findParent(p.id);
+      if (!q || !q.photo_url || !window.pcFacePick) return;
+      pcFacePick({ src: q.photo_url, name: q.name, what: 'dog', fx: q.focus_x, fy: q.focus_y, cards: PARENT_CARDS }).then(function (r) {
+        if (!r) return;
+        return api('PUT', '/api/parents/' + p.id + '/photo/focus', r).then(function () { toast(fresh ? 'Photo framed' : 'Face saved'); return reopen(); });
+      }).catch(function (err) { var box = $('#pa-photo-error'); if (box) { box.hidden = false; box.textContent = err.message; } });
+    }
+    var face = $('#pa-face', d);
+    if (face) face.addEventListener('click', function () { pickFace(false); });
     input.addEventListener('change', function () {
       var file = input.files && input.files[0];
       if (!file) return;
@@ -1803,7 +1798,7 @@
       screen(file, 'dog').then(function () { return shrink(file); }).then(function (s) {
         return api('POST', '/api/parents/' + p.id + '/photo', undefined, s.full)
           .then(function () { return s.card ? api('POST', '/api/parents/' + p.id + '/photo/card', undefined, s.card).catch(function () {}) : null; });
-      }).then(function () { fb.done(); toast('Photo added'); reopen(); }).catch(function (err) {
+      }).then(function () { fb.done(); toast('Photo added'); return reopen().then(function () { pickFace(true); }); }).catch(function (err) {
         fb.done(); input.value = '';
         if (err.message === 'skip') return;
         errBox.hidden = false; errBox.textContent = err.message;

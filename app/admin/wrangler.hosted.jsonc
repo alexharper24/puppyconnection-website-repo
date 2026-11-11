@@ -24,6 +24,9 @@
   // portal, Publish now says publishing is not set up.
   "services": [{ "binding": "PORTAL", "service": "portal" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "puppyconnection-files" }],
+  // The photo quality check and the dog detector for a mom or dad photo staff add (lib/parents.js
+  // storeParentPhoto, Alex 2026-11-10), on the same account allocation as the portal's.
+  "ai": { "binding": "AI" },
   "vars": {
     "PORTAL_ORIGIN": "https://portal.puppyconnection.workers.dev",
     // Workplan A11. The public site, for the Visit site link. https://puppy-connection.com at cutover (E2).
@@ -55,6 +58,7 @@
     // Video is held for now (Alex, 2026-10-25). Set this back to "stream" to switch it on; the key and customer code stay.
     "STREAM_MODE": "off",
     "STREAM_CUSTOMER_CODE": "ui4bftd2nmemqgdc",
-    "STREAM_ACCOUNT_ID": "4f6e9dc25ab751960763628b06e6c108"
+    "STREAM_ACCOUNT_ID": "4f6e9dc25ab751960763628b06e6c108",
+    "PHOTO_CHECK_MODE": "ai"
   }
 }

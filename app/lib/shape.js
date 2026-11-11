@@ -96,7 +96,9 @@ export async function exportSite(env) {
     parents[d.id] = {
       name: d.name, breed: breedName[d.breed] || null, registry: d.registry || null, registration: d.registration || null,
       tests: testLabels(d.health_tests_json), other_tests: paras(d.health_other), pedigree: paras(d.pedigree),
-      photo: v ? { src: `media/parent/${d.id}?v=${v}`, card: `media/parent/${d.id}/card?v=${v}` } : null, documents: docs.parent[d.id] || [],
+      // Size and focus point (migrations/0095), carried with the same fallback as a puppy photo's framing.
+      photo: v ? { src: `media/parent/${d.id}?v=${v}`, card: `media/parent/${d.id}/card?v=${v}`, ...framing({ width: d.photo_width, height: d.photo_height, focus_x: d.focus_x, focus_y: d.focus_y }) } : null,
+      documents: docs.parent[d.id] || [],
     };
   }
 

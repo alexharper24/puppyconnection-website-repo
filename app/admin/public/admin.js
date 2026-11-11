@@ -480,11 +480,55 @@
         '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + (p.sex === 'female' ? 'Mom' : 'Dad') + (p.registry ? ', ' + esc(p.registry) + (p.registration ? ' ' + esc(p.registration) : '') : '') +
         (p.archived_at ? ', removed from the picker' : '') + '</span>' +
         '<span class="small">' + (p.test_labels.length ? esc(p.test_labels.join(', ')) : 'No tests picked') + (p.health_other ? '. Other: ' + esc(p.health_other) : '') + '</span>' +
-        (p.documents.length ? '<ul class="small" style="margin:.3rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul>' : '') + '</div></div>';
+        (p.documents.length ? '<ul class="small" style="margin:.3rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul>' : '') +
+        // Alex, 2026-11-10. A photo through the same checks as the breeder's, and Face, gold until a point is set.
+        '<div class="btn-row"><label class="btn btn-sm" for="pa-up-' + esc(p.id) + '">' + (p.photo_url ? 'Replace photo' : 'Add photo') + '</label>' +
+        '<input id="pa-up-' + esc(p.id) + '" type="file" accept="image/*" hidden data-parent-photo="' + esc(p.id) + '">' +
+        (p.photo_url ? '<button type="button" class="btn btn-sm' + (p.focus_x == null ? ' face-needed' : '') + '" data-parent-face="' + esc(p.id) + '">Face</button>' : '') + '</div>' +
+        '<p class="notice notice-alert small" data-parent-err="' + esc(p.id) + '" hidden></p></div></div>';
     }).join('')) : '') +
       (pupDocs.length ? sec('Puppy documents', pupDocs.map(function (p) {
         return '<div class="small" style="padding:.3rem 0;border-top:1px solid var(--line)"><b>' + esc(p.name) + '</b><ul style="margin:.2rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul></div>';
       }).join('')) : '');
+  }
+
+  /* Tap the face on a mom or dad photo (Alex, 2026-11-10). The parent card on a puppy page is 4:3 at
+     every width (css/style.css .parent-card img), so that is the one shape previewed. Fresh reads the
+     breeder again, after an upload. */
+  var PARENT_CARDS = [{ label: 'Card on the puppy page', ratio: 4 / 3 }];
+  function parentFace(breederId, parentId, list, fresh) {
+    return (fresh ? api('GET', '/api/breeders/' + breederId).then(function (x) { return x.parents || []; }) : Promise.resolve(list)).then(function (parents) {
+      var q = parents.filter(function (x) { return x.id === parentId; })[0];
+      if (!q || !q.photo_url || !window.pcFacePick) return breederDrawer(breederId);
+      return pcFacePick({ src: q.photo_url, name: q.name, what: 'dog', fx: q.focus_x, fy: q.focus_y, cards: PARENT_CARDS }).then(function (r) {
+        if (!r) return breederDrawer(breederId);
+        return api('PUT', '/api/parents/' + parentId + '/photo/focus', r).then(function () { toast(fresh ? 'Photo framed' : 'Face saved'); breederDrawer(breederId); });
+      });
+    });
+  }
+  function wireParentPhotos(d, data) {
+    var bid = data.breeder.id;
+    function fail(pid, e) { var box = $('[data-parent-err="' + pid + '"]', d); if (box) { box.hidden = false; box.textContent = e.message; } }
+    $$('[data-parent-photo]', d).forEach(function (input) {
+      input.addEventListener('change', function () {
+        var f = input.files && input.files[0], pid = input.dataset.parentPhoto;
+        if (!f) return;
+        var label = $('label[for="' + input.id + '"]', d);
+        if (label) label.textContent = 'Checking photo…';
+        // The portal's screen first (photoscreen.js), then the server's floor and quality check.
+        window.pcScreenPhoto(f, 'dog').then(function () { return shrinkImage(f); }).then(function (sz) {
+          return rawApi('POST', '/api/parents/' + pid + '/photo', sz.full)
+            .then(function () { return sz.card ? rawApi('POST', '/api/parents/' + pid + '/photo/card', sz.card).catch(function () {}) : null; });
+        }).then(function () { toast('Photo added'); return parentFace(bid, pid, null, true); }).catch(function (e) {
+          input.value = '';
+          if (label) label.textContent = 'Try another photo';
+          if (e.message !== 'skip') fail(pid, e);
+        });
+      });
+    });
+    $$('[data-parent-face]', d).forEach(function (b) {
+      b.addEventListener('click', function () { parentFace(bid, b.dataset.parentFace, data.parents || [], false).catch(function (e) { fail(b.dataset.parentFace, e); }); });
+    });
   }
 
   function breederDrawer(id) {
@@ -600,6 +644,7 @@
           $$('[data-photos-puppy]', d).forEach(function (btn) {
             btn.addEventListener('click', function () { photoDrawer(data, pups.filter(function (p) { return p.id === btn.dataset.photosPuppy; })[0]); });
           });
+          wireParentPhotos(d, data);
         });
     });
   }

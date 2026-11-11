@@ -10,6 +10,8 @@
 import { now, ulid, clean, bad, notFound } from './util.js';
 import { sniff as sniffImage, cleanImage } from './images.js';
 import { TESTS, breedList, testsFor } from './healthtests.js';
+import { checkParentPhoto, photoCheckMode } from './photocheck.js';
+import { findFocus } from './focus.js';
 
 export const DOC_KINDS = { health: 'Health record', guarantee: 'Health guarantee', pedigree: 'Pedigree', other: 'Other document' };
 // 10 MB covers a scanned multi-page health record or pedigree at a readable resolution, and stays
@@ -124,6 +126,50 @@ export async function replaceDocumentFile(env, doc, bytes, type = doc.content_ty
 }
 
 // ------------------------------------------------------------------ uploads
+
+export const PARENT_CARD_EDGE = 1000;
+
+/**
+ * A new mom or dad photo, for the portal and the admin alike (Alex, 2026-11-01 and 2026-11-10). It
+ * must pass the same size floor and quality check as a puppy photo before it is stored
+ * (lib/photocheck.js checkParentPhoto), so a photo that fails never replaces the one families see.
+ * A photo that passes is stored with its size and the dog detector's point (lib/focus.js), which
+ * the breeder can then move with Face. audit(action, after) makes the caller's audit row.
+ * Returns { refused } with the reasons and sentences, or { key, stmts } for the caller to run with
+ * its publish marker, then delete the old file.
+ */
+export async function storeParentPhoto(env, parent, raw, audit, { sim } = {}) {
+  const img = cleanImage(raw);
+  const refused = await checkParentPhoto(env, img, { sim });
+  if (refused) return { refused };
+  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[img.type];
+  const key = `parents/${parent.breeder_id}/${parent.id}-${ulid().slice(-10).toLowerCase()}.${ext}`;
+  // No dog found, the check off, or a failed call leaves the point empty, and the card is cut at the middle.
+  const focus = photoCheckMode(env) === 'ai' ? await findFocus(env, img.bytes) : null;
+  await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
+  const w = img.size ? img.size.w : null, h = img.size ? img.size.h : null;
+  return {
+    key,
+    stmts: [
+      env.DB.prepare(
+        `UPDATE parent_dogs SET photo_key = ?, photo_width = ?, photo_height = ?, focus_x = ?, focus_y = ?, updated_at = ?, version = version + 1
+          WHERE id = ? AND breeder_id = ?`,
+      ).bind(key, w, h, focus ? focus.fx : null, focus ? focus.fy : null, now(), parent.id, parent.breeder_id),
+      audit('parent.photo', { bytes: img.bytes.length, width: w, height: h, focus_x: focus ? focus.fx : null, focus_y: focus ? focus.fy : null }),
+    ],
+  };
+}
+
+/** The ".card" copy the browser made, checked for size and stripped like the photo. */
+export async function storeParentCard(env, parent, raw) {
+  if (!parent.photo_key) throw bad('Add the photo first.');
+  const img = cleanImage(raw);
+  if (!img.size || Math.max(img.size.w, img.size.h) > PARENT_CARD_EDGE) throw bad(`A card copy can be up to ${PARENT_CARD_EDGE} pixels on its longest side.`);
+  await env.FILES.put(`${parent.photo_key}.card`, img.bytes, { httpMetadata: { contentType: img.type } });
+}
+
+/** Removing a photo clears its size and point with it. */
+export const PARENT_PHOTO_CLEAR = 'photo_key = NULL, photo_width = NULL, photo_height = NULL, focus_x = NULL, focus_y = NULL';
 
 /** A document's metadata from the upload's query string. */
 export function docFields(params, fallbackTitle) {

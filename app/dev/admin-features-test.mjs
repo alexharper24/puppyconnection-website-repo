@@ -29,6 +29,8 @@ const WRANGLER = process.env.WRANGLER_JS || path.resolve(APP, '../../teapup-webs
 const PORTAL = process.env.PORTAL || 'http://localhost:8787';
 const ADMIN = process.env.ADMIN || 'http://localhost:8788';
 const JPG = new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures/gps-test.jpg')));
+// The same photo at 1,200 by 800, over the 1,000 px floor a mom or dad photo has to meet.
+const BIG = new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures/gps-test-1200.jpg')));
 
 let fails = 0, passes = 0;
 function check(label, ok, detail) {
@@ -527,6 +529,22 @@ async function features() {
       check('a face point outside the photo is refused', (await admin.put(`/api/photos/${r.data.id}/focus`, { fx: 1.4, fy: 0.3 })).status === 400);
       check('staff remove a photo', (await admin.req('DELETE', `/api/photos/${r.data.id}`)).status === 200 && !(await admin.get(`/api/puppies/${pupId}/photos`)).data.some((x) => x.id === r.data.id));
       await admin.put(`/api/puppies/${pupId}/photo-order`, { ids: ids.filter((x) => x !== r.data.id) });
+      // Alex, 2026-11-10. Staff add a mom photo through the parent check and set her face.
+      const momId = `staff-mom-${stamp}`;
+      const pupBreeder = sql(`SELECT breeder_id FROM puppies WHERE id = '${pupId}'`)[0].breeder_id;
+      sql(`INSERT INTO parent_dogs (id, breeder_id, sex, name, created_at, updated_at) VALUES ('${momId}', '${pupBreeder}', 'female', 'Staff test mom', '2026-11-10T00:00:00Z', '2026-11-10T00:00:00Z')`);
+      try {
+        const sent = await admin.req('POST', `/api/parents/${momId}/photo`, BIG, { headers: { 'content-type': 'image/jpeg', 'x-sim-photo-check': 'watermark' } });
+        check('staff are told why a mom photo the check sends back was not added', sent.status === 422 && /watermark/.test(sent.data.error), JSON.stringify(sent.data));
+        const up = await admin.req('POST', `/api/parents/${momId}/photo`, BIG, { headers: { 'content-type': 'image/jpeg' } });
+        check('staff add a mom photo that passes', up.status === 201, JSON.stringify(up.data));
+        const fr = await admin.put(`/api/parents/${momId}/photo/focus`, { fx: 0.4, fy: 0.2 });
+        const mrow = sql(`SELECT focus_x, focus_y, photo_width FROM parent_dogs WHERE id = '${momId}'`)[0];
+        check('staff set the mom photo’s face point', fr.status === 200 && mrow.focus_x === 0.4 && mrow.focus_y === 0.2 && mrow.photo_width === 1200, JSON.stringify(mrow));
+        check('the breeder drawer sends the mom with her point, for Face', ((await admin.get(`/api/breeders/${pupBreeder}`)).data.parents || []).some((x) => x.id === momId && x.focus_x === 0.4));
+      } finally {
+        sql(`DELETE FROM parent_dogs WHERE id = '${momId}'`);
+      }
     } finally {
       sql("UPDATE people SET role = 'owner' WHERE email = 'amber@puppyconnection.test'");
     }

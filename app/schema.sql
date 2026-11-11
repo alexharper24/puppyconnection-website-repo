@@ -328,6 +328,11 @@ CREATE TABLE IF NOT EXISTS parent_dogs (
   health_other      TEXT,
   pedigree          TEXT,
   photo_key         TEXT,
+  -- migrations/0095. The photo's size and the focus point its card is cut around, 0..1 across and down.
+  photo_width       INTEGER,
+  photo_height      INTEGER,
+  focus_x           REAL,
+  focus_y           REAL,
   archived_at       TEXT,
   created_at        TEXT NOT NULL,
   updated_at        TEXT NOT NULL,
@@ -811,7 +816,7 @@ WHERE l.archived_at IS NULL
 -- migrations/0050. Only parents on a public litter, and only public documents of public puppies and parents.
 CREATE VIEW public_parents AS
 SELECT d.id, d.breeder_id, d.sex, d.name, d.breed, d.registry, d.registration, d.health_tests_json,
-       d.health_other, d.pedigree, d.photo_key
+       d.health_other, d.pedigree, d.photo_key, d.photo_width, d.photo_height, d.focus_x, d.focus_y
 FROM parent_dogs d
 WHERE d.id IN (SELECT mom_id FROM public_litters UNION SELECT dad_id FROM public_litters);
 CREATE VIEW public_documents AS

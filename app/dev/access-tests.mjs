@@ -117,6 +117,8 @@ async function main() {
     uploadParentPhoto: ['POST', `/api/parents/${B.parent}/photo`, JPG],
     uploadParentCard: ['POST', `/api/parents/${B.parent}/photo/card`, JPG],
     removeParentPhoto: ['DELETE', `/api/parents/${B.parent}/photo`, null],
+    // Alex, 2026-11-10. Tap the face on B's mom photo.
+    setParentFocus: ['PUT', `/api/parents/${B.parent}/photo/focus`, { fx: 0.1, fy: 0.1 }],
     uploadParentDocument: ['POST', `/api/parents/${B.parent}/documents?kind=health&visibility=public`, JPG],
     uploadPuppyDocument: ['POST', `/api/puppies/${B.draft}/documents?kind=health&visibility=public`, JPG],
     updateDocument: ['PUT', `/api/documents/${B.doc}`, { visibility: 'public' }],

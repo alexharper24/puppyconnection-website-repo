@@ -4,7 +4,7 @@
 
 import {
   now, addDays, slugify, clean, cents, HttpError, notFound, forbidden, bad, json, readJson,
-  requireSameOrigin, SECURITY_HEADERS, withHeaders, gate, showTestNotices, ulid,
+  requireSameOrigin, SECURITY_HEADERS, withHeaders, gate, showTestNotices, ulid, isLocal,
 } from '../lib/util.js';
 import {
   loadBreeder, settings, auditStmt, dirtyStmt, checkVersion, littersWithPuppies, photoUrl,
@@ -22,7 +22,7 @@ import {
   kennelPeople, checkNewPerson, addPersonStmts, removePersonStmts, makeMainStmts, sendInvitation, resetAuthenticatorStmts,
   accessStmts, ACCESS_HOW, newAuthToken, signInsEndStmts, HANDOFF_MINUTES, checkMakeMain, onKennel, EMAIL_RX,
 } from '../lib/accounts.js';
-import { checkLitterParents, parentsFor, documentsFor } from '../lib/parents.js';
+import { checkLitterParents, parentsFor, documentsFor, storeParentPhoto, storeParentCard } from '../lib/parents.js';
 import { serveParentPhoto, serveDocument } from '../lib/media.js';
 import { buildExport } from '../lib/export.js';
 import { runJob, JOBS } from '../lib/jobs.js';
@@ -40,7 +40,7 @@ import {
   checklist, checklistSummary, checklistItem, addChecklistItem, editChecklistItem, tickChecklistItem, moveChecklistItem,
   archiveChecklistItem, commentChecklistItem, addChecklistPart, editChecklistPart, tickChecklistPart, moveChecklistPart, archiveChecklistPart,
 } from '../lib/checklist.js';
-import { focusBody, focusStmt, focusBinds } from '../lib/focusedit.js';
+import { focusBody, focusStmt, focusBinds, parentFocusStmt } from '../lib/focusedit.js';
 import { listWithoutPayment, litterCompIds } from '../lib/listing.js';
 
 /** The scheduled jobs, their last run, and a way to run one now (lib/jobs.js). */
@@ -1145,6 +1145,56 @@ async function parentPhotoAdmin(req, env, id, card) {
   return res;
 }
 
+const isPublicParent = async (env, id) => !!(await env.DB.prepare('SELECT 1 AS x FROM public_parents WHERE id = ?').bind(id).first());
+async function parentRow(env, id) {
+  const p = await env.DB.prepare('SELECT * FROM parent_dogs WHERE id = ?').bind(id).first();
+  if (!p) throw notFound();
+  return p;
+}
+
+/**
+ * A mom or dad photo added by Puppy Connection (Alex, 2026-11-10). The same size floor and quality
+ * check as the breeder's own upload in the portal (lib/parents.js storeParentPhoto), so a photo
+ * that fails is never stored and staff are told why.
+ */
+async function adminUploadParentPhoto(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const p = await parentRow(env, id);
+  // A local test can ask the stand-in for a verdict. Nothing else can choose one.
+  const sim = isLocal(req, env) ? req.headers.get('x-sim-photo-check') : null;
+  const r = await storeParentPhoto(env, p, new Uint8Array(await req.arrayBuffer()),
+    (action, after) => auditStmt(env, 'operator', who.email, action, 'parent', id, null, { ...after, breeder_id: p.breeder_id }), { sim });
+  if (r.refused) {
+    await auditStmt(env, 'operator', who.email, 'parent.photo.sent_back', 'parent', id, null, { reasons: r.refused.reasons, breeder_id: p.breeder_id }).run();
+    throw new HttpError(422, `${r.refused.messages.join(' ')} The photo was not added, so upload a clearer one.`);
+  }
+  if (await isPublicParent(env, id)) r.stmts.push(dirtyStmt(env));
+  await env.DB.batch(r.stmts);
+  if (p.photo_key) await env.FILES.delete([p.photo_key, `${p.photo_key}.card`]);
+  return json({ ok: true }, 201);
+}
+
+async function adminUploadParentCard(req, env, ctx, id) {
+  requireSameOrigin(req);
+  await storeParentCard(env, await parentRow(env, id), new Uint8Array(await req.arrayBuffer()));
+  return json({ ok: true }, 201);
+}
+
+/** Tap the face on a mom or dad photo, set by Puppy Connection (Alex, 2026-11-10). */
+async function adminSetParentFocus(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const p = await parentRow(env, id);
+  if (!p.photo_key) throw bad('Add the photo first.');
+  const f = focusBody(await readJson(req), 'dog');
+  const stmts = [
+    parentFocusStmt(env, p, f),
+    auditStmt(env, 'operator', who.email, 'parent.photo.focus', 'parent', id, { focus_x: p.focus_x, focus_y: p.focus_y }, { focus_x: f.fx, focus_y: f.fy, breeder_id: p.breeder_id }),
+  ];
+  if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true, focus_x: f.fx, focus_y: f.fy });
+}
+
 /** Any document, public or private, to a signed-in operator (workplan A20). The router has already checked who they are. */
 async function documentAdmin(req, env, ctx, id) {
   const res = await serveDocument(env, id, { allowPrivate: async () => true });
@@ -1712,6 +1762,9 @@ const STAFF_ALLOWED = [
   ['POST', /^\/api\/photos\/[\w-]+\/card$/],
   ['PUT', /^\/api\/photos\/[\w-]+\/focus$/],
   ['DELETE', /^\/api\/photos\/[\w-]+$/],
+  // Alex, 2026-11-10. A mom or dad photo and its face, as staff already do for puppy photos.
+  ['POST', /^\/api\/parents\/[\w-]+\/photo(\/card)?$/],
+  ['PUT', /^\/api\/parents\/[\w-]+\/photo\/focus$/],
   ['DELETE', /^\/api\/videos\/[\w-]+$/],
   // Workplan A5. Staff read and close reports. Suspending the breeder stays with the owners.
   ['GET', /^\/api\/listing-reports$/],
@@ -1773,6 +1826,9 @@ const ROUTES = [
   ['POST', /^\/api\/puppies\/([\w-]+)\/photos$/, adminUploadPhoto],
   ['PUT', /^\/api\/puppies\/([\w-]+)\/photo-order$/, adminOrderPhotos],
   ['PUT', /^\/api\/photos\/([\w-]+)\/focus$/, adminSetPhotoFocus],
+  ['POST', /^\/api\/parents\/([\w-]+)\/photo$/, adminUploadParentPhoto],
+  ['POST', /^\/api\/parents\/([\w-]+)\/photo\/card$/, adminUploadParentCard],
+  ['PUT', /^\/api\/parents\/([\w-]+)\/photo\/focus$/, adminSetParentFocus],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, adminUploadCard],
   ['DELETE', /^\/api\/photos\/([\w-]+)$/, adminDeletePhoto],
   ['GET', /^\/api\/subscribers$/, listSubscribers],

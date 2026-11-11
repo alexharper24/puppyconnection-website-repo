@@ -9,3 +9,7 @@ DEV_IDENTITY=amber@puppyconnection.test
 
 # Workplan A3. Puppy videos through the stand-in Stream at /dev/stream (lib/stream.js).
 STREAM_MODE=sim
+
+# The photo quality check stand-in (lib/photocheck.js), for a mom or dad photo staff add here
+# (Alex, 2026-11-10). It passes every photo unless a test sends x-sim-photo-check.
+PHOTO_CHECK_MODE=sim

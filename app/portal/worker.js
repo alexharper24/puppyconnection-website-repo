@@ -27,19 +27,19 @@ import {
 } from '../lib/payments.js';
 import { cleanImage } from '../lib/images.js';
 import { reportTarget, reportForm, saveReport } from '../lib/reports.js';
-import { photoCheckMode, checkPhoto, reasonText, checkParentPhoto } from '../lib/photocheck.js';
+import { photoCheckMode, checkPhoto, reasonText } from '../lib/photocheck.js';
 import { photoPassedStmts, scheduleFor, inactivitySettings } from '../lib/inactivity.js';
 import {
   streamMode, createUpload, refreshVideo, removeVideo, videoUrls, simUpload, simServe, MAX_UPLOAD_BYTES,
 } from '../lib/stream.js';
 import { googleEnabled, startUrl, exchangeCode, verifyWithGoogle, randomString } from '../lib/google.js';
 import {
-  parentFields, PARENT_EDIT_COLS, checkLitterParents, parentsFor, documentsFor, storeDocument, moveDocument, DOC_KINDS, MAX_DOCS, MAX_DOC_BYTES,
+  parentFields, PARENT_EDIT_COLS, storeParentPhoto, storeParentCard, PARENT_PHOTO_CLEAR, checkLitterParents, parentsFor, documentsFor, storeDocument, moveDocument, DOC_KINDS, MAX_DOCS, MAX_DOC_BYTES,
   healthCatalog, cleanDocument, replaceDocumentFile, docVersion,
 } from '../lib/parents.js';
 import { extractFromDocument, extractRefusal } from '../lib/docextract.js';
 import { rotatePdf } from '../lib/pdfrotate.js';
-import { focusBody, focusStmt, focusBinds } from '../lib/focusedit.js';
+import { focusBody, focusStmt, focusBinds, parentFocusStmt } from '../lib/focusedit.js';
 import { listWithoutPayment, litterCompIds } from '../lib/listing.js';
 import { serveParentPhoto, serveDocument, serveEmailPicture } from '../lib/media.js';
 import {
@@ -1868,35 +1868,26 @@ async function archiveParent(request, env, ctx, id) {
   return json({ ok: true });
 }
 
-const PARENT_CARD_EDGE = 1000;
-
 /**
  * The parent's photo, shrunk in the browser as puppy photos are, with its metadata stripped here.
  * It must pass the same size floor and quality check as a puppy photo before it is saved, so a
- * photo that does not pass never replaces the one families see (lib/photocheck.js checkParentPhoto).
+ * photo that does not pass never replaces the one families see (lib/parents.js storeParentPhoto).
  */
 async function uploadParentPhoto(request, env, ctx, id) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
   requireDrafting(breeder);
   const p = await owned(env, 'parent', id, breeder.id);
-  const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
   // A test can ask the local stand-in for a verdict. Nothing else can choose one.
   const sim = isLocal(request, env) ? request.headers.get('x-sim-photo-check') : null;
-  const refused = await checkParentPhoto(env, img, { sim });
-  if (refused) {
-    await auditStmt(env, ...who(breeder), 'parent.photo.sent_back', 'parent', id, null, { reasons: refused.reasons }).run();
-    throw new HttpError(422, `${refused.messages.join(' ')} The photo was not added, so upload a clearer one.`);
+  const r = await storeParentPhoto(env, p, new Uint8Array(await request.arrayBuffer()),
+    (action, after) => auditStmt(env, ...who(breeder), action, 'parent', id, null, after), { sim });
+  if (r.refused) {
+    await auditStmt(env, ...who(breeder), 'parent.photo.sent_back', 'parent', id, null, { reasons: r.refused.reasons }).run();
+    throw new HttpError(422, `${r.refused.messages.join(' ')} The photo was not added, so upload a clearer one.`);
   }
-  const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[img.type];
-  const key = `parents/${breeder.id}/${id}-${ulid().slice(-10).toLowerCase()}.${ext}`;
-  await env.FILES.put(key, img.bytes, { httpMetadata: { contentType: img.type } });
-  const stmts = [
-    env.DB.prepare('UPDATE parent_dogs SET photo_key = ?, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(key, now(), id, breeder.id),
-    auditStmt(env, ...who(breeder), 'parent.photo', 'parent', id, null, { bytes: img.bytes.length }),
-  ];
-  if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
-  await env.DB.batch(stmts);
+  if (await isPublicParent(env, id)) r.stmts.push(dirtyStmt(env));
+  await env.DB.batch(r.stmts);
   if (p.photo_key) await env.FILES.delete([p.photo_key, `${p.photo_key}.card`]);
   return json({ ok: true }, 201);
 }
@@ -1906,11 +1897,25 @@ async function uploadParentCard(request, env, ctx, id) {
   const { breeder } = await needSession(request, env);
   requireDrafting(breeder);
   const p = await owned(env, 'parent', id, breeder.id);
-  if (!p.photo_key) throw bad('Add the photo first.');
-  const img = cleanImage(new Uint8Array(await request.arrayBuffer()));
-  if (!img.size || Math.max(img.size.w, img.size.h) > PARENT_CARD_EDGE) throw bad(`A card copy can be up to ${PARENT_CARD_EDGE} pixels on its longest side.`);
-  await env.FILES.put(`${p.photo_key}.card`, img.bytes, { httpMetadata: { contentType: img.type } });
+  await storeParentCard(env, p, new Uint8Array(await request.arrayBuffer()));
   return json({ ok: true }, 201);
+}
+
+/** Tap the face on a mom or dad photo (Alex, 2026-11-10). Only the parent's own breeder. */
+async function setParentFocus(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const { breeder } = await needSession(request, env);
+  requireDrafting(breeder);
+  const p = await owned(env, 'parent', id, breeder.id);
+  if (!p.photo_key) throw bad('Add the photo first.');
+  const f = focusBody(await readJson(request), 'dog');
+  const stmts = [
+    parentFocusStmt(env, p, f),
+    auditStmt(env, ...who(breeder), 'parent.photo.focus', 'parent', id, { focus_x: p.focus_x, focus_y: p.focus_y }, { focus_x: f.fx, focus_y: f.fy }),
+  ];
+  if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true, focus_x: f.fx, focus_y: f.fy });
 }
 
 async function removeParentPhoto(request, env, ctx, id) {
@@ -1920,7 +1925,7 @@ async function removeParentPhoto(request, env, ctx, id) {
   const p = await owned(env, 'parent', id, breeder.id);
   if (!p.photo_key) return json({ ok: true });
   const stmts = [
-    env.DB.prepare('UPDATE parent_dogs SET photo_key = NULL, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?').bind(now(), id, breeder.id),
+    env.DB.prepare(`UPDATE parent_dogs SET ${PARENT_PHOTO_CLEAR}, updated_at = ?, version = version + 1 WHERE id = ? AND breeder_id = ?`).bind(now(), id, breeder.id),
     auditStmt(env, ...who(breeder), 'parent.photo.remove', 'parent', id, null, null),
   ];
   if (await isPublicParent(env, id)) stmts.push(dirtyStmt(env));
@@ -2541,6 +2546,7 @@ const ROUTES = [
   ['POST', /^\/api\/parents\/([\w-]+)\/photo$/, uploadParentPhoto],
   ['POST', /^\/api\/parents\/([\w-]+)\/photo\/card$/, uploadParentCard],
   ['DELETE', /^\/api\/parents\/([\w-]+)\/photo$/, removeParentPhoto],
+  ['PUT', /^\/api\/parents\/([\w-]+)\/photo\/focus$/, setParentFocus],
   ['POST', /^\/api\/parents\/([\w-]+)\/documents$/, uploadParentDocument],
   ['POST', /^\/api\/puppies\/([\w-]+)\/documents$/, uploadPuppyDocument],
   ['PUT', /^\/api\/documents\/([\w-]+)$/, updateDocument],

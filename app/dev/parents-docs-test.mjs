@@ -130,6 +130,39 @@ async function portalChecks() {
   check('a replacement that does not pass leaves the photo families see in place',
     replace.status === 422 && sql(`SELECT photo_key FROM parent_dogs WHERE id = '${mom}'`)[0].photo_key === stored);
 
+  // Alex, 2026-11-10. The photo keeps its size, and Face sets the point its card is cut around.
+  const sized = sql(`SELECT photo_width, photo_height, focus_x FROM parent_dogs WHERE id = '${mom}'`)[0];
+  check('a stored parent photo keeps its size, with no point while the detector is off',
+    sized.photo_width === 1200 && sized.photo_height === 800 && sized.focus_x == null, JSON.stringify(sized));
+  const offPhoto = await A.c.put(`/api/parents/${mom}/photo/focus`, { fx: 1.4, fy: 0.2 });
+  check('a point off the photo is refused, said about a dog', offPhoto.status === 400 && /dog’s face/.test(offPhoto.data.error), JSON.stringify(offPhoto.data));
+  const face = await A.c.put(`/api/parents/${mom}/photo/focus`, { fx: 0.3, fy: 0.25, w: 640, h: 427 });
+  const faced = sql(`SELECT focus_x, focus_y, photo_width FROM parent_dogs WHERE id = '${mom}'`)[0];
+  check('the breeder sets the face, and the stored size is kept over the one the browser sent',
+    face.status === 200 && faced.focus_x === 0.3 && faced.focus_y === 0.25 && faced.photo_width === 1200, JSON.stringify(faced));
+  check('setting the face is recorded with the old and new point',
+    sql(`SELECT before_json, after_json FROM audit_log WHERE action = 'parent.photo.focus' AND entity_id = '${mom}'`).some((r) => /0\.3/.test(r.after_json)));
+  check('the parents screen sends the point, so Face shows where it is',
+    (await A.c.get('/api/parents')).data.parents.find((p) => p.id === mom).focus_x === 0.3);
+  const dadNoPhoto = await A.c.put(`/api/parents/${dad}/photo/focus`, { fx: 0.5, fy: 0.5 });
+  check('a parent with no photo has no face to set', dadNoPhoto.status === 400 && /photo first/.test(dadNoPhoto.data.error));
+
+  // The admin adds a mom or dad photo through the same check, and sets the face.
+  const staffBad = await admin.req('POST', `/api/parents/${dad}/photo`, BIG, { headers: { 'content-type': 'image/jpeg', 'x-sim-photo-check': 'person' } });
+  check('a parent photo staff add that the check sends back is refused, and nothing is stored',
+    staffBad.status === 422 && /A person takes up/.test(staffBad.data.error) && !sql(`SELECT photo_key FROM parent_dogs WHERE id = '${dad}'`)[0].photo_key, JSON.stringify(staffBad.data));
+  const staffSmall = await admin.req('POST', `/api/parents/${dad}/photo`, JPG, { headers: { 'content-type': 'image/jpeg' } });
+  check('a parent photo staff add under 1,000 pixels is refused', staffSmall.status === 422 && /1,000 pixels/.test(staffSmall.data.error));
+  const staffOk = await admin.req('POST', `/api/parents/${dad}/photo`, BIG, { headers: { 'content-type': 'image/jpeg' } });
+  const dadRow = sql(`SELECT photo_key, photo_width FROM parent_dogs WHERE id = '${dad}'`)[0];
+  check('staff add a dad photo that passes, stored with its size under the breeder\'s parents/ folder',
+    staffOk.status === 201 && dadRow.photo_key.startsWith(`parents/${A.id}/${dad}-`) && dadRow.photo_width === 1200, JSON.stringify(staffOk.data));
+  const staffFace = await admin.put(`/api/parents/${dad}/photo/focus`, { fx: 0.6, fy: 0.3 });
+  check('staff set the dad\'s face, recorded as an operator',
+    staffFace.status === 200 && sql(`SELECT focus_x FROM parent_dogs WHERE id = '${dad}'`)[0].focus_x === 0.6 &&
+    sql(`SELECT actor_type FROM audit_log WHERE action = 'parent.photo.focus' AND entity_id = '${dad}'`).some((r) => r.actor_type === 'operator'));
+  check('the admin answers 404 for a parent that does not exist', (await admin.put('/api/parents/nope/photo/focus', { fx: 0.5, fy: 0.5 })).status === 404);
+
   // A litter that names them, and the rules around it.
   const litter = (await A.c.post('/api/litters', { breed_id: 'breed-havanese', born_on: '2026-09-01', mom_id: mom, dad_id: dad, mom_weight_lb: '12', dad_weight_lb: '14' })).data.id;
   const lrow = sql(`SELECT mom_id, dad_id, mom_weight_lb FROM litters WHERE id = '${litter}'`)[0];
@@ -143,6 +176,7 @@ async function portalChecks() {
     ['edit', 'PUT', `/api/parents/${bMom}`, { name: 'x', sex: 'female', version: 1 }],
     ['remove', 'POST', `/api/parents/${bMom}/archive`, {}],
     ['photo', 'POST', `/api/parents/${bMom}/photo`, JPG],
+    ['set the face of', 'PUT', `/api/parents/${bMom}/photo/focus`, { fx: 0.5, fy: 0.5 }],
     ['document', 'POST', `/api/parents/${bMom}/documents?kind=health&visibility=public`, PDF],
   ]) {
     const r = await A.c.req(method, url, body, { headers: body instanceof Uint8Array ? { 'content-type': 'application/pdf' } : undefined });
@@ -210,6 +244,9 @@ async function portalChecks() {
   for (const [f, body] of Object.entries(exp.files)) fs.writeFileSync(path.join(tmp, f), body);
   build({ dataDir: tmp, out: path.join(tmp, 'out'), guides: path.join(APP, 'dev/fixtures/guides') });
   const page = fs.readFileSync(path.join(tmp, 'out', `puppy-${pp.slug}.html`), 'utf8');
+  // The mom's 3:2 photo in the 4:3 parent card, cut at her face at 0.3 across (generate.mjs parentPos).
+  check('the export carries the mom photo\'s size and point', L.mom.photo.w === 1200 && L.mom.photo.fx === 0.3, JSON.stringify(L.mom.photo));
+  check('the parent card is cut around the face', page.includes(`media/parent/${mom}/card?`) && /media\/parent\/[\w-]+\/card\?v=\w+" style="object-position:0% 50%"/.test(page));
   check('the puppy page shows both parents, their tests and the mom\'s photo',
     /puppy-parents/.test(page) && page.includes('>Daisy</h3>') && page.includes('>Duke</h3>') && page.includes('Patellas (knees)') && page.includes('media/parent/'));
   check('the puppy page links the public documents and never the private one',

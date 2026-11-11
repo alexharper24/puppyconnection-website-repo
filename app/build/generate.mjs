@@ -435,10 +435,16 @@ function parentFact(par, weight) {
 function docList(docs) {
   return `<ul class="doc-links">${docs.map((d) => `<li><a href="${esc(d.src)}" target="_blank" rel="noopener">${esc(d.title)}</a> <span class="doc-kind">${esc(d.kind)}${d.pdf ? ', PDF' : ''}</span></li>`).join('')}</ul>`;
 }
+// The parent card is 4:3 at every width (css/style.css .parent-card img), cut around the photo's
+// focus point from the upload's detector or the breeder's Face (Alex, 2026-11-10).
+function parentPos(photo) {
+  const pos = objectPosition(photo, 4, 3);
+  return pos ? ` style="object-position:${pos}"` : '';
+}
 function parentCard(role, par, weight, puppyName) {
   const facts = [['Breed', par.breed], ['Registration', [par.registry, par.registration].filter(Boolean).join(' ') || null], ['Adult weight', weight != null ? `${weight} lbs` : null]].filter((f) => f[1]);
   return `<article class="parent-card">
-        ${par.photo ? `<img src="${esc(par.photo.card)}" alt="${esc(par.name)}, ${role === 'Mother' ? 'mother' : 'father'} of ${esc(puppyName)}" loading="lazy" decoding="async">` : ''}
+        ${par.photo ? `<img src="${esc(par.photo.card)}"${parentPos(par.photo)} alt="${esc(par.name)}, ${role === 'Mother' ? 'mother' : 'father'} of ${esc(puppyName)}" loading="lazy" decoding="async">` : ''}
         <div class="parent-body">
           <p class="parent-role">${esc(role)}</p>
           <h3>${esc(par.name)}</h3>

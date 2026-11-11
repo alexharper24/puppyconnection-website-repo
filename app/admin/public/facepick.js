@@ -3,8 +3,11 @@
    so the person who knows the puppy checks the crop before it goes live. Both apps use it, and
    app/dev/setup.mjs copies it to the admin the same way as dialog.js.
 
-   pcFacePick({ src, name, fx, fy }) resolves { fx, fy, w, h } with the point as 0..1 of the photo
-   and the photo's own size, or null when the person cancels. The previews place the crop with
+   pcFacePick({ src, name, fx, fy, what, cards }) resolves { fx, fy, w, h } with the point as 0..1 of
+   the photo and the photo's own size, or null when the person cancels. what names the animal in the
+   words ('puppy' unless given). cards lists the card shapes to preview, each { label, ratio } with
+   ratio as width over height and whole, the shape below which the card shows the photo whole; it
+   defaults to the puppy cards. A mom or dad photo passes the one 4:3 parent card (Alex, 2026-11-10). The previews place the crop with
    the rule in app/build/generate.mjs objectPosition(), so what the dialog shows is what the site
    shows. A photo narrower than 1.2:1 sits whole on the desktop card, as js/main.js draws it. */
 (function () {
@@ -20,26 +23,30 @@
   function pcFacePick(o) {
     return new Promise(function (resolve) {
       var fx = o.fx == null ? 0.5 : o.fx, fy = o.fy == null ? 0.4 : o.fy, w = 0, h = 0;
+      var what = o.what || 'puppy';
+      var shapes = o.cards || [{ label: 'Phone', ratio: 0.8 }, { label: 'Computer', ratio: 1.5, whole: 1.2 }];
       var dlg = el('dialog', 'pc-dialog face-dialog');
       dlg.setAttribute('aria-labelledby', 'face-title');
       var form = el('form'); form.method = 'dialog';
-      var title = el('h2', 'face-title', 'Tap ' + (o.name ? o.name + '’s' : 'the puppy’s') + ' face');
+      var title = el('h2', 'face-title', 'Tap ' + (o.name ? o.name + '’s' : 'the ' + what + '’s') + ' face');
       title.id = 'face-title';
-      var hint = el('p', 'face-hint', 'The cards on the site are cut around this point. Check that the face shows on both before you save.');
+      var hint = el('p', 'face-hint', shapes.length > 1 ? 'The cards on the site are cut around this point. Check that the face shows on both before you save.'
+        : 'The card on the site is cut around this point. Check that the face shows before you save.');
       var stage = el('div', 'face-stage');
-      var big = el('img'); big.alt = 'Photo of ' + (o.name || 'the puppy') + '. Tap the face.'; big.draggable = false;
+      var big = el('img'); big.alt = 'Photo of ' + (o.name || 'the ' + what) + '. Tap the face.'; big.draggable = false;
       var dot = el('span', 'face-dot'); dot.setAttribute('aria-hidden', 'true');
       stage.appendChild(big); stage.appendChild(dot);
       stage.tabIndex = 0;
       stage.setAttribute('role', 'application');
       stage.setAttribute('aria-label', 'Face position. Use the arrow keys to move it.');
       var cards = el('div', 'face-cards');
-      function card(label, cls) {
-        var f = el('figure', 'face-card ' + cls), box = el('div', 'face-card-box'), im = el('img');
-        im.alt = ''; box.appendChild(im); f.appendChild(box); f.appendChild(el('figcaption', '', label)); cards.appendChild(f);
-        return { box: box, img: im };
+      function card(c) {
+        var f = el('figure', 'face-card ' + (c.ratio < 1 ? 'is-phone' : 'is-desk')), box = el('div', 'face-card-box'), im = el('img');
+        box.style.aspectRatio = String(c.ratio);
+        im.alt = ''; box.appendChild(im); f.appendChild(box); f.appendChild(el('figcaption', '', c.label)); cards.appendChild(f);
+        return { box: box, img: im, ratio: c.ratio, whole: c.whole || 0 };
       }
-      var phone = card('Phone', 'is-phone'), desk = card('Computer', 'is-desk');
+      var drawn = shapes.map(card);
       var row = el('div', 'pc-dialog-actions');
       var no = el('button', 'btn', 'Cancel'); no.type = 'button';
       var yes = el('button', 'btn btn-primary', 'Save'); yes.type = 'button'; yes.disabled = true;
@@ -51,11 +58,12 @@
         dot.style.left = (fx * 100) + '%'; dot.style.top = (fy * 100) + '%';
         if (!w) return;
         var a = w / h;
-        phone.img.style.objectPosition = position(a, 0.8, fx, fy);
-        var whole = a < 1.2;
-        desk.box.classList.toggle('is-whole', whole);
-        desk.img.style.objectFit = whole ? 'contain' : 'cover';
-        desk.img.style.objectPosition = whole ? 'center' : position(a, 1.5, fx, fy);
+        drawn.forEach(function (c) {
+          var whole = a < c.whole;
+          c.box.classList.toggle('is-whole', whole);
+          c.img.style.objectFit = whole ? 'contain' : 'cover';
+          c.img.style.objectPosition = whole ? 'center' : position(a, c.ratio, fx, fy);
+        });
       }
       function set(x, y) { fx = Math.round(Math.min(Math.max(x, 0), 1) * 1000) / 1000; fy = Math.round(Math.min(Math.max(y, 0), 1) * 1000) / 1000; draw(); }
       stage.addEventListener('click', function (e) {
@@ -70,7 +78,7 @@
       });
       big.onload = function () { w = big.naturalWidth; h = big.naturalHeight; yes.disabled = false; draw(); };
       big.onerror = function () { hint.textContent = 'The photo did not load. Close this and try again.'; };
-      [big, phone.img, desk.img].forEach(function (im) { im.src = o.src; });
+      [big].concat(drawn.map(function (c) { return c.img; })).forEach(function (im) { im.src = o.src; });
 
       var done = false;
       function finish(v) { if (done) return; done = true; dlg.close(); dlg.remove(); resolve(v); }

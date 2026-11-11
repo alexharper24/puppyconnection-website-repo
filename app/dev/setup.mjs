@@ -48,11 +48,11 @@ for (const worker of ['portal', 'admin']) {
 
 // One stylesheet for both tools. The portal's copy is the source, and this keeps the admin's
 // copy identical so the two cannot drift. The breed search (combo.js, Alex 2026-10-31), the
-// confirmation dialog (dialog.js, 2026-11-01) and Tap the face (facepick.js, 2026-11-04) are
-// shared the same way. Edit the portal's copy only. On 2026-11-07 the list email editor's rules
+// confirmation dialog (dialog.js, 2026-11-01), Tap the face (facepick.js, 2026-11-04) and the photo
+// screen (photoscreen.js, 2026-11-10) are shared the same way. Edit the portal's copy only. On 2026-11-07 the list email editor's rules
 // sat only in the admin's portal.css and a reset deleted them, so a copy that holds a line the
 // portal's lacks stops the reset instead of being overwritten.
-for (const file of ['portal.css', 'combo.js', 'dialog.js', 'facepick.js']) {
+for (const file of ['portal.css', 'combo.js', 'dialog.js', 'facepick.js', 'photoscreen.js']) {
   const from = path.join(APP, 'portal/public', file);
   const to = path.join(APP, 'admin/public', file);
   if (fs.existsSync(to)) {

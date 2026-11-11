@@ -790,7 +790,9 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .face-card-box img { display: block; width: 100%; height: 100%; object-fit: cover; }
 @media (max-width: 480px) { .face-card.is-phone .face-card-box { width: 96px; } .face-card.is-desk .face-card-box { width: 168px; } }
 /* Face on a cover with no point set yet stands out, so the step is not missed. */
-.photo .tools button.face-needed { background: var(--gold); border-color: var(--bronze); color: var(--ink); font-weight: 600; }
+.photo .tools button.face-needed, .btn.face-needed { background: var(--gold); border-color: var(--bronze); color: var(--ink); font-weight: 600; }
+/* The admin draws a breeder's row buttons as text links, so a mom or dad photo with no point needs its own rule there (Alex, 2026-11-10). */
+.drawer .puppy-row .btn-row .btn.face-needed { padding: 0 .6rem; border: 1px solid var(--bronze); border-radius: var(--radius); background: var(--gold); color: var(--ink); }
 
 /* The list email editor (Alex, 2026-11-05). The email is written on the left and its preview sits
    beside it from 1,100px, and below it on a narrower screen. The preview frame is drawn at phone or

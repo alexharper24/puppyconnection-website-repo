@@ -55,6 +55,8 @@ export function fileList() {
   // Breed guide files (build/guides.mjs), at content/guides beside build/ in the site repository.
   if (fs.existsSync(path.join(REPO, 'app/content/guides'))) for (const f of walk('app/content/guides')) list.push([f.replace(/^app\//, ''), f]);
   if (fs.existsSync(path.join(REPO, 'app/content/breeds'))) for (const f of walk('app/content/breeds')) list.push([f.replace(/^app\//, ''), f]);
+  // Guides across breeds (build/guides.mjs loadTopics), at content/topics.
+  if (fs.existsSync(path.join(REPO, 'app/content/topics'))) for (const f of walk('app/content/topics')) list.push([f.replace(/^app\//, ''), f]);
   return list.map(([to, from]) => [to, path.join(REPO, from)]).concat([['build/check_site.py', SITE_CHECKS]]);
 }
 

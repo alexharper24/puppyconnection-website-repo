@@ -83,3 +83,49 @@ export function loadHighlights(dir) {
   }
   return out;
 }
+
+// Guides across breeds (Alex, 2026-11-11), such as the low-shedding guide that the old Wix address
+// /hypoallergenic-puppies-for-sale now points to. content/topics/<slug>.md builds guide-<slug>.html
+// and takes the same front matter as a breed guide, less breed and topic. The body is paragraphs
+// and "## " headings as before, and a line "{{group: Heading | slug, slug}}" opens a group that
+// shows each named breed with its listed puppies, drawn from the live data at build time. A line
+// "@<breed slug>: sentence" under a group is that breed's note. "{{close}}" ends the last group,
+// and anything after it shows below the breeds.
+export function loadTopics(dir) {
+  if (!dir || !fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir).filter((x) => x.endsWith('.md')).map((f) => {
+    const file = path.join(dir, f);
+    const text = fs.readFileSync(file, 'utf8').replace(/\r\n/g, '\n').replace(/^﻿/, '');
+    const m = text.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
+    if (!m) throw new Error(`topics: ${file} has no front matter block`);
+    const meta = {};
+    for (const line of m[1].split('\n')) {
+      const kv = line.match(/^(\w+):\s*(.*)$/);
+      if (kv) meta[kv[1]] = kv[2].trim().replace(/^"(.*)"$/, '$1');
+    }
+    for (const k of ['question', 'h1', 'description']) if (!meta[k]) throw new Error(`topics: ${file} is missing "${k}"`);
+    if (meta.description.length > 158) throw new Error(`topics: ${file} description is ${meta.description.length} characters, over 158`);
+    const slug = path.basename(f, '.md');
+    if (!SLUG.test(slug)) throw new Error(`topics: ${file} makes the address "${slug}", which is not letters, numbers and dashes`);
+    // Split the body into the opening, the groups and the closing.
+    const intro = [], groups = [], close = [];
+    let at = intro;
+    for (const p of m[2].split(/\n\s*\n/).map((x) => x.trim()).filter(Boolean)) {
+      const g = p.match(/^\{\{group:\s*([^|]+)\|([^}]+)\}\}$/);
+      if (g) { const grp = { heading: g[1].trim(), breeds: g[2].split(',').map((s) => s.trim()).filter(Boolean), paragraphs: [], notes: {} }; groups.push(grp); at = grp.paragraphs; continue; }
+      if (/^\{\{close\}\}$/.test(p)) { at = close; continue; }
+      if (/^@/.test(p)) {
+        const grp = groups[groups.length - 1];
+        if (!grp || at !== grp.paragraphs) throw new Error(`topics: ${file} has a breed note outside a group: ${p.slice(0, 40)}`);
+        for (const line of p.split('\n')) {
+          const n = line.match(/^@([a-z0-9-]+):\s*(.+)$/);
+          if (!n) throw new Error(`topics: ${file} has a breed note that does not read "@slug: sentence": ${line}`);
+          grp.notes[n[1]] = n[2].trim();
+        }
+        continue;
+      }
+      at.push(p);
+    }
+    return { ...meta, slug, file: `guide-${slug}.html`, published: meta.status === 'published', intro, groups, close };
+  });
+}

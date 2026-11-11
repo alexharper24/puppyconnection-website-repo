@@ -37,7 +37,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { INFO_PAGES, PHOTO_SLOTS, photoImg } from './info-pages.mjs';
-import { loadGuides, loadHighlights } from './guides.mjs';
+import { loadGuides, loadHighlights, loadTopics } from './guides.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const REPO = path.resolve(HERE, '../..');
@@ -514,7 +514,7 @@ const host = (u) => { try { return new URL(u).hostname.replace(/^www\./, ''); } 
 const order = { available: 0, pending: 1, placed: 2 };
 const byStanding = (a, b) => (order[a.availability] - order[b.availability]) || String(b.published_at).localeCompare(String(a.published_at)) || a.slug.localeCompare(b.slug);
 
-export function build({ now = Date.now(), dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), highlights = path.resolve(HERE, '../content/breeds'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
+export function build({ now = Date.now(), dataDir, out, templates, guides = path.resolve(HERE, '../content/guides'), highlights = path.resolve(HERE, '../content/breeds'), topics = path.resolve(HERE, '../content/topics'), base = 'https://site.puppyconnection.workers.dev/', portal = 'https://portal.puppyconnection.workers.dev', indexable = false, strictCopy = false }) {
   const buildNow = now;
   if (!base.endsWith('/')) base += '/';
   const T = templatesDir(templates);
@@ -849,7 +849,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const label = p.placed ? 'Adopted' : p.availability === 'pending' ? 'Pending' : '';
     return `<a class="card${p.placed ? ' is-sold' : ''}" href="${pageFor.puppy(p.slug)}">`
       + `<div class="card-media${tall ? ' is-whole' : ''}"${tall && lead ? ` style="--fill:${esc(fillUrl(lead))}"` : ''}>`
-      + (lead ? `<img ${tall ? `src="${esc(fit(lead, 600, 400))}"` : fillAttrs(lead, 600, 400)} alt="${esc(p.name)}, ${esc(p.b.name)}" ${eager ? 'decoding="async"' : 'loading="lazy" decoding="async"'} width="600" height="400">` : '')
+      + (lead ? `<img ${tall ? `src="${esc(fit(lead, 600, 400))}"` : fillAttrs(lead, 600, 400).replace(/ style="([^"]*)"$/, (m, st) => { const t = objectPosition(lead, 480, 600); return ` style="${st}${t ? `;--pos-tall:${t}` : ''}"`; })} alt="${esc(p.name)}, ${esc(p.b.name)}" ${eager ? 'decoding="async"' : 'loading="lazy" decoding="async"'} width="600" height="400">` : '')
       + (label ? `<span class="tag ${p.placed ? 'tag-sold' : 'tag-pending'}">${label}</span>` : '')
       + (p.mates > 1 ? `<span class="tag tag-litter">Litter of ${p.mates}</span>` : '')
       + `</div><div class="card-body"><div class="card-name">${esc(p.name)}</div><div class="card-breed">${esc(p.b.name)}</div>`
@@ -1128,6 +1128,66 @@ ${open.length ? `<section class="band band-warm">
       images: [imageUrl(lead)],
     });
   }
+  // ---- guides across breeds (build/guides.mjs loadTopics, Alex 2026-11-11). Each group walks
+  // through its breeds with the puppies listed now, so the page follows the listings on every publish.
+  const TOPICS = loadTopics(topics).filter((t) => t.published);
+  const slugify = (x) => String(x).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  for (const t of TOPICS) {
+    const named = t.groups.flatMap((g) => g.breeds);
+    for (const slug of named) if (!D.breeds.some((b) => b.slug === slug)) throw new Error(`topics: ${t.slug} names the breed "${slug}", which is not in breeds.json`);
+    const openOf = (slug) => D.puppies.filter((p) => p.b.slug === slug && !p.placed).sort(byStanding);
+    const hasPage = (slug) => listedBreeds.some((b) => b.slug === slug);
+    // The side photo is the lead photo of the named breed with the most puppies listed now.
+    const top = [...named].sort((a, b) => openOf(b).length - openOf(a).length)[0];
+    const topBreed = D.breeds.find((b) => b.slug === top);
+    const lead = topBreed && breedLead(topBreed, D.puppies.filter((p) => p.b.slug === top));
+    const shown = [];
+    const breedRow = (g, slug) => {
+      const b = D.breeds.find((x) => x.slug === slug), open = openOf(slug), page = hasPage(slug);
+      const name = page ? `<a href="${pageFor.breed(slug)}">${esc(b.name)}</a>` : esc(b.name);
+      const note = g.notes[slug] ? `<p class="ls-note">${esc(g.notes[slug])}</p>` : '';
+      shown.push(...open.slice(0, 4).map((p) => imageUrl(p.photos[0])));
+      return `<section class="ls-breed" id="${esc(slug)}" aria-label="${esc(b.name)}">
+      <div class="sec-head"><div><h3>${name}</h3>${note}</div>${open.length && page ? `<a class="link-more" href="${pageFor.breed(slug)}">See all ${open.length}</a>` : ''}</div>
+      ${open.length ? grid(open.slice(0, 4), '', 'grid grid-4 cols-4 ls-grid')
+        : `<p class="ls-none">No ${esc(b.name)} puppies are listed right now.${page ? ` New litters appear on the <a href="${pageFor.breed(slug)}">${esc(b.name)} page</a> as breeders add them.` : ''}</p>`}
+    </section>`;
+    };
+    const jump = `<section class="guide-panel" aria-label="In this guide"><p class="eyebrow">In this guide</p><ul class="guide-list">${t.groups.map((g) => `<li><a href="#${esc(slugify(g.heading))}">${esc(g.heading)}</a></li>`).join('')}</ul></section>`;
+    const body = `<main id="guidePage" class="topic-guide">\n<span id="content" tabindex="-1"></span>
+<section class="band" style="padding-bottom:1.4rem">
+  <div class="wrap">
+    <p class="eyebrow"><a href="guides.html" style="color:inherit">Breed guides</a></p>
+    <h1>${esc(t.h1)}</h1>
+  </div>
+</section>
+<section class="band" style="padding-top:0">
+  <div class="wrap split">
+    <div class="guide">${guideHtml(t.intro, {})}</div>
+    <aside class="aside-still">
+      ${lead ? `<figure class="breed-photo gp-photo"><img src="${esc(fill(lead, 900, 600))}" style="--pos:${objectPosition(lead, 900, 600) || '50% 50%'};--pos-sq:${objectPosition(lead, 600, 600) || '50% 50%'}" alt="${esc(topBreed.name)}" decoding="async"><span class="photo-cap">A ${esc(topBreed.name)} listed on Puppy Connection</span></figure>` : ''}
+      ${jump}
+    </aside>
+  </div>
+</section>
+${t.groups.map((g, i) => `<section class="band${i % 2 === 0 ? ' band-warm' : ''} ls-group" id="${esc(slugify(g.heading))}">
+  <div class="wrap">
+    <h2>${esc(g.heading)}</h2>
+    <div class="guide ls-intro">${guideHtml(g.paragraphs, {})}</div>
+    ${g.breeds.map((slug) => breedRow(g, slug)).join('\n    ')}
+  </div>
+</section>`).join('\n')}
+${t.close.length ? `<section class="band"><div class="wrap"><div class="guide ls-close">${guideHtml(t.close, {})}</div>
+  <div class="btn-row"><a class="btn btn-primary" href="breeds.html">See every breed</a></div></div></section>` : ''}
+</main>`;
+    write(`guide-${t.slug}.html`, {
+      title: t.title || `${t.h1} | Puppy Connection`, desc: t.description, body,
+      trail: [['Breed guides', `${base}guides.html`], [t.h1, `${base}guide-${t.slug}.html`]],
+      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
+      ld: [{ '@type': 'Article', headline: t.h1, description: t.description, mainEntityOfPage: `${base}guide-${t.slug}.html`, publisher: { '@type': 'Organization', name: 'Puppy Connection', url: base } }],
+      images: [imageUrl(lead), ...shown],
+    });
+  }
   if (GUIDES.length) {
     const withGuides = listedBreeds.filter((b) => guidesFor(b.slug).length);
     write('guides.html', {
@@ -1137,6 +1197,7 @@ ${open.length ? `<section class="band band-warm">
       body: `<main id="guideHub">\n<span id="content" tabindex="-1"></span>
 <section class="band" style="padding-bottom:1.4rem"><div class="wrap"><p class="eyebrow">Breed guides</p><h1>Guides to the breeds listed here</h1>
 <p class="lede">Answers to what families ask most about each breed, with the puppies listed now one click away.</p></div></section>
+${TOPICS.length ? `<section class="band" style="padding-top:0;padding-bottom:1.4rem"><div class="wrap"><section class="guide-panel" aria-label="Guides across breeds" style="margin-top:0"><p class="eyebrow">Across breeds</p><ul class="guide-list">${TOPICS.map((t) => `<li><a href="guide-${t.slug}.html">${esc(t.question)}</a></li>`).join('')}</ul></section></div></section>` : ''}
 <section class="band" style="padding-top:0"><div class="wrap guide-cards">
 ${withGuides.map((b) => {
   // Option A (Alex, 2026-10-11): a card per breed with its photo and its guides.

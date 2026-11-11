@@ -889,13 +889,16 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   // Alex, 2026-10-31. A breeder with no puppy on offer leaves the breeder lists, the state pages and the other
   // breeders on each breeder page, and comes back when they list again. Their own page stays at its address.
   const breedersListing = breedersShown.filter((b) => D.puppies.some((p) => p.br === b && !p.placed));
+  // A breeder's hypoallergenic tag stays in the breeder's own words, and links to the low-shedding guide, which
+  // explains what the word means for a puppy (Alex, 2026-11-11: let breeders say it the way families understand it).
+  const hypoGuide = loadTopics(topics).some((t) => t.published && t.slug === 'low-shedding-puppies');
   for (const p of D.allPuppies) {
     const b = realBreeder(p.br) ? p.br : null;
     const mates = D.allPuppies.filter((x) => x.litter === p.litter && x.slug !== p.slug).sort(byStanding);
     const facts = [['Breed', p.b.name], ['Sex', p.sex ? p.sex[0].toUpperCase() + p.sex.slice(1) : null], ['Color', p.color], ['Coat type', p.coat],
       ['Born', longDate(p.l.born_on)], ['Ready to go home', longDate(p.l.ready_on)], ['Deposit', p.deposit ? money(p.deposit) : null],
       ['Mother', parentFact(p.l.mom, p.l.mom_weight_lb)], ['Father', parentFact(p.l.dad, p.l.dad_weight_lb)],
-      ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null], ['Registration', p.registry], ['Markings', p.markings]].filter((f) => f[1]);
+      ['Coat', p.hypoallergenic ? 'Hypoallergenic' : null, p.hypoallergenic && hypoGuide ? '<a href="guide-low-shedding-puppies.html">Hypoallergenic</a>' : null], ['Registration', p.registry], ['Markings', p.markings]].filter((f) => f[1]);
     // Workplan A3. The health details the breeder wrote, each optional, in one block.
     const health = [['Health', p.health], ['Vaccinations', p.vaccinations], ['Deworming', p.deworming], ['Breeder disclosures', p.disclosures]]
       .filter((h) => h[1] && h[1].length);
@@ -938,7 +941,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       ${docs.length ? `<section class="about-block puppy-docs"><p class="eyebrow">Documents from the breeder</p>${docList(docs)}</section>` : ''}
     </div>
     <div class="d-detail">
-      <dl class="facts">${facts.map((f) => `<div><dt>${esc(f[0])}</dt><dd>${esc(f[1])}</dd></div>`).join('')}</dl>
+      <dl class="facts">${facts.map((f) => `<div><dt>${esc(f[0])}</dt><dd>${f[2] || esc(f[1])}</dd></div>`).join('')}</dl>
       ${p.includes.length ? `<section><p class="eyebrow">Goes home with</p><ul class="includes">${p.includes.map((i) => `<li>${esc(i)}</li>`).join('')}</ul></section>` : ''}
       <div class="breeder-box" id="dBreeder">
         <div class="eyebrow">Raised by</div>

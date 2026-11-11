@@ -5,11 +5,11 @@ title: "Hypoallergenic and Low-Shedding Puppies | Puppy Connection"
 description: No dog is truly hypoallergenic, but some breeds shed far less than others. See which breeds shed least, with low-shedding puppies listed now.
 status: published
 ---
-Although no dog is truly hypoallergenic, because the proteins people react to come from a dog's saliva and dander and are carried on its hair, some breeds shed far less than others. Less shedding means less hair carrying those proteins around the house, and this guide walks through the breeds that shed least, with puppies from those breeds listed on Puppy Connection right now.
+Although no dog is truly hypoallergenic, because the proteins people react to come from a dog's saliva and dander and are carried on its hair, some breeds shed far less than others. This guide walks through the breeds that shed least, with puppies from those breeds listed on Puppy Connection right now.
 
-## Are any dogs hypoallergenic?
+## What does hypoallergenic mean for a puppy?
 
-The American College of Allergy, Asthma and Immunology says all dogs produce allergens and no breed has been shown to be hypoallergenic. The proteins are made in a dog's saliva, dander and urine, they cling to its hair, and the length of a coat does not change how allergenic a dog is. A 2012 study found that so-called hypoallergenic breeds carried as much allergen in their coats as other dogs, or more, and their homes had no less allergen in the air.
+When breeders and families call a puppy hypoallergenic, they usually mean it comes from a breed that sheds very little. Allergists use the word more strictly. The American College of Allergy, Asthma and Immunology says no breed has been shown to be fully hypoallergenic, because the proteins people react to come from saliva and dander. Less shedding still means less hair carrying them around the house, and the breeds below shed the least.
 
 ## Which breeds shed the least?
 
@@ -50,4 +50,4 @@ A cross has no breed standard of its own, so its coat depends on what each puppy
 
 ## If someone in the house has allergies
 
-Talk to an allergist before you commit, and spend time around the breed, or better the parents, before putting down a deposit. A lower-shedding dog means less hair on the floor, and it cannot promise more than that.
+Talk to an allergist before you commit, and spend time around the breed, or better the parents, before putting down a deposit. A low-shedding breed is the best place to start, and meeting the parents shows how your family does around them.

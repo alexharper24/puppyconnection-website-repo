@@ -12,7 +12,7 @@ tasks:
   - {id: t5, status: done, item: "Repoint /hypoallergenic-puppies-for-sale in build/legacy-pages.tsv", evidence: "the built _redirects carries /hypoallergenic-puppies-for-sale /guide-low-shedding-puppies.html 301"}
   - {id: t6, status: done, item: "Local build from live data, dev/link-check.mjs, check_site.py", evidence: "generation 1011, 392 pages. link-check found 4 broken links, all media/doc links on two Standard Poodle puppy pages that the site Worker serves, so not from this change. check_site.py on the build 0 errors, 393 honeypot warnings. On the repo root it reports puppies.html linking guides.html, which was there before this change"}
   - {id: t7, status: done, item: "Browser check at 1440, 1024 and 390 px, one screenshot to Alex", evidence: "1440 has 14 rows with up to 4 cards and every photo loaded. 1024 shows 3 per row. 390 shows 2 per row at 4:5 with the focus crop. No sideways scroll at any width, and a group link lands below the sticky header. Phone screenshot sent"}
-  - {id: t8, status: pending, item: "PR merged from main, sync-site-repo, push puppyconnection-site, live check incl. one 301"}
+  - {id: t8, status: done, item: "PR merged from main, sync-site-repo, push puppyconnection-site, live check incl. one 301", evidence: "PR 174 merged as ee1f5e3, synced from a clean origin/main checkout, puppyconnection-site 3011dfb pushed. Live 2026-11-11: the guide answers 200 with 14 breed rows and style.css?v=94, it is in sitemap.xml and on guides.html, and /hypoallergenic-puppies-for-sale answers one 301 to /guide-low-shedding-puppies.html"}
 excluded:
   - "The puppy page's Coat: Hypoallergenic row for breeder-tagged listings stays as it is; raised with Alex, not changed here"
 ---

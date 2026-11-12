@@ -51,7 +51,7 @@ screens:
   portal-pay: {fits: false, note: "Tick boxes to choose puppies to pay for, kept as they are"}
 shortened_labels:
   - {screen: "admin Listings", from: "Offline until new photos", to: "New photos", aria_label: "Offline until new photos", status: "approved with the preview 2026-11-12"}
-  - {screen: "portal Account, who signs in", from: "Make main contact", to: "Make main", aria_label: "Make main contact", status: "to confirm with Alex"}
+  - {screen: "portal Account, who signs in", from: "Make main contact", to: "Make main", aria_label: "Make main contact", status: "approved by Alex 2026-11-12"}
 sibling: "Teapup and Sweet Puppy Paws rows (teapup-website-repo, claude/quizzical-hermann-32864a) use a 104px photo that stretches to the row, a 900px breakpoint and a More button; the Puppy Connection sizes were sent to that session on 2026-11-12"
 local_test_data: "Two parents for demo-maplebrook, three subscribers and three email log rows added to the local database only, so those rows could be measured"
 ---

@@ -905,7 +905,8 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
   .drawer-head { padding: .5rem .5rem .5rem 1rem; min-height: 56px; }
   .drawer-body form > .btn-row:last-child { position: sticky; bottom: -2rem; z-index: 3; margin: 1rem -1.2rem 0; padding: .6rem 1.2rem calc(.6rem + env(safe-area-inset-bottom));
     flex-wrap: nowrap; flex-direction: row-reverse; background: #fff; border-top: 1px solid var(--line-strong); box-shadow: 0 -4px 14px rgba(0,0,0,.06); }
-  .drawer-body form > .btn-row:last-child > .btn { flex: 1 1 auto; min-width: 0; white-space: normal; line-height: 1.2; }
+  /* Save and Cancel as equal halves, as in the Teapup editor (2026-11-11) */
+  .drawer-body form > .btn-row:last-child > .btn { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.2; }
   .danger-zone .btn { width: 100%; }
 
   /* Hold and List free under each listing's name, where the actions column is hidden */

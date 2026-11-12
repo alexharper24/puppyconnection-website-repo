@@ -6,8 +6,8 @@ scope: "Breeder portal (app/portal) and admin (app/admin) on phones. Public site
 widths: [360, 390, 430, 1440]
 branch: claude/vigilant-shtern-f3b25e
 local: "portal 8787, admin 8788, from this worktree (.claude/launch.json mr-portal, mr-admin), seed plus --demo. Portal seen through Manage as this breeder on Maple Brook Doodles (demo-maplebrook)"
-tools: "app/dev/mobile-review/cdp.mjs (headless Chrome), measure.js (checks), run.mjs (walks the inventory)"
-stage: ship
+tools: "app/dev/mobile-review: cdp.mjs (headless Chrome), measure.js (checks), run.mjs (walks the inventory), summarize.mjs, show.mjs, report.py (before and after page), refs.mjs (reference captures)"
+stage: done
 tasks:
   - {id: inv, status: done, item: "Inventory every screen, drawer, dialog and state of both apps"}
   - {id: measure-before, status: done, item: "Measure every inventory item at 360, 390, 430 and 1440, with screenshots"}
@@ -17,8 +17,8 @@ tasks:
   - {id: fix, status: done, item: "Fix every finding with one set of phone rules in portal.css"}
   - {id: measure-after, status: done, evidence: "Phones: 1,636 problems before (main, measured with the final checks) to 22 after, 185 of 195 screen and width combinations clean. Desktop 1440: 53 of 62 screens unchanged beside the menu; the 9 others are Remove moved to the end of the puppy and litter drawers, the Upload label fix, and activity entries added between runs", item: "Re-measure every item at all widths and 1440"}
   - {id: report, status: done, evidence: "Sent to Alex 2026-11-11 (built by app/dev/mobile-review/report.py, kept out of the repo for its size)", item: "HTML report with before and after screenshots and measurements"}
-  - {id: ship, status: pending, item: "PR merged from main, portal and admin deployed with the production config, ?v= bumped"}
-  - {id: stop, status: pending, item: "Local Workers stopped"}
+  - {id: ship, status: done, evidence: "PR 178 merged (444a2b7); portal and admin deployed from main with wrangler.production.jsonc on 2026-11-11; live portal serves portal.css?v=47, navmenu.js?v=1 (200) and portal.js?v=57; admin deploy confirmed by wrangler only, as Access blocks an unsigned check", item: "PR merged from main, portal and admin deployed with the production config, ?v= bumped"}
+  - {id: stop, status: done, evidence: "mr-portal and mr-admin stopped, ports 8787 and 8788 free, temporary main worktree removed", item: "Local Workers stopped"}
 screens:
   portal:
     signed_out: [signin, signin-code, forgot, signup, sent, /auth/set-password, /choose, /privacy, /terms, /report, /unsubscribe, /checkout/success, /checkout/cancel, handoff-expired]

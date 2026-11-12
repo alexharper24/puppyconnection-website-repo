@@ -13,7 +13,7 @@ pattern:
   row: "Photo on the left at the full height of the text beside it (4:5 for puppies and litters, square for the rest), placed on the photo's focus point. Row 1 name with price and status chip at the right, row 2 breed or second line, row 3 the actions side by side on one line at one height"
   keep: "4px square buttons, 44px tap targets, the November 11 menu"
   phone_from: "700px and below, where the tables already hide their side columns (hide-sm)"
-stage: ship
+stage: done
 tasks:
   - {id: read, status: done, item: "Read the November 11 batch file and the phone rules in portal.css and navmenu.js"}
   - {id: before, status: done, evidence: "57 items, 228 screen and width runs, no errors; results kept in the session scratchpad for the report", item: "Measure every inventory item at 360, 390, 430 and 1440 before the change"}
@@ -22,8 +22,8 @@ tasks:
   - {id: apply, status: done, evidence: "Admin: listings, breeders, approvals, search, breeder drawer puppies and moms and dads, payments, breeds, email log, mailing list, sign-ins, publish jobs, campaigns, activity. Portal: litters and puppies, moms and dads, payments, account people. Screens that do not fit are listed under screens", item: "Apply the pattern to every list and card in both apps"}
   - {id: after, status: done, evidence: "228 runs, 0 errors. rows.js: 0 row problems at 360, 390 and 430 (photo matches text, buttons on one line at one height, no label cut, filters full width). Phone findings 61 before to 91 after, the added ones all lines cut with an ellipsis on purpose. 1440: new findings only where the local test data added rows (parents, subscribers, email log, activity) and a class name added to the desktop Mark placed button", item: "Re-measure every item at all four widths"}
   - {id: report, status: done, evidence: "Sent to Alex 2026-11-12, built by app/dev/mobile-review/rows-report.py, kept out of the repo for its size (1.7 MB)", item: "HTML before-and-after report sent with SendUserFile"}
-  - {id: ship, status: in_progress, note: "?v= portal.css 48, facepick.js 3, portal.js 58, admin.js 67. admin-features-test 170 passed; portal-features-test needs the site Worker on 8791 and was not completed, and it failed one breed colors check that this change does not touch", item: "Merge from main, bump ?v=, deploy portal and admin with wrangler.production.jsonc"}
-  - {id: stop, status: open, item: "Stop the local Workers"}
+  - {id: ship, status: done, evidence: "PR 180 merged (8502c71); portal and admin deployed from main with wrangler.production.jsonc on 2026-11-12; live portal serves portal.css?v=48 (with the row rules), facepick.js?v=3 and portal.js?v=58 (200); admin deploy confirmed by wrangler only, as Access blocks an unsigned check", note: "?v= portal.css 48, facepick.js 3, portal.js 58, admin.js 67. admin-features-test 170 passed; portal-features-test needs the site Worker on 8791 and was not completed, and it failed one breed colors check that this change does not touch", item: "Merge from main, bump ?v=, deploy portal and admin with wrangler.production.jsonc"}
+  - {id: stop, status: done, evidence: "rows-portal and rows-admin stopped, ports 8787 and 8788 free, temporary main worktree removed", item: "Stop the local Workers"}
 screens:
   admin-listings: {fits: true, note: "Long breed plus two extras ends in an ellipsis at 360 and 390, full text in the title"}
   admin-breeders-approvals-search: {fits: true, note: "Logo square (contained, not cut), name across row 1, state chip and live count on row 2, no buttons (the row opens the drawer). The state moved to row 2 because long kennel names were cut by it"}

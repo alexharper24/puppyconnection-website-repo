@@ -58,10 +58,12 @@ def desk_diff(id_):
         return None
     if a.size != b.size:
         h = min(a.height, b.height); a = a.crop((0, 0, 1440, h)); b = b.crop((0, 0, 1440, h))
-    d = ImageChops.difference(a, b).convert('L').point(lambda v: 255 if v > 24 else 0)
+    # the menu rail (the left 250px) changed on purpose, so the figure is the work area beside it
+    d = ImageChops.difference(a.crop((250, 0, a.width, a.height)), b.crop((250, 0, b.width, b.height))).convert('L').point(lambda v: 255 if v > 24 else 0)
     changed = sum(d.histogram()[255:])
     bbox = d.getbbox()
-    return changed / (a.width * a.height) * 100, bbox
+    if bbox: bbox = (bbox[0] + 250, bbox[1], bbox[2] + 250, bbox[3])
+    return changed / ((a.width - 250) * a.height) * 100, bbox
 
 
 ids = []
@@ -85,7 +87,7 @@ for R, tgt in ((B, by_kind_b), (A, by_kind_a)):
 
 diffs = {i: desk_diff(i) for i in ids}
 desk = [d for d in diffs.values() if d]
-desk_same = sum(1 for d in desk if d[0] < 0.5)
+desk_same = sum(1 for d in desk if d[0] == 0)
 
 # batch findings table
 y = open(batch, encoding='utf-8').read()
@@ -111,10 +113,10 @@ th {{ font-size:.74rem; text-transform:uppercase; letter-spacing:.06em; color:va
 @media (max-width: 900px) {{ .screen {{ grid-template-columns: 1fr 1fr; }} .screen > div:first-child, .screen > div:last-child {{ grid-column: 1 / -1; }} .screen img {{ width:100%; }} }}
 </style></head><body><div class="page">
 <h1>Mobile review of the breeder portal and admin</h1>
-<p>Every screen, drawer and dialog in both apps measured at 360, 390 and 430px before and after the fix, with menu A, button rows 1 and drawer actions 1 applied through the shared stylesheet. Desktop was measured at 1440px both times and compared screenshot to screenshot.</p>
+<p>Every screen, drawer and dialog in both apps measured at 360, 390 and 430px before and after the fix, with menu A, button rows 1 and drawer actions 1 applied through the shared stylesheet. Desktop was measured at 1440px both times and compared screenshot to screenshot. On desktop the menu gains a small arrow beside each group heading, which folds that group, and the rest of each screen is compared pixel by pixel. Where a desktop screen changed, the note beside it says where: Remove now sits at the end of the puppy and litter drawers, Upload and Replace line up with the buttons beside them, and the Activity screen and the breeder drawer's activity list show entries added between the two runs.</p>
 <div class="figs"><div><b>{tot_b} to {tot_a}</b><span>layout problems across {combos} screen and width combinations</span></div>
 <div><b>{clean_a} of {combos}</b><span>combinations with no problem left</span></div>
-<div><b>{desk_same} of {len(desk)}</b><span>desktop screens with under 0.5% of pixels changed</span></div></div>
+<div><b>{desk_same} of {len(desk)}</b><span>desktop screens unchanged beside the menu at 1440px</span></div></div>
 <h2>Problems by kind, phone widths</h2><table><tr><th>Kind</th><th class="num">Before</th><th class="num">After</th></tr>''')
 for k in ['tap', 'row', 'overlap', 'clip', 'escape', 'overflow']:
     parts.append(f'<tr><td>{KIND[k]}</td><td class="num">{by_kind_b.get(k, 0)}</td><td class="num">{by_kind_a.get(k, 0)}</td></tr>')
@@ -130,7 +132,7 @@ for app, label in (('p', 'Breeder portal'), ('a', 'Admin')):
         left = [f for w in PHONES for f in (problems(A.get(f'{i}@{w}')) or [])]
         left_txt = sorted({f"{f['check']}: {re.sub(r'#[\\w-]*\\d[\\w-]*', '', f['el'])[:70]} ({f.get('h', f.get('px', ''))})" for f in left})
         d = diffs.get(i)
-        desk_txt = '' if not d else (f'Desktop 1440: {d[0]:.2f}% of pixels changed' + (f', inside {d[1][2]-d[1][0]}x{d[1][3]-d[1][1]}px from x {d[1][0]}, y {d[1][1]}' if d[0] >= 0.01 and d[1] else ''))
+        desk_txt = '' if not d else (f'Desktop 1440: {"unchanged beside the menu" if d[0] == 0 else f"{d[0]:.2f}% of the work area changed"}' + (f', inside {d[1][2]-d[1][0]}x{d[1][3]-d[1][1]}px from x {d[1][0]}, y {d[1][1]}' if d[0] >= 0.01 and d[1] else ''))
         parts.append('<div class="screen"><div><h3>' + e(NAMES.get(i, i)) + '</h3><table class="counts"><tr><th></th>' + ''.join(f'<th class="num">{w}</th>' for w in PHONES) + '</tr>' +
                      '<tr><td>Before</td>' + ''.join(f'<td class="num">{"" if c is None else c}</td>' for c in cb) + '</tr>' +
                      '<tr><td>After</td>' + ''.join(f'<td class="num {"zero" if c == 0 else "left"}">{"" if c is None else c}</td>' for c in ca) + '</tr></table>' +

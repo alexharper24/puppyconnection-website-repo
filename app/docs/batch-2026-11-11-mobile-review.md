@@ -7,7 +7,7 @@ widths: [360, 390, 430, 1440]
 branch: claude/vigilant-shtern-f3b25e
 local: "portal 8787, admin 8788, from this worktree (.claude/launch.json mr-portal, mr-admin), seed plus --demo. Portal seen through Manage as this breeder on Maple Brook Doodles (demo-maplebrook)"
 tools: "app/dev/mobile-review/cdp.mjs (headless Chrome), measure.js (checks), run.mjs (walks the inventory)"
-stage: measure-after
+stage: ship
 tasks:
   - {id: inv, status: done, item: "Inventory every screen, drawer, dialog and state of both apps"}
   - {id: measure-before, status: done, item: "Measure every inventory item at 360, 390, 430 and 1440, with screenshots"}
@@ -15,8 +15,8 @@ tasks:
   - {id: previews, status: done, item: "Menu preview and one or two form and button-row options for Alex"}
   - {id: alex-choice, status: done, closed: 2026-11-11, evidence: "Alex chose the recommended options: menu A, button rows 1, drawer actions 1", item: "Alex picks the menu and layout option"}
   - {id: fix, status: done, item: "Fix every finding with one set of phone rules in portal.css"}
-  - {id: measure-after, status: pending, item: "Re-measure every item at all widths and 1440"}
-  - {id: report, status: pending, item: "HTML report with before and after screenshots and measurements"}
+  - {id: measure-after, status: done, evidence: "Phones: 1,636 problems before (main, measured with the final checks) to 22 after, 185 of 195 screen and width combinations clean. Desktop 1440: 53 of 62 screens unchanged beside the menu; the 9 others are Remove moved to the end of the puppy and litter drawers, the Upload label fix, and activity entries added between runs", item: "Re-measure every item at all widths and 1440"}
+  - {id: report, status: done, evidence: "Sent to Alex 2026-11-11 (built by app/dev/mobile-review/report.py, kept out of the repo for its size)", item: "HTML report with before and after screenshots and measurements"}
   - {id: ship, status: pending, item: "PR merged from main, portal and admin deployed with the production config, ?v= bumped"}
   - {id: stop, status: pending, item: "Local Workers stopped"}
 screens:

@@ -911,8 +911,8 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 
   /* Hold and List free under each listing's name, where the actions column is hidden */
   .show-sm-flex { display: flex !important; }
-  table.list .row-acts { flex-wrap: wrap; gap: .4rem; }
-  table.list .row-acts .btn { flex: 0 1 auto; white-space: normal; text-align: center; line-height: 1.2; }
+  table.list .sm-acts { flex-wrap: wrap; gap: .4rem; margin-top: .4rem; }
+  table.list .sm-acts .btn { flex: 0 1 auto; white-space: normal; text-align: center; line-height: 1.2; }
 
   /* small links that stand alone get a full-size target: the footers, a table cell's only link, the photo arrows */
   .work-foot a, .plain-foot a, .plain-site { min-width: 44px; justify-content: center; padding-inline: .25rem; }
@@ -923,8 +923,8 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .show-sm-flex { display: none; }
 /* Who signs in, on a phone: Add and invite under the two fields at full width, and Add them to more
    kennels under it, as there is no room for the two side by side (2026-11-11). */
-@container (max-width: 440px) {
+@media (max-width: 860px) { @container (max-width: 440px) {
   .dsec .member-form { grid-template-columns: minmax(0, 1fr); }
   .dsec .member-form > .btn { grid-column: 1; grid-row: auto; justify-self: stretch; width: 100%; }
   .dsec .member-form .also-kennels { grid-column: 1; grid-row: auto; }
-}
+} }

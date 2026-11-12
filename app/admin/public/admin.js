@@ -1101,7 +1101,7 @@
     return '<tr><td>' + (p.cover ? '<img class="thumb" src="' + esc(thumb(p.cover)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') + '</td>' +
       '<td><b>' + esc(p.name) + '</b><span class="sub">' + esc(p.breed) + '</span>' +
       // Alex, 2026-11-11. The actions column is hidden on a phone, so Hold and List free sit under the name there.
-      '<div class="btn-row row-acts show-sm-flex">' + holdButton(p) + '</div></td><td class="hide-sm brk">' + esc(p.business_name) + '</td>' +
+      '<div class="btn-row sm-acts show-sm-flex">' + holdButton(p) + '</div></td><td class="hide-sm brk">' + esc(p.business_name) + '</td>' +
       '<td class="num">' + esc(money(p.price_cents)) + '</td><td><div class="chips">' + listingChips(p) + '</div></td><td class="act hide-sm"><div class="btn-row">' + holdButton(p) + '</div></td></tr>';
   }
   function listingText(p) { return [p.name, p.breed, p.business_name].join(' '); }

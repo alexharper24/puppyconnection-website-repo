@@ -213,7 +213,7 @@
       var all = rows(), pages = Math.max(1, Math.ceil(all.length / PAGE));
       if (page >= pages) page = pages - 1;
       var shown = all.slice(page * PAGE, page * PAGE + PAGE);
-      box.innerHTML = shown.length ? '<div class="table-wrap"><table class="list"><thead><tr>' + cfg.head + '</tr></thead><tbody>' + shown.map(cfg.row).join('') + '</tbody></table></div>'
+      box.innerHTML = shown.length ? '<div class="table-wrap"><table class="list"><thead><tr>' + cfg.head + '</tr></thead><tbody>' + shown.map(function (r) { var h = cfg.row(r); return cfg.mrow ? h.replace(/<\/tr>$/, mcell(cfg.mrow(r))) : h; }).join('') + '</tbody></table></div>'
         : empty(cfg.rows.length ? 'Nothing matches' : cfg.emptyTitle, cfg.rows.length ? 'Try a different search or filter.' : cfg.emptyText);
       $$('th[data-sort]', box).forEach(function (th) {
         var k = th.dataset.sort;
@@ -246,6 +246,22 @@
         opts.pick[1].map(function (o) { return '<option>' + esc(o) + '</option>'; }).join('') + '</select>' : '') +
       (opts.tabs || '') + '<span class="count" data-count></span></div><div data-rows></div><div class="pager" data-pager hidden></div></section>';
   }
+  // Alex, 2026-11-12 (app/docs/batch-2026-11-12-mobile-rows.md). One phone row for every list, the same in
+  // the portal: the photo at the height of the lines beside it, the name with the price and state at its
+  // right, a second line, and the actions on one line. o.name, o.side, o.sub and o.acts are HTML already
+  // escaped. o.photo is { src, w, h, fx, fy }, null for No photo, or left out for a row with no photo.
+  function mrow(o) {
+    var t = o.square ? 1 : 0.8, ph = '';
+    if (o.photo !== undefined) {
+      var pos = o.photo && window.pcCropPos ? window.pcCropPos(o.photo.w, o.photo.h, o.photo.fx, o.photo.fy, t) : '';
+      ph = '<span class="mrow-ph' + (o.square ? ' ph-sq' : '') + (o.contain ? ' ph-logo' : '') + '">' + (o.photo && o.photo.src ? '<img src="' + esc(o.photo.src) + '" alt="" loading="lazy"' + (pos ? ' style="object-position:' + pos + '"' : '') + '>'
+        : '<span class="mrow-none">No photo</span>') + '</span>';
+    }
+    return '<div class="mrow' + (o.acts ? '' : ' no-acts') + (o.photo === undefined ? ' no-ph' : '') + (o.square ? ' is-sq' : '') + '">' + ph +
+      '<div class="mrow-1"><span class="mrow-name">' + o.name + '</span>' + (o.side ? '<span class="mrow-side">' + o.side + '</span>' : '') + '</div>' +
+      '<div class="mrow-2"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '>' + (o.sub || '') + '</div>' + (o.acts ? '<div class="mrow-3">' + o.acts + '</div>' : '') + '</div>';
+  }
+  function mcell(row) { return '<td class="mcell">' + row + '</td></tr>'; }
   function seg(base, current, tabs, label) {
     return '<div class="seg" role="group" aria-label="' + esc(label) + '">' + tabs.map(function (t) {
       return '<a href="#/' + base + (t[0] ? '?' + t[0] : '') + '"' + (current === t[0] ? ' class="on" aria-current="true"' : '') + '>' + esc(t[1]) + '</a>';
@@ -333,13 +349,19 @@
     return '<tr class="clickable" data-open="' + esc(b.id) + '" tabindex="0" aria-label="Open ' + esc(b.business_name || b.email) + '"><td><b>' + esc(b.business_name || '(no name yet)') + '</b><span class="sub">' + esc(b.email) + (b.legacy ? ', imported from Wix' : '') + '</span></td>' +
       '<td class="hide-sm">' + esc([b.city, b.state].filter(Boolean).join(', ')) + '</td><td>' + breederPill(b) + '</td><td class="num">' + b.public_puppies + ' of ' + b.puppies + '</td><td class="hide-md">' + esc(day(b.created_at)) + '</td></tr>';
   }
+  // Alex, 2026-11-12. A breeder on a phone: the logo, the name across, then the state and live puppies. Long kennel names
+  // needed the whole first line, so the state sits on the second, and the email is in the drawer.
+  function breederPhone(b) {
+    return mrow({ square: true, contain: true, photo: b.logo_url ? { src: b.logo_url + '&size=card' } : null, name: esc(b.business_name || '(no name yet)'),
+      sub: '<span class="chips">' + breederPill(b) + '</span> ' + esc(b.public_puppies + ' of ' + b.puppies + ' live' + (b.legacy ? ', from Wix' : '')), title: b.email, acts: '' });
+  }
   function breederText(b) { return [b.business_name, b.email, b.city, b.state, b.public_email, b.public_phone].join(' '); }
 
   function approvals() {
     Promise.all([refreshStats(), api('GET', '/api/breeders?status=queue')]).then(function (r) {
       shell(head('Approvals', 'Breeders who finished their profile and accepted the terms, oldest first. Open one to approve or decline.') +
         listPanel({ id: 'queue', find: 'Search the queue' }));
-      list($('#queue'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST,
+      list($('#queue'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, mrow: breederPhone, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST,
         emptyTitle: 'Nobody is waiting', emptyText: 'New breeders appear here once they submit their profile.', wire: function (box) { wireRows(box, breederDrawer); } });
       var id = state.route.split('?')[0].split('/')[1]; if (id) breederDrawer(id);
     });
@@ -411,7 +433,7 @@
         '<button class="btn btn-primary" type="button" id="add-breeder">Add a breeder</button>') +
         listPanel({ id: 'breeders', find: 'Name, email or town', q: p.q, tabs: seg('breeders', f ? 'status=' + f : '', tabs, 'Breeder status') }));
       $('#add-breeder').addEventListener('click', addBreederDrawer);
-      list($('#breeders'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST,
+      list($('#breeders'), { rows: r[1], head: BREEDER_HEAD, row: breederRow, mrow: breederPhone, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST,
         emptyTitle: 'No breeders here', emptyText: 'Nobody has this status right now.', wire: function (box) { wireRows(box, breederDrawer); } });
       var id = state.route.split('?')[0].split('/')[1]; if (id) breederDrawer(decodeURIComponent(id));
     });
@@ -478,16 +500,22 @@
   function parentsAdmin(parents, pups) {
     var pupDocs = pups.filter(function (p) { return (p.documents || []).length; });
     return (parents.length ? sec('Moms and dads (' + parents.length + ')', parents.map(function (p) {
-      return '<div class="puppy-row">' + (p.photo_url ? '<img class="thumb" src="' + esc(p.photo_url.replace('?', '/card?')) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
+      var upLabel = '<label class="btn btn-sm" for="pa-up-' + esc(p.id) + '">' + (p.photo_url ? 'Replace photo' : 'Add photo') + '</label>';
+      var faceBtn = p.photo_url ? '<button type="button" class="btn btn-sm' + (p.focus_x == null ? ' face-needed' : '') + '" data-parent-face="' + esc(p.id) + '">Face</button>' : '';
+      // Alex, 2026-11-12. On a phone: the photo, the name with Mom or Dad at its right, the registry and tests, then Replace photo and Face.
+      var phone = mrow({ square: true, photo: p.photo_url ? { src: p.photo_url.replace('?', '/card?'), w: p.photo_width, h: p.photo_height, fx: p.focus_x, fy: p.focus_y } : null,
+        name: esc(p.name), side: '<span class="pill">' + (p.sex === 'female' ? 'Mom' : 'Dad') + '</span>',
+        sub: esc([p.registry ? p.registry + (p.registration ? ' ' + p.registration : '') : '', p.test_labels.length ? p.test_labels.join(', ') : 'No tests picked', p.archived_at ? 'removed from the picker' : ''].filter(Boolean).join(', ')),
+        title: (p.test_labels.join(', ') || 'No tests picked') + (p.health_other ? '. Other: ' + p.health_other : ''), acts: upLabel + faceBtn });
+      return '<div class="puppy-row has-m">' + (p.photo_url ? '<img class="thumb" src="' + esc(p.photo_url.replace('?', '/card?')) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
         '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + (p.sex === 'female' ? 'Mom' : 'Dad') + (p.registry ? ', ' + esc(p.registry) + (p.registration ? ' ' + esc(p.registration) : '') : '') +
         (p.archived_at ? ', removed from the picker' : '') + '</span>' +
         '<span class="small">' + (p.test_labels.length ? esc(p.test_labels.join(', ')) : 'No tests picked') + (p.health_other ? '. Other: ' + esc(p.health_other) : '') + '</span>' +
-        (p.documents.length ? '<ul class="small" style="margin:.3rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul>' : '') +
         // Alex, 2026-11-10. A photo through the same checks as the breeder's, and Face, gold until a point is set.
-        '<div class="btn-row"><label class="btn btn-sm" for="pa-up-' + esc(p.id) + '">' + (p.photo_url ? 'Replace photo' : 'Add photo') + '</label>' +
+        '<div class="btn-row">' + upLabel + faceBtn + '</div></div>' + phone +
+        (p.documents.length ? '<ul class="small pr-under" style="margin:.3rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul>' : '') +
         '<input id="pa-up-' + esc(p.id) + '" type="file" accept="image/*" hidden data-parent-photo="' + esc(p.id) + '">' +
-        (p.photo_url ? '<button type="button" class="btn btn-sm' + (p.focus_x == null ? ' face-needed' : '') + '" data-parent-face="' + esc(p.id) + '">Face</button>' : '') + '</div>' +
-        '<p class="notice notice-alert small" data-parent-err="' + esc(p.id) + '" hidden></p></div></div>';
+        '<p class="notice notice-alert small pr-under" data-parent-err="' + esc(p.id) + '" hidden></p></div>';
     }).join('')) : '') +
       (pupDocs.length ? sec('Puppy documents', pupDocs.map(function (p) {
         return '<div class="small" style="padding:.3rem 0;border-top:1px solid var(--line)"><b>' + esc(p.name) + '</b><ul style="margin:.2rem 0 0;padding-left:1rem">' + docLinks(p.documents) + '</ul></div>';
@@ -596,9 +624,18 @@
         // Workplan A19 and A20. The saved moms and dads, and every document, private ones included.
         parentsAdmin(data.parents || [], pups) +
         sec('Puppies (' + pups.length + ')', pups.length ? pups.map(function (p) {
-          return '<div class="puppy-row">' + (p.photos[0] ? '<img class="thumb" src="' + esc(thumb(p.photos[0].url)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
+          var ph0 = p.photos[0], held = p.operator_hold;
+          var holdB = held ? '<button class="btn btn-sm" data-hold="' + esc(p.id) + '" data-on="0">Release</button>' : '<button class="btn btn-sm btn-danger" data-hold="' + esc(p.id) + '" data-on="1">Hold</button>';
+          var foot = ((p.publication_state === 'draft' || p.publication_state === 'expired') ? '<button class="btn btn-sm btn-quiet" data-comp="' + esc(p.id) + '">List free</button>' : '') +
+            (held ? '' : '<button class="btn btn-sm btn-quiet" data-photo-hold="' + esc(p.id) + '">Offline until new photos</button>');
+          // Alex, 2026-11-12. On a phone: Edit, Photos and Hold beside the photo, and List free and Offline until new photos under it.
+          var phone = mrow({ photo: ph0 ? (/^\/media\//.test(ph0.url) ? { src: ph0.url + '/card', w: ph0.w, h: ph0.h, fx: ph0.fx, fy: ph0.fy } : { src: thumb(ph0.url) }) : null,
+            name: esc(p.name), side: '<span class="mrow-price">' + esc(money(p.price_cents)) + '</span>' + listingPhone(p, true),
+            sub: esc(p.breed), acts: '<button class="btn btn-sm" data-edit-puppy="' + esc(p.id) + '">Edit</button><button class="btn btn-sm" data-photos-puppy="' + esc(p.id) + '">Photos</button>' + holdB }) +
+            (foot ? '<div class="mrow-foot">' + foot + '</div>' : '');
+          return '<div class="puppy-row has-m">' + (p.photos[0] ? '<img class="thumb" src="' + esc(thumb(p.photos[0].url)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') +
             '<div class="meta"><b>' + esc(p.name) + '</b><span class="muted small">' + esc(p.breed) + ', ' + esc(money(p.price_cents)) + '</span><div class="chips">' + listingChips(p) + '</div></div>' +
-            '<div class="btn-row"><button class="btn btn-sm" data-edit-puppy="' + esc(p.id) + '">Edit</button><button class="btn btn-sm" data-photos-puppy="' + esc(p.id) + '">Photos</button>' + holdButton(p) + '</div></div>';
+            '<div class="btn-row"><button class="btn btn-sm" data-edit-puppy="' + esc(p.id) + '">Edit</button><button class="btn btn-sm" data-photos-puppy="' + esc(p.id) + '">Photos</button>' + holdButton(p) + '</div>' + phone + '</div>';
         }).join('') : '<p class="muted small">None yet.</p>') +
         sec('Payments', data.checkouts.length ? data.checkouts.map(function (c) {
           return '<div class="pay-row"><span>' + esc(day(c.created_at)) + '</span><span>' + plural(c.quantity, 'listing') + ', ' + esc(money(c.amount_total_cents)) + '</span><span class="pill">' + esc(c.status) + '</span></div>';
@@ -1053,12 +1090,32 @@
     if (p.availability && p.availability !== 'available') c.push('<span class="pill">' + (p.availability === 'placed' ? 'Placed' : 'Pending') + '</span>');
     return c.join('');
   }
-  function holdButton(p) {
+  function holdButton(p, phone) {
     var comp = (p.publication_state === 'draft' || p.publication_state === 'expired') ? '<button class="btn btn-sm" data-comp="' + esc(p.id) + '">List free</button>' : '';
     return comp + (p.operator_hold ? '<button class="btn btn-sm" data-hold="' + esc(p.id) + '" data-on="0">Release</button>'
       : '<button class="btn btn-sm btn-danger" data-hold="' + esc(p.id) + '" data-on="1">Hold</button>' +
         // Workplan A14. Off the site until the breeder uploads photos that pass the photo check.
-        '<button class="btn btn-sm" data-photo-hold="' + esc(p.id) + '">Offline until new photos</button>');
+        // Alex, 2026-11-12. New photos on a phone row, so the actions keep to one line.
+        (phone ? '<button class="btn btn-sm" data-photo-hold="' + esc(p.id) + '" aria-label="Offline until new photos">New photos</button>'
+          : '<button class="btn btn-sm" data-photo-hold="' + esc(p.id) + '">Offline until new photos</button>'));
+  }
+  // Alex, 2026-11-12. The phone row: the state that matters most at the right of the name, and the rest after the breed.
+  function listingPhone(p, chipOnly) {
+    var lead = p.operator_hold ? '<span class="pill pill-alert"' + (p.hold_reason ? ' title="' + esc(p.hold_reason) + '"' : '') + '>' + (p.hold_kind === 'photos' ? 'Offline' : 'On hold') + '</span>'
+      : p.is_public ? '<span class="pill pill-ok">Live</span>'
+      : p.publication_state === 'expired' ? '<span class="pill pill-warn">Expired</span>'
+      : p.publication_state === 'draft' ? '<span class="pill">Draft</span>'
+      : p.publication_state === 'published' ? '<span class="pill pill-warn">Paid, hidden</span>' : '';
+    if (chipOnly) return lead;
+    var more = [];
+    if (p.operator_hold && p.hold_kind === 'photos') more.push('until new photos');
+    if (p.is_public && p.expires_at) more.push('live until ' + esc(day(p.expires_at)));
+    if (p.payment_state === 'comped') more.push(p.comp_basis === 'package' ? 'package' : 'comped');
+    if (p.availability && p.availability !== 'available') more.push(p.availability === 'placed' ? 'placed' : 'pending');
+    var photo = p.cover_ext ? { src: p.cover_ext + '/v1/fill/w_160,h_200,al_t,q_80,enc_auto/i.jpg' }
+      : p.cover_id ? { src: '/media/' + p.cover_id + '/card', w: p.cover_w, h: p.cover_h, fx: p.cover_fx, fy: p.cover_fy } : null;
+    return mrow({ photo: photo, name: esc(p.name), side: '<span class="mrow-price">' + esc(money(p.price_cents)) + '</span>' + lead,
+      sub: esc(p.breed) + (more.length ? ', ' + more.join(', ') : ''), title: [p.breed].concat(more).join(', '), acts: holdButton(p, true) });
   }
   // Alex, 2026-11-07. A listing without payment is either covered by the listing package the breeder
   // bought, which is paid outside Puppy Connection, or free. Reports counts the two apart.
@@ -1099,10 +1156,9 @@
   };
   function listingRow(p) {
     return '<tr><td>' + (p.cover ? '<img class="thumb" src="' + esc(thumb(p.cover)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') + '</td>' +
-      '<td><b>' + esc(p.name) + '</b><span class="sub">' + esc(p.breed) + '</span>' +
-      // Alex, 2026-11-11. The actions column is hidden on a phone, so Hold and List free sit under the name there.
-      '<div class="btn-row sm-acts show-sm-flex">' + holdButton(p) + '</div></td><td class="hide-sm brk">' + esc(p.business_name) + '</td>' +
-      '<td class="num">' + esc(money(p.price_cents)) + '</td><td><div class="chips">' + listingChips(p) + '</div></td><td class="act hide-sm"><div class="btn-row">' + holdButton(p) + '</div></td></tr>';
+      '<td><b>' + esc(p.name) + '</b><span class="sub">' + esc(p.breed) + '</span></td><td class="hide-sm brk">' + esc(p.business_name) + '</td>' +
+      '<td class="num">' + esc(money(p.price_cents)) + '</td><td><div class="chips">' + listingChips(p) + '</div></td><td class="act hide-sm"><div class="btn-row">' + holdButton(p) + '</div></td>' +
+      mcell(listingPhone(p));
   }
   function listingText(p) { return [p.name, p.breed, p.business_name].join(' '); }
 
@@ -1128,7 +1184,7 @@
       var ls = r[2].filter(function (p) { return norm(listingText(p)).indexOf(q) >= 0; });
       shell(head('Search', 'Results for “' + esc(params().q || '') + '” across breeders and listings.') +
         '<h2>Breeders (' + bs.length + ')</h2>' + listPanel({ id: 'sb' }) + '<h2 style="margin-top:1.4rem">Listings (' + ls.length + ')</h2>' + listPanel({ id: 'sl' }));
-      list($('#sb'), { rows: bs, head: BREEDER_HEAD, row: breederRow, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST, emptyTitle: 'No breeders match', emptyText: '', wire: function (box) { wireRows(box, breederDrawer); } });
+      list($('#sb'), { rows: bs, head: BREEDER_HEAD, row: breederRow, mrow: breederPhone, text: breederText, sorts: BREEDER_SORTS, sortFirst: BREEDER_FIRST, emptyTitle: 'No breeders match', emptyText: '', wire: function (box) { wireRows(box, breederDrawer); } });
       list($('#sl'), { rows: ls, head: LISTING_HEAD, row: listingRow, text: listingText, sorts: LISTING_SORTS, emptyTitle: 'No listings match', emptyText: '', wire: function (box) { wireHolds(box, search); } });
     });
   }
@@ -1152,6 +1208,15 @@
         head: sh('at', 'Started') + sh('breeder', 'Breeder') + '<th class="hide-md">Puppies</th>' + sh('amount', 'Amount', 'num hide-sm') + sh('status', 'Status'),
         sorts: { at: function (c) { return c.created_at; }, breeder: function (c) { return c.business_name; }, amount: function (c) { return c.amount_total_cents; }, status: function (c) { return c.payment_status || c.status; } },
         sort: ['at', -1], sortFirst: { at: -1, amount: -1 },
+        mrow: function (c) {
+          var paid = c.payment_status && c.status === 'paid';
+          var acts = !practice || !paid ? '' : (c.payment_status === 'refunded' ? '' : '<button class="btn btn-sm btn-danger" data-refund="' + esc(c.id) + '">Refund</button>') +
+            (c.dispute_open ? '<button class="btn btn-sm" data-dispute="' + esc(c.id) + '" data-act="won">Dispute won</button><button class="btn btn-sm" data-dispute="' + esc(c.id) + '" data-act="lost">Dispute lost</button>'
+              : '<button class="btn btn-sm" data-dispute="' + esc(c.id) + '" data-act="open">Record dispute</button>');
+          var more = [c.payment_status && c.payment_status !== 'succeeded' ? (PAY_STATUS[c.payment_status] || c.payment_status) : '', c.dispute_status ? 'dispute ' + String(c.dispute_status).replace(/_/g, ' ') : ''].filter(Boolean);
+          return mrow({ name: esc(c.business_name), side: '<span class="mrow-price">' + esc(money(c.amount_total_cents)) + '</span><span class="pill ' + (PAY_PILL[c.status] || '') + '">' + esc(String(c.status).replace('_', ' ')) + '</span>',
+            sub: esc([when(c.created_at), c.puppies].concat(more).join(', ')), title: [c.puppies].concat(more).join(', '), acts: acts });
+        },
         row: function (c) {
           var paid = c.payment_status && c.status === 'paid';
           var acts = !practice || !paid ? '' : (c.payment_status === 'refunded' ? '' : '<button class="btn btn-sm btn-danger" data-refund="' + esc(c.id) + '">Refund</button>') +
@@ -1196,6 +1261,10 @@
         head: sh('name', 'Breed') + sh('live', 'Live', 'num') + sh('puppies', 'All puppies', 'num hide-sm') + sh('breeders', 'Breeders', 'num hide-sm') + sh('guide', 'Guide', 'hide-sm'),
         sorts: { name: function (b) { return b.name; }, live: function (b) { return b.live; }, puppies: function (b) { return b.puppies; }, breeders: function (b) { return b.breeders; }, guide: function (b) { return b.guide ? 0 : 1; } },
         sortFirst: { live: -1, puppies: -1, breeders: -1 },
+        mrow: function (b) {
+          return mrow({ name: esc(b.name), side: '<span class="mrow-price">' + b.live + ' live</span>' + (b.guide ? '<span class="pill pill-ok">Guide</span>' : '<span class="pill">No guide</span>'),
+            sub: esc('/' + b.slug + ', ' + plural(b.puppies, 'puppy', 'puppies') + ', ' + plural(b.breeders, 'breeder')), acts: '' });
+        },
         row: function (b) {
           return '<tr class="clickable" data-open="' + esc(b.id) + '" tabindex="0" aria-label="Edit ' + esc(b.name) + '"><td><b>' + esc(b.name) + '</b><span class="sub">/' + esc(b.slug) + '</span></td>' +
             '<td class="num">' + b.live + '</td><td class="num hide-sm">' + b.puppies + '</td><td class="num hide-sm">' + b.breeders + '</td>' +
@@ -1337,7 +1406,10 @@
           // Publish, the build check and held alerts are run by the portal's cron alone, so they get no Run now (lib/jobs.js).
           return '<tr><td><b>' + esc(L[0]) + '</b><span class="sub">' + esc(L[1]) + '</span></td><td class="hide-sm when">' + (j.last_run_at ? esc(when(j.last_run_at)) : '<span class="muted">Not yet</span>') + '</td>' +
             '<td>' + (j.last_error ? '<span class="pill pill-alert">Failed</span><span class="sub">' + esc(j.last_error) + '</span>' : j.last_result ? '<span class="small">' + esc(jobSummary(j.job, j.last_result)) + '</span>' : '') + '</td>' +
-            '<td class="act">' + (L[2] === 'auto' || !JOB_LABELS[j.job] ? '' : '<button class="btn btn-sm" data-run="' + esc(j.job) + '">Run now</button>') + '</td></tr>';
+            '<td class="act">' + (L[2] === 'auto' || !JOB_LABELS[j.job] ? '' : '<button class="btn btn-sm" data-run="' + esc(j.job) + '">Run now</button>') + '</td>' +
+            mcell(mrow({ name: esc(L[0]), side: j.last_error ? '<span class="pill pill-alert">Failed</span>' : '',
+              sub: esc((j.last_run_at ? when(j.last_run_at) : 'Not yet') + (j.last_error ? ', ' + j.last_error : j.last_result ? ', ' + jobSummary(j.job, j.last_result) : '')),
+              title: L[1], acts: L[2] === 'auto' || !JOB_LABELS[j.job] ? '' : '<button class="btn btn-sm" data-run="' + esc(j.job) + '">Run now</button>' }));
         }).join('') + '</tbody></table></div></section>');
       $('#publish-now').addEventListener('click', function () {
         var b = $('#publish-now'); b.disabled = true; b.textContent = 'Publishing';
@@ -1457,6 +1529,10 @@
         head: sh('at', 'Sent') + sh('to', 'To') + sh('kind', 'Kind') + sh('status', 'Status'),
         sorts: { at: function (m) { return m.id; }, to: function (m) { return m.to_addr; }, kind: function (m) { return TEMPLATE_NAMES[m.template] || m.template; }, status: function (m) { return m.status; } },
         sortFirst: { at: -1 },
+        mrow: function (m) {
+          return mrow({ name: esc(m.to_addr), side: emailStatus(m.status).replace(/<span class="sub">.*$/, ''),
+            sub: esc(when(m.sent_at) + ', ' + (TEMPLATE_NAMES[m.template] || m.template) + (/^(failed|skipped)/.test(m.status) ? ', ' + m.status : '')), title: m.status, acts: '' });
+        },
         row: function (m) {
           return '<tr><td class="when">' + esc(when(m.sent_at)) + '</td><td>' + esc(m.to_addr) + '</td><td>' + esc(TEMPLATE_NAMES[m.template] || m.template) + '</td><td>' + emailStatus(m.status) + '</td></tr>';
         },
@@ -1474,7 +1550,10 @@
           var me = x.email.toLowerCase() === String(state.who.email).toLowerCase();
           return '<tr><td>' + esc(x.name) + (me ? ' <span class="muted small">(you)</span>' : '') + '</td><td>' + esc(x.email) + '</td><td>' +
             '<select data-role="' + esc(x.email) + '" aria-label="Role for ' + esc(x.name) + '"' + (me ? ' disabled' : '') + '><option value="owner"' + (x.role === 'owner' ? ' selected' : '') + '>Owner</option><option value="staff"' + (x.role === 'staff' ? ' selected' : '') + '>Staff</option></select></td>' +
-            '<td class="act">' + (me ? '' : '<button class="btn btn-sm btn-quiet" data-remove-person="' + esc(x.email) + '">Remove</button>') + '</td></tr>';
+            '<td class="act">' + (me ? '' : '<button class="btn btn-sm btn-quiet" data-remove-person="' + esc(x.email) + '">Remove</button>') + '</td>' +
+            mcell(mrow({ name: esc(x.name) + (me ? ' <span class="muted small">(you)</span>' : ''), sub: esc(x.email),
+              acts: '<select data-role="' + esc(x.email) + '" aria-label="Role for ' + esc(x.name) + '"' + (me ? ' disabled' : '') + '><option value="owner"' + (x.role === 'owner' ? ' selected' : '') + '>Owner</option><option value="staff"' + (x.role === 'staff' ? ' selected' : '') + '>Staff</option></select>' +
+                (me ? '' : '<button class="btn btn-sm" data-remove-person="' + esc(x.email) + '">Remove</button>') }));
         }).join('') + '</tbody></table></div></section>' +
         '<section class="card"><h2>Add a person</h2>' +
         '<form id="person-form" class="person-form" novalidate><div class="field"><label for="pf-name">Name</label><input id="pf-name" type="text" maxlength="120"></div>' +
@@ -1581,6 +1660,10 @@
         head: (picking ? '<th class="act"><span class="sr">Tick for the email</span></th>' : '') + sh('email', 'Email') + sh('name', 'Name') + sh('source', 'Joined from', 'hide-sm') + sh('at', gone ? 'Unsubscribed' : st ? 'Added' : 'Joined', 'hide-sm') + (gone ? '' : '<th class="act"><span class="sr">Actions</span></th>'),
         sorts: { email: function (s) { return s.email; }, name: function (s) { return s.name; }, source: function (s) { return SOURCE_NAMES[s.source]; }, at: function (s) { return gone ? s.unsubscribed_at : s.created_at; } },
         sortFirst: { at: -1 },
+        mrow: picking ? null : function (s) {
+          return mrow({ name: esc(s.email), sub: esc([s.name, SOURCE_NAMES[s.source], day(gone ? s.unsubscribed_at : s.created_at)].filter(Boolean).join(', ')),
+            acts: gone ? '' : '<button class="btn btn-sm" data-unsub="' + esc(s.id) + '" data-email="' + esc(s.email) + '">Unsubscribe</button>' });
+        },
         row: function (s) {
           return '<tr>' + (picking ? '<td class="act"><input type="checkbox" data-pick-sub="' + esc(s.id) + '"' + (picks[s.id] ? ' checked' : '') + ' aria-label="Tick ' + esc(s.email) + ' for the email"></td>' : '') +
             '<td>' + esc(s.email) + '</td><td>' + esc(s.name || '') + '</td><td class="hide-sm">' + esc(SOURCE_NAMES[s.source]) + '</td><td class="when hide-sm">' + esc(day(gone ? s.unsubscribed_at : s.created_at)) + '</td>' +
@@ -1713,7 +1796,10 @@
         c.campaigns.map(function (x) {
           return '<tr><td>' + esc(x.subject) + '</td><td>' + (x.status === 'draft' ? '' : esc(AUDIENCE_NAMES[x.audience] || 'Subscribers')) + '</td><td>' + esc(CAMPAIGN_STATUS[x.status]) + (x.status === 'sending' ? ' <span class="muted small">' + x.sent_count + ' of ' + x.total + '</span>' : '') + '</td>' +
             '<td class="num">' + (x.status === 'draft' ? '' : x.sent_count) + '</td><td class="num">' + (x.status === 'draft' ? '' : x.failed_count) + '</td>' +
-            '<td class="when">' + esc(day(x.sent_at || x.send_started_at || x.updated_at)) + '</td></tr>';
+            '<td class="when">' + esc(day(x.sent_at || x.send_started_at || x.updated_at)) + '</td>' +
+            mcell(mrow({ name: esc(x.subject), side: '<span class="pill">' + esc(CAMPAIGN_STATUS[x.status]) + '</span>',
+              sub: esc(day(x.sent_at || x.send_started_at || x.updated_at) + (x.status === 'draft' ? '' : ', ' + (AUDIENCE_NAMES[x.audience] || 'Subscribers') + ', ' + x.sent_count + ' sent' +
+                (x.status === 'sending' ? ' of ' + x.total : '') + (x.failed_count ? ', ' + x.failed_count + ' failed' : ''))), acts: '' }));
         }).join('') + '</tbody></table></div>' : '') +
       '<p class="small muted">A large list goes out in batches of about 400 every 15 minutes, so 3,000 people take about two hours.</p></section>';
   }
@@ -1932,6 +2018,9 @@
       list($('#audit'), { rows: r[1], text: function (a) { return [a.actor, a.action, a.entity, a.entity_id].join(' '); },
         head: sh('at', 'When') + sh('who', 'Who') + sh('what', 'What') + '<th class="hide-md">Record</th>',
         sorts: { at: function (a) { return a.id; }, who: function (a) { return a.actor; }, what: function (a) { return a.action; } }, sortFirst: { at: -1 },
+        mrow: function (a) {
+          return mrow({ name: esc(a.action), sub: esc(when(a.at) + ', ' + a.actor + ' (' + a.actor_type + ')'), title: a.entity + ' ' + a.entity_id, acts: '' });
+        },
         row: function (a) {
           return '<tr><td class="when">' + esc(when(a.at)) + '</td><td>' + esc(a.actor) + '<span class="sub">' + esc(a.actor_type) + '</span></td><td>' + esc(a.action) + '</td><td class="small muted hide-md">' + esc(a.entity) + ' ' + esc(a.entity_id) + '</td></tr>';
         },

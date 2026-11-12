@@ -2175,7 +2175,7 @@ async function listings(request, env) {
       p.documents = docs[p.id] || [];
       // Workplan A12. Where the puppy is in the photo schedule and by when it needs a new photo.
       p.schedule = scheduleFor(p, breeder, inact);
-      p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons), focus_x: ph.focus_x, focus_y: ph.focus_y }));
+      p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), position: ph.position, quality: ph.quality, messages: reasonText(ph.quality_reasons), focus_x: ph.focus_x, focus_y: ph.focus_y, w: ph.width, h: ph.height }));
       // Workplan A9. A photo the check sent back or is holding does not count toward the listing.
       const usable = p.photos.filter((ph) => !ph.quality || ph.quality === 'pass' || ph.quality === 'pending').length;
       p.is_public = pubIds.has(p.id);

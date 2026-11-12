@@ -102,12 +102,14 @@ async function listBreeders(req, env) {
   const binds = status && !['queue', 'signing_up', 'closing'].includes(status) ? [status] : [];
   const { results } = await env.DB.prepare(
     `SELECT b.id, b.email, b.status, b.created_at, b.profile_submitted_at, b.decided_at, b.legacy,
-            p.business_name, p.city, p.state, p.slug,
+            p.business_name, p.city, p.state, p.slug, p.logo_key,
             (SELECT COUNT(*) FROM puppies x WHERE x.breeder_id = b.id AND x.publication_state != 'archived') AS puppies,
             (SELECT COUNT(*) FROM public_puppies x WHERE x.breeder_id = b.id) AS public_puppies
        FROM breeders b LEFT JOIN breeder_profiles p ON p.breeder_id = b.id ${where}
       ORDER BY b.profile_submitted_at IS NULL, b.profile_submitted_at, b.created_at DESC`,
   ).bind(...binds).all();
+  // Alex, 2026-11-12. The logo for the phone row, by the same address as the breeder drawer's.
+  for (const r of results) { r.logo_url = brandUrl('', r.id, 'logo', r.logo_key); delete r.logo_key; }
   return json(results);
 }
 
@@ -127,7 +129,7 @@ async function breederDetail(req, env, ctx, id) {
   const docs = {};
   for (const d of await documentsFor(env, id)) if (d.puppy_id) (docs[d.puppy_id] ||= []).push(d);
   for (const l of litters) for (const p of l.puppies) {
-    p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph) }));
+    p.photos = p.photos.map((ph) => ({ id: ph.id, url: photoUrl(ph), w: ph.width, h: ph.height, fx: ph.focus_x, fy: ph.focus_y }));
     p.videos = vids[p.id] || [];
     p.documents = docs[p.id] || [];
     p.is_public = pub.has(p.id);
@@ -505,9 +507,12 @@ async function listListings(req, env) {
             (SELECT COUNT(*) FROM photos ph WHERE ph.puppy_id = p.id) AS photos,
             (SELECT ph.id FROM photos ph WHERE ph.puppy_id = p.id ORDER BY ph.position LIMIT 1) AS cover_id,
             (SELECT COALESCE(ph.external_url, '') FROM photos ph WHERE ph.puppy_id = p.id ORDER BY ph.position LIMIT 1) AS cover_ext,
-            p.id IN (SELECT id FROM public_puppies) AS is_public
+            p.id IN (SELECT id FROM public_puppies) AS is_public,
+            cv.width AS cover_w, cv.height AS cover_h, cv.focus_x AS cover_fx, cv.focus_y AS cover_fy
        FROM puppies p JOIN litters l ON l.id = p.litter_id JOIN breeds br ON br.id = l.breed_id
        JOIN breeder_profiles bp ON bp.breeder_id = p.breeder_id
+       -- Alex, 2026-11-12. The cover's size and face point place the phone row's 4:5 photo.
+       LEFT JOIN photos cv ON cv.id = (SELECT ph.id FROM photos ph WHERE ph.puppy_id = p.id ORDER BY ph.position LIMIT 1)
       WHERE ${where} ORDER BY p.updated_at DESC LIMIT 400`,
   ).all();
   for (const r of results) r.cover = r.cover_ext ? `${r.cover_ext}/v1/fill/w_120,h_90,al_t,q_80/i.jpg` : r.cover_id ? `/media/${r.cover_id}` : null;

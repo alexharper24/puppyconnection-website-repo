@@ -52,7 +52,7 @@ for (const worker of ['portal', 'admin']) {
 // screen (photoscreen.js, 2026-11-10) are shared the same way. Edit the portal's copy only. On 2026-11-07 the list email editor's rules
 // sat only in the admin's portal.css and a reset deleted them, so a copy that holds a line the
 // portal's lacks stops the reset instead of being overwritten.
-for (const file of ['portal.css', 'combo.js', 'dialog.js', 'facepick.js', 'photoscreen.js']) {
+for (const file of ['portal.css', 'combo.js', 'dialog.js', 'facepick.js', 'photoscreen.js', 'navmenu.js']) {
   const from = path.join(APP, 'portal/public', file);
   const to = path.join(APP, 'admin/public', file);
   if (fs.existsSync(to)) {

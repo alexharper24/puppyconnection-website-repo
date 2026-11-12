@@ -44,3 +44,9 @@ path.tc-other { fill: var(--tc-other); }
 .rtabs button[aria-selected="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
 .rtabs button:focus-visible { outline: 2px solid var(--olive); outline-offset: 2px; }
 .tc-more { margin: .7rem 0 0; }
+/* Alex, 2026-11-11. On a phone the report tabs sit two to a row at equal widths and 44px tall,
+   so the eight of them make four even rows instead of five ragged ones. */
+@media (max-width: 860px) {
+  .rtabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rtabs button { min-height: 44px; white-space: normal; line-height: 1.2; }
+}

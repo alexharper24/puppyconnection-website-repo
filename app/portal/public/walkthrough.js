@@ -694,6 +694,8 @@
     }
     async function measure() {
       var off = q('.wt-off'), keep = { C: C, instant: S.instant, virtual: S.virtual, caps: S.caps };
+      // The panel can close while a resize is still being handled, and then there is nothing to measure (2026-11-11).
+      if (!off) return;
       S.instant = true; DUR = [];
       for (var k = 0; k < SCENES.length; k++) {
         build(off); S.virtual = 0; S.caps = [];

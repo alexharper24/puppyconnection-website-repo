@@ -210,7 +210,7 @@
     if (window.PCWalkthrough) return Promise.resolve();
     return new Promise(function (ok, fail) {
       var l = document.createElement('link'); l.rel = 'stylesheet'; l.href = '/walkthrough.css?v=2'; document.head.appendChild(l);
-      var sc = document.createElement('script'); sc.src = '/walkthrough.js?v=2'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc);
+      var sc = document.createElement('script'); sc.src = '/walkthrough.js?v=3'; sc.onload = ok; sc.onerror = fail; document.head.appendChild(sc);
     });
   }
   function openTour(first) {
@@ -452,6 +452,29 @@
     if (open) { open.removeAttribute('open'); open.querySelector('summary').focus(); }
   });
 
+  // Alex, 2026-11-11. Remove sits at the end of a drawer, apart from Save (Square's item editor keeps
+  // Delete at the bottom of the form). The button keeps its id, so the drawer's handler still finds it.
+  function dangerZone(id, label) {
+    return '<div class="danger-zone"><button class="btn btn-danger" type="button" id="' + id + '">' + esc(label) + '</button></div>';
+  }
+  // Alex, 2026-11-11. The phone menu (mobile review, app/docs/batch-2026-11-11-mobile-review.md).
+  // The kennel and its status head the menu, and the top bar's links sit at its foot, so on a phone
+  // the top of every screen is the logo and the Menu button. Both show only below 860px.
+  function navWho(me) {
+    return '<div class="nav-who"><b>' + esc(me.profile.business_name || me.email) + '</b>' + statusPill(me.status) + '</div>';
+  }
+  function navFoot(me) {
+    var cfg = state.config || {};
+    return '<div class="nav-foot">' +
+      (me.site_url ? '<a href="' + esc(me.site_url) + '" target="_blank" rel="noopener">View on the site</a>' : '') +
+      (cfg.site_origin ? '<a href="' + esc(cfg.site_origin) + '/">Visit site</a>' : '') +
+      (me.kennel_count > 1 && !me.operator ? '<a href="/choose">Switch kennel</a>' : '') +
+      (me.can_add_kennel ? '<a href="#/add-kennel">Add a kennel</a>' : '') +
+      '<button type="button" data-signout>Sign out</button></div>';
+  }
+  shell.signout = function (e) { if (e.target.closest && e.target.closest('[data-signout]')) endSession(); };
+  document.addEventListener('click', shell.signout);
+
   function shell(inner, narrow) {
     // The same screen drawn again after a save keeps the page where it was (Alex, 2026-10-31).
     var keepY = shell.lastRoute === state.route ? window.scrollY : 0;
@@ -464,12 +487,12 @@
     var foot = { pending: me.profile_submitted_at ? ['Waiting for approval', 'Puppy Connection will email you'] : ['Signing up', 'Finish your profile to submit'],
       approved: ['Approved', 'You can list and pay'], suspended: ['Paused', 'Changes and payments are on hold'], declined: ['Not approved', 'Reply to the email you received'] }[me.status] || ['', ''];
     app.innerHTML = '<div class="app"><aside class="rail" aria-label="Main menu">' +
-      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection breeder portal, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Breeder portal</span>' + '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav">Menu' + (here ? '<span>' + esc(here) + '</span>' : '') + '</button>' + '</div>' +
-      '<nav class="nav" id="nav">' + nav(me).map(function (g) {
-        return '<div class="nav-group">' + esc(g[0]) + '</div>' + g[1].map(function (n) {
-          return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="is-on" aria-current="page"' : '') + '><span>' + esc(n[1]) + '</span></a>';
-        }).join('');
-      }).join('') + (me.status === 'pending' ? '<p class="nav-note">' + (me.drafts_ok ? 'You can prepare litters, puppies and parents now. Paying and the site open once Puppy Connection approves this kennel.' : 'Litters, puppies and payments open once Puppy Connection approves your account.') + '</p>' : '') + '</nav>' +
+      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection breeder portal, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Breeder portal</span>' + '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav"><span class="menu-ico" aria-hidden="true"></span>Menu</button>' + '</div>' +
+      // Alex, 2026-11-11. On a phone the menu is one column of sections that start closed, and the
+      // section holding this screen opens by itself (pcNavSections in navmenu.js).
+      '<nav class="nav" id="nav">' + navWho(me) + pcNavSections(nav(me).map(function (g) {
+        return [g[0], g[1].map(function (n) { return { href: '#/' + n[0], label: n[1], on: route === n[0] }; })];
+      })) + (me.status === 'pending' ? '<p class="nav-note">' + (me.drafts_ok ? 'You can prepare litters, puppies and parents now. Paying and the site open once Puppy Connection approves this kennel.' : 'Litters, puppies and payments open once Puppy Connection approves your account.') + '</p>' : '') + navFoot(me) + '</nav>' +
       '<div class="rail-foot"><span class="dot' + (me.status === 'approved' ? '' : ' wait') + '"></span><div><b>' + esc(foot[0]) + '</b><span>' + esc(foot[1]) + '</span></div></div></aside>' +
       '<div class="main"><header class="topbar' + (narrow ? ' narrow' : '') + '"><div class="who"><span class="name">' + esc(me.profile.business_name || me.email) + '</span>' + statusPill(me.status) +
       // Plan P2.2. The breeder's own page on the public site, once they are public.
@@ -1046,7 +1069,9 @@
               (x.site_url ? '<a class="btn btn-sm btn-quiet" href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View on site</a>' : '') +
               // Alex, 2026-11-01. Remove from the card, without opening the puppy.
               (canEdit ? '<button class="btn btn-sm btn-quiet btn-danger rm-pup" data-remove-puppy="' + esc(x.id) + '">Remove</button>' : '') + '</div></div>';
-          }).join('') + '</div>' : '<p class="muted small">No puppies in this litter yet.</p>') + '</section>';
+          }).join('') + '</div>' : '<p class="muted small">No puppies in this litter yet.</p>') +
+          // Alex, 2026-11-11. On a phone Remove litter leaves the buttons used daily and sits at the end of the litter.
+          (canEdit ? '<div class="litter-foot"><button class="btn btn-quiet btn-danger" data-remove-litter="' + esc(l.id) + '">Remove litter</button></div>' : '') + '</section>';
       });
       shell(html);
       var pq = $('#pup-q'), pst = $('#pup-st');
@@ -1178,8 +1203,8 @@
       '<div class="field"><label for="l-dad">Dad\'s weight (lb)</label><input id="l-dad" name="dad_weight_lb" type="number" min="0" step="0.1" value="' + esc(l ? l.dad_weight_lb : '') + '"></div></div>' +
       parentPickers(l) +
       '<div class="field"><label for="l-desc">About this litter</label><textarea id="l-desc" name="description">' + esc(l ? l.description : '') + '</textarea></div>' +
-      '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (l ? 'Save litter' : 'Add litter') + '</button>' +
-      (l ? '<button class="btn btn-danger" type="button" id="archive-litter">Remove litter</button>' : '') + '</div></form>',
+      '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (l ? 'Save litter' : 'Add litter') + '</button></div></form>' +
+      (l ? dangerZone('archive-litter', 'Remove litter') : ''),
       function (d) {
         var form = $('#litter', d);
         breedSearch($('#l-breed', d));
@@ -1303,9 +1328,9 @@
       '<div class="field"><label for="p-url">Link to this puppy on your site</label><input id="p-url" name="breeder_url" type="url" value="' + esc(x ? x.breeder_url : '') + '"' + dis + '><div class="hint">Optional. Buyers are sent here to contact you.</div></div>' +
       detailFields(x, dis) +
       (canEdit ? '<div id="quality" aria-live="polite">' + qualityBox(x, findLitter(x ? x.litter_id : litterId), null) + '</div>' : '') +
-      (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + (x ? '<button class="btn btn-danger" type="button" id="archive-puppy">Remove puppy</button>' : '') + '</div>' : '') +
+      (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + '</div>' : '') +
       '</form>' + (canEdit && x ? payNext(x) + moveBox(x) : '') +
-      (x ? SPLIT + photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy')
+      (x ? SPLIT + photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy') + (canEdit ? dangerZone('archive-puppy', 'Remove puppy') : '')
         : canEdit ? SPLIT + NEW_UPLOAD_NOTE + photoSection({ photos: [], name: 'this puppy' }, true) + docSection([], true, 'puppy') + '<p class="hint">Add videos once the puppy is saved.</p>' : ''),
       function (d) {
         var form = $('#puppy', d);

@@ -49,4 +49,7 @@ path.tc-other { fill: var(--tc-other); }
 @media (max-width: 860px) {
   .rtabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rtabs button { min-height: 44px; white-space: normal; line-height: 1.2; }
+  /* the page filter keeps its own separate buttons, not the joined tab row the shared phone rules draw */
+  .seg.tc-kinds { background: none; gap: .35rem; border: 0; }
+  .seg.tc-kinds > button { flex: 1 1 6.5rem; gap: .35rem; }
 }

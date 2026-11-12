@@ -180,3 +180,8 @@
   .cl-counts th, .cl-counts td { padding-inline: .3rem; }
   .cl-counts thead th { font-size: .72rem; }
 }
+/* Alex, 2026-11-11, mobile review. On a phone each count and filter is a full 44px target. */
+@media (max-width: 860px) {
+  .cl-strip .cl-stat, .cl-mine { min-height: 44px; align-items: center; }
+  .cl-pickers select { min-height: 44px; }
+}

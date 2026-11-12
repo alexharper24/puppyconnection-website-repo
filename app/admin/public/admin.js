@@ -144,15 +144,17 @@
     var here = ''; groups.forEach(function (g) { g[1].forEach(function (n) { if (n[0] === route) here = n[1]; }); });
     var q = route === 'search' ? params().q || '' : '';
     app.innerHTML = '<div class="app"><aside class="rail" aria-label="Main menu">' +
-      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection operator, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Operator</span>' + '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav">Menu' + (here ? '<span>' + esc(here) + '</span>' : '') + '</button>' + '</div>' +
-      '<nav class="nav" id="nav">' + groups.map(function (g) {
-        return '<div class="nav-group">' + esc(g[0]) + '</div>' + g[1].map(function (n) {
-          return '<a href="#/' + n[0] + '"' + (route === n[0] ? ' class="is-on" aria-current="page"' : '') + (n[2] ? ' aria-label="' + esc(n[1] + ', ' + n[2]) + '"' : '') + '><span>' + esc(n[1]) + '</span>' +
-            (n[2] ? '<span class="tally">' + n[2] + '</span>' : '') + '</a>';
-        }).join('');
-      }).join('') +
-      // The mailbox follows EMAIL_MODE alone (plan P7.3), so staging keeps it until real email is on.
-      (state.who.email_mode === 'log' ? '<a href="/dev/mail" target="_blank" rel="noopener"><span>Mailbox</span></a>' : '') + '</nav>' +
+      '<div class="rail-head"><a href="#/" aria-label="Puppy Connection operator, overview"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a><span class="role">Operator</span>' + '<button class="menu-btn" type="button" aria-expanded="false" aria-controls="nav"><span class="menu-ico" aria-hidden="true"></span>Menu</button>' + '</div>' +
+      // Alex, 2026-11-11. On a phone the menu is one column of sections that start closed, and the
+      // section holding this screen opens by itself (pcNavSections in navmenu.js).
+      '<nav class="nav" id="nav">' + pcNavSections(groups.map(function (g, i) {
+        var items = g[1].map(function (n) { return { href: '#/' + n[0], label: n[1], on: route === n[0], tally: n[2] || null, aria: n[2] ? n[1] + ', ' + n[2] : '' }; });
+        // The mailbox follows EMAIL_MODE alone (plan P7.3), so staging keeps it until real email is on.
+        if (i === groups.length - 1 && state.who.email_mode === 'log') items.push({ href: '/dev/mail', label: 'Mailbox', attrs: ' target="_blank" rel="noopener"' });
+        return [g[0], items];
+      })) +
+      // On a phone Visit site moves from the top bar to the foot of the menu.
+      (state.who.site ? '<div class="nav-foot"><a href="' + esc(state.who.site) + '/">Visit site</a></div>' : '') + '</nav>' +
       '<a class="rail-foot" href="#/publish"><span class="dot' + (waiting ? ' wait' : '') + '"></span><div><b>' + (waiting ? 'Changes waiting' : 'Site up to date') + '</b><span>' +
         (waiting ? plural(waiting, 'change') + ' not on the site yet' : 'Nothing waiting to publish') + '</span></div></a></aside>' +
       '<div class="main"><header class="topbar"><form class="finder" id="finder" role="search"><label class="sr" for="find">Search breeders and puppies</label>' +
@@ -1097,7 +1099,9 @@
   };
   function listingRow(p) {
     return '<tr><td>' + (p.cover ? '<img class="thumb" src="' + esc(thumb(p.cover)) + '" alt="" loading="lazy">' : '<div class="thumb-empty">No photo</div>') + '</td>' +
-      '<td><b>' + esc(p.name) + '</b><span class="sub">' + esc(p.breed) + '</span></td><td class="hide-sm brk">' + esc(p.business_name) + '</td>' +
+      '<td><b>' + esc(p.name) + '</b><span class="sub">' + esc(p.breed) + '</span>' +
+      // Alex, 2026-11-11. The actions column is hidden on a phone, so Hold and List free sit under the name there.
+      '<div class="btn-row sm-acts show-sm-flex">' + holdButton(p) + '</div></td><td class="hide-sm brk">' + esc(p.business_name) + '</td>' +
       '<td class="num">' + esc(money(p.price_cents)) + '</td><td><div class="chips">' + listingChips(p) + '</div></td><td class="act hide-sm"><div class="btn-row">' + holdButton(p) + '</div></td></tr>';
   }
   function listingText(p) { return [p.name, p.breed, p.business_name].join(' '); }

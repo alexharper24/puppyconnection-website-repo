@@ -51,6 +51,9 @@ code { font-size: .88em; background: var(--info-bg); padding: .05rem .3rem; bord
 .btn-sm { min-height: 36px; padding: .3rem .75rem; font-size: .85rem; }
 .btn[disabled] { opacity: .45; cursor: not-allowed; }
 .btn-row { display: flex; flex-wrap: wrap; gap: .5rem; margin-top: .8rem; }
+/* A label drawn as a button (Upload, Replace) takes a button's line height and no label margin, so it
+   stands level with the buttons beside it (2026-11-11: Replace was 5px taller than Remove). */
+label.btn { margin: 0; line-height: normal; }
 
 label { display: block; font-weight: 500; font-size: .9rem; margin: 0 0 .3rem; }
 .field { margin-bottom: .9rem; }
@@ -94,6 +97,23 @@ input:focus, select:focus, textarea:focus { border-color: var(--bronze); outline
    spacing, and a rule above every group after the first. */
 .nav-group { font-size: .68rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--gold); opacity: .85; padding: .45rem .6rem .15rem; }
 .nav-group ~ .nav-group { border-top: 1px solid var(--rail-line); margin-top: .2rem; padding-top: .4rem; }
+/* Alex, 2026-11-11. Each group is a button that folds its screens (navmenu.js). On a wide screen
+   it keeps the gold heading look above, with a small arrow, and every group starts open. */
+button.nav-group { display: flex; flex-wrap: wrap; align-items: center; width: 100%; min-height: 30px; border: 0; background: none; text-align: left; cursor: pointer;
+  font-family: var(--sans); border-radius: var(--radius); }
+button.nav-group:hover { opacity: 1; }
+button.nav-group::after { content: ''; width: 6px; height: 6px; margin: -3px .15rem 0 auto; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(45deg); }
+button.nav-group[aria-expanded="true"]::after { transform: rotate(-135deg); margin-top: 3px; }
+.ng-name { min-width: 0; }
+.ng-list { display: none; }
+.nav-sec + .nav-sec { border-top: 1px solid var(--rail-line); margin-top: .2rem; padding-top: .2rem; }
+.nav-items { display: grid; }
+.nav-who, .nav-foot, .litter-foot { display: none; }
+.menu-ico { position: relative; width: 16px; height: 12px; flex: none; background: linear-gradient(currentColor 0 0) top / 100% 2px no-repeat, linear-gradient(currentColor 0 0) center / 100% 2px no-repeat, linear-gradient(currentColor 0 0) bottom / 100% 2px no-repeat; }
+.rail.open .menu-ico { background: linear-gradient(currentColor 0 0) center / 100% 2px no-repeat; transform: rotate(45deg); }
+.rail.open .menu-ico::after { content: ''; position: absolute; left: 0; right: 0; top: 5px; height: 2px; background: currentColor; transform: rotate(90deg); }
+/* Remove at the end of a drawer, apart from Save (option 1, from Square's item editor). */
+.danger-zone { border-top: 1px solid var(--line); margin-top: 1.6rem; padding-top: 1rem; }
 .nav a { display: flex; justify-content: space-between; align-items: center; gap: .5rem; min-height: 30px; padding: .2rem .6rem; font-size: .9rem;
   border-radius: var(--radius); color: var(--rail-soft); text-decoration: none; font-weight: 550; }
 .nav a { color: #e9e4d8; }
@@ -432,10 +452,7 @@ table.list .row-acts { margin-top: .4rem; }
   .rail-head .role { font-size: .62rem; margin-right: auto; }
   .menu-btn { display: inline-flex; }
   .rail:not(.open) .nav { display: none; }
-  .rail.open .nav { display: grid; grid-template-columns: 1fr 1fr; gap: 2px .4rem; padding: 0 .6rem .6rem; }
-  .rail.open .nav-group { grid-column: 1 / -1; padding: .5rem .2rem .1rem; border: 0; margin: 0; }
   .rail-foot, .nav-note { display: none; }
-  .nav a { min-height: 40px; padding: .35rem .6rem; }
   .topbar { position: static; padding-block: .5rem; min-height: 0; }
   .topbar:has(.finder) { flex-wrap: nowrap; }
   .finder { max-width: none; }
@@ -813,3 +830,101 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .camp-frame { position: relative; overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: #4a5a4b; min-height: 200px; }
 .camp-frame iframe { display: block; border: 0; margin: 0 auto; transform-origin: 0 0; background: #4a5a4b; }
 .camp-frame[data-width="phone"] { max-width: 377px; }
+
+/* ------------------------------------------------------------------ phones
+   Alex, 2026-11-11, mobile review (app/docs/batch-2026-11-11-mobile-review.md), options A, 1 and 1
+   from the options page shown to Alex on 2026-11-11 (deleted once he chose, as previews are). One set of rules for the portal and the admin:
+   a one-column menu whose groups fold, every control at least 44px, button rows that fill the row
+   instead of wrapping ragged, and Save held at the bottom of a long drawer. Measured with
+   app/dev/mobile-review at 360, 390 and 430, and at 1440 to confirm the desktop is unchanged. */
+@media (max-width: 860px) {
+  /* the menu: Shopify's grouped navigation, one column, folding groups, the current screen filled */
+  .menu-btn { min-height: 44px; padding-inline: .9rem; }
+  .rail.open .nav { display: block; padding: 0 0 1rem; }
+  .nav-who { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .6rem; margin: .2rem .8rem .6rem; padding: .7rem .8rem;
+    border: 1px solid var(--rail-line); border-radius: var(--r-lg); color: #fff; }
+  .nav-who b { flex: 1 1 100%; font-weight: 600; overflow-wrap: anywhere; }
+  .nav-sec { border-top: 1px solid var(--rail-line); }
+  .nav-sec + .nav-sec { margin: 0; padding: 0; }
+  button.nav-group { min-height: 56px; padding: .45rem 1rem; font-size: .74rem; opacity: 1; margin: 0; border-top: 0; border-radius: 0; }
+  button.nav-group::after { width: 9px; height: 9px; border-width: 0 2px 2px 0; color: var(--rail-soft); }
+  button.nav-group:focus-visible { outline-offset: -3px; }
+  .ng-list { flex: 1 0 100%; order: 3; margin-top: .1rem; font: 400 .84rem/1.35 var(--sans); letter-spacing: 0; text-transform: none; color: var(--rail-soft);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  button.nav-group[aria-expanded="true"] .ng-list { display: none; }
+  button.nav-group[aria-expanded="false"] .ng-list { display: block; }
+  .nav-items { padding: 0 .6rem .5rem; gap: 2px; }
+  .nav a { min-height: 48px; padding: .4rem .8rem; font-size: 1rem; font-weight: 500; }
+  .nav a.is-on { background: rgba(247,213,127,.22); box-shadow: none; border-radius: var(--radius); }
+  .nav-foot { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; padding: .9rem 1rem 0; border-top: 1px solid var(--rail-line); }
+  .nav-foot a, .nav-foot button { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: .3rem .6rem; text-align: center;
+    border: 1px solid rgba(255,255,255,.25); border-radius: var(--radius); background: transparent; color: #fff; font: 500 .92rem var(--sans); text-decoration: none; cursor: pointer; }
+  .nav-foot > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+  /* the top bar's links live in the menu now, so the portal's bar goes and the admin keeps its search */
+  .topbar .who { display: none; }
+  .topbar:not(:has(.finder)) { display: none; }
+  .topbar .finder input { min-height: 44px; }
+
+  /* every control at least 44px (WCAG 2.5.5, Apple's 44pt) */
+  .btn-sm { min-height: 44px; }
+  .drawer .puppy-row .btn-row .btn { min-height: 44px; }
+  .toolbar input[type=search], .toolbar select, .toolbar .combo input[role=combobox], .pick-find input { min-height: 44px; }
+  .seg button, .seg a { min-height: 44px; }
+  table.list th .sort { min-height: 44px; }
+  .photo .tools button, .photo .tools-2 select { min-height: 44px; }
+  .photo-pick { top: 0; right: 0; padding: 11px; }
+  label.check, .includes-group .check, .also-list .check, .prefill-row .check, .doc-vis .check, .breed-picks .check { min-height: 44px; align-items: center; }
+  .also-kennels > summary { min-height: 44px; }
+  .rail-head > a { min-height: 44px; display: flex; align-items: center; }
+  .check input { margin-top: 0; }
+  .work-foot a, .plain-foot a, .plain-site { min-height: 44px; }
+  .plain-card a[data-mode] { display: inline-flex; align-items: center; min-height: 44px; }
+  input[type=file] { width: 100%; max-width: 100%; min-height: 44px; }
+  summary.btn { min-height: 44px; }
+
+  /* button rows fill the row, so a wrapped row has no button standing alone (option 1) */
+  .work .btn-row > .btn, .drawer-body .btn-row > .btn, .head-actions > .btn, .pc-dialog-actions > .btn { flex: 1 1 auto; }
+  .act .btn-row > .btn { flex: 0 0 auto; }
+  /* a segmented control fills its row, wrapping into full rows rather than running off the edge */
+  .seg { display: flex; flex-wrap: wrap; gap: 1px; width: 100%; overflow: visible; background: var(--line-strong); }
+  .seg > a, .seg > button { flex: 1 1 5.5rem; justify-content: center; text-align: center; white-space: normal; line-height: 1.2; padding-inline: .5rem; }
+  .seg > * + * { border-left: 0 !important; }
+
+  /* a litter: Add a puppy across, Edit litter and Add several as equal halves, Remove litter at the end */
+  [data-litter-card] .card-head > .btn-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); width: 100%; }
+  [data-litter-card] .card-head [data-add-puppy] { grid-column: 1 / -1; order: -1; }
+  [data-litter-card] .card-head [data-remove-litter] { display: none; }
+  .litter-foot { display: block; text-align: center; margin-top: .6rem; }
+  /* a puppy: the everyday links in equal parts of one ruled row, and Remove in the puppy's drawer */
+  .puppy-card .row-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; }
+  .puppy-card .row-actions .rm-pup { display: none; }
+  .puppy-card .row-actions .btn { justify-content: center; white-space: normal; text-align: center; line-height: 1.2; padding-inline: .2rem; }
+  .puppy-card .row-actions .btn + .btn { border-left: 1px solid var(--line); border-radius: 0; }
+
+  /* a drawer is the whole screen: Save stays in a bar at the bottom while its form is on screen (option 1) */
+  .drawer-head { padding: .5rem .5rem .5rem 1rem; min-height: 56px; }
+  .drawer-body form > .btn-row:last-child { position: sticky; bottom: -2rem; z-index: 3; margin: 1rem -1.2rem 0; padding: .6rem 1.2rem calc(.6rem + env(safe-area-inset-bottom));
+    flex-wrap: nowrap; flex-direction: row-reverse; background: #fff; border-top: 1px solid var(--line-strong); box-shadow: 0 -4px 14px rgba(0,0,0,.06); }
+  /* Save and Cancel as equal halves, as in the Teapup editor (2026-11-11) */
+  .drawer-body form > .btn-row:last-child > .btn { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.2; }
+  .danger-zone .btn { width: 100%; }
+
+  /* Hold and List free under each listing's name, where the actions column is hidden */
+  .show-sm-flex { display: flex !important; }
+  table.list .sm-acts { flex-wrap: wrap; gap: .4rem; margin-top: .4rem; }
+  table.list .sm-acts .btn { flex: 0 1 auto; white-space: normal; text-align: center; line-height: 1.2; }
+
+  /* small links that stand alone get a full-size target: the footers, a table cell's only link, the photo arrows */
+  .work-foot a, .plain-foot a, .plain-site { min-width: 44px; justify-content: center; padding-inline: .25rem; }
+  td > a:only-child:not(.btn), th[scope=row] > a:only-child { display: inline-flex; align-items: center; min-height: 44px; }
+  .photo .tools button { min-width: 44px; }
+  .pw-show { min-height: 40px; }
+}
+.show-sm-flex { display: none; }
+/* Who signs in, on a phone: Add and invite under the two fields at full width, and Add them to more
+   kennels under it, as there is no room for the two side by side (2026-11-11). */
+@media (max-width: 860px) { @container (max-width: 440px) {
+  .dsec .member-form { grid-template-columns: minmax(0, 1fr); }
+  .dsec .member-form > .btn { grid-column: 1; grid-row: auto; justify-self: stretch; width: 100%; }
+  .dsec .member-form .also-kennels { grid-column: 1; grid-row: auto; }
+} }

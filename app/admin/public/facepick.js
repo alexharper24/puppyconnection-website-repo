@@ -93,4 +93,7 @@
   }
 
   window.pcFacePick = pcFacePick;
+  // Alex, 2026-11-12. The phone rows crop a photo the same way: pcCropPos(width, height, fx, fy, ratio)
+  // gives the object-position for a box of that ratio, or '' when the photo's size or point is unknown.
+  window.pcCropPos = function (w, h, fx, fy, t) { return w && h && fx != null ? position(w / h, t, fx, fy == null ? 0.38 : fy) : ''; };
 })();

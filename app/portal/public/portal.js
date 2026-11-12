@@ -638,6 +638,21 @@
     return '<div class="page-head"><div><h1>' + esc(title) + '</h1>' + (lede ? '<p class="lede">' + lede + '</p>' : '') + '</div>' +
       (actions ? '<div class="head-actions">' + actions + '</div>' : '') + '</div>';
   }
+  // Alex, 2026-11-12 (app/docs/batch-2026-11-12-mobile-rows.md). One phone row for every list, the same in
+  // the admin: the photo at the height of the lines beside it, the name with the price and state at its
+  // right, a second line, and the actions on one line. o.name, o.side, o.sub and o.acts are HTML already
+  // escaped. o.photo is { src, w, h, fx, fy }, null for No photo, or left out for a row with no photo.
+  function mrow(o) {
+    var t = o.square ? 1 : 0.8, ph = '';
+    if (o.photo !== undefined) {
+      var pos = o.photo && window.pcCropPos ? window.pcCropPos(o.photo.w, o.photo.h, o.photo.fx, o.photo.fy, t) : '';
+      ph = '<span class="mrow-ph' + (o.square ? ' ph-sq' : '') + '">' + (o.photo && o.photo.src ? '<img src="' + esc(o.photo.src) + '" alt="" loading="lazy"' + (pos ? ' style="object-position:' + pos + '"' : '') + '>'
+        : '<span class="mrow-none">No photo</span>') + '</span>';
+    }
+    return '<div class="mrow' + (o.acts ? '' : ' no-acts') + (o.photo === undefined ? ' no-ph' : '') + (o.square ? ' is-sq' : '') + '">' + ph +
+      '<div class="mrow-1"><span class="mrow-name">' + o.name + '</span>' + (o.side ? '<span class="mrow-side">' + o.side + '</span>' : '') + '</div>' +
+      '<div class="mrow-2"' + (o.title ? ' title="' + esc(o.title) + '"' : '') + '>' + (o.sub || '') + '</div>' + (o.acts ? '<div class="mrow-3">' + o.acts + '</div>' : '') + '</div>';
+  }
   function empty(title, text, action) {
     return '<div class="empty"><b>' + esc(title) + '</b>' + (text ? '<span>' + esc(text) + '</span>' : '') + (action || '') + '</div>';
   }
@@ -1058,13 +1073,22 @@
           (pups.length ? '<div class="puppy-grid">' + pups.map(function (x) {
             var img = x.photos[0] ? '<img class="thumb" src="' + esc(cardUrl(x.photos[0].url)) + '" alt="">' : '<div class="thumb-empty">No photo</div>';
             var live = x.availability === 'placed' ? ['available', 'Mark available'] : ['placed', 'Mark placed'];
-            return '<div class="puppy-card" data-q="' + esc([x.name, l.breed_name, x.color, x.sex].filter(Boolean).join(' ').toLowerCase()) + '" data-st="' + esc(x.availability + ' ' + (x.is_public ? 'listed' : 'unlisted')) + '"><div class="pc-top">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + (x.price_cents == null ? 'No price yet' : esc(money(x.price_cents))) +
-              (x.sex ? ', ' + esc(x.sex) : '') + (x.color ? ', ' + esc(x.color) : '') + '. ' + plural(x.photos.length, 'photo') +
-              (x.is_public ? '. ' + plural(x.views || 0, 'view') + ', ' + plural(x.clicks || 0, 'click') + ' in 30 days' : '') + '</span>' +
-              '<div class="chips">' + puppyChips(x) + '</div></div>' +
-              '<button class="btn btn-sm" data-edit-puppy="' + esc(x.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button></div>' + standingLine(x) +
+            var canAvail = canEdit && (x.is_public || x.availability !== 'available');
+            var editBtn = '<button class="btn btn-sm" data-edit-puppy="' + esc(x.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button>';
+            var availBtn = canAvail ? '<button class="btn btn-sm btn-quiet" data-avail="' + esc(x.id) + '" data-to="' + live[0] + '">' + live[1] + '</button>' : '';
+            var price = x.price_cents == null ? 'No price yet' : esc(money(x.price_cents));
+            var facts = [x.sex ? esc(x.sex) : '', x.color ? esc(x.color) : ''].filter(Boolean).join(', ');
+            var counts = plural(x.photos.length, 'photo') + (x.is_public ? '. ' + plural(x.views || 0, 'view') + ', ' + plural(x.clicks || 0, 'click') + ' in 30 days' : '');
+            var p0 = x.photos[0];
+            return '<div class="puppy-card" data-q="' + esc([x.name, l.breed_name, x.color, x.sex].filter(Boolean).join(' ').toLowerCase()) + '" data-st="' + esc(x.availability + ' ' + (x.is_public ? 'listed' : 'unlisted')) + '"><div class="pc-top">' + img + '<div class="meta"><b>' + esc(x.name) + '</b><span class="muted small">' + price +
+              (facts ? ', ' + facts : '') + '. ' + counts + '</span>' +
+              '<div class="chips">' + puppyChips(x) + '</div></div>' + editBtn + '</div>' +
+              // Alex, 2026-11-12. The phone row: name and price, the states, then Edit and Mark placed beside the photo.
+              mrow({ photo: p0 ? { src: cardUrl(p0.url), w: p0.w, h: p0.h, fx: p0.focus_x, fy: p0.focus_y } : null, name: esc(x.name), side: '<span class="mrow-price">' + price + '</span>',
+                sub: '<span class="chips">' + puppyChips(x) + '</span>', acts: editBtn + availBtn.replace(' btn-quiet', '') }) +
+              '<p class="mrow-more">' + (facts ? facts + '. ' : '') + counts + '</p>' + standingLine(x) +
               '<div class="row-actions">' +
-              (canEdit && (x.is_public || x.availability !== 'available') ? '<button class="btn btn-sm btn-quiet" data-avail="' + esc(x.id) + '" data-to="' + live[0] + '">' + live[1] + '</button>' : '') +
+              (canAvail ? availBtn.replace('class="btn ', 'class="pc-desk btn ') : '') +
               (canEdit ? '<button class="btn btn-sm btn-quiet" data-dup="' + esc(x.id) + '">Duplicate</button>' : '') +
               (x.site_url ? '<a class="btn btn-sm btn-quiet" href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View on site</a>' : '') +
               // Alex, 2026-11-01. Remove from the card, without opening the puppy.
@@ -1701,7 +1725,14 @@
           (p.sex === 'female' ? 'Mom' : 'Dad') + (br ? ', ' + esc(br.name) : '') + (p.registry ? ', ' + esc(p.registry) : '') + '. ' +
           plural(p.test_labels.length, 'health test') + (p.health_other ? ' and other testing' : '') + ', ' + plural(p.documents.length, 'document') + '. ' +
           (p.litters ? 'On ' + plural(p.litters, 'litter') + '.' : 'Not on a litter yet.') + '</span></div>' +
-          '<button class="btn btn-sm" data-edit-parent="' + esc(p.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button></div></div>';
+          '<button class="btn btn-sm" data-edit-parent="' + esc(p.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button></div>' +
+          // Alex, 2026-11-12. On a phone: the photo on its face point, the name with Mom or Dad, the breed and registry, then Edit.
+          mrow({ square: true, photo: p.photo_url ? { src: p.photo_url.replace('?', '/card?'), w: p.photo_width, h: p.photo_height, fx: p.focus_x, fy: p.focus_y } : null,
+            name: esc(p.name), side: '<span class="pill">' + (p.sex === 'female' ? 'Mom' : 'Dad') + '</span>',
+            sub: esc([br ? br.name : '', p.registry || ''].filter(Boolean).join(', ') || (p.sex === 'female' ? 'Mom' : 'Dad')),
+            acts: '<button class="btn btn-sm" data-edit-parent="' + esc(p.id) + '">' + (canEdit ? 'Edit' : 'View') + '</button>' }) +
+          '<p class="mrow-more">' + plural(p.test_labels.length, 'health test') + (p.health_other ? ' and other testing' : '') + ', ' + plural(p.documents.length, 'document') + '. ' +
+          (p.litters ? 'On ' + plural(p.litters, 'litter') + '.' : 'Not on a litter yet.') + '</p></div>';
       }
       html += '<section class="card" aria-label="Your moms and dads">' + (live.length ? '<div class="puppy-grid">' + live.map(card).join('') + '</div>'
         : empty('No moms or dads yet', canEdit ? 'Add each mom and dad once, then choose them when you add or edit a litter.' : '', '')) + '</section>';
@@ -2209,7 +2240,9 @@
       shell(head('Payments', 'Every payment you have started. Receipts for paid listings come from Stripe by email.') + '<section class="panel">' +
         (rows.length ? '<div class="table-wrap"><table class="list"><thead><tr><th>Date</th><th>Puppies</th><th class="num">Amount</th><th>Status</th></tr></thead><tbody>' +
           rows.map(function (c) {
-            return '<tr><td>' + esc(day(c.created_at)) + '</td><td>' + esc(c.puppies) + '</td><td class="num">' + esc(money(c.amount_total_cents)) + '</td><td>' + (label[c.status] || esc(c.status)) + '</td></tr>';
+            return '<tr><td>' + esc(day(c.created_at)) + '</td><td>' + esc(c.puppies) + '</td><td class="num">' + esc(money(c.amount_total_cents)) + '</td><td>' + (label[c.status] || esc(c.status)) + '</td>' +
+              // Alex, 2026-11-12. On a phone: the puppies with the amount and state at the right, then the date.
+              '<td class="mcell">' + mrow({ name: esc(c.puppies), side: '<span class="mrow-price">' + esc(money(c.amount_total_cents)) + '</span>' + (label[c.status] || esc(c.status)), sub: esc(day(c.created_at)), title: c.puppies, acts: '' }) + '</td></tr>';
           }).join('') + '</tbody></table></div>' : empty('No payments yet', 'Payments appear here once you pay to list a puppy.', '<a class="btn" href="#/pay">Pay to list</a>')) + '</section>');
     });
   }
@@ -2340,8 +2373,11 @@
         '<p>Add the people who help run your kennel. Each one signs in with their own email address and password, and can do everything you can here.</p>' +
         '<ul class="member-list"><li><div><b>' + esc(A.email) + '</b><div class="small muted">Main contact</div></div></li>' +
         (A.members || []).map(function (m) {
-          return '<li><div><b>' + esc(m.name || m.email) + '</b>' + (m.name ? ' <span class="muted">' + esc(m.email) + '</span>' : '') +
-            '<div class="small muted">' + personLine(m) + '</div></div>' +
+          var acts = op ? '' : (A.is_main ? '<button class="btn btn-sm" type="button" data-make-main="' + esc(m.id) + '" aria-label="Make main contact">Make main</button>' : '') +
+            '<button class="btn btn-sm btn-danger" type="button" data-remove-member="' + esc(m.id) + '" data-email="' + esc(m.email) + '">Remove</button>';
+          // Alex, 2026-11-12. On a phone: the name, the email under it, then the buttons on one line.
+          return '<li class="has-m"><div><b>' + esc(m.name || m.email) + '</b>' + (m.name ? ' <span class="muted">' + esc(m.email) + '</span>' : '') +
+            '<div class="small muted">' + personLine(m) + '</div></div>' + mrow({ name: esc(m.name || m.email), sub: esc(m.name ? m.email : '') + (m.name ? ', ' : '') + personLine(m), acts: acts }) +
             (op ? '' : '<div class="btn-row">' + (A.is_main ? '<button class="btn btn-sm" type="button" data-make-main="' + esc(m.id) + '">Make main contact</button>' : '') +
               '<button class="btn btn-sm btn-danger" type="button" data-remove-member="' + esc(m.id) + '" data-email="' + esc(m.email) + '">Remove</button></div>') + '</li>';
         }).join('') + '</ul>' +

@@ -928,3 +928,71 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
   .dsec .member-form > .btn { grid-column: 1; grid-row: auto; justify-self: stretch; width: 100%; }
   .dsec .member-form .also-kennels { grid-column: 1; grid-row: auto; }
 } }
+
+/* ------------------------------------------------------------------ phone rows
+   Alex, 2026-11-12 (app/docs/batch-2026-11-12-mobile-rows.md), from a phone screenshot of Listings:
+   "more organized and visibly clean". One pattern for both apps, the same as the Teapup and Sweet
+   Puppy Paws editor. Filters run full width and stack like the search. A list row is the photo at
+   the height of the three lines beside it (4:5 for a puppy, square for the rest, cut on the photo's
+   face point by pcCropPos in facepick.js), the name with the price and state at its right, a second
+   line, and the actions side by side on one line at one height, each as wide as its label and
+   sharing what is left. The three lines have fixed heights
+   (24, 20 and 44px with 4px between), so the photo is 96px tall without measuring anything. */
+.mrow, .mrow-more, .mrow-foot, td.mcell { display: none; }
+.drawer .puppy-row > .pr-under { grid-column: 2; }
+@media (max-width: 860px) {
+  .toolbar > input[type=search], .toolbar > select, .toolbar > .combo, .toolbar > .seg,
+  .pup-search > input, .pup-search > select { flex: 1 1 100%; width: 100%; max-width: none; }
+  .toolbar .count:empty { display: none; }
+}
+@media (max-width: 700px) {
+  .mrow { --mrow-h: 96px; display: grid; grid-template-columns: calc(var(--mrow-h) * .8) minmax(0, 1fr);
+    grid-template-rows: 24px 20px 44px; gap: 4px 12px; align-items: center; min-width: 0; }
+  .mrow.is-sq { grid-template-columns: var(--mrow-h) minmax(0, 1fr); }
+  .mrow.no-acts { --mrow-h: 48px; grid-template-rows: 24px 20px; }
+  .mrow.no-ph { grid-template-columns: minmax(0, 1fr); }
+  .mrow-ph { grid-row: 1 / -1; align-self: start; width: calc(var(--mrow-h) * .8); height: var(--mrow-h); border-radius: var(--radius); overflow: hidden; background: var(--cream); }
+  .mrow-ph.ph-sq { width: var(--mrow-h); }
+  .mrow-ph img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .mrow-none { display: flex; align-items: center; justify-content: center; height: 100%; border: 1px dashed var(--line-strong); border-radius: var(--radius);
+    background: var(--ground); font-size: .7rem; color: var(--muted); text-align: center; line-height: 1.1; }
+  .mrow-1 { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+  .mrow-name { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: 1rem; line-height: 24px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+  .mrow-side { flex: 0 0 auto; display: flex; align-items: center; gap: .4rem; }
+  .mrow-price { font-weight: 600; font-size: .92rem; font-variant-numeric: tabular-nums; }
+  .mrow-2 { min-width: 0; font-size: .85rem; line-height: 20px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mrow-2 .chips { display: inline-flex; flex-wrap: nowrap; gap: .3rem; vertical-align: middle; }
+  .mrow-2 { height: 20px; }
+  .mrow-2 .pill { padding-block: 0; line-height: 18px; }
+  .mrow-3 { display: flex; gap: 6px; min-width: 0; }
+  .mrow-3 > .btn { flex: 1 1 auto; min-width: 0; height: 44px; min-height: 44px; padding: 0 .35rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .85rem; }
+
+  .mrow-ph.ph-logo img { object-fit: contain; background: #fff; }
+  .mrow-3 > select { flex: 1 1 auto; min-width: 0; width: auto; height: 44px; min-height: 44px; }
+  /* a row in a drawer (moms and dads, puppies): the phone row stands in for the photo, details and buttons */
+  .puppy-row.has-m { display: block; }
+  .puppy-row.has-m > .thumb, .puppy-row.has-m > .thumb-empty, .puppy-row.has-m > .meta, .puppy-row.has-m > .btn-row { display: none; }
+  .puppy-row.has-m > .pr-under { margin-top: .5rem; }
+  /* the actions that do not fit beside the photo, in equal parts of one ruled row under it */
+  .mrow-foot { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 0; margin-top: .5rem; padding-top: 0; border-top: 1px solid var(--line); }
+  .drawer .puppy-row .mrow-foot .btn, .mrow-foot .btn { min-height: 44px; padding: 0 .2rem; border: 0; background: none; color: var(--olive); white-space: normal; text-align: center; line-height: 1.2; font-size: .86rem; }
+  .mrow-foot .btn + .btn { border-left: 1px solid var(--line); border-radius: 0; }
+
+  /* the people who sign in to a kennel, in the portal's Account */
+  .member-list li.has-m { display: block; }
+  .member-list li.has-m > :not(.mrow) { display: none; }
+
+  /* a table that carries phone rows shows only them: no column heads, no side cells */
+  table.list:has(td.mcell) thead { display: none; }
+  table.list:has(td.mcell) tbody > tr > td:not(.mcell) { display: none; }
+  table.list td.mcell { display: block; padding: .7rem .8rem; }
+
+  /* a puppy in the portal: the row, the facts and standing under it, then Duplicate and View on site */
+  .puppy-card > .pc-top { display: none; }
+  .puppy-card .row-actions .pc-desk { display: none; }
+  .mrow-more { display: block; margin: 0; font-size: .85rem; color: var(--muted); }
+  /* a litter's three buttons on one line: Add a puppy, Edit litter, Add several */
+  [data-litter-card] .card-head > .btn-row { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+  [data-litter-card] .card-head [data-add-puppy] { grid-column: auto; order: -1; }
+  [data-litter-card] .card-head > .btn-row > .btn { padding-inline: .3rem; white-space: nowrap; }
+}

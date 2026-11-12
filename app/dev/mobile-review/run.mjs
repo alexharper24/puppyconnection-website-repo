@@ -16,6 +16,8 @@ const ONLY = process.argv[4] ? new RegExp(process.argv[4]) : null;
 const P = 'http://localhost:8787', A = 'http://localhost:8788';
 const BREEDER = 'demo-maplebrook';
 const MEASURE = fs.readFileSync(new URL('./measure.js', import.meta.url), 'utf8');
+// The phone-row checks of 2026-11-12 (rows.js), kept apart from measure.js so the November 11 numbers still compare.
+const ROWS = fs.readFileSync(new URL('./rows.js', import.meta.url), 'utf8');
 
 // In-page helpers: click the first visible control whose text starts with a label.
 const HELP = `
@@ -83,7 +85,7 @@ const ITEMS = [
   { id: 'a-photos', app: 'admin', url: `${A}/#/breeders/${BREEDER}`, steps: [click('Photos', '.drawer')] },
   { id: 'a-edit-profile', app: 'admin', url: `${A}/#/breeders/${BREEDER}`, steps: [click('Edit profile', '.drawer')] },
   { id: 'a-edit-litter', app: 'admin', url: `${A}/#/breeders/${BREEDER}`, steps: [click('Edit litter', '.drawer')] },
-  { id: 'a-edit-puppy', app: 'admin', url: `${A}/#/breeders/${BREEDER}`, steps: [click('Edit', '.drawer .puppy-row')] },
+  { id: 'a-edit-puppy', app: 'admin', url: `${A}/#/breeders/${BREEDER}`, steps: [`[...document.querySelectorAll('.drawer [data-edit-puppy]')].find(__vis).click()`] },
   { id: 'a-add-breeder', app: 'admin', url: `${A}/#/breeders`, steps: [click('Add a breeder')] },
   { id: 'a-listings', app: 'admin', url: `${A}/#/listings` },
   { id: 'a-breeds', app: 'admin', url: `${A}/#/breeds` },
@@ -134,9 +136,10 @@ for (const it of items) {
       await pg.viewport(w, 844);
       await pg.goto('about:blank', 50);
       await pg.goto(it.url, 1100);
-      await pg.eval(HELP + MEASURE + '; try { localStorage.setItem("pc-tour-seen", "1") } catch (e) {}; return 1');
+      await pg.eval(HELP + MEASURE + ROWS + '; try { localStorage.setItem("pc-tour-seen", "1") } catch (e) {}; return 1');
       for (const s of it.steps || []) { await pg.eval(s); await pg.wait(700); }
       const m = await pg.eval('window.__measure()');
+      m.rows = await pg.eval('window.__rows()');
       const drawer = await pg.eval(`!!document.querySelector('.drawer, .tour, dialog[open]')`);
       m.drawer = drawer;
       if (it.probe) m.probe = await pg.eval(it.probe);

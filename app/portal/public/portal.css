@@ -752,6 +752,9 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
 .kennel-menu[open] > summary::after { margin-top: .2rem; transform: rotate(225deg); }
 .kennel-menu ul { position: absolute; right: 0; top: calc(100% + .35rem); z-index: 60; width: max-content; min-width: 15rem; max-width: min(22rem, calc(100vw - 2rem));
   margin: 0; padding: .3rem; list-style: none; background: var(--surface); border: 1px solid #978a68; border-radius: var(--r-lg); box-shadow: 0 10px 28px rgba(38,38,38,.18); }
+/* Alex, 2026-11-12, from a breeder report. The list hangs from the sticky top bar, so the page scroll never reaches
+   a long one. It stops 5rem short of the screen's foot and scrolls on its own, without moving the page. */
+.kennel-menu ul { max-height: calc(100vh - 5rem); max-height: calc(100dvh - 5rem); overflow-y: auto; overscroll-behavior: contain; }
 .kennel-menu form { margin: 0; }
 .kennel-menu li button, .kennel-menu li a { display: grid; gap: .1rem; width: 100%; min-height: var(--tap); padding: .45rem .7rem; text-align: left; cursor: pointer;
   background: none; border: 0; border-radius: var(--radius); color: var(--ink); font: inherit; overflow-wrap: anywhere; text-decoration: none; }

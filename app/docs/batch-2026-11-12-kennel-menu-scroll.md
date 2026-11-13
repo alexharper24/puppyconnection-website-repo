@@ -8,14 +8,14 @@ local: "portal on 8797 from this worktree, setup.mjs --reset, one address made t
 widths: [375, 768, 1024, 1280]
 cause: "The list hangs from the sticky top bar with no height limit, so with 21 kennels it ran to 1374px on an 800px screen. The page scroll moves the page under the bar and never reaches the foot of the list"
 fix: "portal.css: .kennel-menu ul gets max-height calc(100dvh - 5rem), overflow-y auto and overscroll-behavior contain. Admin copy kept identical"
-stage: built
+stage: done
 tasks:
   - {id: repro, status: done, evidence: "1280x800 before the fix: list bottom 1374px, list not scrollable, page scrolled to its end left the last kennel off screen"}
   - {id: fix, status: done, evidence: "portal.css and admin/public/portal.css identical; portal.css ?v=49 in both index.html files and both worker-drawn pages (worker pages were still on 47)"}
   - {id: desktop, status: done, evidence: "1280x800: list 53px to 773px, mouse wheel scrolled it 1000 of 1047px with the page still at 0; Tab 21 times reached Add a kennel with the list following focus; Escape closed it and returned focus to Switch kennel. 1024x700: list ends at 673px and scrolls to its end"}
   - {id: phone, status: done, evidence: "375 and 768: the drop-down is not drawn below 860px; the phone menu opens and holds Switch kennel, which opens Choose a kennel. That page lists all 21 and scrolls by wheel (to 1000px) and keyboard (Tab to kennel 21, in view). No scroll lock on html or body"}
   - {id: touch, status: partly, note: "No real touch swipe could be sent from the browser pane. The portal has no touch or wheel handlers and no touch-action rules, so the list and the page use the browser's own touch scrolling. Check on a phone or tablet after deploy"}
-  - {id: ship, status: open, blocked_on: Alex, item: "Merge the PR, then deploy the portal and admin from main with wrangler.production.jsonc once Alex approves"}
+  - {id: ship, status: done, closed: 2026-11-12, evidence: "Alex: Merge and deploy. PR 184 merged (5d35686). Portal ecfc2dd3 and admin 6bac167d deployed from a clean origin/main checkout with wrangler.production.jsonc; no other app commits since the 14:17 UTC deploy. Live portal serves portal.css?v=49 holding the new rule, portal.js?v=58; admin confirmed by wrangler only, as Access blocks an unsigned check", item: "Merge the PR, then deploy the portal and admin from main with wrangler.production.jsonc"}
 ---
 
 # Switch kennel list scrolls

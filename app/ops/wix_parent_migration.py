@@ -29,31 +29,36 @@ def q(v):
     return "'" + str(v).replace("'", "''") + "'"
 
 
-WHY = 'Wix gallery photo named for this parent (Alex, 2026-11-13)'
+ROUND2 = os.environ.get('ROUND') == '2'  # 2026-11-14: the breeders' own records as well as the file names
+WHY = ("Wix gallery photo or the breeder's own records (Alex, 2026-11-14)" if ROUND2 else
+       'Wix gallery photo named for this parent (Alex, 2026-11-13)')
 first = next(p for p in P if p['new'])
-L = [f"-- Alex, 2026-11-13 (docs/batch-2026-11-13-wix-parent-photos.md). Written by app/ops/wix_parent_migration.py, generated {T}.",
-     "-- Moms and dads named in the photo file names of the old Wix galleries, agreed by two independent passes. Each is",
+L = [(f"-- Alex, 2026-11-14 (docs/batch-2026-11-14-breeder-parent-records.md). Written by app/ops/wix_parent_migration.py, generated {T}."
+      if ROUND2 else f"-- Alex, 2026-11-13 (docs/batch-2026-11-13-wix-parent-photos.md). Written by app/ops/wix_parent_migration.py, generated {T}."),
+     ("-- Moms and dads from the Wix photo file names and the breeders' own sites and records, agreed by two passes. Each is"
+      if ROUND2 else "-- Moms and dads named in the photo file names of the old Wix galleries, agreed by two independent passes. Each is"),
      "-- saved as a parent of its breeder, linked to its litters where the litter has none, and its photo leaves the",
      "-- puppies' galleries (never a cover). Every write is guarded, so a second run changes nothing.",
      "UPDATE site_state SET dirty = 1, dirty_since = COALESCE(dirty_since, " + q(T) + "), generation = generation + 1",
      f"  WHERE id = 1 AND NOT EXISTS (SELECT 1 FROM parent_dogs WHERE id = {q(first['parent_id'])});", '']
 n = {'parents': 0, 'links': 0, 'removed': 0}
 for p in P:
-    pid, b, c, key = p['parent_id'], p['breeder_id'], p['checked'], p['key']
+    pid, b, key = p['parent_id'], p['breeder_id'], p['key']
+    c = p.get('checked') or {'full': {'w': None, 'h': None}, 'focus': None}  # a parent with no photo
     f = c['focus'] or {}
     dup = (f"NOT EXISTS (SELECT 1 FROM parent_dogs WHERE id = {q(pid)}) AND NOT EXISTS (SELECT 1 FROM parent_dogs "
            f"WHERE breeder_id = {q(b)} AND sex = {q(p['sex'])} AND lower(name) = lower({q(p['name'])}) AND archived_at IS NULL)")
-    files = sorted({e['title'] for e in p['evidence']})
+    files = sorted({e.get('title') or "the breeder's own records" for e in p['evidence']})
     L += [f"-- {p['breeder']}: {'mom' if p['sex'] == 'female' else 'dad'} {p['name']}, from {', '.join(files)}"]
     if p['new']:
         n['parents'] += 1
         L += ["INSERT INTO audit_log (at, actor_type, actor, action, entity, entity_id, before_json, after_json)",
               f"  SELECT {q(T)}, 'system', 'claude', 'parent.create', 'parent', {q(pid)}, NULL, json_object('name', {q(p['name'])}, "
-              f"'sex', {q(p['sex'])}, 'photo_key', {q(key)}, 'photo_width', {c['full']['w']}, 'photo_height', {c['full']['h']}, "
+              f"'sex', {q(p['sex'])}, 'photo_key', {q(key)}, 'photo_width', {q(c['full']['w'])}, 'photo_height', {q(c['full']['h'])}, "
               f"'focus_x', {q(f.get('fx'))}, 'focus_y', {q(f.get('fy'))}, 'wix_media', {q(p['photo_media'])}, 'why', {q(WHY)})",
               f"  WHERE {dup};",
               "INSERT INTO parent_dogs (id, breeder_id, sex, name, health_tests_json, photo_key, photo_width, photo_height, focus_x, focus_y, created_at, updated_at)",
-              f"  SELECT {q(pid)}, {q(b)}, {q(p['sex'])}, {q(p['name'])}, '[]', {q(key)}, {c['full']['w']}, {c['full']['h']}, "
+              f"  SELECT {q(pid)}, {q(b)}, {q(p['sex'])}, {q(p['name'])}, '[]', {q(key)}, {q(c['full']['w'])}, {q(c['full']['h'])}, "
               f"{q(f.get('fx'))}, {q(f.get('fy'))}, {q(T)}, {q(T)}",
               f"  WHERE {dup};"]
     col = 'mom_id' if p['sex'] == 'female' else 'dad_id'

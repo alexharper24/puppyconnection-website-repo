@@ -22,6 +22,8 @@ WRANGLER = ['node', 'C:/Git_Repos/teapup-website-repo/admin/node_modules/wrangle
 APP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG = os.path.join(APP, 'admin', 'wrangler.production.jsonc')
 BUCKET = 'puppyconnection-files'
+# PLAN names the plan file in the state folder: plan.json for 2026-11-13, plan2.json for 2026-11-14.
+PLAN = os.environ.get('PLAN', 'plan.json')
 CROCK = '0123456789ABCDEFGHJKMNPQRSTVWXYZ'
 
 
@@ -40,34 +42,41 @@ def r2(*args, cwd=APP):
     return r.stdout
 
 
-def plan(ev, state):
-    det = json.load(open(os.path.join(ev, 'determined.json'), encoding='utf8'))
-    sec = json.load(open(os.path.join(ev, 'second-pass', 'second_pass.json'), encoding='utf8'))
-    agreed = {(o['breeder'], o['sex'], o['name'], l) for o in sec['determined'] for l in o['litter_ids']}
+def plan(ev, state, det_name='determined.json', sec_path='second-pass/second_pass.json', plan_name=None):
+    plan_name = plan_name or PLAN
+    """The 2026-11-14 round passes determined2.json, second-pass2/second_pass2.json and plan2.json. A litter the two
+    passes do not both reach is dropped, and a parent with no photo gets no key."""
+    det = json.load(open(os.path.join(ev, det_name), encoding='utf8'))
+    sec = json.load(open(os.path.join(ev, sec_path), encoding='utf8'))
+    nm = lambda s: ''.join(c for c in (s or '').lower() if c.isalpha())
+    agreed = {(o['breeder'], o['sex'], nm(o['name']), l) for o in sec['determined'] for l in o['litter_ids']}
     out, held = [], []
     for o in det:
-        links = [l for l in o['link_litters'] if (o['breeder'], o['sex'], o['name'], l) in agreed]
+        links = [l for l in o['link_litters'] if (o['breeder'], o['sex'], nm(o['name']), l) in agreed]
+        dropped = [l for l in o['link_litters'] if l not in links]
+        if dropped:
+            held.append({**o, 'link_litters': dropped})
         if not links:
-            held.append(o); continue
-        if links != o['link_litters']:
-            raise SystemExit(f"{o['name']}: the passes agree on some litters only, which this script does not handle")
+            continue
+        o = {**o, 'link_litters': links}
         pid = o['existing_parent_id'] or ulid()
+        has_photo = bool(o.get('photo_source')) and not o.get('existing_has_photo')
         out.append({**o, 'parent_id': pid, 'new': not o['existing_parent_id'],
-                    'key': f"parents/{o['breeder_id']}/{pid}-{ulid()[-10:].lower()}.webp"})
+                    'key': f"parents/{o['breeder_id']}/{pid}-{ulid()[-10:].lower()}.webp" if has_photo else None})
         time.sleep(0.002)
     os.makedirs(state, exist_ok=True)
     json.dump({'parents': out, 'held_back': [{'breeder': h['breeder'], 'sex': h['sex'], 'name': h['name'],
                'litters': h['link_litters'], 'why': 'the independent second pass did not reach it'} for h in held]},
-              open(os.path.join(state, 'plan.json'), 'w', encoding='utf8'), indent=1)
+              open(os.path.join(state, plan_name), 'w', encoding='utf8'), indent=1)
     print(f'plan: {len(out)} parents ({sum(1 for p in out if p["new"])} new), held back {[h["name"] for h in held]}')
 
 
 def stage(state):
     from PIL import Image, ImageCms, ImageOps
-    P = json.load(open(os.path.join(state, 'plan.json'), encoding='utf8'))
+    P = json.load(open(os.path.join(state, PLAN), encoding='utf8'))
     src_dir = os.path.join(state, 'source'); os.makedirs(src_dir, exist_ok=True)
     out_dir = os.path.join(state, 'staged'); os.makedirs(out_dir, exist_ok=True)
-    for p in P['parents']:
+    for p in [x for x in P['parents'] if x.get('key')]:
         s = p['photo_source']
         raw = os.path.join(src_dir, p['parent_id'] + '.src')
         if not os.path.exists(raw):
@@ -94,13 +103,13 @@ def stage(state):
         p['staged'] = {'source_size': list(src_size), 'source_bytes': os.path.getsize(raw)}
         print(f"  {p['breeder'][:20]:<20} {p['name']:<10} source {src_size[0]}x{src_size[1]} {os.path.getsize(raw):>8} B "
               f"-> full {os.path.getsize(os.path.join(out_dir, p['parent_id'] + '.full.webp')):>7} B")
-    json.dump(P, open(os.path.join(state, 'plan.json'), 'w', encoding='utf8'), indent=1)
+    json.dump(P, open(os.path.join(state, PLAN), 'w', encoding='utf8'), indent=1)
 
 
 def upload(state):
-    P = json.load(open(os.path.join(state, 'plan.json'), encoding='utf8'))
+    P = json.load(open(os.path.join(state, PLAN), encoding='utf8'))
     d = os.path.join(state, 'staged')
-    for p in P['parents']:
+    for p in [x for x in P['parents'] if x.get('key')]:
         for name, key in (('full', p['key']), ('card', p['key'] + '.card')):
             assert key.startswith('parents/') and key == key.strip() and '\r' not in key and '\n' not in key, repr(key)
             r2('put', f'{BUCKET}/{key}', '--file', os.path.join(d, f"{p['parent_id']}.{name}.webp"), '--content-type', 'image/webp')
@@ -108,10 +117,10 @@ def upload(state):
 
 
 def verify(state):
-    P = json.load(open(os.path.join(state, 'plan.json'), encoding='utf8'))
+    P = json.load(open(os.path.join(state, PLAN), encoding='utf8'))
     d = os.path.join(state, 'staged'); back = os.path.join(state, 'readback'); os.makedirs(back, exist_ok=True)
     bad = 0
-    for p in P['parents']:
+    for p in [x for x in P['parents'] if x.get('key')]:
         for name, key in (('full', p['key']), ('card', p['key'] + '.card')):
             got = os.path.join(back, f"{p['parent_id']}.{name}.webp")
             if os.path.exists(got): os.remove(got)
@@ -126,5 +135,5 @@ def verify(state):
 
 if __name__ == '__main__':
     cmd = sys.argv[1]
-    {'plan': lambda: plan(sys.argv[2], sys.argv[3]), 'stage': lambda: stage(sys.argv[2]),
+    {'plan': lambda: plan(sys.argv[2], sys.argv[3], *sys.argv[4:6]), 'stage': lambda: stage(sys.argv[2]),
      'upload': lambda: upload(sys.argv[2]), 'verify': lambda: verify(sys.argv[2])}[cmd]()

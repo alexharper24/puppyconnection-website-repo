@@ -12,9 +12,10 @@ import { dogFocus } from '../lib/focus.js';
 
 const state = process.argv[2];
 const DETECTOR = process.env.DETECTOR || 'http://127.0.0.1:8799';
-const plan = JSON.parse(readFileSync(join(state, 'plan.json'), 'utf8'));
+const PLAN = process.env.PLAN || 'plan.json';
+const plan = JSON.parse(readFileSync(join(state, PLAN), 'utf8'));
 let bad = 0;
-for (const p of plan.parents) {
+for (const p of plan.parents.filter((x) => x.key)) {
   const out = {};
   for (const name of ['full', 'card']) {
     const raw = new Uint8Array(readFileSync(join(state, 'staged', `${p.parent_id}.${name}.webp`)));
@@ -30,6 +31,6 @@ for (const p of plan.parents) {
   p.checked = { ...out, focus, detector_error: j.error || null };
   console.log(`${p.name.padEnd(10)} full ${out.full.w}x${out.full.h} ${out.full.bytes} B clean=${out.full.unchanged_by_clean} card ${out.card.w}x${out.card.h} clean=${out.card.unchanged_by_clean} focus ${focus ? `${focus.fx}, ${focus.fy}` : 'none'}${j.error ? ' ERR ' + j.error : ''}`);
 }
-writeFileSync(join(state, 'plan.json'), JSON.stringify(plan, null, 1));
+writeFileSync(join(state, PLAN), JSON.stringify(plan, null, 1));
 console.log(bad ? `${bad} copies failed the clean check` : 'every copy passes cleanImage unchanged');
 process.exit(bad ? 1 : 0);

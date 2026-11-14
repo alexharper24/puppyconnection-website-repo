@@ -374,6 +374,12 @@ async function part1() {
     && /^\/privacy-policy https?:\/\/\S+\/privacy 301$/m.test(redirects)
     && redirects.trim().split(/\r?\n/).pop() === '/product-page/* /puppies.html 301'
     && redirects.indexOf('/puppies-for-sale ') > redirects.lastIndexOf('/product-page/alexa-cocker-spaniel'));
+  // build/legacy-products.txt, the old Wix puppies Search Console still lists (2026-11-14), each to its breed by the end of its address.
+  check('an old Wix puppy never imported goes to its breed page, through a shortened Wix breed name too, before the fallback',
+    /^\/product-page\/clark-great-dane \/breed-great-dane\.html 301$/m.test(redirects)
+    && /^\/product-page\/felix-mini-schnauzer \/breed-miniature-schnauzer\.html 301$/m.test(redirects)
+    && /^\/product-page\/sage-pomsky \/breeds\.html 301$/m.test(redirects)
+    && redirects.indexOf('/product-page/clark-great-dane ') < redirects.indexOf('/product-page/* '), redirects.match(/^\/product-page\/(clark|felix|sage)-.*$/gm));
   const named = [pup, salt, kennel].flatMap((h) => [...h.matchAll(/(?:src|data-full)="([^"]+)"/g)].map((m) => m[1])).filter((u) => !/^https?:/.test(u));
   check('every image a page names is a file in the output, or a photo the site Worker serves',
     named.length > 4 && named.every((u) => (u.startsWith('img/') || u.startsWith('css/') || u.startsWith('js/') || u.startsWith('data/') ? fs.existsSync(path.join(out, u.split('?')[0])) : /^(media\/[\w-]+(\/card)?|brand\/[\w-]+\/(logo|kennel)\?.*)$/.test(u.replace(/&amp;/g, '&')))), named.join(' '));

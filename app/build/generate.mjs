@@ -1560,7 +1560,21 @@ ${withPhoto(pg).replaceAll('{{PORTAL}}', portal)}
   // the breeds index while that breed has no page, and so does its old Wix address.
   const gone = D.breeds.flatMap((b) => (b.gone || []).map((g) => ({ ...g, to: fs.existsSync(path.join(out, pageFor.breed(b.slug))) ? `/${pageFor.breed(b.slug)}` : '/breeds.html' })))
     .flatMap((g) => [`/${pageFor.puppy(g.slug)} ${g.to} 301`, ...(g.legacy_slug ? [`/product-page/${g.legacy_slug} ${g.to} 301`] : [])]).sort();
-  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page, puppies taken off the site go to their breed page, then the old Wix pages (build/legacy-pages.tsv).\n${[...redirects, ...gone].join('\n')}\n${legacy.join('\n')}\n`);
+  // Old Wix puppy addresses Google still holds for puppies Wix took down before the import
+  // (build/legacy-products.txt, from Search Console 2026-11-14). Each goes to the breed named at the
+  // end of its address, so a buyer who searched for a Great Dane lands on Great Danes rather than on
+  // every puppy. Wix shortened some breed names, hence the aliases.
+  const breedAlias = { 'mini-schnauzer': 'miniature-schnauzer', 'mini-dachshund': 'miniature-dachshund', 'tweenie-dachshund': 'miniature-dachshund', 'english-golden-retriever': 'golden-retriever' };
+  const breedPages = fs.readdirSync(out).filter((f) => /^breed-[a-z0-9-]+\.html$/.test(f)).map((f) => f.slice(6, -5));
+  const breedFor = (slug) => {
+    const alias = Object.keys(breedAlias).find((a) => slug.endsWith(`-${a}`));
+    if (alias) return breedPages.includes(breedAlias[alias]) ? breedAlias[alias] : null;
+    return breedPages.filter((b) => slug.endsWith(`-${b}`)).sort((a, b) => b.length - a.length)[0] || null;
+  };
+  const known = new Set([...D.allPuppies, ...D.breeds.flatMap((x) => x.gone || [])].map((p) => p.legacy_slug).filter(Boolean));
+  const retired = fs.readFileSync(path.join(HERE, 'legacy-products.txt'), 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && !known.has(l))
+    .map((s) => { const b = breedFor(s); return `/product-page/${s} ${b ? `/${pageFor.breed(b)}` : '/breeds.html'} 301`; }).sort();
+  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page, puppies taken off the site go to their breed page, old Wix puppies never imported go to their breed (build/legacy-products.txt), then the old Wix pages (build/legacy-pages.tsv).\n${[...redirects, ...gone, ...retired].join('\n')}\n${legacy.join('\n')}\n`);
   // Stylesheets, scripts and the listing data are linked with ?v= and the number changes with the
   // file, so they keep for a year. The concept's images keep their names when replaced, so a week.
   // Photos from R2 get their headers from the site Worker.

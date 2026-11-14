@@ -42,6 +42,7 @@ export function fileList() {
     ['build/info-pages.mjs', 'app/build/info-pages.mjs'],
     ['build/guides.mjs', 'app/build/guides.mjs'],
     ['build/legacy-pages.tsv', 'app/build/legacy-pages.tsv'],
+    ['build/legacy-products.txt', 'app/build/legacy-products.txt'],
     ['build/ci-build.sh', 'app/build/ci-build.sh'],
     ['build/fetch-data.mjs', 'app/build/fetch-data.mjs'],
     ['templates/index.html', 'index.html'],

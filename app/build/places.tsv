@@ -1,0 +1,212 @@
+# Coordinates for towns, from OpenStreetMap Nominatim, read 2026-11-14 (hs-seo-data/puppyconnection/2026-11-14-cities/geocode.py).
+# build/generate.mjs measures each city page's distance to listed breeders from these. A breeder whose town is not here is left off city pages until a row is added.
+# town<TAB>state<TAB>lat<TAB>lon
+Akron	Ohio	41.0831	-81.5185
+Allentown	Pennsylvania	40.6023	-75.4716
+Altoona	Pennsylvania	40.5194	-78.3968
+Anderson	Indiana	40.1053	-85.6803
+Angola	Indiana	41.6349	-84.9993
+Ann Arbor	Michigan	42.2814	-83.7485
+Appleton	Wisconsin	44.2614	-88.4070
+Arthur	Illinois	39.7148	-88.4723
+Ashland	Ohio	40.8686	-82.3176
+Auburn	Indiana	41.3670	-85.0589
+Aurora	Illinois	41.7572	-88.3148
+Battle Creek	Michigan	42.3193	-85.1824
+Bay City	Michigan	43.5962	-83.8882
+Benton Harbor	Michigan	42.1167	-86.4542
+Berlin	Ohio	40.5612	-81.7943
+Bethlehem	Pennsylvania	40.6179	-75.3787
+Bloomington	Illinois	40.4798	-88.9939
+Bloomington	Indiana	39.1670	-86.5343
+Bolingbrook	Illinois	41.7003	-88.0718
+Bowling Green	Kentucky	36.9929	-86.4429
+Bowling Green	Ohio	41.3748	-83.6513
+Brownsburg	Indiana	39.8444	-86.3969
+Bryan	Ohio	41.4748	-84.5525
+Canton	Ohio	40.7985	-81.3750
+Carmel	Indiana	39.9784	-86.1284
+Carson City	Michigan	43.1770	-84.8464
+Chambersburg	Pennsylvania	39.9375	-77.6613
+Champaign	Illinois	40.1165	-88.2431
+Chicago	Illinois	41.8756	-87.6244
+Cincinnati	Ohio	39.1013	-84.5127
+Cleveland	Ohio	41.4997	-81.6937
+Coldwater	Michigan	41.9411	-85.0031
+Columbus	Indiana	39.2014	-85.9214
+Columbus	Ohio	39.9623	-83.0007
+Covington	Kentucky	39.0832	-84.5108
+Crown Point	Indiana	41.4170	-87.3653
+Crystal Lake	Illinois	42.2411	-88.3162
+Danville	Illinois	40.1252	-87.6305
+Dayton	Ohio	39.7589	-84.1916
+Dearborn	Michigan	42.3223	-83.1763
+Decatur	Illinois	39.8454	-88.9524
+Defiance	Ohio	41.2868	-84.3621
+Dekalb	Illinois	41.9299	-88.7502
+Detroit	Michigan	42.3316	-83.0466
+Eau Claire	Wisconsin	44.8113	-91.4985
+Effingham	Illinois	39.1201	-88.5435
+Elgin	Illinois	42.0373	-88.2811
+Elizabethtown	Kentucky	37.6940	-85.8591
+Elkhart	Indiana	41.6820	-85.9767
+Elyria	Ohio	41.3673	-82.1074
+Erie	Pennsylvania	42.1295	-80.0853
+Evanston	Illinois	42.0470	-87.6846
+Evansville	Indiana	37.9705	-87.5716
+Findlay	Ohio	41.0414	-83.6504
+Fishers	Indiana	39.9556	-86.0139
+Flint	Michigan	43.0162	-83.6900
+Florence	Kentucky	38.9989	-84.6266
+Fort Wayne	Indiana	41.0800	-85.1386
+Frankfort	Kentucky	38.2009	-84.8733
+Franklin	Indiana	39.4806	-86.0550
+Gap	Pennsylvania	39.9873	-76.0205
+Gary	Indiana	41.6021	-87.3371
+Georgetown	Kentucky	38.2100	-84.5597
+Goshen	Indiana	41.5850	-85.8344
+Grand Rapids	Michigan	42.9632	-85.6679
+Green Bay	Wisconsin	44.5126	-88.0126
+Greenfield	Indiana	39.7855	-85.7682
+Greens Fork	Indiana	39.8925	-85.0419
+Greenwood	Indiana	39.6137	-86.1095
+Hamilton	Ohio	39.3995	-84.5613
+Hammond	Indiana	41.6174	-87.5220
+Harrisburg	Pennsylvania	40.2663	-76.8861
+Hershey	Pennsylvania	40.2855	-76.6506
+Hillsdale	Michigan	41.9200	-84.6305
+Holland	Michigan	42.7876	-86.1091
+Honey Brook	Pennsylvania	40.0959	-75.9134
+Hopkinsville	Kentucky	36.8658	-87.4894
+Humboldt	Illinois	39.6042	-88.3189
+Huntington	Indiana	40.8824	-85.4965
+Indianapolis	Indiana	39.7683	-86.1584
+Jackson	Michigan	42.2465	-84.4017
+Janesville	Wisconsin	42.6830	-89.0227
+Jeffersonville	Indiana	38.2770	-85.7372
+Joliet	Illinois	41.5264	-88.0840
+Kalamazoo	Michigan	42.2917	-85.5872
+Kankakee	Illinois	41.1200	-87.8612
+Kendallville	Indiana	41.4414	-85.2650
+Kenosha	Wisconsin	42.5847	-87.8212
+Kettering	Ohio	39.6895	-84.1688
+Kinzers	Pennsylvania	39.9984	-76.0616
+Kokomo	Indiana	40.4864	-86.1336
+La Crosse	Wisconsin	43.8123	-91.2514
+La Porte	Indiana	41.6106	-86.7225
+LaGrange	Indiana	41.6417	-85.4167
+Lafayette	Indiana	40.4191	-86.8919
+Lagrange	Indiana	41.6417	-85.4167
+Lancaster	Pennsylvania	40.0380	-76.3057
+Lansing	Michigan	42.7338	-84.5546
+Lawrence	Indiana	39.8387	-86.0253
+Lebanon	Pennsylvania	40.3430	-76.4234
+Lexington	Kentucky	38.0464	-84.4970
+Ligonier	Indiana	41.4638	-85.5875
+Lima	Ohio	40.7400	-84.1050
+Livonia	Michigan	42.3684	-83.3527
+Logansport	Indiana	40.7542	-86.3625
+Lorain	Ohio	41.4673	-82.1782
+Louisville	Kentucky	38.2542	-85.7594
+Madison	Wisconsin	43.0747	-89.3842
+Mansfield	Ohio	40.7584	-82.5154
+Marion	Indiana	40.5584	-85.6591
+Marion	Ohio	40.5886	-83.1287
+Mason	Ohio	39.3601	-84.3099
+Mattoon	Illinois	39.4843	-88.3773
+McHenry	Illinois	42.3431	-88.2675
+Mchenry	Illinois	42.3431	-88.2675
+Medina	Ohio	41.1384	-81.8637
+Mentor	Ohio	41.6665	-81.3400
+Merrillville	Indiana	41.4828	-87.3328
+Michigan City	Indiana	41.7075	-86.8950
+Middlebury	Indiana	41.6751	-85.7060
+Middletown	Ohio	39.5166	-84.4042
+Midland	Michigan	43.6156	-84.2472
+Milford	Indiana	41.4098	-85.8455
+Millersburg	Indiana	41.5278	-85.6944
+Millersburg	Ohio	40.5545	-81.9179
+Milwaukee	Wisconsin	43.0386	-87.9091
+Mishawaka	Indiana	41.6612	-86.1807
+Moline	Illinois	41.5066	-90.5150
+Mount Vernon	Ohio	40.3934	-82.4857
+Muncie	Indiana	40.1937	-85.3865
+Muskegon	Michigan	43.2342	-86.2484
+Naperville	Illinois	41.7729	-88.1479
+Nappanee	Indiana	41.4428	-86.0014
+New Albany	Indiana	38.2856	-85.8241
+New Holland	Pennsylvania	40.1018	-76.0852
+New Paris	Indiana	41.5045	-85.8241
+Newark	Ohio	40.0581	-82.4013
+Niles	Michigan	41.8298	-86.2542
+Noblesville	Indiana	40.0461	-86.0140
+Normal	Illinois	40.5093	-88.9844
+Novi	Michigan	42.4806	-83.4755
+Orland Park	Illinois	41.6307	-87.8536
+Oshkosh	Wisconsin	44.0207	-88.5409
+Osseo	Michigan	41.8859	-84.5441
+Owensboro	Kentucky	37.7742	-87.1133
+Paducah	Kentucky	37.0834	-88.6000
+Paradise	Pennsylvania	40.0098	-76.1286
+Peoria	Illinois	40.6939	-89.5891
+Peru	Indiana	40.7537	-86.0690
+Philadelphia	Pennsylvania	39.9527	-75.1635
+Pierceton	Indiana	41.2003	-85.7055
+Pittsburgh	Pennsylvania	40.4407	-80.0026
+Plainfield	Indiana	39.7039	-86.3995
+Plymouth	Indiana	41.3437	-86.3097
+Portage	Indiana	41.5759	-87.1761
+Portage	Michigan	42.2012	-85.5800
+Quincy	Illinois	39.9356	-91.4099
+Racine	Wisconsin	42.7314	-87.7835
+Reading	Pennsylvania	40.3353	-75.9279
+Richmond	Indiana	39.8287	-84.8899
+Rochester	Indiana	41.0649	-86.2160
+Rock Island	Illinois	41.5111	-90.5746
+Rockford	Illinois	42.2714	-89.0940
+Ronks	Pennsylvania	40.0262	-76.1686
+Saginaw	Michigan	43.4200	-83.9490
+Sandusky	Ohio	41.4561	-82.7116
+Schaumburg	Illinois	42.0334	-88.0834
+Scranton	Pennsylvania	41.4087	-75.6621
+Seymour	Indiana	38.9592	-85.8903
+Shelbyville	Indiana	39.5214	-85.7769
+Shipshewana	Indiana	41.6728	-85.5803
+South Bend	Indiana	41.6834	-86.2500
+Southfield	Michigan	42.4734	-83.2219
+Springfield	Illinois	39.7990	-89.6440
+Springfield	Ohio	39.9234	-83.8101
+St Joseph	Michigan	42.1096	-86.4800
+State College	Pennsylvania	40.7945	-77.8616
+Sterling Heights	Michigan	42.5803	-83.0302
+Strasburg	Pennsylvania	39.9832	-76.1841
+Sturgis	Michigan	41.7992	-85.4191
+Sugarcreek	Ohio	40.5031	-81.6410
+Sullivan	Illinois	39.5995	-88.6078
+Syracuse	Indiana	41.4278	-85.7525
+Terre Haute	Indiana	39.4667	-87.4139
+Three Rivers	Michigan	41.9443	-85.6346
+Tinley Park	Illinois	41.5734	-87.7845
+Toledo	Ohio	41.6529	-83.5378
+Topeka	Indiana	41.5394	-85.5394
+Traverse City	Michigan	44.7606	-85.6166
+Troy	Michigan	42.6056	-83.1499
+Urbana	Illinois	40.1117	-88.2073
+Valparaiso	Indiana	41.4673	-87.0604
+Van Wert	Ohio	40.8696	-84.5829
+Vincennes	Indiana	38.6773	-87.5286
+Wabash	Indiana	40.7978	-85.8205
+Wakarusa	Indiana	41.5361	-86.0210
+Warren	Michigan	42.4933	-83.0063
+Warsaw	Indiana	41.2381	-85.8531
+Waukegan	Illinois	42.3602	-87.8318
+Waukesha	Wisconsin	43.0116	-88.2316
+West Chester	Pennsylvania	39.9597	-75.6045
+West Lafayette	Indiana	40.4259	-86.9081
+Westfield	Indiana	40.0428	-86.1275
+Wilkes Barre	Pennsylvania	41.2465	-75.8817
+Wooster	Ohio	40.7981	-81.9398
+York	Pennsylvania	39.9625	-76.7277
+Youngstown	Ohio	41.1036	-80.6520
+Zanesville	Ohio	39.9401	-82.0050
+Zionsville	Indiana	39.9507	-86.2617

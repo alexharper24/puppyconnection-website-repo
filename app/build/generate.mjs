@@ -1316,6 +1316,36 @@ ${others.length ? `<section class="band">
     });
   }
 
+  // ---- city pages (Alex, 2026-11-14: "target as many of the high value cities and searches as you
+  // can identify"). Puppy Connection is a listing service, so a city page is built only from the
+  // listings: the breeders within reach of that city by distance and the puppies they have now.
+  // Town-swapped copies of one page are what search engines demote as doorway pages, so a city is
+  // indexed only while CITY_MIN breeders with a puppy available are within CITY_RADIUS miles, and
+  // every figure on it is that city's own. Distances are straight lines between town centers
+  // (build/places.tsv), so the page says "about".
+  const CITY_RADIUS = 120, CITY_MIN = 3;
+  const tsv = (f) => fs.readFileSync(path.join(HERE, f), 'utf8').split(/\r?\n/).filter((l) => l && !l.startsWith('#')).map((l) => l.split('\t'));
+  const placeKey = (town, st) => `${String(town || '').trim().toLowerCase()}|${stateName(st) || ''}`;
+  const places = new Map(tsv('places.tsv').map(([t, s, la, lo]) => [placeKey(t, s), [Number(la), Number(lo)]]));
+  const miles = (a, b) => { const r = Math.PI / 180, x = Math.sin((b[0] - a[0]) * r / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin((b[1] - a[1]) * r / 2) ** 2; return 3958.8 * 2 * Math.asin(Math.sqrt(x)); };
+  const heading = (a, b) => { const r = Math.PI / 180, y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r), x = Math.cos(a[0] * r) * Math.sin(b[0] * r) - Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r); return ['north', 'northeast', 'east', 'southeast', 'south', 'southwest', 'west', 'northwest'][Math.round(((Math.atan2(y, x) / r) + 360) % 360 / 45) % 8]; };
+  const breederAt = (b) => places.get(placeKey(b.city, b.state));
+  const unplaced = breedersShown.filter((b) => b.city && !breederAt(b)).map((b) => `${b.city}, ${b.state}`);
+  if (unplaced.length) console.warn(`city pages: no coordinates in build/places.tsv for ${[...new Set(unplaced)].join('; ')}`);
+  const citySlug = (c, s) => `${c} ${s}`.toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+  pageFor.city = (c) => `puppies-for-sale-near-${citySlug(c.name, c.state)}.html`;
+  const cities = tsv('cities.tsv').map(([name, st]) => ({ name, state: stateName(st), at: places.get(placeKey(name, st)) })).filter((c) => {
+    if (!c.at) console.warn(`city pages: no coordinates in build/places.tsv for ${c.name}, ${c.state}`);
+    return c.at && c.state;
+  }).map((c) => {
+    const near = breedersShown.filter((b) => breederAt(b)).map((b) => ({ b, mi: miles(c.at, breederAt(b)), dir: heading(c.at, breederAt(b)) }))
+      .filter((x) => x.mi <= CITY_RADIUS).sort((x, y) => x.mi - y.mi);
+    const pups = D.puppies.filter((p) => near.some((x) => x.b === p.br));
+    const withOpen = near.filter((x) => pups.some((p) => p.br === x.b && !p.placed));
+    return { ...c, near, pups, live: withOpen.length >= CITY_MIN };
+  });
+  const citiesLive = cities.filter((c) => c.live);
+
   // ---- state pages (keyword research 2026-10-08). Every "puppies for sale <state>" search we read
   // is led by a marketplace page listing every puppy in that state, and "dog breeders in <state>"
   // is easy to win in all six states read. A state gets its two pages once a breeder with that
@@ -1356,6 +1386,7 @@ ${others.length ? `<section class="band">
       ${stateFacts(shown)}
       <p>Before you choose, read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a>, and ask the breeder about the parents, their health testing and what the puppy goes home with.</p>
       <p>See the <a href="${pageFor.stateBreeders(S)}">dog breeders in ${esc(S)}</a> who list here, or <a href="puppies.html">every puppy on Puppy Connection</a>.</p>
+      ${citiesLive.some((c) => c.state === S) ? `<p>Puppies near a city in ${esc(S)}: ${linkList(citiesLive.filter((c) => c.state === S).map((c) => [pageFor.city(c), c.name]))}.</p>` : ''}
     </div>
   </div>
 </section>
@@ -1404,6 +1435,61 @@ ${others.length ? `<section class="band">
       body: brBody, trail: [['Breeders', `${base}breeders.html`], [`Breeders in ${S}`, `${base}${pageFor.stateBreeders(S)}`]],
       ld: [{ '@type': 'ItemList', name: `Dog breeders in ${S}`, numberOfItems: brs.length,
         itemListElement: brs.map((b, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.breeder(b.slug)}`, name: b.name })) }],
+    });
+  }
+  for (const c of cities) {
+    const label = `${c.name}, ${c.state}`;
+    const hasState = statePages.includes(c.state);
+    const stateHref = hasState ? pageFor.statePuppies(c.state) : 'puppies.html';
+    const open = c.pups.filter((p) => !p.placed);
+    const shown = (open.length ? open : c.pups).slice().sort((p, q) => (c.near.find((x) => x.b === p.br).mi - c.near.find((x) => x.b === q.br).mi) || byStanding(p, q)).slice(0, 48);
+    const listing = c.near.filter((x) => c.pups.some((p) => p.br === x.b && !p.placed));
+    const breedsHere = [...new Map(shown.map((p) => [p.b.slug, p.b])).values()].sort((a, d) => a.name.localeCompare(d.name));
+    const closest = listing[0];
+    const within = (m) => listing.filter((x) => x.mi <= m).length;
+    const states = [...new Set(listing.map((x) => stateName(x.b.state)).filter(Boolean))];
+    const others = citiesLive.filter((o) => o !== c).map((o) => ({ o, mi: miles(c.at, o.at) })).filter((x) => x.mi <= 150).sort((a, d) => a.mi - d.mi).slice(0, 6);
+    const lead = leadOf(shown);
+    const price = priceSpan(shown);
+    const rows = listing.map((x) => `<tr><td style="padding:.55rem .8rem .55rem 0;border-bottom:1px solid var(--line);vertical-align:top"><a href="${pageFor.breeder(x.b.slug)}">${esc(x.b.name)}</a><br><span style="font-size:.88rem;color:var(--muted)">${esc(place(x.b))}</span></td><td style="padding:.55rem 0 .55rem .8rem;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">about ${Math.round(x.mi / 5) * 5 || 5} miles ${x.dir}</td><td style="padding:.55rem 0 .55rem .8rem;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums">${c.pups.filter((p) => p.br === x.b && !p.placed).length}</td></tr>`).join('');
+    const body = `<main id="cityPuppies">\n<span id="content" tabindex="-1"></span>
+<section class="band" style="padding-bottom:1.4rem">
+  <div class="wrap">
+    <p class="eyebrow"><a href="${stateHref}" style="color:inherit">${hasState ? `Puppies in ${esc(c.state)}` : 'Puppies'}</a></p>
+    <h1>Puppies for sale near ${esc(c.name)}</h1>
+    <p class="meta">${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} available from ${listing.length} ${listing.length === 1 ? 'breeder' : 'breeders'} within about ${CITY_RADIUS} miles of ${esc(label)}</p>
+    <div class="prose" style="margin-top:1rem">
+      <p>These are the puppies listed by family breeders within about ${CITY_RADIUS} miles of ${esc(c.name)}${states.length > 1 ? `, in ${esc(states.join(' and ').replace(/ and (?=.* and )/g, ', '))}` : ''}.${closest ? ` The closest is ${esc(closest.b.name)} in ${esc(place(closest.b))}, about ${Math.round(closest.mi / 5) * 5 || 5} miles ${closest.dir} of ${esc(c.name)}${within(60) > 1 ? `, and ${within(60)} breeders are within about 60 miles` : ''}.` : ''} Each puppy is raised and sold by the breeder named on its page, and you connect with that breeder or their designated representative.</p>
+      ${breedsHere.length ? `<p>Breeds available near ${esc(c.name)} right now: ${linkList(breedsHere.map((x) => [pageFor.breed(x.slug), x.name]))}.</p>` : ''}
+      ${price ? `<p>Puppies near ${esc(c.name)} are priced ${price}, set by each breeder.</p>` : ''}
+      <p>Before you choose, read our <a href="tips-on-buying-a-puppy.html">tips on buying a puppy</a>, and ask the breeder about the parents, their health testing and what the puppy goes home with.</p>
+    </div>
+  </div>
+</section>
+<section class="band band-warm" id="available">
+  <div class="wrap">
+    <div class="sec-head"><div><p class="eyebrow">${open.length ? 'Available now, closest first' : 'Recently listed'}</p><h2>Puppies near ${esc(c.name)}</h2></div><a class="link-more" href="puppies.html">All puppies</a></div>
+    ${grid(shown, `No puppies are listed near ${esc(c.name)} at the moment.`)}
+  </div>
+</section>
+<section class="band">
+  <div class="wrap">
+    <div class="sec-head"><div><p class="eyebrow">By distance</p><h2>Breeders near ${esc(c.name)}</h2></div><a class="link-more" href="breeders.html">All breeders</a></div>
+    <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:.95rem"><thead><tr><th style="padding:.4rem .8rem .4rem 0;border-bottom:1px solid var(--line-strong);text-align:left;font-weight:600">Breeder</th><th style="padding:.4rem 0 .4rem .8rem;border-bottom:1px solid var(--line-strong);text-align:right;font-weight:600">From ${esc(c.name)}</th><th style="padding:.4rem 0 .4rem .8rem;border-bottom:1px solid var(--line-strong);text-align:right;font-weight:600">Available</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p style="margin-top:.8rem;font-size:.9rem;color:var(--muted)">Distances are straight-line miles between town centers, so the drive is usually a little longer. Ask the breeder where they meet families before you set out.</p>
+    ${others.length ? `<p style="margin-top:1rem">Puppies near other cities: ${linkList(others.map((x) => [pageFor.city(x.o), x.o.name]))}. Or see <a href="${stateHref}">${hasState ? `every puppy in ${esc(c.state)}` : 'every puppy on Puppy Connection'}</a>.</p>` : `<p style="margin-top:1rem">See <a href="${stateHref}">${hasState ? `every puppy in ${esc(c.state)}` : 'every puppy on Puppy Connection'}</a>.</p>`}
+  </div>
+</section>
+</main>`;
+    write(pageFor.city(c), {
+      noindex: !c.live,
+      title: `Puppies for Sale near ${c.name}, ${c.state} | Puppy Connection`,
+      desc: withTail(`${open.length} ${open.length === 1 ? 'puppy' : 'puppies'} for sale from ${listing.length} family breeders within about ${CITY_RADIUS} miles of ${label}${price ? `, priced ${price}` : ''}.`, 'See each puppy and connect with its breeder.', 155),
+      body, trail: [['Available puppies', `${base}puppies.html`], ...(hasState ? [[`Puppies in ${c.state}`, `${base}${pageFor.statePuppies(c.state)}`]] : []), [`Near ${c.name}`, `${base}${pageFor.city(c)}`]],
+      image: absolute(lead && (isWix(lead.src) ? wix(lead.src, 1200, 630) : shareSrc(lead.src))),
+      ld: [{ '@type': 'ItemList', name: `Puppies for sale near ${label}`, numberOfItems: shown.length,
+        itemListElement: shown.map((p, i) => ({ '@type': 'ListItem', position: i + 1, url: `${base}${pageFor.puppy(p.slug)}`, name: `${p.name}, ${p.b.name}` })) }],
+      images: shown.slice(0, 20).map((p) => imageUrl(p.photos[0])),
     });
   }
   // The state pages need a link from the hub. With one state, a "By state" line read oddly (Alex,

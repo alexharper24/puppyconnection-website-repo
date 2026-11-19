@@ -14,7 +14,7 @@ import {
 import { sendMail } from '../lib/mail.js';
 import { videoUrls, removeVideo } from '../lib/stream.js';
 import { listReports, closeReport } from '../lib/reports.js';
-import { pageKind } from '../lib/stats.js';
+import { pageKind, SOURCES } from '../lib/stats.js';
 import { reasonText, photoCheckMode, checkPhoto } from '../lib/photocheck.js';
 import { photoPassedStmts } from '../lib/inactivity.js';
 import { identify } from './identity.js';
@@ -972,22 +972,31 @@ async function traffic(req, env) {
   const { results } = await env.DB.prepare('SELECT day, kind, views, clicks FROM traffic_daily WHERE day >= ? ORDER BY day').bind(since).all();
   // page_stats_day answers this from one index entry.
   const first = await env.DB.prepare('SELECT MIN(day) AS d FROM page_stats').first();
-  return json({ today, puppies_from: TRAFFIC_FROM, pages_from: (first && first.d) || null, days: results });
+  // Where visitors came from (Alex, 2026-11-19, migrations/0101), counted from the deploy that began it.
+  const { results: sources } = await env.DB.prepare('SELECT day, kind, source, views, clicks FROM traffic_source_daily WHERE day >= ? ORDER BY day').bind(since).all();
+  const sfirst = sources.length ? sources[0].day : null;
+  return json({ today, puppies_from: TRAFFIC_FROM, pages_from: (first && first.d) || null, sources_from: sfirst, days: results, sources });
 }
 
 /** The most viewed pages between two days, puppies and the other pages together, for one kind or all. */
 async function trafficTop(req, env) {
   const q = new URL(req.url).searchParams;
-  const from = q.get('from'), to = q.get('to'), kind = q.get('kind') || 'all';
+  const from = q.get('from'), to = q.get('to'), kind = q.get('kind') || 'all', source = q.get('source') || 'all';
   if (!DAY_RX.test(from || '') || !DAY_RX.test(to || '') || from > to) throw bad('Choose a from and to day.');
   if (!['all', 'puppy', 'home', 'breed', 'breeder', 'guide', 'other'].includes(kind)) throw bad('Unknown kind of page.');
+  if (source !== 'all' && !SOURCES.includes(source)) throw bad('Unknown source.');
   const LIMIT = 100; // the chart shows 20 at a time, with Show more
   const out = [];
   if (kind === 'all' || kind === 'puppy') {
-    const { results: top } = await env.DB.prepare(
-      `SELECT puppy_id, SUM(views) AS views, SUM(clicks) AS clicks FROM puppy_stats
-        WHERE day BETWEEN ? AND ? GROUP BY puppy_id ORDER BY views DESC, clicks DESC LIMIT ${LIMIT}`,
-    ).bind(from, to).all();
+    const { results: top } = await (source === 'all'
+      ? env.DB.prepare(
+        `SELECT puppy_id, SUM(views) AS views, SUM(clicks) AS clicks FROM puppy_stats
+          WHERE day BETWEEN ? AND ? GROUP BY puppy_id ORDER BY views DESC, clicks DESC LIMIT ${LIMIT}`,
+      ).bind(from, to)
+      : env.DB.prepare(
+        `SELECT substr(page, 7) AS puppy_id, SUM(views) AS views, SUM(clicks) AS clicks FROM page_source_stats
+          WHERE day BETWEEN ? AND ? AND source = ? AND page LIKE 'puppy:%' GROUP BY page ORDER BY views DESC, clicks DESC LIMIT ${LIMIT}`,
+      ).bind(from, to, source)).all();
     if (top.length) {
       const { results: names } = await env.DB.prepare(
         `SELECT p.id, p.name, p.slug, br.name AS breed, bp.business_name
@@ -1003,10 +1012,15 @@ async function trafficTop(req, env) {
     }
   }
   if (kind !== 'puppy') {
-    const { results: top } = await env.DB.prepare(
-      `SELECT page, SUM(views) AS views, SUM(clicks) AS clicks FROM page_stats
-        WHERE day BETWEEN ? AND ? GROUP BY page ORDER BY views DESC, clicks DESC LIMIT 400`,
-    ).bind(from, to).all();
+    const { results: top } = await (source === 'all'
+      ? env.DB.prepare(
+        `SELECT page, SUM(views) AS views, SUM(clicks) AS clicks FROM page_stats
+          WHERE day BETWEEN ? AND ? GROUP BY page ORDER BY views DESC, clicks DESC LIMIT 400`,
+      ).bind(from, to)
+      : env.DB.prepare(
+        `SELECT page, SUM(views) AS views, SUM(clicks) AS clicks FROM page_source_stats
+          WHERE day BETWEEN ? AND ? AND source = ? AND page NOT LIKE 'puppy:%' GROUP BY page ORDER BY views DESC, clicks DESC LIMIT 400`,
+      ).bind(from, to, source)).all();
     const rows = top.filter((t) => kind === 'all' || pageKind(t.page) === kind).slice(0, LIMIT);
     const slugs = (prefix) => rows.filter((t) => t.page.startsWith(prefix)).map((t) => t.page.slice(prefix.length));
     const names = {};
@@ -1021,7 +1035,7 @@ async function trafficTop(req, env) {
     for (const t of rows) out.push({ kind: pageKind(t.page), page: t.page, label: names[t.page] || PAGE_NAMES[t.page] || pageTitle(t.page), sub: null, views: t.views, clicks: t.clicks });
   }
   out.sort((a, b) => b.views - a.views || b.clicks - a.clicks);
-  return json({ from, to, kind, site: env.SITE_ORIGIN || null, pages: out.slice(0, LIMIT) });
+  return json({ from, to, kind, source, site: env.SITE_ORIGIN || null, pages: out.slice(0, LIMIT) });
 }
 
 // Names for the pages that are not a breed, breeder or puppy. Any other page, such as a guide or a

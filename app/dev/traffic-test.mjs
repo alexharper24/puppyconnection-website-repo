@@ -58,6 +58,27 @@ check('a page the site does not serve is not counted', (await beacon({ k: 'page'
 check('a puppy page sent as a page is not counted twice', (await beacon({ k: 'page', s: 'puppy-max-havanese' })).why === 'shape');
 check('a path outside the site is refused', (await beacon({ k: 'page', s: '../etc/passwd' })).why === 'shape');
 check('a page count from another site is refused', (await beacon({ k: 'page', s: 'about' }, { origin: 'https://evil.example' })).why === 'origin');
+
+console.log('\n-- where visitors came from (2026-11-19)');
+{
+  const src = (p, s) => one('SELECT COALESCE(SUM(views), 0) AS v, COALESCE(SUM(clicks), 0) AS c FROM page_source_stats WHERE page = ? AND day = ? AND source = ?', p, day, s);
+  const sd = (k, s) => one('SELECT COALESCE(SUM(views), 0) AS v FROM traffic_source_daily WHERE kind = ? AND day = ? AND source = ?', k, day, s);
+  const p0 = await src('breeds', 'paid'), d0 = await sd('breed', 'paid');
+  await beacon({ k: 'page', s: 'breeds', c: 'paid' });
+  check('a view from a paid ad is counted under paid for the page and the day', (await src('breeds', 'paid')).v === p0.v + 1 && (await sd('breed', 'paid')).v === d0.v + 1);
+  const u0 = await src('about', 'unknown');
+  await beacon({ k: 'page', s: 'about', c: 'made-up' });
+  check('a source the site does not know counts as not recorded', (await src('about', 'unknown')).v === u0.v + 1);
+  const n0 = await src('index', 'unknown');
+  await beacon({ k: 'page', s: 'index' });
+  check('a count from the older page script, with no source, counts as not recorded', (await src('index', 'unknown')).v === n0.v + 1);
+  const pup = await one("SELECT id, slug FROM public_puppies LIMIT 1");
+  if (pup.id) {
+    const q0 = await src(`puppy:${pup.id}`, 'search');
+    const r = await beacon({ k: 'view', s: pup.slug, c: 'search' });
+    check('a puppy view from a search engine is counted under the puppy\'s id', r.why === 'counted' && (await src(`puppy:${pup.id}`, 'search')).v === q0.v + 1, r.why);
+  }
+}
 check('a robot is not counted', (await beacon({ k: 'page', s: 'about' }, { ua: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' })).why === 'bot');
 {
   const pup = await one('SELECT slug FROM public_puppies LIMIT 1');
@@ -80,7 +101,7 @@ console.log('\n-- the site script');
 {
   const gen = fs.readFileSync(path.join(APP, 'build/generate.mjs'), 'utf8');
   const m = gen.match(/const PAGE_COUNT_JS = `([\s\S]*?)`;/);
-  check('js/main.js gets the page counter', !!m && gen.includes('NAV_DROP_JS + PAGE_COUNT_JS'));
+  check('js/main.js gets the source and the page counter', !!m && gen.includes('NAV_DROP_JS + SOURCE_JS + PAGE_COUNT_JS'));
   check('... which leaves puppy pages to their own count', !!m && m[1].includes("querySelector('[data-puppy]')"));
   check('... and skips Puppy Connection\'s own browsers', !!m && m[1].includes('pc_staff=1'));
 }
@@ -106,6 +127,12 @@ console.log('\n-- the admin');
     check('... and one kind alone', br.pages.length && br.pages.every((p) => p.kind === 'breed'), JSON.stringify(br.pages.slice(0, 3)));
     check('a bad date is refused', (await fetch(`${ADMIN}/api/reports/traffic/top?from=x&to=${day}`)).status === 400);
     check('an unknown kind is refused', (await fetch(`${ADMIN}/api/reports/traffic/top?from=${day}&to=${day}&kind=nope`)).status === 400);
+    check('the traffic route gives the counts by source and the day they start', Array.isArray(t.sources) && t.sources.some((r) => r.source === 'paid') && t.sources_from === day, JSON.stringify(t.sources).slice(0, 200));
+    const paid = await (await fetch(`${ADMIN}/api/reports/traffic/top?from=${day}&to=${day}&source=paid`)).json();
+    check('the top pages for paid ads hold only pages paid ads brought', paid.pages.some((p) => p.page === 'breeds') && !paid.pages.some((p) => p.page === 'about'), JSON.stringify(paid.pages.slice(0, 4)));
+    const se = await (await fetch(`${ADMIN}/api/reports/traffic/top?from=${day}&to=${day}&source=search&kind=puppy`)).json();
+    check('... and search engines with puppy pages named', se.pages.length && se.pages.every((p) => p.kind === 'puppy' && p.page && p.page.startsWith('puppy-')), JSON.stringify(se.pages.slice(0, 3)));
+    check('an unknown source is refused', (await fetch(`${ADMIN}/api/reports/traffic/top?from=${day}&to=${day}&source=nope`)).status === 400);
   }
 }
 

@@ -242,6 +242,39 @@ const NAV_DROP_JS = `
 })();
 `;
 
+// Where the visit began (Alex, 2026-11-19), for the Reports filter. Worked out in the browser
+// from the landing address and the referring site, and sent with each count as one word
+// (lib/stats.js SOURCES). Paid means an ad tag or ad click id on the landing address, which is how
+// the Meta ads arrive (utm_medium=paid, checked in Google Analytics 2026-11-19). A visit keeps its
+// source for 30 minutes after its last page, as Google Analytics keeps a session, in
+// localStorage under pc_src, which holds only that word and a time and is not a cookie. A new
+// tagged or outside arrival starts a new source. Meta adds fbclid to every Facebook link, paid or
+// not, so fbclid alone counts as social and only the ad tags count as paid.
+const SOURCE_JS = `
+window.pcSource = (function () {
+  var cached;
+  return function () {
+    if (cached) return cached;
+    var q = new URLSearchParams(location.search), m = (q.get('utm_medium') || '').toLowerCase(), s = (q.get('utm_source') || '').toLowerCase();
+    var ref = '';
+    try { ref = document.referrer ? new URL(document.referrer).hostname.toLowerCase() : ''; } catch (e) {}
+    if (ref === location.hostname) ref = '';
+    var c = null;
+    if (q.get('gclid') || q.get('gbraid') || q.get('wbraid') || q.get('msclkid') || q.get('ttclid') || /^(paid|cpc|ppc|cpm|cpv|paidsocial|paid[-_ ]social|paid[-_ ]search|display|ads?|banner)$/.test(m)) c = 'paid';
+    else if (/(^|\\.)(chatgpt\\.com|openai\\.com|perplexity\\.ai|claude\\.ai|gemini\\.google\\.com|copilot\\.microsoft\\.com|you\\.com|meta\\.ai)$/.test(ref) || /chatgpt|openai|perplexity|claude|gemini|copilot/.test(s)) c = 'ai';
+    else if (m === 'organic' || /(^|\\.)(google|bing|yahoo|duckduckgo|ecosia|baidu|yandex|brave|startpage|aol|qwant)\\.[a-z.]+$/.test(ref)) c = 'search';
+    else if (m === 'social' || q.get('fbclid') || /^(fb|ig|facebook|instagram|threads|pinterest|tiktok|twitter|x|youtube|snapchat|nextdoor)$/.test(s) ||
+      /(^|\\.)(facebook\\.com|fb\\.com|fb\\.me|instagram\\.com|messenger\\.com|threads\\.net|pinterest\\.[a-z.]+|tiktok\\.com|twitter\\.com|x\\.com|t\\.co|linkedin\\.com|lnkd\\.in|reddit\\.com|youtube\\.com|snapchat\\.com|nextdoor\\.com)$/.test(ref)) c = 'social';
+    else if (ref) c = 'referral';
+    var now = Date.now(), kept = null;
+    try { kept = JSON.parse(localStorage.getItem('pc_src') || 'null'); } catch (e) {}
+    if (!c) c = kept && kept.c && now - kept.t < 1800000 ? kept.c : 'direct';
+    try { localStorage.setItem('pc_src', JSON.stringify({ c: c, t: now })); } catch (e) {}
+    return (cached = c);
+  };
+})();
+`;
+
 // Every page but a puppy page counts a view when it opens and a click when a visitor follows a
 // phone, email or off-site link (Alex, 2026-11-01), by its file name only and the same cookieless
 // way as the puppy pages, which keep their own count in PAGES_JS. Appended to js/main.js, which
@@ -254,7 +287,7 @@ const PAGE_COUNT_JS = `
   if (!/^[a-z0-9-]{1,120}$/.test(page)) return;
   function send(k) {
     try {
-      var body = JSON.stringify({ k: k, s: page });
+      var body = JSON.stringify({ k: k, s: page, c: window.pcSource ? window.pcSource() : undefined });
       if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'text/plain' }));
       else fetch('/api/beacon', { method: 'POST', body: body, keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(function () {});
     } catch (e) { /* counting never gets in the way of the page */ }
@@ -275,7 +308,7 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     // A browser marked by the admin or by ?internal=1 is Puppy Connection's own and is not counted (Alex, 2026-11-01).
     if (/(?:^|; )pc_staff=1(?:;|$)/.test(document.cookie)) return;
     try {
-      var body = JSON.stringify({ k: k, s: s });
+      var body = JSON.stringify({ k: k, s: s, c: window.pcSource ? window.pcSource() : undefined });
       if (navigator.sendBeacon) navigator.sendBeacon('/api/beacon', new Blob([body], { type: 'text/plain' }));
       else fetch('/api/beacon', { method: 'POST', body: body, keepalive: true, headers: { 'content-type': 'text/plain' } }).catch(function () {});
     } catch (e) { /* counting never gets in the way of the page */ }
@@ -588,7 +621,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   if (fs.existsSync(path.join(T, 'favicon.ico'))) fs.copyFileSync(path.join(T, 'favicon.ico'), path.join(out, 'favicon.ico'));
   fs.mkdirSync(path.join(out, 'js'), { recursive: true });
   fs.mkdirSync(path.join(out, 'data'), { recursive: true });
-  const mainJs = patchMain(concept('js/main.js')) + NAV_DROP_JS + PAGE_COUNT_JS;
+  const mainJs = patchMain(concept('js/main.js')) + NAV_DROP_JS + SOURCE_JS + PAGE_COUNT_JS;
   fs.writeFileSync(path.join(out, 'js/main.js'), mainJs);
   fs.writeFileSync(path.join(out, 'js/pages.js'), PAGES_JS);
   fs.writeFileSync(path.join(out, 'js/search-count.js'), SEARCH_JS);

@@ -23,6 +23,30 @@ export function isBot(request) {
 }
 
 const KINDS = { view: 'views', click: 'clicks', page: 'views', pclick: 'clicks' };
+
+// Where the visit began (Alex, 2026-11-19), worked out in the visitor's browser by SOURCE_JS in
+// build/generate.mjs and sent as one word. A beacon from a page still holding the older script
+// sends none and counts as 'unknown'. Paid is an ad tag or click id on the landing address,
+// such as Meta's utm_medium=paid or Google's gclid.
+export const SOURCES = ['paid', 'search', 'social', 'ai', 'referral', 'direct', 'unknown'];
+
+// The source counts, written after the main count and apart from it, so a failure here never
+// loses the view or click itself.
+async function countSource(env, day, kind, page, source, col) {
+  try {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO traffic_source_daily (day, kind, source, ${col}) VALUES (?, ?, ?, 1)
+         ON CONFLICT (day, kind, source) DO UPDATE SET ${col} = ${col} + 1`,
+      ).bind(day, kind, source),
+      env.DB.prepare(
+        `INSERT INTO page_source_stats (page, day, source, ${col}) VALUES (?, ?, ?, 1)
+         ON CONFLICT (page, day, source) DO UPDATE SET ${col} = ${col} + 1`,
+      ).bind(page, day, source),
+    ]);
+    return true;
+  } catch { return false; }
+}
 const SLUG_RX = /^[a-z0-9-]{1,120}$/;
 
 // The kind of page a file name is, for the day's totals in traffic_daily and the admin's chart.
@@ -63,6 +87,7 @@ export async function recordBeacon(request, env) {
   const col = search ? 'searches' : KINDS[body && body.k];
   const slug = String((body && body.s) || '');
   if (!col || !SLUG_RX.test(slug)) return done('shape');
+  const source = SOURCES.includes(body.c) ? body.c : 'unknown';
   if (isPage && pageKind(slug) === 'puppy') return done('shape');
 
   const ip = request.headers.get('cf-connecting-ip') || 'local';
@@ -101,6 +126,7 @@ export async function recordBeacon(request, env) {
       ).bind(slug, day),
       dailyStmt(env, day, pageKind(slug), col),
     ]);
+    await countSource(env, day, pageKind(slug), slug, source, col);
     return done('counted');
   }
   const pup = await env.DB.prepare('SELECT id FROM public_puppies WHERE slug = ?').bind(slug).first();
@@ -112,6 +138,7 @@ export async function recordBeacon(request, env) {
     ).bind(pup.id, day),
     dailyStmt(env, day, 'puppy', col),
   ]);
+  await countSource(env, day, 'puppy', `puppy:${pup.id}`, source, col);
   return done('counted');
 }
 

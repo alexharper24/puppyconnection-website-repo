@@ -184,7 +184,9 @@
         (d.pages_from ? 'The other pages count from ' + longDay(d.pages_from) + ', when this chart went live, so that day holds only part of their views' +
           (d.pages_from > d.puppies_from ? ' and earlier bars show puppy pages only. ' : '. ') : 'The other pages count from the day this chart goes live. ') +
         'Puppy Connection’s own browsers and search engine robots are not counted.' +
-        (d.sources_from ? ' Where visitors came from is counted from ' + longDay(d.sources_from) + ', so a choice other than Everyone shows nothing before then.'
+        (d.sources_estimated_to ? ' Where visitors came from is estimated from Google Analytics through ' + longDay(d.sources_estimated_to) +
+          ' and counted by the site after that. The estimate splits our own counts in the proportions Google Analytics saw, so each day’s total is unchanged.'
+          : d.sources_from ? ' Where visitors came from is counted from ' + longDay(d.sources_from) + ', so a choice other than Everyone shows nothing before then.'
           : ' Where visitors came from is counted from the day this choice went live.');
       if (refetch !== false) pick();
       else { summary(); }

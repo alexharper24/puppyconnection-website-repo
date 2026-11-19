@@ -106,6 +106,27 @@ CREATE TABLE IF NOT EXISTS traffic_daily (
   PRIMARY KEY (day, kind)
 );
 
+-- Where visitors came from (migrations/0101, lib/stats.js SOURCES). The day's totals by kind and
+-- source for the chart, and each page's counts by source for the top pages. A puppy page is keyed
+-- 'puppy:<puppy id>'.
+CREATE TABLE IF NOT EXISTS traffic_source_daily (
+  day      TEXT NOT NULL,
+  kind     TEXT NOT NULL,
+  source   TEXT NOT NULL,
+  views    INTEGER NOT NULL DEFAULT 0,
+  clicks   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (day, kind, source)
+);
+CREATE TABLE IF NOT EXISTS page_source_stats (
+  page     TEXT NOT NULL,
+  day      TEXT NOT NULL,
+  source   TEXT NOT NULL,
+  views    INTEGER NOT NULL DEFAULT 0,
+  clicks   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (page, day, source)
+);
+CREATE INDEX IF NOT EXISTS page_source_stats_day ON page_source_stats(day, source);
+
 -- Plan P2.7. A breeder asking Puppy Connection to close their account. An operator sees the
 -- request and marks it closed (resolved_at). Thirty days later the daily retention job removes the
 -- account's information (lib/retention.js, migrations/0060) and records the day in removed_at.

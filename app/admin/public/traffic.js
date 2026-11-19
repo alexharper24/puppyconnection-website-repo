@@ -7,6 +7,10 @@
   var esc = A.esc;
   var SVGNS = 'http://www.w3.org/2000/svg';
   var KIND_NAMES = { puppy: 'Puppy pages', home: 'Home', breed: 'Breeds', breeder: 'Breeders', guide: 'Guides', other: 'Other pages' };
+  // Where the visit began (Alex, 2026-11-19, lib/stats.js SOURCES). Not recorded is a count from a
+  // page that still held the older counter, and shows only when there is one.
+  var SOURCE_ORDER = ['all', 'paid', 'search', 'social', 'ai', 'referral', 'direct', 'unknown'];
+  var SOURCE_NAMES = { all: 'Everyone', paid: 'Paid ads', search: 'Search engines', social: 'Social media', ai: 'AI assistants', referral: 'Other websites', direct: 'Direct', unknown: 'Not recorded' };
   var SPAN = { day: 30, week: 26, month: 12 };
   var PAGE = 20; // top pages shown at first, and how many more each Show more adds (Alex, 2026-11-01)
   var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -144,7 +148,13 @@
   }
 
   function mount(host) {
-    var st = { by: 'day', metric: 'views', sel: null, kind: 'all', data: null, bs: [] };
+    var st = { by: 'day', metric: 'views', sel: null, kind: 'all', src: 'all', data: null, bs: [] };
+    // The chart's rows for the chosen source: every count, or one source's from traffic_source_daily.
+    function view() {
+      var d = st.data;
+      if (st.src === 'all') return d;
+      return { today: d.today, puppies_from: d.puppies_from, days: (d.sources || []).filter(function (r) { return r.source === st.src; }) };
+    }
     host.innerHTML = '<div class="page-head" style="margin-bottom:.4rem"><div><h2 style="margin:0">Views and clicks over time</h2></div></div><p class="muted small">Loading.</p>';
     A.api('GET', '/api/reports/traffic').then(function (data) {
       st.data = data;
@@ -167,13 +177,15 @@
     function on(root, sel, b) { A.$$(sel, root).forEach(function (x) { x.classList.toggle('on', x === b); }); }
 
     function render(refetch) {
-      st.bs = buckets(st.data, st.by);
+      st.bs = buckets(view(), st.by);
       draw(A.$('.tc-plot', host), st.bs, st.metric, st.sel, function (i) { st.sel = st.sel === i ? null : i; render(); });
       var d = st.data;
       A.$('.tc-note', host).textContent = 'Times are UTC days. Puppy pages count from ' + longDay(d.puppies_from) + '. ' +
         (d.pages_from ? 'The other pages count from ' + longDay(d.pages_from) + ', when this chart went live, so that day holds only part of their views' +
           (d.pages_from > d.puppies_from ? ' and earlier bars show puppy pages only. ' : '. ') : 'The other pages count from the day this chart goes live. ') +
-        'Puppy Connection’s own browsers and search engine robots are not counted.';
+        'Puppy Connection’s own browsers and search engine robots are not counted.' +
+        (d.sources_from ? ' Where visitors came from is counted from ' + longDay(d.sources_from) + ', so a choice other than Everyone shows nothing before then.'
+          : ' Where visitors came from is counted from the day this choice went live.');
       if (refetch !== false) pick();
       else { summary(); }
     }
@@ -198,21 +210,41 @@
       A.$('.tc-pick', host).innerHTML = '<h3 class="tc-range">' + esc(r.title) + (st.sel != null ? ' <button type="button" class="btn btn-sm" data-clear>Show the whole chart</button>' : '') + '</h3>' +
         '<p class="tc-sum"><b>' + n(all.views) + '</b> ' + pl(all.views, 'view') + ' and <b>' + n(all.clicks) + '</b> ' + pl(all.clicks, 'click') + ', of which puppy pages had ' + n(sum.puppy.views) + ' ' + pl(sum.puppy.views, 'view') + ' and ' + n(sum.puppy.clicks) + ' ' + pl(sum.puppy.clicks, 'click') + '.' +
         (st.sel == null ? ' Choose a bar to see that ' + st.by + ' alone.' : '') + '</p>' +
-        '<div class="seg tc-kinds" role="group" aria-label="Kind of page">' + chips + '</div>';
+        '<div class="seg tc-kinds" role="group" aria-label="Kind of page">' + chips + '</div>' +
+        '<p class="tc-src-label">Where visitors came from</p><div class="seg tc-kinds tc-srcs" role="group" aria-label="Where visitors came from">' + srcChips(r) + '</div>';
       var clear = A.$('[data-clear]', host);
       if (clear) clear.addEventListener('click', function () { st.sel = null; render(); });
       A.$$('[data-kind]', host).forEach(function (b) { b.addEventListener('click', function () { st.kind = b.dataset.kind; summary(); top(); }); });
+      A.$$('[data-src]', host).forEach(function (b) { b.addEventListener('click', function () { st.src = b.dataset.src; render(); }); });
+    }
+
+    // One choice per source with its count for the range and the kind of page chosen. Everyone is
+    // every count, which includes the days before sources were recorded.
+    function srcChips(r) {
+      var tot = {}, all = 0;
+      var keep = {};
+      r.b.forEach(function (b) { keep[b.from] = 1; });
+      buckets(st.data, st.by).forEach(function (b) {
+        if (keep[b.from]) all += st.kind === 'all' ? b.puppy[st.metric] + b.other[st.metric] : (b.kinds[st.kind] || {})[st.metric] || 0;
+      });
+      (st.data.sources || []).forEach(function (x) {
+        if (x.day < r.from || x.day > r.to || (st.kind !== 'all' && x.kind !== st.kind)) return;
+        tot[x.source] = (tot[x.source] || 0) + x[st.metric];
+      });
+      return SOURCE_ORDER.filter(function (s) { return s !== 'unknown' || tot[s] || st.src === s; }).map(function (s) {
+        return '<button type="button" data-src="' + s + '"' + (st.src === s ? ' class="on"' : '') + '>' + SOURCE_NAMES[s] + ' <span class="tc-n">' + n(s === 'all' ? all : tot[s] || 0) + '</span></button>';
+      }).join('');
     }
 
     function pick() { summary(); top(); }
 
     function top() {
-      var r = range(), box = A.$('.tc-top', host), ask = r.from + '|' + r.to + '|' + st.kind;
+      var r = range(), box = A.$('.tc-top', host), ask = r.from + '|' + r.to + '|' + st.kind + '|' + st.src;
       box.dataset.ask = ask;
       box.innerHTML = '<p class="muted small">Loading the top pages.</p>';
-      A.api('GET', '/api/reports/traffic/top?from=' + r.from + '&to=' + r.to + '&kind=' + st.kind).then(function (t) {
+      A.api('GET', '/api/reports/traffic/top?from=' + r.from + '&to=' + r.to + '&kind=' + st.kind + '&source=' + st.src).then(function (t) {
         if (box.dataset.ask !== ask) return;
-        if (!t.pages.length) { box.innerHTML = '<p class="muted small">No ' + (st.kind === 'all' ? '' : KIND_NAMES[st.kind].toLowerCase() + ' ') + 'views were counted in this period.</p>'; return; }
+        if (!t.pages.length) { box.innerHTML = '<p class="muted small">No ' + (st.kind === 'all' ? '' : KIND_NAMES[st.kind].toLowerCase() + ' ') + 'views' + (st.src === 'all' ? '' : ' from ' + SOURCE_NAMES[st.src].toLowerCase()) + ' were counted in this period.</p>'; return; }
         var site = t.site ? t.site.replace(/\/$/, '') + '/' : null;
         var shown = PAGE;
         function row(p) {

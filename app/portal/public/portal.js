@@ -1302,6 +1302,52 @@
   }
   var NEW_UPLOAD_NOTE = '<p class="hint new-upload-note">Choosing a photo or document saves what you have entered first.</p>';
 
+  /* Alex, 2026-11-18, after Mary's first evening adding parents and puppies. A photo, Face or
+     document change on a saved record redraws the drawer from the server, and that threw away
+     anything typed or filled from a document on the left that was not saved yet. Before the redraw
+     the unsaved form is noted, and after it the same values, the "from your document" marks and the
+     held documents go back in. A save marks the form so its redraw starts from the saved record. */
+  function takeEdits(sel, id) {
+    var form = $(sel);
+    if (!form || !id || form.dataset.rec !== String(id) || form.dataset.saved) return null;
+    var vals = [];
+    $$('input, select, textarea', form).forEach(function (el) {
+      if (!el.name || el.type === 'file' || el.name === 'version') return;
+      if (el.type === 'hidden' && el.name !== 'availability') return;
+      var check = el.type === 'checkbox' || el.type === 'radio';
+      vals.push({ name: el.name, value: el.value, check: check, on: check && el.checked, tag: el.tagName,
+        marked: check ? !!el.closest('.prefilled-check') : !!el.closest('.prefilled') });
+    });
+    return { sel: sel, id: String(id), vals: vals, held: form.heldDocs || [] };
+  }
+  function restoreEdits(d, form, kept) {
+    if (!kept || !form || form.dataset.rec !== kept.id) return;
+    var find = function (v) { return $$('[name="' + v.name + '"]', form).filter(function (el) { return !v.check || el.value === v.value; })[0]; };
+    // The breed first, because choosing it redraws the health test list the tests are ticked in.
+    kept.vals.sort(function (a, b) { return (b.name === 'breed') - (a.name === 'breed'); }).forEach(function (v) {
+      var el = find(v);
+      if (!el || el.disabled) return;
+      if (v.check) { el.checked = v.on; return; }
+      if (el.value === v.value) return;
+      el.value = v.value;
+      if (el.tagName === 'SELECT') el.dispatchEvent(new Event('change'));
+    });
+    // A health test ticked from a document can sit outside the breed's own list, so the list is drawn with every kept tick.
+    var slot = $('#pa-tests-slot', d), breedSel = $('#pa-breed', d);
+    if (slot) {
+      slot.innerHTML = testPicks(breedSel ? breedSel.value : '', kept.vals.filter(function (v) { return v.name === 'test' && v.on; }).map(function (v) { return v.value; }), '');
+    }
+    var av = kept.vals.filter(function (v) { return v.name === 'availability'; })[0];
+    if (av) $$('[data-av]', d).forEach(function (b) { var on = b.dataset.av === av.value; b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+    kept.vals.forEach(function (v) {
+      if (!v.marked) return;
+      var el = find(v);
+      if (el) markFilled(el, v.check ? el.closest('fieldset') : null);
+    });
+    form.heldDocs = kept.held;
+    form.dispatchEvent(new Event('input'));
+  }
+
   /* Alex, 2026-10-31, after the Wix listing form: what a puppy comes with, ticked from a list rather
      than typed line by line, with a box for anything else. Saved as the same list as before. */
   var INCLUDE_GROUPS = [
@@ -1329,6 +1375,7 @@
     var canEdit = drafting(state.me);
     var dis = canEdit ? '' : ' disabled';
     var br = breedOfLitter(x ? x.litter_id : litterId);
+    var kept = takeEdits('#puppy', x && x.id);
     function seg(val) {
       return '<div class="seg" role="group" aria-label="Status">' + [['available', 'Available'], ['pending', 'Pending'], ['placed', 'Placed']].map(function (o) {
         return '<button type="button" data-av="' + o[0] + '" class="' + ((x ? x.availability : 'available') === o[0] ? 'on' : '') + '" aria-pressed="' + ((x ? x.availability : 'available') === o[0]) + '"' + dis + '>' + o[1] + '</button>';
@@ -1339,7 +1386,7 @@
         (x.site_url ? '<p class="small" style="margin:.4rem 0 0"><a href="' + esc(x.site_url) + '" target="_blank" rel="noopener">View ' + esc(x.name) + ' on the site</a></p>' : '') +
         (x.is_public ? '<p class="hint save-note" style="margin:.4rem 0 0">Changes you save here, photos included, show on the site within a few minutes.</p>' : '') +
         '<div style="margin-bottom:.8rem"></div>' : '') +
-      '<form id="puppy" novalidate>' + (x ? '<input type="hidden" name="version" value="' + esc(x.version) + '">' : '') +
+      '<form id="puppy" novalidate data-rec="' + esc(x ? x.id : '') + '">' + (x ? '<input type="hidden" name="version" value="' + esc(x.version) + '">' : '') +
       (canEdit ? prefillBox('puppy', 'puppy') : '') +
       '<div class="field"><label for="p-name">Name</label><input id="p-name" name="name" type="text" value="' + esc(x ? x.name : '') + '" required' + dis + '></div>' +
       '<div class="grid-2"><div class="field"><label for="p-sex">Sex</label><select id="p-sex" name="sex"' + dis + '><option value="">Not set</option><option value="female"' + (x && x.sex === 'female' ? ' selected' : '') + '>Female</option><option value="male"' + (x && x.sex === 'male' ? ' selected' : '') + '>Male</option></select></div>' +
@@ -1374,6 +1421,7 @@
           if (!x) body.litter_id = litterId;
           (x ? api('PUT', '/api/puppies/' + x.id, body) : api('POST', '/api/puppies', body))
             .then(function (r) {
+              form.dataset.saved = '1';
               return attachHeld(form, '/api/puppies/' + (x ? x.id : r.id) + '/documents').then(function (n) {
                 toast((x ? 'Puppy saved' : pendingUpload || n ? 'Puppy added' : 'Puppy added. Now add photos.') + (n ? ', with the document kept as private' : ''));
                 return loadListings().then(function () { puppyDrawer(findPuppy(x ? x.id : r.id)); litters(); });
@@ -1389,6 +1437,7 @@
           api('POST', '/api/puppies/' + x.id + '/archive', {}).then(function () { closeDrawer(); toast('Puppy removed'); litters(); }).catch(function (err) { showError(form, err); });
         });
         if (x) { wirePhotos(d, x, canEdit); wireVideos(d, x, canEdit); wireDocs(d, canEdit, '/api/puppies/' + x.id + '/documents', function () { return loadListings().then(function () { puppyDrawer(findPuppy(x.id)); litters(); }); }); carryUpload(d); }
+        restoreEdits(d, form, kept);
         var pn = $('[data-pay-next]', d); if (pn) pn.addEventListener('click', closeDrawer);
         var mv = $('#move-litter', d);
         if (mv) mv.addEventListener('submit', function (e) {
@@ -1770,8 +1819,9 @@
     var regs = (P.registries || []).slice();
     if (p && p.registry && regs.indexOf(p.registry) < 0) regs.push(p.registry);
     var word = sex === 'female' ? 'mom' : 'dad';
+    var kept = takeEdits('#parent', p && p.id);
     openDrawer(p ? p.name : 'Add a ' + word,
-      '<form id="parent" novalidate>' + (p ? '<input type="hidden" name="version" value="' + esc(p.version) + '">' : '') +
+      '<form id="parent" novalidate data-rec="' + esc(p ? p.id : '') + '">' + (p ? '<input type="hidden" name="version" value="' + esc(p.version) + '">' : '') +
       '<input type="hidden" name="sex" value="' + esc(sex) + '">' + (canEdit ? prefillBox('parent', word) : '') +
       '<div class="field"><label for="pa-name">Name</label><input id="pa-name" name="name" type="text" value="' + esc(p ? p.name : '') + '" required' + dis + '><div class="hint">The ' + word + '\'s call name or registered name.</div></div>' +
       '<div class="field"><label for="pa-breed">Breed</label><select id="pa-breed" name="breed"' + dis + '><option value="">Choose a breed</option>' +
@@ -1800,6 +1850,7 @@
           body.health_tests = $$('[name=test]:checked', form).map(function (c) { return c.value; });
           (p ? api('PUT', '/api/parents/' + p.id, body) : api('POST', '/api/parents', body))
             .then(function (r) {
+              form.dataset.saved = '1';
               return attachHeld(form, '/api/parents/' + (p ? p.id : r.id) + '/documents').then(function (n) {
                 toast((p ? 'Saved' : pendingUpload || n ? 'Added' : 'Added. Add a photo next.') + (n ? ', with the document kept as private' : ''));
                 return loadParents().then(function () { parentsView(); parentDrawer(findParent(p ? p.id : r.id)); });
@@ -1815,6 +1866,7 @@
             .catch(function (err) { showError(form, err); });
         });
         if (p) { wireParentPhoto(d, p, canEdit); wireDocs(d, canEdit, '/api/parents/' + p.id + '/documents', function () { return loadParents().then(function () { parentsView(); parentDrawer(findParent(p.id)); }); }); carryUpload(d); }
+        restoreEdits(d, form, kept);
       });
   }
 
@@ -1877,8 +1929,8 @@
   function prefillBox(owner, word) {
     if (!(state.config && state.config.prefill)) return '';
     return '<div class="prefill" data-prefill><p class="prefill-title">Fill from a document</p>' +
-      '<p class="hint">Upload a health record, pedigree or registration paper, as a PDF or a photo of the page, and the empty fields below are filled from it. Check each one before you save. When you save, the document is kept with this ' + esc(word) + ' as a private document.</p>' +
-      '<div class="prefill-row"><label for="pf-file-' + owner + '" class="btn btn-sm">Choose a document</label><input id="pf-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>' +
+      '<p class="hint">Upload health records, a pedigree or a registration paper, as PDFs or photos of the pages, and the empty fields below are filled from them. You can choose several at once. Check each field before you save. When you save, the documents are kept with this ' + esc(word) + ' as private documents.</p>' +
+      '<div class="prefill-row"><label for="pf-file-' + owner + '" class="btn btn-sm">Choose documents</label><input id="pf-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple hidden>' +
       '<label class="check"><input type="checkbox" data-pf-replace><span>Replace what is already filled in</span></label></div>' +
       '<p class="prefill-status" data-pf-status role="status" hidden></p></div>';
   }
@@ -1954,26 +2006,39 @@
     var input = $('input[type=file]', box), status = $('[data-pf-status]', box);
     function say(text, bad) { status.hidden = false; status.textContent = text; status.classList.toggle('error', !!bad); }
     var max = (state.listings && state.listings.max_doc_bytes) || (state.parents && state.parents.max_doc_bytes) || 10485760;
+    // Alex, 2026-11-18. Several documents can be chosen at once. They are read one after another,
+    // each filling only what is still empty, and each is kept to save with the record.
     input.addEventListener('change', function () {
-      var file = input.files && input.files[0];
-      if (!file) return;
+      var files = Array.prototype.slice.call(input.files || []);
+      if (!files.length) return;
       input.value = '';
-      if (file.size > max) { say(file.name + ' is larger than 10 MB. A scan at a lower resolution, or one page per file, will fit.', true); return; }
       var q = '?form=' + owner + (opts.sex ? '&sex=' + encodeURIComponent(opts.sex) : '') + (opts.litter ? '&litter=' + encodeURIComponent(opts.litter) : '');
-      var fb = fileBusy(input, 'Reading the document…');
-      say('Reading ' + file.name + '. A photo of a page can take up to half a minute.');
-      api('POST', '/api/extract' + q, undefined, file).then(function (r) {
+      var replace = $('[data-pf-replace]', box).checked;
+      var filled = 0, kept = 0, read = [], notes = [], bad = false;
+      var fb = fileBusy(input, files.length > 1 ? 'Reading the documents…' : 'Reading the document…');
+      files.reduce(function (p, file, i) {
+        return p.then(function () {
+          if (file.size > max) { notes.push(file.name + ' is larger than 10 MB. A scan at a lower resolution, or one page per file, will fit.'); bad = true; return; }
+          say('Reading ' + file.name + (files.length > 1 ? ' (' + (i + 1) + ' of ' + files.length + ')' : '') + '. A photo of a page can take up to half a minute.');
+          return api('POST', '/api/extract' + q, undefined, file).then(function (r) {
+            if (r.empty) { notes.push(file.name + ': ' + (r.message || 'nothing in it fits this form.')); return; }
+            var res = applyPrefill(d, form, r, replace);
+            filled += res.filled; kept += res.kept;
+            form.heldDocs.push({ file: file, kind: r.kind || 'other' });
+            read.push(file.name);
+            // A saved parent's sex comes from Add a mom or Add a dad, so a document for the other is only pointed out.
+            if (opts.sex && r.sex && r.sex !== opts.sex) { notes.push(file.name + ' seems to be about a ' + (r.sex === 'male' ? 'male' : 'female') + ' dog, and this is a ' + (opts.sex === 'female' ? 'mom' : 'dad') + '.'); bad = true; }
+          }).catch(function (err) { notes.push(file.name + ': ' + err.message); bad = true; });
+        });
+      }, Promise.resolve()).then(function () {
         fb.done();
-        if (r.empty) { say(r.message || 'We could not find anything in this document that fits this form. Nothing was changed.', true); return; }
-        var res = applyPrefill(d, form, r, $('[data-pf-replace]', box).checked);
-        form.heldDocs.push({ file: file, kind: r.kind || 'other' });
-        var kept = res.kept ? ' ' + (res.kept === 1 ? 'One field you had filled in was left as it was.' : res.kept + ' fields you had filled in were left as they were.') +
+        var head = filled ? 'Filled ' + plural(filled, 'field') + ' from ' + read.join(', ') + '. Each one is marked below, so please check it before you save.'
+          : read.length ? 'Everything ' + (read.length > 1 ? 'these documents say' : 'this document says') + ' is already in the form, so nothing changed.'
+          : 'Nothing was changed.';
+        var keptNote = kept ? ' ' + (kept === 1 ? 'One field that was already filled in was left as it was.' : kept + ' fields that were already filled in were left as they were.') +
           ' To use what the document says instead, tick Replace and choose the document again.' : '';
-        // A saved parent's sex comes from Add a mom or Add a dad, so a document for the other is only pointed out.
-        var other = opts.sex && r.sex && r.sex !== opts.sex ? ' This document seems to be about a ' + (r.sex === 'male' ? 'male' : 'female') + ' dog, and this is a ' + (opts.sex === 'female' ? 'mom' : 'dad') + '.' : '';
-        say((res.filled ? 'Filled ' + plural(res.filled, 'field') + ' from ' + file.name + '. Each one is marked below, so please check it before you save.'
-          : 'Everything this document says is already in the form, so nothing changed.') + kept + other, !!other);
-      }).catch(function (err) { fb.done(); say(err.message, true); });
+        say(head + keptNote + (notes.length ? ' ' + notes.join(' ') : ''), bad || !read.length);
+      });
     });
   }
   /* After a save: the held documents go up as private documents of the saved record. A failure
@@ -2016,7 +2081,9 @@
           Object.keys(K).map(function (k) { return '<option value="' + esc(k) + '">' + esc(K[k]) + '</option>'; }).join('') + '</select></div>' +
         '<div class="field"><label for="doc-title-' + owner + '">Name</label><input id="doc-title-' + owner + '" name="title" type="text" maxlength="120"><div class="hint">Optional. The file name is used otherwise.</div></div></div>' +
         // Alex, 2026-11-02. The upload sits right under What it is and Name.
-        '<label for="doc-file-' + owner + '" class="btn btn-sm doc-up">Choose a file and upload</label><input id="doc-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" hidden>' +
+        // Alex, 2026-11-18. Several files can be chosen at once, and each is added with the same What it is and Who can see it.
+        '<label for="doc-file-' + owner + '" class="btn btn-sm doc-up">Choose files and upload</label><input id="doc-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple hidden>' +
+        '<div class="hint">You can choose several files at once, up to ' + (max - docs.length) + ' more.</div>' +
         '<fieldset class="field doc-vis"><legend>Who can see it</legend><label class="check"><input type="radio" name="visibility" value="public"><span>Families, on the site</span></label>' +
         '<label class="check"><input type="radio" name="visibility" value="private" checked><span>Puppy Connection staff only</span></label></fieldset>' +
         '<p class="error" data-doc-error hidden></p></form>' : '') + '</section>';
@@ -2097,16 +2164,36 @@
     var form = $('.doc-form', sec), errBox = form && $('[data-doc-error]', form);
     var max = (state.listings && state.listings.max_doc_bytes) || (state.parents && state.parents.max_doc_bytes) || 10485760;
     if (form) $('input[type=file]', form).addEventListener('change', function () {
-      var file = this.files && this.files[0];
-      if (!file) return;
+      var input = this, files = Array.prototype.slice.call(input.files || []);
+      if (!files.length) return;
       errBox.hidden = true;
-      if (file.size > max) { errBox.hidden = false; errBox.textContent = file.name + ' is larger than 10 MB. A scan at a lower resolution, or one page per file, will fit.'; return; }
+      var room = (state.listings && state.listings.max_docs) || (state.parents && state.parents.max_docs) || 10;
+      room -= $$('.doc', sec).length;
+      var big = files.filter(function (f) { return f.size > max; });
+      var go = files.filter(function (f) { return f.size <= max; });
+      var over = go.length > room ? go.slice(room) : [];
+      go = go.slice(0, Math.max(room, 0));
       var f = formData(form);
       var vis = ($('[name=visibility]:checked', form) || {}).value || 'private';
-      var q = '?kind=' + encodeURIComponent(f.kind) + '&visibility=' + encodeURIComponent(vis) + '&title=' + encodeURIComponent(f.title || '') + '&name=' + encodeURIComponent(file.name.replace(/\.[^.]+$/, ''));
-      var fb = fileBusy(this, 'Uploading…');
-      api('POST', uploadPath + q, undefined, file).then(function () { fb.done(); toast(vis === 'public' ? 'Document added for families to see' : 'Document added, for Puppy Connection only'); reopen(); })
-        .catch(function (err) { fb.done(); errBox.hidden = false; errBox.textContent = err.message; });
+      // A typed Name fits one file, so with several each keeps its own file name.
+      var title = go.length === 1 ? (f.title || '') : '';
+      var failed = [];
+      var fb = fileBusy(input, go.length > 1 ? 'Uploading ' + go.length + ' files…' : 'Uploading…');
+      go.reduce(function (p, file) {
+        return p.then(function () {
+          var q = '?kind=' + encodeURIComponent(f.kind) + '&visibility=' + encodeURIComponent(vis) + '&title=' + encodeURIComponent(title) + '&name=' + encodeURIComponent(file.name.replace(/\.[^.]+$/, ''));
+          return api('POST', uploadPath + q, undefined, file).catch(function (err) { failed.push(file.name + ': ' + err.message); });
+        });
+      }, Promise.resolve()).then(function () {
+        fb.done(); input.value = '';
+        var added = go.length - failed.length;
+        var notes = failed.concat(big.map(function (b) { return b.name + ' is larger than 10 MB. A scan at a lower resolution, or one page per file, will fit.'; }))
+          .concat(over.length ? [plural(over.length, 'file') + ' did not fit, as each record holds up to ' + (room + $$('.doc', sec).length) + ' documents.'] : []);
+        if (!added) { errBox.hidden = false; errBox.textContent = notes.join(' '); return; }
+        toast((added === 1 ? (vis === 'public' ? 'Document added for families to see' : 'Document added, for Puppy Connection only')
+          : added + ' documents added' + (vis === 'public' ? ' for families to see' : ', for Puppy Connection only')) + (notes.length ? '. ' + notes.join(' ') : ''));
+        reopen();
+      });
     });
     $$('[data-doc-vis]', sec).forEach(function (b) {
       b.addEventListener('click', function () {

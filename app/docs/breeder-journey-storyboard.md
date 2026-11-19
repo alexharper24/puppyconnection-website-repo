@@ -327,7 +327,7 @@ photo**, and each email links straight to the puppy's photos. Placed puppies are
 - **Pending accounts see no Litters, Moms and dads or Pay to list** until approved.
 - **Links expire.** A new account link lasts 24 hours, a password link 1 hour, an invitation 7 days.
 - **Fill from a document** cannot read a scanned PDF with no text ("A clear photo of the page works
-  instead") and is limited to 20 a day.
+  instead") and is limited to 60 a day.
 - **Paying for one puppy at a time.** The ready-to-list note and the lede suggest finishing the litter
   and paying together.
 

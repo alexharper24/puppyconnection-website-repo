@@ -1,3 +1,5 @@
+// WARNING: do not deploy this file. Since the cutover (2026-10-31) it names the same Worker as
+// wrangler.production.jsonc, so a deploy puts staging settings on production (app/README.md).
 // The hosted TEST deployment of the operator screens, on the Puppy Connection Cloudflare account.
 // Deploy from app/admin:  wrangler deploy --config wrangler.hosted.jsonc
 // Signed in with Cloudflare Access on the dry-snowflake-0e9c team (an emailed one-time code, as

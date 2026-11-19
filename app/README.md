@@ -106,11 +106,17 @@ tested from any browser. It moved there from Alex's main account on 2026-10-02, 
 - **Each Worker has its own config**, `wrangler.hosted.jsonc`, beside its local
   `wrangler.jsonc`, and each pins the account id so a deploy cannot land in another account.
 
-To redeploy the portal and the admin after a change, run this from the `app` folder,
-with `W` standing for `node ../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js`.
+WARNING: Since the cutover on October 31, 2026, the `hosted` and `production` configs name the same
+`portal` and `admin` Workers on the same account. A deploy with `wrangler.hosted.jsonc` replaces
+production's settings with the staging ones, which turns on Stripe test mode, the email allowlist
+and the workers.dev origins. On 2026-11-18 this ran for 19 seconds before the production config
+was deployed again. Deploy with the production config only.
+
+To redeploy the portal and the admin after a change, merge to main first, then run this from the
+`app` folder, with `W` standing for `node ../../teapup-website-repo/admin/node_modules/wrangler/bin/wrangler.js`.
 
 ```bash
-(cd portal && $W deploy --config wrangler.hosted.jsonc) && (cd admin && $W deploy --config wrangler.hosted.jsonc)
+(cd portal && $W deploy --config wrangler.production.jsonc) && (cd admin && $W deploy --config wrangler.production.jsonc)
 ```
 
 The site is not deployed from here. Workers Builds builds it from the site repository (below), so

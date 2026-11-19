@@ -21,8 +21,8 @@ import { TESTS } from './healthtests.js';
 export const EXTRACT_MODEL = '@cf/meta/llama-4-scout-17b-16e-instruct';
 
 export const MAX_TEXT_CHARS = 12000;
-export const PER_DAY = 20;
-export const PER_BURST = 6;
+export const PER_DAY = 60;
+export const PER_BURST = 15;
 export const ALL_PER_DAY = 400;
 
 const ago = (ms) => new Date(Date.now() - ms).toISOString().slice(0, 19) + 'Z';

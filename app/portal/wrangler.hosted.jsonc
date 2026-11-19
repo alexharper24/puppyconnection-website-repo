@@ -1,3 +1,5 @@
+// WARNING: do not deploy this file. Since the cutover (2026-10-31) it names the same Worker as
+// wrangler.production.jsonc, so a deploy puts staging settings on production (app/README.md).
 // The hosted TEST deployment of the portal, on the Puppy Connection Cloudflare account.
 // Deploy from app/portal:  wrangler deploy --config wrangler.hosted.jsonc
 // DEV_MODE staging (plan P7.3) makes this copy look like production, with no "test version"

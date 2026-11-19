@@ -965,6 +965,10 @@ async function reportCsv(req, env, ctx, name) {
 // began counting it. The chart reads traffic_daily, a row a day for each kind of page.
 const TRAFFIC_FROM = '2026-11-01';
 const DAY_RX = /^\d{4}-\d{2}-\d{2}$/;
+// Days before the site counted sources hold an estimate (Alex, 2026-11-19): our own counts split in
+// the proportions Google Analytics saw for each page and day, written by migration 0102 from
+// app/.state/source-backfill/build_backfill.py.
+const SOURCES_ESTIMATED_TO = '2026-11-18';
 
 async function traffic(req, env) {
   const today = now().slice(0, 10);
@@ -975,7 +979,8 @@ async function traffic(req, env) {
   // Where visitors came from (Alex, 2026-11-19, migrations/0101), counted from the deploy that began it.
   const { results: sources } = await env.DB.prepare('SELECT day, kind, source, views, clicks FROM traffic_source_daily WHERE day >= ? ORDER BY day').bind(since).all();
   const sfirst = sources.length ? sources[0].day : null;
-  return json({ today, puppies_from: TRAFFIC_FROM, pages_from: (first && first.d) || null, sources_from: sfirst, days: results, sources });
+  return json({ today, puppies_from: TRAFFIC_FROM, pages_from: (first && first.d) || null, sources_from: sfirst,
+    sources_estimated_to: sfirst && sfirst <= SOURCES_ESTIMATED_TO ? SOURCES_ESTIMATED_TO : null, days: results, sources });
 }
 
 /** The most viewed pages between two days, puppies and the other pages together, for one kind or all. */

@@ -1179,18 +1179,21 @@ async function parentRow(env, id) {
 /**
  * A mom or dad photo added by Puppy Connection (Alex, 2026-11-10). The same size floor and quality
  * check as the breeder's own upload in the portal (lib/parents.js storeParentPhoto), so a photo
- * that fails is never stored and staff are told why.
+ * that fails is never stored and staff are told why. ?override=1 stores it without the check, when
+ * staff choose to use it anyway (Alex, 2026-11-20), and the audit row says so.
  */
 async function adminUploadParentPhoto(req, env, ctx, id, who) {
   requireSameOrigin(req);
   const p = await parentRow(env, id);
   // A local test can ask the stand-in for a verdict. Nothing else can choose one.
   const sim = isLocal(req, env) ? req.headers.get('x-sim-photo-check') : null;
+  const override = new URL(req.url).searchParams.get('override') === '1';
   const r = await storeParentPhoto(env, p, new Uint8Array(await req.arrayBuffer()),
-    (action, after) => auditStmt(env, 'operator', who.email, action, 'parent', id, null, { ...after, breeder_id: p.breeder_id }), { sim });
+    (action, after) => auditStmt(env, 'operator', who.email, action, 'parent', id, null, { ...after, breeder_id: p.breeder_id, ...(override ? { photo_check: 'overridden' } : {}) }),
+    { sim, skipCheck: override });
   if (r.refused) {
     await auditStmt(env, 'operator', who.email, 'parent.photo.sent_back', 'parent', id, null, { reasons: r.refused.reasons, breeder_id: p.breeder_id }).run();
-    throw new HttpError(422, `${r.refused.messages.join(' ')} The photo was not added, so upload a clearer one.`);
+    throw new HttpError(422, `${r.refused.messages.join(' ')} The photo was not added.`, { photo_check: r.refused.reasons });
   }
   if (await isPublicParent(env, id)) r.stmts.push(dirtyStmt(env));
   await env.DB.batch(r.stmts);
@@ -1683,6 +1686,26 @@ async function adminCheckPhoto(req, env, ctx, id, who) {
   return json({ quality: r.quality, reasons: r.reasons, messages: r.messages, route: s.photoCheckRoute });
 }
 
+/**
+ * Put a photo on the listing although the photo check did not pass it, for staff uploading on a
+ * breeder's behalf (Alex, 2026-11-20). It counts as a passed photo for the schedule and a photo
+ * hold, as Keep in Photo review does, and no email goes to the breeder.
+ */
+async function adminUsePhoto(req, env, ctx, id, who) {
+  requireSameOrigin(req);
+  const ph = await env.DB.prepare("SELECT * FROM photos WHERE id = ? AND quality IN ('sent_back', 'review', 'pending')").bind(id).first();
+  if (!ph) throw bad('That photo is already on the listing or was removed.');
+  const stmts = [
+    env.DB.prepare("UPDATE photos SET quality = 'pass', quality_note = ? WHERE id = ? AND quality IN ('sent_back', 'review', 'pending')")
+      .bind(`used anyway by ${who.email}`, id),
+    auditStmt(env, 'operator', who.email, 'photo.override', 'puppy', ph.puppy_id, { photo: id, quality: ph.quality, reasons: ph.quality_reasons }, { photo: id, quality: 'pass', breeder_id: ph.breeder_id }),
+    ...await photoPassedStmts(env, ph.puppy_id, ph.created_at, { type: 'operator', email: who.email }),
+  ];
+  if (await isPublicPuppy(env, ph.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true, quality: 'pass' });
+}
+
 async function adminUploadCard(req, env, ctx, id) {
   requireSameOrigin(req);
   const photo = await env.DB.prepare('SELECT * FROM photos WHERE id = ?').bind(id).first();
@@ -1805,7 +1828,7 @@ const STAFF_ALLOWED = [
   // Alex, 2026-11-07. Hope lists puppies without payment for the breeders she manages, one at a time or a litter.
   ['POST', /^\/api\/(puppies|litters)\/[\w-]+\/comp$/],
   ['POST', /^\/api\/site\/publish$/],
-  ['POST', /^\/api\/photos\/[\w-]+\/(card|check)$/],
+  ['POST', /^\/api\/photos\/[\w-]+\/(card|check|use)$/],
   ['PUT', /^\/api\/photos\/[\w-]+\/focus$/],
   ['DELETE', /^\/api\/photos\/[\w-]+$/],
   // Alex, 2026-11-10. A mom or dad photo and its face, as staff already do for puppy photos.
@@ -1877,6 +1900,7 @@ const ROUTES = [
   ['PUT', /^\/api\/parents\/([\w-]+)\/photo\/focus$/, adminSetParentFocus],
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, adminUploadCard],
   ['POST', /^\/api\/photos\/([\w-]+)\/check$/, adminCheckPhoto],
+  ['POST', /^\/api\/photos\/([\w-]+)\/use$/, adminUsePhoto],
   ['DELETE', /^\/api\/photos\/([\w-]+)$/, adminDeletePhoto],
   ['GET', /^\/api\/subscribers$/, listSubscribers],
   ['POST', /^\/api\/subscribers$/, addSubscriberAdmin],

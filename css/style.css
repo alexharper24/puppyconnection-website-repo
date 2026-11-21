@@ -377,6 +377,26 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
   filter:blur(22px) saturate(.7) brightness(.94);transform:scale(1.25);
 }
 .gallery-main .slide img{position:relative;z-index:1;display:block}
+/* Tap to enlarge (Alex, 2026-11-20). The script adds .can-zoom, the corner button and the dialog,
+   so a page without the script shows the plain gallery. */
+.gallery-main.can-zoom{cursor:zoom-in}
+.photo-zoom{position:absolute;right:.6rem;bottom:.6rem;z-index:2;display:grid;place-items:center;width:44px;height:44px;padding:0;border:0;border-radius:4px;background:rgba(38,38,38,.72);color:#fff;cursor:pointer}
+.photo-zoom:hover{background:var(--ink)}
+.photo-zoom:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+.lightbox{width:100vw;height:100dvh;max-width:none;max-height:none;margin:0;padding:0;border:0;background:rgba(20,20,20,.96);color:#fff;overflow:hidden}
+.lightbox::backdrop{background:rgba(20,20,20,.6)}
+.lightbox[open]{display:grid;place-items:center}
+.lb-fig{margin:0;width:100%;height:100%;display:grid;grid-template-rows:1fr auto;place-items:center;padding:3.5rem 1rem 1rem;box-sizing:border-box}
+.lb-img{max-width:min(100%,1600px);max-height:calc(100dvh - 6.5rem);width:auto;height:auto;object-fit:contain;display:block}
+.lb-count{font-size:.9rem;padding-top:.6rem;color:#e8e8e8}
+.lb-close,.lb-nav{position:absolute;display:grid;place-items:center;width:48px;height:48px;padding:0;border:0;border-radius:4px;background:rgba(255,255,255,.14);color:#fff;font-size:2rem;line-height:1;cursor:pointer}
+.lb-close{top:.6rem;right:.6rem}
+.lb-nav{top:50%;transform:translateY(-50%)}
+.lb-prev{left:.6rem}
+.lb-next{right:.6rem}
+.lb-close:hover,.lb-nav:hover{background:rgba(255,255,255,.28)}
+.lb-close:focus-visible,.lb-nav:focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+@media(max-width:600px){.lb-nav{top:auto;bottom:.6rem;transform:none}.lb-fig{padding-bottom:4.2rem}.lb-img{max-height:calc(100dvh - 9rem)}}
 /* One row that scrolls, rather than a second row that competes with the main
    photo for height. The arrows only appear when there is somewhere to go. */
 .thumb-strip{position:relative;margin-top:.5rem}

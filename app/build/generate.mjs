@@ -389,6 +389,63 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     arrows();
     start();
   }
+  // Alex, 2026-11-20. Tap the main photo, or its Enlarge button, to see each photo large. The arrows,
+  // the arrow keys and a swipe move between photos, and Escape, the close button or a tap outside
+  // the photo closes it. On closing, the gallery shows the photo that was open.
+  var zoomFrame = document.querySelector('#dMain');
+  if (zoomFrame && window.HTMLDialogElement) {
+    var zSlides = [].slice.call(zoomFrame.querySelectorAll('.slide'));
+    var zThumbs = [].slice.call(document.querySelectorAll('#dGallery button'));
+    var many = zSlides.length > 1;
+    var box = document.createElement('dialog');
+    box.className = 'lightbox';
+    box.setAttribute('aria-label', 'Photos');
+    box.innerHTML = '<figure class="lb-fig"><img class="lb-img" alt=""><figcaption class="lb-count"></figcaption></figure>'
+      + '<button type="button" class="lb-close" aria-label="Close">&times;</button>'
+      + (many ? '<button type="button" class="lb-nav lb-prev" aria-label="Previous photo">&#8249;</button><button type="button" class="lb-nav lb-next" aria-label="Next photo">&#8250;</button>' : '');
+    document.body.appendChild(box);
+    var lbImg = box.querySelector('.lb-img'), lbCount = box.querySelector('.lb-count'), at = 0;
+    var bigOf = function (s) { var im = s.querySelector('img'); return s.getAttribute('data-large') || im.getAttribute('src') || im.getAttribute('data-src'); };
+    var view = function (n) {
+      at = (n + zSlides.length) % zSlides.length;
+      var s = zSlides[at];
+      lbImg.src = bigOf(s);
+      lbImg.alt = s.querySelector('img').alt;
+      lbCount.textContent = many ? (at + 1) + ' of ' + zSlides.length : '';
+      if (many) { var nx = new Image(); nx.src = bigOf(zSlides[(at + 1) % zSlides.length]); }
+    };
+    var open = function () {
+      var on = zoomFrame.querySelector('.slide.is-on');
+      view(Math.max(0, zSlides.indexOf(on)));
+      box.showModal();
+    };
+    var zoomBtn = document.createElement('button');
+    zoomBtn.type = 'button';
+    zoomBtn.className = 'photo-zoom';
+    zoomBtn.setAttribute('aria-label', 'Enlarge photo');
+    zoomBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>';
+    zoomFrame.appendChild(zoomBtn);
+    zoomFrame.classList.add('can-zoom');
+    zoomFrame.addEventListener('click', open);
+    box.querySelector('.lb-close').addEventListener('click', function () { box.close(); });
+    box.addEventListener('click', function (e) { if (e.target === box || e.target.classList.contains('lb-fig')) box.close(); });
+    if (many) {
+      box.querySelector('.lb-prev').addEventListener('click', function () { view(at - 1); });
+      box.querySelector('.lb-next').addEventListener('click', function () { view(at + 1); });
+      box.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowLeft') { e.preventDefault(); view(at - 1); }
+        else if (e.key === 'ArrowRight') { e.preventDefault(); view(at + 1); }
+      });
+      var x0 = null;
+      box.addEventListener('touchstart', function (e) { x0 = e.touches.length === 1 ? e.touches[0].clientX : null; }, { passive: true });
+      box.addEventListener('touchend', function (e) {
+        if (x0 === null) return;
+        var dx = e.changedTouches[0].clientX - x0; x0 = null;
+        if (Math.abs(dx) > 40) view(dx < 0 ? at + 1 : at - 1);
+      });
+    }
+    box.addEventListener('close', function () { if (zThumbs[at]) zThumbs[at].click(); });
+  }
   // Workplan G6: on a wide screen the notes (the breed guides) go under
   // whichever column leaves the two ends closest, since a long description makes the photo
   // column the long one. They sit under the photo without script, and on a phone they come last.
@@ -894,7 +951,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const whole = ((ph && ph.aspect) || 9) < 1.2;
     const url = esc(fillUrl(ph));
     const alt = `${esc(p.name)}, ${esc(p.b.name)} puppy${p.photos.length > 1 ? `, photo ${i + 1} of ${p.photos.length}` : ''}`;
-    return `<div class="slide${i === 0 ? ' is-on' : ''}${whole ? ' is-whole' : ''}"${whole ? (i === 0 ? ` style="--fill:${url}"` : ` data-fill="${url}"`) : ''}${i === 0 ? '' : ' aria-hidden="true"'}>`
+    // data-large is the copy the enlarged view shows (PAGES_JS), the breeder's 1,600 px upload or Wix at that size.
+    return `<div class="slide${i === 0 ? ' is-on' : ''}${whole ? ' is-whole' : ''}"${whole ? (i === 0 ? ` style="--fill:${url}"` : ` data-fill="${url}"`) : ''}${i === 0 ? '' : ' aria-hidden="true"'} data-large="${esc(fit(ph, 1600, 1600))}">`
       + `<img ${i === 0 ? 'src' : 'data-src'}="${esc(fit(ph, 1200, 800))}" alt="${alt}" decoding="async"></div>`;
   }
   const grid = (list, empty, cls = 'grid grid-4') => { cardN = 0; return list.length ? `<div class="${cls}">${list.map(card).join('')}</div>` : `<p class="empty">${empty}</p>`; };

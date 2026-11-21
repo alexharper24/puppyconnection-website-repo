@@ -546,9 +546,16 @@
         var label = $('label[for="' + input.id + '"]', d);
         if (label) label.textContent = 'Checking photo…';
         // The portal's screen first (photoscreen.js), then the server's floor and quality check.
-        window.pcScreenPhoto(f, 'dog').then(function () { return shrinkImage(f); }).then(function (sz) {
-          return rawApi('POST', '/api/parents/' + pid + '/photo', sz.full)
-            .then(function () { return sz.card ? rawApi('POST', '/api/parents/' + pid + '/photo/card', sz.card).catch(function () {}) : null; });
+        // Alex, 2026-11-20. A photo the check refuses can be used anyway, after staff say so.
+        screenForStaff(f, 'dog').then(function () { return shrinkImage(f); }).then(function (sz) {
+          var path = '/api/parents/' + pid + '/photo';
+          return rawApi('POST', path, sz.full).catch(function (e) {
+            if (e.status !== 422 || !e.data || !e.data.photo_check) throw e;
+            return pcAsk(e.message + ' Use it anyway?', { yes: 'Use anyway' }).then(function (ok) {
+              if (!ok) throw new Error('skip');
+              return rawApi('POST', path + '?override=1', sz.full);
+            });
+          }).then(function () { return sz.card ? rawApi('POST', path + '/card', sz.card).catch(function () {}) : null; });
         }).then(function () { toast('Photo added'); return parentFace(bid, pid, null, true); }).catch(function (e) {
           input.value = '';
           if (label) label.textContent = 'Try another photo';
@@ -837,7 +844,18 @@
   }
   function rawApi(method, path, blob) {
     return fetch(path, { method: method, credentials: 'same-origin', headers: { 'content-type': blob.type || 'application/octet-stream' }, body: blob })
-      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) { if (!r.ok) throw new Error(d.error || 'Something went wrong.'); return d; }); });
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (d) {
+        if (!r.ok) { var err = new Error(d.error || 'Something went wrong.'); err.status = r.status; err.data = d; throw err; }
+        return d;
+      }); });
+  }
+  // Alex, 2026-11-20. Staff adding photos for a breeder may use one the browser screen refuses for
+  // size, after saying so. The dark question already lets them go on.
+  function screenForStaff(file, what) {
+    return window.pcScreenPhoto(file, what).catch(function (e) {
+      if (e.message === 'skip') throw e;
+      return pcAsk(e.message + ' Use it anyway?', { yes: 'Use anyway' }).then(function (ok) { if (!ok) throw new Error('skip'); });
+    });
   }
   // Imported Wix photos are only served through a Wix resize address, as thumb() does at list size.
   function photoThumb(url) {
@@ -858,7 +876,9 @@
             // Alex, 2026-11-10. A photo the quality check holds back is not on the site, so staff see why.
             (ph.quality === 'sent_back' ? '<span class="small" style="color:var(--danger,#9b2c2c)">Sent back, not on the site. ' + esc((ph.messages || []).join(' ')) + '</span>'
               : ph.quality === 'review' ? '<span class="small muted">Waiting in Photo review, not on the site yet.</span>'
-              : ph.quality === 'pending' ? '<span class="small muted">Being checked, not on the site yet.</span>' : '') + '</li>';
+              : ph.quality === 'pending' ? '<span class="small muted">Being checked, not on the site yet.</span>' : '') +
+            // Alex, 2026-11-20. Staff can put a held photo on the listing anyway.
+            (ph.quality === 'sent_back' || ph.quality === 'review' || ph.quality === 'pending' ? '<button class="btn btn-sm" data-use>Use anyway</button>' : '') + '</li>';
         }).join('') + '</ul>' : '<p class="muted">No photos yet.</p>') +
         '<div class="field"><label for="ph-add">Add photos</label><input id="ph-add" type="file" accept="image/*" multiple></div>' +
         '<p class="notice notice-alert small" id="ph-err" hidden></p>' +
@@ -876,14 +896,14 @@
           // quality check once the card copy is up. A photo that does not pass stays off the site.
           files.forEach(function (f) {
             chain = chain.then(function () {
-              return window.pcScreenPhoto(f).then(function () { return shrinkImage(f); }).then(function (sz) {
+              return screenForStaff(f).then(function () { return shrinkImage(f); }).then(function (sz) {
                 return rawApi('POST', '/api/puppies/' + p.id + '/photos', sz.full).then(function (r) {
                   return (sz.card ? rawApi('POST', '/api/photos/' + r.id + '/card', sz.card).catch(function () {}) : Promise.resolve())
                     .then(function () { return api('POST', '/api/photos/' + r.id + '/check', {}).catch(function () { return { quality: 'pending' }; }); })
                     .then(function (c) {
                       added += 1;
                       if (c.quality === 'pass' || !c.quality) last = r.id;
-                      else if (c.quality === 'sent_back') notes.push(f.name + ' was sent back and is not on the site. ' + (c.messages || []).join(' '));
+                      else if (c.quality === 'sent_back') notes.push(f.name + ' did not pass the photo check and is not on the site. ' + (c.messages || []).join(' ') + ' Use anyway puts it on the listing.');
                       else if (c.quality === 'review') notes.push(f.name + ' waits in Photo review.');
                       else notes.push(f.name + ' is still being checked and goes on the site when it passes.');
                     });
@@ -936,6 +956,13 @@
           b.addEventListener('click', function () {
             if (!pcConfirm(b, 'Remove this photo from ' + p.name + '?', { yes: 'Remove', danger: true })) return;
             api('DELETE', '/api/photos/' + b.closest('li').dataset.id).then(function () { toast('Photo removed'); again(); }).catch(fail);
+          });
+        });
+        $$('[data-use]', d).forEach(function (b) {
+          b.addEventListener('click', function () {
+            b.disabled = true;
+            api('POST', '/api/photos/' + b.closest('li').dataset.id + '/use', {}).then(function () { toast('Photo on the listing'); again(); })
+              .catch(function (e) { b.disabled = false; fail(e); });
           });
         });
         $$('[data-move]', d).forEach(function (b) {

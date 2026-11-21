@@ -136,11 +136,12 @@ export const PARENT_CARD_EDGE = 1000;
  * A photo that passes is stored with its size and the dog detector's point (lib/focus.js), which
  * the breeder can then move with Face. audit(action, after) makes the caller's audit row.
  * Returns { refused } with the reasons and sentences, or { key, stmts } for the caller to run with
- * its publish marker, then delete the old file.
+ * its publish marker, then delete the old file. skipCheck is for Puppy Connection staff adding a
+ * photo for a breeder who chose to use it anyway (Alex, 2026-11-20). The portal never passes it.
  */
-export async function storeParentPhoto(env, parent, raw, audit, { sim } = {}) {
+export async function storeParentPhoto(env, parent, raw, audit, { sim, skipCheck } = {}) {
   const img = cleanImage(raw);
-  const refused = await checkParentPhoto(env, img, { sim });
+  const refused = skipCheck ? null : await checkParentPhoto(env, img, { sim });
   if (refused) return { refused };
   const ext = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }[img.type];
   const key = `parents/${parent.breeder_id}/${parent.id}-${ulid().slice(-10).toLowerCase()}.${ext}`;

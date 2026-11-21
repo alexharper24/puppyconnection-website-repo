@@ -530,6 +530,12 @@ async function features() {
       check('a photo staff add that the check sends back stays off the site, and the list says why',
         sent.data.quality === 'sent_back' && /blurred/.test(sent.data.messages.join(' ')) && listed.quality === 'sent_back' && /blurred/.test(listed.messages.join(' ')) &&
         sql(`SELECT actor_type FROM audit_log WHERE action = 'photo.sent_back' AND after_json LIKE '%${bad.data.id}%'`).some((x) => x.actor_type === 'operator'), JSON.stringify(sent.data));
+      // Alex, 2026-11-20. Staff can put a photo the check sent back on the listing anyway.
+      const used = await admin.post(`/api/photos/${bad.data.id}/use`, {});
+      check('staff use a sent-back photo anyway, it goes on the listing and the audit log says so',
+        used.status === 200 && sql(`SELECT quality FROM photos WHERE id = '${bad.data.id}'`)[0].quality === 'pass' &&
+        sql(`SELECT actor_type FROM audit_log WHERE action = 'photo.override' AND after_json LIKE '%${bad.data.id}%'`).some((x) => x.actor_type === 'operator'), JSON.stringify(used.data));
+      check('a photo already on the listing cannot be used anyway again', (await admin.post(`/api/photos/${bad.data.id}/use`, {})).status === 400);
       await admin.req('DELETE', `/api/photos/${bad.data.id}`);
       const photos = (await admin.get(`/api/puppies/${pupId}/photos`)).data;
       const ids = photos.map((x) => x.id);
@@ -547,7 +553,12 @@ async function features() {
       sql(`INSERT INTO parent_dogs (id, breeder_id, sex, name, created_at, updated_at) VALUES ('${momId}', '${pupBreeder}', 'female', 'Staff test mom', '2026-11-10T00:00:00Z', '2026-11-10T00:00:00Z')`);
       try {
         const sent = await admin.req('POST', `/api/parents/${momId}/photo`, BIG, { headers: { 'content-type': 'image/jpeg', 'x-sim-photo-check': 'watermark' } });
-        check('staff are told why a mom photo the check sends back was not added', sent.status === 422 && /watermark/.test(sent.data.error), JSON.stringify(sent.data));
+        check('staff are told why a mom photo the check sends back was not added', sent.status === 422 && /watermark/.test(sent.data.error) &&
+          Array.isArray(sent.data.photo_check), JSON.stringify(sent.data));
+        // Alex, 2026-11-20. Staff can add it anyway, and the audit row says the check was overridden.
+        const over = await admin.req('POST', `/api/parents/${momId}/photo?override=1`, BIG, { headers: { 'content-type': 'image/jpeg', 'x-sim-photo-check': 'watermark' } });
+        check('staff add a mom photo anyway when the check refuses it, and the audit log says so', over.status === 201 &&
+          sql(`SELECT COUNT(*) AS n FROM audit_log WHERE action = 'parent.photo' AND entity_id = '${momId}' AND after_json LIKE '%overridden%'`)[0].n === 1, JSON.stringify(over.data));
         const up = await admin.req('POST', `/api/parents/${momId}/photo`, BIG, { headers: { 'content-type': 'image/jpeg' } });
         check('staff add a mom photo that passes', up.status === 201, JSON.stringify(up.data));
         const fr = await admin.put(`/api/parents/${momId}/photo/focus`, { fx: 0.4, fy: 0.2 });

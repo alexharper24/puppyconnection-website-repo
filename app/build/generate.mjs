@@ -135,6 +135,23 @@ function fillAttrs(photo, w, h) {
 // media/<id>/share, or the photo itself where it has none (lib/media.js).
 const shareSrc = (src) => (/^media\/[\w-]+$/.test(src || '') ? `${src}/share` : src);
 function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wixFit(photo.src, w, h) : (w <= 640 && photo.card ? photo.card : photo.src); }
+// The src, srcset and sizes of a photo in the puppy page's 3:2 frame (slide below). A photo in R2 has its card copy,
+// at most 640 px on its longest edge, and the copy at media/<id>, at most 1,600 px (lib/media.js, ops/photo_copies.py,
+// portal.js CARD_EDGE and FULL_EDGE). A photo with no card copy is answered whole at /card, so naming it is never worse
+// than before. The widths are the real ones, from the photo's shape and never above its own width. The frame shows a
+// portrait or square photo whole, narrower than the frame, so sizes shrinks with the shape. On a wide screen sizes
+// says 1,200 px, wider than the column, so a desktop takes the 1,600 px copy rather than enlarging the card a little.
+function slideSources(photo) {
+  const src = fit(photo, 1200, 800);
+  if (!photo) return { src };
+  const a = photo.aspect || (photo.w && photo.h ? photo.w / photo.h : 1.5);
+  const across = (edge) => Math.min(photo.w || Infinity, Math.round(a >= 1 ? edge : edge * a));
+  const small = fit(photo, 640, 427);
+  const [sw, lw] = isWix(photo.src) ? [across(640), across(1200)] : [across(640), across(1600)];
+  if (!small || small === src || !(sw < lw)) return { src };
+  const k = Math.min(1, a / 1.5);
+  return { src, srcset: `${small} ${sw}w, ${src} ${lw}w`, sizes: `(max-width: 940px) ${Math.round(100 * k)}vw, ${Math.round(1200 * k)}px` };
+}
 
 export const pageFor = { puppy: (s) => `puppy-${s}.html`, breed: (s) => `breed-${s}.html`, breeder: (s) => `breeder-${s}.html`, guide: (s) => `guide-${s}.html` };
 
@@ -335,7 +352,10 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     var i = 0;
     var load = function (k) {
       var s = slides[k], im = s && s.querySelector('img');
-      if (im && !im.getAttribute('src') && im.getAttribute('data-src')) im.setAttribute('src', im.getAttribute('data-src'));
+      if (im && !im.getAttribute('src') && im.getAttribute('data-src')) {
+        if (im.getAttribute('data-srcset')) im.setAttribute('srcset', im.getAttribute('data-srcset'));
+        im.setAttribute('src', im.getAttribute('data-src'));
+      }
       if (s && s.getAttribute('data-fill')) { s.style.setProperty('--fill', s.getAttribute('data-fill')); s.removeAttribute('data-fill'); }
     };
     var arrows = function () {
@@ -361,7 +381,9 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     var reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
     var timer = null, paused = false, inView = true;
     var stop = function () { if (timer) { clearInterval(timer); timer = null; } };
-    var canPlay = function () { return slides.length > 1 && !reduce.matches && !paused && inView && !document.hidden; };
+    // ready waits for the first photo, so the crossfade never moves on from a photo nobody has seen yet.
+    var ready = false;
+    var canPlay = function () { return ready && slides.length > 1 && !reduce.matches && !paused && inView && !document.hidden; };
     var start = function () { if (!timer && canPlay()) timer = setInterval(function () { show(i + 1); }, 4000); };
     var sync = function () { if (canPlay()) start(); else stop(); };
     var restart = function () { stop(); start(); };
@@ -385,9 +407,19 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     if ('IntersectionObserver' in window) {
       new IntersectionObserver(function (entries) { inView = entries[0].isIntersecting; sync(); }, { threshold: 0.25 }).observe(frame);
     }
-    load(1);
     arrows();
-    start();
+    // Alex, 2026-11-22. Nothing else in the gallery downloads until the first photo is in, so on a phone it has the
+    // connection to itself: then the thumbnails, the next photo and the crossfade start.
+    var first = slides[0] && slides[0].querySelector('img');
+    var afterFirst = function () {
+      if (ready) return;
+      ready = true;
+      thumbs.forEach(function (t) { var im = t.querySelector('img[data-src]'); if (im) { im.setAttribute('src', im.getAttribute('data-src')); im.removeAttribute('data-src'); } });
+      load(1);
+      start();
+    };
+    if (!first || first.complete) afterFirst();
+    else { first.addEventListener('load', afterFirst); first.addEventListener('error', afterFirst); setTimeout(afterFirst, 8000); }
   }
   // Alex, 2026-11-20. Tap the main photo, or its Enlarge button, to see each photo large. The arrows,
   // the arrow keys and a swipe move between photos, and Escape, the close button or a tap outside
@@ -947,13 +979,21 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
   }
   // One photo in the puppy page's frame. A square or portrait photo stays whole over a blurred fill of
   // itself, as the cards do (Alex, 2026-11-01), and the fill of a later photo loads with that photo.
+  // The first photo is a plain src with high priority so it starts with the page, and the later ones wait for the
+  // script (PAGES_JS), which loads each just before it shows. Both name the phone copy beside the full one, so a
+  // phone downloads the 640 px card (about a fifth of the bytes) where that is sharp enough (Alex, 2026-11-22: the
+  // main photo took 10.8 s on a throttled phone, behind the 1,600 px copies of photos not yet on screen).
+  // The thumbnails under it are card copies too, up to 130 KB each, so they take data-src and PAGES_JS gives them
+  // src once the main photo is in.
   function slide(ph, i, p) {
     const whole = ((ph && ph.aspect) || 9) < 1.2;
     const url = esc(fillUrl(ph));
     const alt = `${esc(p.name)}, ${esc(p.b.name)} puppy${p.photos.length > 1 ? `, photo ${i + 1} of ${p.photos.length}` : ''}`;
+    const r = slideSources(ph);
+    const pick = r.srcset ? (i === 0 ? ` srcset="${esc(r.srcset)}" sizes="${r.sizes}"` : ` data-srcset="${esc(r.srcset)}" sizes="${r.sizes}"`) : '';
     // data-large is the copy the enlarged view shows (PAGES_JS), the breeder's 1,600 px upload or Wix at that size.
     return `<div class="slide${i === 0 ? ' is-on' : ''}${whole ? ' is-whole' : ''}"${whole ? (i === 0 ? ` style="--fill:${url}"` : ` data-fill="${url}"`) : ''}${i === 0 ? '' : ' aria-hidden="true"'} data-large="${esc(fit(ph, 1600, 1600))}">`
-      + `<img ${i === 0 ? 'src' : 'data-src'}="${esc(fit(ph, 1200, 800))}" alt="${alt}" decoding="async"></div>`;
+      + `<img ${i === 0 ? 'src' : 'data-src'}="${esc(r.src)}"${pick} alt="${alt}" width="1200" height="800" decoding="async"${i === 0 ? ' fetchpriority="high" elementtiming="main-photo"' : ''}></div>`;
   }
   const grid = (list, empty, cls = 'grid grid-4') => { cardN = 0; return list.length ? `<div class="${cls}">${list.map(card).join('')}</div>` : `<p class="empty">${empty}</p>`; };
   const paras = (list) => list.map((t) => `<p>${esc(t)}</p>`).join('');
@@ -1022,7 +1062,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
       <div class="gallery-main" id="dMain">${p.photos.map((ph, i) => slide(ph, i, p)).join('')}</div>
       ${p.photos.length > 1 ? `<div class="thumb-strip">
         <button class="thumb-nav prev" type="button" aria-label="Earlier photos" hidden>&#8249;</button>
-        <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img ${fillAttrs(ph, 160, 160)} alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
+        <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img ${fillAttrs(ph, 160, 160).replace(/^src=/, 'data-src=')} alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
         <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
       </div>` : ''}
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}

@@ -995,7 +995,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     return `<div class="slide${i === 0 ? ' is-on' : ''}${whole ? ' is-whole' : ''}"${whole ? (i === 0 ? ` style="--fill:${url}"` : ` data-fill="${url}"`) : ''}${i === 0 ? '' : ' aria-hidden="true"'} data-large="${esc(fit(ph, 1600, 1600))}">`
       + `<img ${i === 0 ? 'src' : 'data-src'}="${esc(r.src)}"${pick} alt="${alt}" width="1200" height="800" decoding="async"${i === 0 ? ' fetchpriority="high" elementtiming="main-photo"' : ''}></div>`;
   }
-  const grid = (list, empty, cls = 'grid grid-4') => { cardN = 0; return list.length ? `<div class="${cls}">${list.map(card).join('')}</div>` : `<p class="empty">${empty}</p>`; };
+  // eager: false for a grid that sits below the fold, such as a puppy page's littermates, so its first two cards do not
+  // compete with the main photo on a phone (Alex, 2026-11-22).
+  const grid = (list, empty, cls = 'grid grid-4', eager = true) => { cardN = eager ? 0 : 2; return list.length ? `<div class="${cls}">${list.map(card).join('')}</div>` : `<p class="empty">${empty}</p>`; };
   const paras = (list) => list.map((t) => `<p>${esc(t)}</p>`).join('');
   const tel = (s) => String(s).replace(/[^\d+]/g, '');
   // An email address may break only after its @, so a long one fits a phone row without splitting mid-word.
@@ -1092,7 +1094,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
 ${mates.length ? `<section class="band band-warm">
   <div class="wrap">
     <div class="sec-head"><div><p class="eyebrow">Same litter</p><h2>${mates.length} ${mates.length === 1 ? 'littermate' : 'littermates'}</h2></div><a class="link-more" href="puppies.html">All puppies</a></div>
-    ${grid(mates, '')}
+    ${grid(mates, '', undefined, false)}
   </div>
 </section>` : ''}
 </main>`;

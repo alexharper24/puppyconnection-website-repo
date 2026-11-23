@@ -2,7 +2,7 @@
 name: puppyconnection-website-repo
 description: Project state for Puppy Connection, read first every session
 kind: other                 # listing directory, not a breeder. See pc-strategy-row
-updated: 2026-11-11
+updated: 2026-11-22
 gate: G1                    # concept is built and in review, but discovery was skipped and every later gate depends on it
 review_url: "https://alexharper24.github.io/puppyconnection-website-repo/"
 live_url: "https://www.puppy-connection.com/"
@@ -88,6 +88,16 @@ open:
   - {id: pc-req-directory, gate: G2, blocked_on: alex, item: "Sex, age, registration and state filters and sorting; admin reports by breed, over time, inactive and on-site breed demand; report-a-listing; seller statement and breeder acknowledgment (built 2026-10-25 in PR 15, migration 0063, workplan A6); transportation page; adopted puppies out of the index after a set time"}
   - {id: pc-req-buyer-accounts, gate: G2, blocked_on: client, item: "Family accounts with favorites, alerts and email preferences, excluded from the build as quoted. Amber ranks it priority 5, at launch if practical or straight after"}
   - {id: pc-launch-workplan, gate: G4, blocked_on: alex, item: "Every launch item (finish-at-launch work and the launch additions) is tracked in app/docs/launch-workplan.md with six session groups and their kickoff prompts (2026-10-17). Close this when every item there is closed. Status now lives in the launch checklist in the admin (2026-10-19), exported to app/docs/launch-checklist-status.md"}
+  # From the 2026-11-22 search review (hs-seo-data/2026-11-22-moz-review, Puppy Connection tab). Discovery questions first, then the G2 proposal, which is held until they are answered. Prose in "G2 proposal held for discovery" below
+  - {id: pc-q-states, gate: G1, blocked_on: alex, item: "Which states come after Indiana, and in what order. Sets which state pages and city pages get built. Demand from the 2026-11-22 city pull, five buying searches per city summed: Ohio 31,330, Indiana 21,990, Illinois 19,190, Pennsylvania 14,870, Wisconsin 13,260, Michigan 12,430, Kentucky 5,850 (hs-seo-data/puppyconnection/2026-11-22/keywords/city-volumes-by-city.txt)"}
+  - {id: pc-q-volume, gate: G1, blocked_on: alex, item: "Listings a month the site should reach a year out, and whether about 67 a month today is right (Alex's estimate, Amber to confirm). Sets how many breed and city pages the inventory can keep full"}
+  - {id: pc-q-breed-speed, gate: G1, blocked_on: client, item: "Amber's fastest and slowest breeds to list and go home, and whether families find those puppies through Puppy Connection. Sets which breed pages lead. Asked through Alex"}
+  - {id: pc-g2-head-search, gate: G2, blocked_on: alex, item: "Held for discovery. Make puppies.html the page for 'puppies for sale' (165,000 a month) and 'puppies for sale near me' (90,500), where Search Console has the site at position 16 for the second. Title and H1 name the search, and the first cards are written into the HTML rather than drawn by the browser. /puppies-for-sale and its slashed form already 301 here and carry 35 linking domains"}
+  - {id: pc-g2-indiana, gate: G2, blocked_on: alex, item: "Held for discovery. The home page ('Puppies for Sale in Indiana and the Midwest') and puppies-for-sale-in-indiana.html compete for 'puppies for sale indiana' (1,900 a month). Proposed: the state page owns Indiana, and the home page names the brand and the region the states answer sets, linking the state page with Indiana in the link text"}
+  - {id: pc-g2-breeders-indiana, gate: G2, blocked_on: alex, item: "Held for discovery. Three pages carry 'dog breeders in Indiana' (320 a month): dog-breeders-in-indiana.html, breeders.html and about.html. Proposed: the state page owns it, breeders.html targets 'dog breeders near me' (27,100) for the whole region, and about.html drops the search words (this reopens the About title set 2026-10-11)"}
+  - {id: pc-g2-breeder-side, gate: G2, blocked_on: alex, item: "Held for discovery. Page one for 13 breeder searches read 2026-11-22: puppy-connection.com is on none. Facebook groups and forum or video threads hold most places, the rest are marketplaces' own sell-with-us pages (PuppySpot, AKC Marketplace, Lancaster Puppies, puppies.com) and classified sites. Proposed: list-with-us.html keeps 'list puppies for sale' and 'advertise puppies for sale', and one guide page answers 'where to sell puppies online' and 'how to sell puppies' (about 1,550 a month together by SE Ranking), where no strong page holds the top. hs-seo-data/puppyconnection/2026-11-22/serp/breeder-page-one.txt"}
+  - {id: pc-g2-city-merge, gate: G2, blocked_on: alex, item: "Held for discovery. City volumes pulled 2026-11-22 (1,535 searches, city batch c2). Indiana leads with Indianapolis 7,010 and Fort Wayne 5,580, then Evansville 1,600, Muncie 850, South Bend 840, Terre Haute 720, Lafayette 670. Score the cities (city batch c5) with these figures, then merge claude/city-pages for the cities that pass the 3-breeder gate"}
+  - {id: pc-sitemap-fetch, gate: G5, blocked_on: claude, item: "Search Console listed the sitemap as Couldn't fetch, last read 2026-11-12, 313 pages discovered. Resubmitted 2026-11-22 and the live test of the sitemap address passed. Close when Search Console shows Success with a read date after 2026-11-22"}
   - {id: pc-schnauzer-low-shedding, gate: G5, blocked_on: alex, item: "The low-shedding guide keeps the Miniature Schnauzer, which AKC scores 3 of 5 for shedding (moderate) but lists among its breeds for people with allergies, and the page says both. Confirm it stays"}
 closed:
   - {id: pc-mobile-review, closed: 2026-11-11, evidence: "Portal and admin on phones, Alex's options A, 1 and 1: folding one-column menu, 44px controls, even button rows, Save bar in drawers. 1,636 measured layout problems to 22 across 195 phone screen and width combinations; 53 of 62 desktop screens unchanged beside the menu. PR 178, deployed from main; ledger in app/docs/batch-2026-11-11-mobile-review.md"}
@@ -126,6 +136,7 @@ closed:
   - {id: g1-money-searches, closed: 2026-09-28, evidence: "Keyword method run in full with a directory config, 623 of 623 template searches returned and 0 missing, competition measured on puppies.com for all 25 breeds, four results pages read. hs-seo-data/puppyconnection/2026-09-28/keyword-plan.md"}
   - {id: g3-noindex, closed: 2026-09-28, evidence: "site-audit run 2026-09-28, 8 of 8 pages carry noindex and robots.txt disallows all"}
 decisions:
+  - {date: 2026-11-22, decision: "No disavow for the 88-domain 'premium backlinks' network. Search Console Manual actions reads No issues detected (checked 2026-11-22), and the review set a manual action as the only trigger"}
   - {date: 2026-11-09, decision: "The main contact of an approved kennel adds another kennel in the breeder portal. It waits in Approvals, info@ is emailed with who added it, and its listings can be drafted but not paid for or listed until approved. The word kennel stays everywhere (Alex dropped the change to breeder). Built in PR 167, record in app/docs/batch-2026-11-09-breeder-wording-and-add.md"}
   - {date: 2026-10-19, decision: "Breed pages name the breeders whose puppies they list again (SHOW_BREED_BREEDERS on), now that the Wix listings are paired with their kennels (Alex: 'yes have the breed pages show breeders who raise this breed'). Unassigned puppies are never named"}
   - {date: 2026-10-18, decision: "Each Responsible Dog Breeder Network member kennel shows with its own breeder page, Peaceful Paws Puppies comes off the site once no listing names it, and listings with no breeder that are gone from Wix are removed (Alex). Applied to staging by migration 0023, with the evidence in app/docs/launch-workplan.md C1"}
@@ -159,6 +170,10 @@ decisions:
 ## Next
 
 Alex reviews the guide drafts and the page map. The static breed pages come with the build itself, starting with Havanese and Great Dane, where opportunity and inventory overlap.
+
+## G2 proposal held for discovery (2026-11-22)
+
+The 2026-11-22 search review found five page changes worth making, and each waits on the three discovery answers above because the answers decide which state and which breeds a page should name. The open items starting pc-g2 carry the detail. In order of size of demand they are the head page for "puppies for sale" on puppies.html, the region-wide "dog breeders near me" page with the Indiana breeders page owning its state, the city pages, the home page handing Indiana to its state page, and one breeder guide page for "where to sell puppies online". When the answers are in, the states answer sets the city list and the home page wording, the volume answer sets how many city pages the listings can keep full, and the breed answer sets which breed pages lead.
 
 ## Where things landed
 

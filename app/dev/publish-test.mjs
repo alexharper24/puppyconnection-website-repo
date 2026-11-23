@@ -374,6 +374,12 @@ async function part1() {
     && /^\/privacy-policy https?:\/\/\S+\/privacy 301$/m.test(redirects)
     && redirects.trim().split(/\r?\n/).pop() === '/product-page/* /puppies.html 301'
     && redirects.indexOf('/puppies-for-sale ') > redirects.lastIndexOf('/product-page/alexa-cocker-spaniel'));
+  // Moz 2026-11-22: /puppies-for-sale/ and /about-us/ answered 404 because Cloudflare matches the source exactly.
+  check('every old Wix address also answers with a trailing slash, straight to its page, and the wildcard gets no twin',
+    /^\/puppies-for-sale\/ \/puppies\.html 301$/m.test(redirects) && /^\/about-us\/ \/about\.html 301$/m.test(redirects)
+    && /^\/product-page\/alexa-cocker-spaniel\/ \/puppy-alexa-cocker-spaniel\.html 301$/m.test(redirects)
+    && !/^\/product-page\/\*\/ /m.test(redirects) && !/^\/[^ ]+\.html\/ /m.test(redirects)
+    && redirects.indexOf('/product-page/alexa-cocker-spaniel/ ') < redirects.indexOf('/product-page/* '));
   // build/legacy-products.txt, the old Wix puppies Search Console still lists (2026-11-14), each to its breed by the end of its address.
   check('an old Wix puppy never imported goes to its breed page, through a shortened Wix breed name too, before the fallback',
     /^\/product-page\/clark-great-dane \/breed-great-dane\.html 301$/m.test(redirects)

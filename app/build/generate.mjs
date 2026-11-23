@@ -1707,7 +1707,17 @@ ${withPhoto(pg).replaceAll('{{PORTAL}}', portal)}
   const known = new Set([...D.allPuppies, ...D.breeds.flatMap((x) => x.gone || [])].map((p) => p.legacy_slug).filter(Boolean));
   const retired = fs.readFileSync(path.join(HERE, 'legacy-products.txt'), 'utf8').split(/\r?\n/).map((l) => l.trim()).filter((l) => l && !l.startsWith('#') && !known.has(l))
     .map((s) => { const b = breedFor(s); return `/product-page/${s} ${b ? `/${pageFor.breed(b)}` : '/breeds.html'} 301`; }).sort();
-  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page, puppies taken off the site go to their breed page, old Wix puppies never imported go to their breed (build/legacy-products.txt), then the old Wix pages (build/legacy-pages.tsv).\n${[...redirects, ...gone, ...retired].join('\n')}\n${legacy.join('\n')}\n`);
+  // Cloudflare matches a _redirects source exactly, so /about-us/ missed the /about-us rule and
+  // answered 404 while 25 linking domains pointed at it (Moz, 2026-11-22). Every old Wix address
+  // also answers with a trailing slash, straight to the same page with no second hop. Our own .html
+  // pages and the wildcard fallback need no twin. Cloudflare allows 2,000 static rules.
+  const withSlash = (lines) => lines.flatMap((l) => {
+    const from = l.split(' ')[0];
+    return /\*|:|\/$|\.html$/.test(from) ? [l] : [l, `${from}/${l.slice(from.length)}`];
+  });
+  const allRedirects = [...withSlash([...redirects, ...gone, ...retired]), ...withSlash(legacy)];
+  if (allRedirects.filter((l) => !/[*:]/.test(l.split(' ')[0])).length > 2000) console.warn('WARNING: _redirects holds more than the 2,000 static rules Cloudflare allows, so the rules past it are ignored.');
+  fs.writeFileSync(path.join(out, '_redirects'), `# Written by build/generate.mjs. Old Wix product pages go to the puppy's page, puppies taken off the site go to their breed page, old Wix puppies never imported go to their breed (build/legacy-products.txt), then the old Wix pages (build/legacy-pages.tsv). Each old address also answers with a trailing slash.\n${allRedirects.join('\n')}\n`);
   // Stylesheets, scripts and the listing data are linked with ?v= and the number changes with the
   // file, so they keep for a year. The concept's images keep their names when replaced, so a week.
   // Photos from R2 get their headers from the site Worker.

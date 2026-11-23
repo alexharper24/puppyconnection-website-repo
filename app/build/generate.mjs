@@ -141,7 +141,7 @@ function fit(photo, w, h) { if (!photo) return ''; return isWix(photo.src) ? wix
 // than before. The widths are the real ones, from the photo's shape and never above its own width. The frame shows a
 // portrait or square photo whole, narrower than the frame, so sizes shrinks with the shape. On a wide screen sizes
 // says 1,200 px, wider than the column, so a desktop takes the 1,600 px copy rather than enlarging the card a little.
-const PHONE_EDGE = 1080;
+const PHONE_EDGE = 1200;
 function slideSources(photo) {
   const src = fit(photo, 1200, 800);
   if (!photo) return { src };
@@ -151,8 +151,8 @@ function slideSources(photo) {
   const [sw, lw] = isWix(photo.src) ? [across(640), across(1200)] : [across(640), across(1600)];
   if (!small || small === src || !(sw < lw)) return { src };
   const k = Math.min(1, a / 1.5);
-  // A sharp phone wants about 1,080 px, between the card and the 1,600 px copy, so a photo in R2 also names a 1,080 px
-  // copy that Cloudflare Image Transformations makes from media/<id> on first request (Alex, 2026-11-22, Free plan).
+  // A sharp phone wants about 1,200 px (a 390 px phone at 3x across the full width is 1,170), between the card and the
+  // 1,600 px copy, so a photo in R2 also names a 1,200 px copy that Cloudflare Image Transformations makes from media/<id> on first request (Alex, 2026-11-22, Free plan).
   // onerror=redirect sends the browser to media/<id> itself if a resize is refused, such as past the Free plan's 5,000
   // a month, so the worst case is the photo a phone downloaded before.
   const mw = across(PHONE_EDGE);

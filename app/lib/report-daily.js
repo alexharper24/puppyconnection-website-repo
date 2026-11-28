@@ -34,15 +34,17 @@ export async function reportDaily(request, env, url) {
 //   breeder_added   a breeder approved that day who did not come across from the old Wix site
 //   listing_paid    a puppy listed that day after a paid checkout
 //   listing_comped  a puppy listed that day without a charge (a package paid outside, or free)
+//   revenue_cents   what paid checkouts took that day, in cents, leaving out any refunded in full or lost to a dispute
 // A puppy counts on the day it was first published, and the day is the owners' day, America/Indiana/Indianapolis.
 const OWNERS_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Indiana/Indianapolis' });
 const dayOf = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? null : OWNERS_DAY.format(d); };
 
-export function groupListings(breeders, puppies, since) {
+export function groupListings(breeders, puppies, since, checkouts = []) {
   const by = new Map();
-  const add = (day, kind) => { if (day && day >= since) by.set(`${day}|${kind}`, (by.get(`${day}|${kind}`) || 0) + 1); };
+  const add = (day, kind, n = 1) => { if (day && day >= since) by.set(`${day}|${kind}`, (by.get(`${day}|${kind}`) || 0) + n); };
   for (const b of breeders) add(dayOf(b.decided_at), 'breeder_added');
   for (const p of puppies) add(dayOf(p.published_at), p.payment_state === 'paid' ? 'listing_paid' : 'listing_comped');
+  for (const c of checkouts) if (!['refunded', 'dispute_lost'].includes(c.pay_status) && c.amount_total_cents > 0) add(dayOf(c.paid_at), 'revenue_cents', c.amount_total_cents);
   return [...by.entries()].map(([k, n]) => { const [day, kind] = k.split('|'); return { day, kind, n }; })
     .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.kind < b.kind ? -1 : 1));
 }
@@ -58,7 +60,8 @@ export async function reportListings(request, env, url) {
   const slack = new Date(Date.parse(since) - 2 * 86400000).toISOString().slice(0, 10);
   const breeders = (await env.DB.prepare("SELECT decided_at FROM breeders WHERE status = 'approved' AND legacy = 0 AND decided_at >= ?").bind(slack).all()).results;
   const puppies = (await env.DB.prepare("SELECT published_at, payment_state FROM puppies WHERE payment_state IN ('paid','comped') AND published_at >= ?").bind(slack).all()).results;
-  const res = json({ from: since, rows: groupListings(breeders, puppies, since) });
+  const checkouts = (await env.DB.prepare("SELECT c.paid_at, c.amount_total_cents, p.status AS pay_status FROM checkouts c LEFT JOIN payments p ON p.stripe_payment_intent_id = c.stripe_payment_intent_id WHERE c.status = 'paid' AND c.paid_at >= ?").bind(slack).all()).results;
+  const res = json({ from: since, rows: groupListings(breeders, puppies, since, checkouts) });
   res.headers.set('cache-control', 'no-store');
   return res;
 }

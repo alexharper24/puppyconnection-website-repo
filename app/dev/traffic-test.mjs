@@ -104,6 +104,22 @@ console.log('\n-- the site script');
   check('js/main.js gets the source and the page counter', !!m && gen.includes('NAV_DROP_JS + SOURCE_JS + PAGE_COUNT_JS'));
   check('... which leaves puppy pages to their own count', !!m && m[1].includes("querySelector('[data-puppy]')"));
   check('... and skips Puppy Connection\'s own browsers', !!m && m[1].includes('pc_staff=1'));
+  // Alex, 2026-11-27. Off puppy pages a click counts only on a breeder's own links.
+  check('... and counts a click only on a breeder\'s own links', !!m && m[1].includes('.contact-list a[href], .profile-actions a[href]') && !m[1].includes("closest('a[href]')"));
+  const portal = fs.readFileSync(path.join(APP, 'portal/worker.js'), 'utf8');
+  check('the portal marks its browsers so the site does not count a breeder\'s own visits', portal.includes('pc_staff=1; Domain=puppy-connection.com'));
+}
+
+console.log('\n-- a breeder\'s profile page in the portal');
+{
+  const { breederStats } = await import('../lib/stats.js');
+  const db = d1(localD1File()), env = { DB: db };
+  const one = async (sql, ...b) => (await db.prepare(sql).bind(...b).first()) || {};
+  const bp = await one('SELECT breeder_id, slug FROM breeder_profiles WHERE slug IS NOT NULL LIMIT 1');
+  const before = (await breederStats(env, bp.breeder_id, 30)).profile;
+  await db.prepare('INSERT INTO page_stats (page, day, views, clicks) VALUES (?, ?, 2, 1) ON CONFLICT (page, day) DO UPDATE SET views = views + 2, clicks = clicks + 1').bind(`breeder-${bp.slug}`, day).run();
+  const after = (await breederStats(env, bp.breeder_id, 30)).profile;
+  check('the breeder\'s own page counts reach the portal', after.views === before.views + 2 && after.clicks === before.clicks + 1 && after.views_all === before.views_all + 2, JSON.stringify([before, after]));
 }
 
 console.log('\n-- the admin');

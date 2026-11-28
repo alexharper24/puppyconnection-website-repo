@@ -20,6 +20,7 @@
 //                         per day and nothing about the visitor
 //   /api/report/daily     the daily view and click counts for the client reporting dashboard,
 //                         refused with 403 unless x-report-key matches the REPORT_KEY secret
+//   /api/report/listings  new breeders and listed puppies by day, same key and same rule
 // It reads the database's public views and writes only the count.
 //
 // The staging site at site.puppyconnection.workers.dev runs app/site/worker.js instead, which
@@ -27,7 +28,7 @@
 
 import { recordBeacon } from '../lib/stats.js';
 import { serveMedia, serveBrand, serveParentPhoto, serveDocument } from '../lib/media.js';
-import { reportDaily } from '../lib/report-daily.js';
+import { reportDaily, reportListings } from '../lib/report-daily.js';
 
 const notFound = () => new Response('Not found.', { status: 404, headers: { 'content-type': 'text/plain; charset=utf-8' } });
 
@@ -75,6 +76,7 @@ export default {
       if (url.pathname === '/api/beacon') return (await recordBeacon(request, env)).response;
       // The client reporting dashboard's nightly read of the daily counts, refused without its key.
       if (url.pathname === '/api/report/daily') return await reportDaily(request, env, url);
+      if (url.pathname === '/api/report/listings') return await reportListings(request, env, url);
       return env.ASSETS.fetch(request);
     } catch (e) {
       console.error(e);

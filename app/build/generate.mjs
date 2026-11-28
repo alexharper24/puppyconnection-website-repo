@@ -394,11 +394,11 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     var stop = function () { if (timer) { clearInterval(timer); timer = null; } };
     // ready waits for the first photo, so the crossfade never moves on from a photo nobody has seen yet.
     var ready = false;
-    var canPlay = function () { return ready && slides.length > 1 && !reduce.matches && !paused && inView && !document.hidden; };
+    var canPlay = function () { return ready && slides.length > 1 && !frame.classList.contains('is-video') && !reduce.matches && !paused && inView && !document.hidden; };
     var start = function () { if (!timer && canPlay()) timer = setInterval(function () { show(i + 1); }, 4000); };
     var sync = function () { if (canPlay()) start(); else stop(); };
     var restart = function () { stop(); start(); };
-    thumbs.forEach(function (t, k) { t.addEventListener('click', function () { show(k); restart(); }); });
+    thumbs.forEach(function (t, k) { t.addEventListener('click', function () { frame.dispatchEvent(new Event('pc-stop-video')); show(k); restart(); }); });
     var go = function (dir) { gal.scrollLeft += dir * Math.max(gal.clientWidth - 84, 84); arrows(); restart(); };
     if (prev && next) {
       prev.addEventListener('click', function () { go(-1); });
@@ -431,6 +431,43 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     };
     if (!first || first.complete) afterFirst();
     else { first.addEventListener('load', afterFirst); first.addEventListener('error', afterFirst); setTimeout(afterFirst, 8000); }
+  }
+  // Amber, 2026-11-27. The Watch button under the gallery plays the puppy's video in the main photo's
+  // place, never in a pop-up, and only when it is pressed: nothing of the player loads before that.
+  // Back to photos, or a photo thumbnail, stops it and shows the photos again.
+  var watch = document.querySelector('.watch-video');
+  var vFrame = document.querySelector('#dMain');
+  if (watch && vFrame) {
+    var stage = null;
+    var stopVideo = function () {
+      if (!vFrame.classList.contains('is-video')) return;
+      if (stage) stage.innerHTML = '';
+      vFrame.classList.remove('is-video');
+      watch.setAttribute('aria-pressed', 'false');
+      vFrame.dispatchEvent(new Event('mouseleave'));
+    };
+    watch.addEventListener('click', function () {
+      if (vFrame.classList.contains('is-video')) { stopVideo(); return; }
+      if (!stage) { stage = document.createElement('div'); stage.className = 'video-stage'; vFrame.appendChild(stage); }
+      var f = document.createElement('iframe');
+      f.src = watch.getAttribute('data-video');
+      f.title = watch.getAttribute('data-title') || 'Video';
+      f.setAttribute('allow', 'accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen');
+      f.setAttribute('allowfullscreen', '');
+      var back = document.createElement('button');
+      back.type = 'button';
+      back.className = 'video-back';
+      back.textContent = 'Back to photos';
+      back.addEventListener('click', function (e) { e.stopPropagation(); stopVideo(); });
+      stage.innerHTML = '';
+      stage.appendChild(f);
+      stage.appendChild(back);
+      vFrame.classList.add('is-video');
+      watch.setAttribute('aria-pressed', 'true');
+      var r = vFrame.getBoundingClientRect();
+      if (r.top < 0 || r.bottom > innerHeight) vFrame.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    });
+    vFrame.addEventListener('pc-stop-video', stopVideo);
   }
   // Alex, 2026-11-20. Tap the main photo, or its Enlarge button, to see each photo large. The arrows,
   // the arrow keys and a swipe move between photos, and Escape, the close button or a tap outside
@@ -469,7 +506,7 @@ const PAGES_JS = `/* Puppy Connection generated pages. Written by app/build/gene
     zoomBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="square"/></svg>';
     zoomFrame.appendChild(zoomBtn);
     zoomFrame.classList.add('can-zoom');
-    zoomFrame.addEventListener('click', open);
+    zoomFrame.addEventListener('click', function () { if (!zoomFrame.classList.contains('is-video')) open(); });
     box.querySelector('.lb-close').addEventListener('click', function () { box.close(); });
     box.addEventListener('click', function (e) { if (e.target === box || e.target.classList.contains('lb-fig')) box.close(); });
     if (many) {
@@ -1047,6 +1084,8 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
     const health = [['Health', p.health], ['Vaccinations', p.vaccinations], ['Deworming', p.deworming], ['Breeder disclosures', p.disclosures]]
       .filter((h) => h[1] && h[1].length);
     const videos = (p.videos || []).filter((v) => v.iframe);
+    // Amber, 2026-11-27. The player opens only when Watch is pressed, so it starts at once, with its cover frame.
+    const videoSrc = (v) => `${v.iframe}?autoplay=true${v.poster ? `&poster=${encodeURIComponent(v.poster)}` : ''}`;
     // Workplan A19 and A20. Both saved parents, and the documents the breeder chose to show families.
     const parents = [['Mother', p.l.mom, p.l.mom_weight_lb], ['Father', p.l.dad, p.l.dad_weight_lb]].filter((x) => x[1]);
     const docs = p.documents || [];
@@ -1078,9 +1117,9 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         <div class="thumbs" id="dGallery">${p.photos.map((ph, i) => `<button type="button" aria-label="Show photo ${i + 1} of ${p.photos.length}"${i === 0 ? ' aria-current="true"' : ''} data-full="${esc(fit(ph, 1200, 800))}"><img ${fillAttrs(ph, 160, 160).replace(/^src=/, 'data-src=')} alt="" loading="lazy" decoding="async" width="160" height="160"></button>`).join('')}</div>
         <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
       </div>` : ''}
+      ${videos.length ? `<button type="button" class="watch-video" aria-pressed="false" data-video="${esc(videoSrc(videos[0]))}" data-title="${esc(`Video of ${p.name}`)}"><span class="wv-main"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10 8.5v7l6-3.5z" fill="currentColor"/></svg><span>Watch ${esc(p.name)}'s video</span></span><span class="wv-sub">A little glimpse of ${p.sex === 'male' ? 'his' : p.sex === 'female' ? 'her' : 'their'} personality</span></button>` : ''}
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}
       ${(p.socialization || []).length ? `<section class="about-block puppy-social"><h2 class="eyebrow">Socialization</h2>${paras(p.socialization)}</section>` : ''}
-      ${videos.length ? `<section class="about-block puppy-videos"><p class="eyebrow">${videos.length === 1 ? 'Video' : 'Videos'}</p>${videos.map((v, i) => `<div class="video-frame" style="position:relative;padding-top:56.25%;margin:0 0 .8rem"><iframe src="${esc(v.iframe)}${v.poster ? `?poster=${encodeURIComponent(v.poster)}` : ''}" title="Video ${i + 1} of ${esc(p.name)}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`).join('')}</section>` : ''}
       ${parents.length ? `<section class="about-block puppy-parents"><p class="eyebrow">${parents.length === 2 ? 'The parents' : 'Parent'}</p><div class="parent-grid">${parents.map((x) => parentCard(x[0], x[1], x[2], p.name)).join('')}</div></section>` : ''}
       ${health.length ? `<section class="about-block puppy-health"><h2 class="eyebrow">Health and care</h2>${health.map((h) => `<h3>${esc(h[0])}</h3>${paras(h[1])}`).join('')}</section>` : ''}
       ${docs.length ? `<section class="about-block puppy-docs"><p class="eyebrow">Documents from the breeder</p>${docList(docs)}</section>` : ''}

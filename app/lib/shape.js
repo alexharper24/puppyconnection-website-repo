@@ -123,6 +123,7 @@ export async function exportSite(env) {
       about: paras(p.description), breeder_url: p.breeder_url, legacy_slug: p.legacy_slug || null, published_at: p.published_at,
       registry: p.registry || null, markings: p.markings || null, health: paras(p.health_notes), vaccinations: paras(p.vaccinations),
       deworming: paras(p.deworming), disclosures: paras(p.disclosures), deposit_url: p.deposit_url || null, videos: videos[p.id] || [],
+      socialization: paras(p.socialization),
       placed_at: p.placed_at || null, unlist_after: unlistAfter(p), documents: docs.puppy[p.id] || [],
       photos: (photos[p.id] || []).map((ph) => ({ ...(ph.r2_key
         ? { ...photoPath(ph), aspect: ph.aspect }

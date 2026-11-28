@@ -351,7 +351,7 @@ export function litterFields(body) {
  * them. Both Workers build their INSERT and UPDATE from this list, so a new field is added once.
  */
 export const PUPPY_EDIT_COLS = ['name', 'sex', 'color', 'coat', 'price_cents', 'deposit_cents', 'description', 'breeder_url',
-  'includes_json', 'availability', 'registry', 'markings', 'health_notes', 'vaccinations', 'deworming', 'disclosures', 'deposit_url'];
+  'includes_json', 'availability', 'registry', 'markings', 'health_notes', 'vaccinations', 'deworming', 'disclosures', 'deposit_url', 'socialization'];
 export const puppySet = () => PUPPY_EDIT_COLS.map((c) => `${c} = ?`).join(', ');
 export const puppyValues = (f) => PUPPY_EDIT_COLS.map((c) => f[c] ?? null);
 
@@ -384,6 +384,7 @@ export function puppyFields(body, registries) {
     description: clean(body.description, 4000), breeder_url: url, includes_json: JSON.stringify(includes), availability,
     registry, markings: clean(body.markings, 200), health_notes: clean(body.health_notes, 2000), vaccinations: clean(body.vaccinations, 1000),
     deworming: clean(body.deworming, 1000), disclosures: clean(body.disclosures, 2000), deposit_url: httpsLink(body.deposit_url, 'The deposit link'),
+    socialization: clean(body.socialization, 2000),
   };
 }
 
@@ -398,7 +399,7 @@ export function puppyInput(p) {
     deposit: p.deposit_cents == null ? null : p.deposit_cents / 100, description: p.description, breeder_url: p.breeder_url,
     includes: JSON.parse(p.includes_json || '[]'), availability: p.availability,
     registry: p.registry, markings: p.markings, health_notes: p.health_notes, vaccinations: p.vaccinations,
-    deworming: p.deworming, disclosures: p.disclosures, deposit_url: p.deposit_url,
+    deworming: p.deworming, disclosures: p.disclosures, deposit_url: p.deposit_url, socialization: p.socialization,
   };
 }
 

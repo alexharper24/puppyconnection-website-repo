@@ -305,3 +305,55 @@ export async function extractFromDocument(env, { bytes, type, name, form, ctx })
     reason: empty ? 'We could not find anything in this document that fits this form. Nothing was changed.' : null };
 }
 
+
+// ------------------------------------------------------------------ naming a document (Alex, 2026-11-27)
+
+/**
+ * A document uploaded with What it is left on "Read it for me" is read and given its kind and a
+ * short name families can follow, such as "Basic cardiac exam (OFA), April 22, 2025", in place of
+ * a scanner's file name. Several files chosen at once each get their own. Returns { kind, title }
+ * or null when it cannot be read, and the caller then falls back to the file name.
+ */
+const NAME_SCHEMA = {
+  type: 'object',
+  properties: {
+    doc_kind: { type: 'string', enum: ['health', 'guarantee', 'pedigree', 'other'] },
+    title: { type: 'string' },
+  },
+  required: ['doc_kind', 'title'],
+};
+const NAME_PROMPT = `You name documents a dog breeder uploads to a puppy listing. Read the document and answer with JSON only.
+- doc_kind is "health" for a health record, vet record, vaccination record or health test result, "guarantee" for a health guarantee or sales contract warranty, "pedigree" for a pedigree, and "other" otherwise. A registration certificate is "other".
+- title is a short plain name a family understands, at most 60 characters. Say what the document is, the test or record it holds, and the date if one is shown, written as a month name, day and year. Examples: "Basic cardiac exam (OFA), April 22, 2025", "Hip evaluation (OFA), April 22, 2025", "Patella exam (OFA), April 22, 2025", "Vaccination record", "Health guarantee", "AKC pedigree". Do not include the dog's name, the owner's name, a registration number or an address.`;
+
+export async function nameDocument(env, bytes, type, name = 'document') {
+  if (!env.AI) return null;
+  try {
+    const text = await documentText(env, bytes, type, name);
+    if (text.replace(/\s+/g, '').length < 20) return null;
+    const out = await env.AI.run(env.EXTRACT_MODEL || EXTRACT_MODEL, {
+      messages: [{ role: 'system', content: NAME_PROMPT }, { role: 'user', content: `<document>\n${text.slice(0, 6000)}\n</document>` }],
+      response_format: { type: 'json_schema', json_schema: NAME_SCHEMA },
+      max_tokens: 80,
+      temperature: 0,
+    });
+    const o = readJson(out && out.response);
+    const kind = o && ['health', 'guarantee', 'pedigree', 'other'].includes(o.doc_kind) ? o.doc_kind : null;
+    const title = o && line(o.title, 80);
+    return kind ? { kind, title: title || null } : null;
+  } catch {
+    return null;
+  }
+}
+
+/** A scanner's file name, such as "CMW_S GALANT SAILOR HIPS 04_22_2025 HIPS", made readable. */
+export function tidyFileName(n) {
+  const s = String(n || '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return '';
+  // The same words twice at the end, as some scanners repeat the test name, are dropped once.
+  const words = s.split(' ');
+  for (let k = Math.floor(words.length / 2); k > 0; k--) {
+    if (words.slice(-k).join(' ').toLowerCase() === words.slice(-2 * k, -k).join(' ').toLowerCase()) { words.splice(-k, k); break; }
+  }
+  return words.join(' ').slice(0, 120);
+}

@@ -22,8 +22,10 @@ export const RESET_MINUTES = 60;
 export const VERIFY_HOURS = 24;
 export const MFA_MINUTES = 5;
 export const HANDOFF_MINUTES = 2;
-// An operator's session in the portal (A24). Hours, not the breeder's 60 days, and never renewed.
-export const OPERATOR_SESSION_HOURS = 8;
+// An operator's session in the portal (A24). Alex, 2026-11-27: 30 days, renewed on use, because Hope
+// was sent back to the admin every 8 hours. Turning the breeder's access off, or removing the
+// operator from people, still ends it at once.
+export const OPERATOR_SESSION_HOURS = 720;
 
 // Failed password and authenticator tries (A26), counted in signin_failures like the emailed codes
 // were counted in login_tokens. An address stops taking tries for the window after EMAIL_FAILS, and

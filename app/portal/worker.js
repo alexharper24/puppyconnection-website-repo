@@ -37,7 +37,7 @@ import {
   parentFields, PARENT_EDIT_COLS, storeParentPhoto, storeParentCard, PARENT_PHOTO_CLEAR, checkLitterParents, parentsFor, documentsFor, storeDocument, moveDocument, DOC_KINDS, MAX_DOCS, MAX_DOC_BYTES,
   healthCatalog, cleanDocument, replaceDocumentFile, docVersion,
 } from '../lib/parents.js';
-import { extractFromDocument, extractRefusal } from '../lib/docextract.js';
+import { extractFromDocument, extractRefusal, nameDocument, tidyFileName } from '../lib/docextract.js';
 import { rotatePdf } from '../lib/pdfrotate.js';
 import { focusBody, focusStmt, focusBinds, parentFocusStmt } from '../lib/focusedit.js';
 import { listWithoutPayment, litterCompIds } from '../lib/listing.js';
@@ -94,7 +94,8 @@ async function readSession(request, env) {
     const person = await env.DB.prepare('SELECT name FROM people WHERE email = ?').bind(s.operator_email).first();
     if (!person) return null;
     breeder.actor = ['operator', `${s.operator_email} acting for ${breeder.business_name || breeder.email}`];
-    return { hash, breeder, email: breeder.email, operator: { email: s.operator_email, name: person.name, until: s.expires_at } };
+    const until = await renewOperator(request, env, s, token, hash, t);
+    return { hash, breeder, email: breeder.email, operator: { email: s.operator_email, name: person.name, until } };
   }
   // Workplan A27. The person must still be on this kennel. Removing them ends these sessions too
   // (lib/accounts.js signInsEndStmts), so this is the second lock, checked on every request.
@@ -113,6 +114,16 @@ async function renewSession(request, env, s, token, hash, t) {
   } else if (s.last_seen_at < addMinutes(t, -5)) {
     await env.DB.prepare('UPDATE sessions SET last_seen_at = ? WHERE token_hash = ?').bind(t, hash).run();
   }
+}
+
+/** An operator's session runs OPERATOR_SESSION_HOURS from the last use, renewed at most once a day. */
+async function renewOperator(request, env, s, token, hash, t) {
+  const hours = OPERATOR_SESSION_HOURS;
+  if (s.expires_at >= addMinutes(t, (hours - 24) * 60)) return s.expires_at;
+  const until = addMinutes(t, hours * 60);
+  const r = await env.DB.prepare('UPDATE sessions SET expires_at = ?, last_seen_at = ? WHERE token_hash = ? AND revoked_at IS NULL').bind(until, t, hash).run();
+  if (r.meta.changes === 1) RENEWED.set(request, setCookie(request, sessionCookieName(request), token, hours * 3600));
+  return until;
 }
 
 /** The signed-in kennel, or null. A session still on Choose a kennel has none, so it counts as null. */
@@ -158,8 +169,8 @@ async function startSession(request, env, breederId, email = null, { operator = 
     return setCookie(request, sessionCookieName(request), token, SESSION_DAYS * 86400);
   }
   if (operator) {
-    // Workplan A24. Hours, not 60 days, never renewed, and it neither counts as the breeder's
-    // first sign-in nor starts an imported breeder's inactivity clock.
+    // Workplan A24. OPERATOR_SESSION_HOURS, renewed on use (renewOperator), and it neither counts as
+    // the breeder's first sign-in nor starts an imported breeder's inactivity clock.
     const hours = OPERATOR_SESSION_HOURS;
     await env.DB.prepare('INSERT INTO sessions (token_hash, breeder_id, created_at, expires_at, last_seen_at, email, operator_email) VALUES (?, ?, ?, ?, ?, NULL, ?)')
       .bind(await sha256hex(token), breederId, t, addMinutes(t, hours * 60), t, operator).run();
@@ -349,7 +360,7 @@ const siteLink = () => (PAGE_SITE ? `<a class="plain-site" href="${esc(PAGE_SITE
 export function page(title, inner, { wide = false } = {}) {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light only"><meta name="supported-color-schemes" content="light"><meta name="robots" content="noindex,nofollow">
-<title>${esc(title)} | Puppy Connection</title><link rel="icon" href="/favicon.ico?v=1" sizes="any"><link rel="icon" type="image/png" href="/favicon-32.png?v=1"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=49"></head>
+<title>${esc(title)} | Puppy Connection</title><link rel="icon" href="/favicon.ico?v=1" sizes="any"><link rel="icon" type="image/png" href="/favicon-32.png?v=1"><link rel="apple-touch-icon" href="/apple-touch-icon.png?v=1"><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet"><link rel="stylesheet" href="/portal.css?v=50"></head>
 <body class="plain">${siteLink()}<main class="plain-card${wide ? ' plain-wide' : ''}"><a class="plain-mark" href="/"><img src="/logo-white.webp?v=1" alt="Puppy Connection" width="420" height="203"></a>${inner}</main>
 <footer class="plain-foot"><a href="/privacy">Privacy</a><a href="/terms">Listing terms</a></footer><script src="/show-password.js?v=1"></script></body></html>`;
 }
@@ -541,7 +552,7 @@ async function wrongTry(env, row, ip, kind, again, message) {
  * The admin mints a two-minute, one-time hand-over (admin/worker.js manageAs) for an operator
  * Cloudflare Access has identified, and sends their browser here. Only its SHA-256 is in D1, which
  * the two Workers share. The portal spends it once, checks again that the breeder's access is on
- * and that the operator is still in people, and opens an eight-hour session marked as theirs.
+ * and that the operator is still in people, and opens a session marked as theirs (OPERATOR_SESSION_HOURS).
  */
 async function authHandoff(request, env) {
   const t = new URL(request.url).searchParams.get('t') || '';
@@ -1502,11 +1513,11 @@ async function duplicatePuppy(request, env, ctx, id) {
       // Markings belong to one puppy, so they are not copied. The litter-wide details are.
       `INSERT INTO puppies (id, breeder_id, litter_id, slug, name, sex, color, coat, price_cents, deposit_cents, description,
          breeder_url, includes_json, hypoallergenic, availability, registry, health_notes, vaccinations, deworming, disclosures,
-         deposit_url, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?, ?, ?, ?)`,
+         deposit_url, socialization, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(newId, breeder.id, litter.id, newPuppySlug(name, breed.name, newId), name, src.sex, src.color, src.coat, src.price_cents, src.deposit_cents,
       src.description, src.breeder_url, src.includes_json, src.hypoallergenic, src.registry, src.health_notes, src.vaccinations,
-      src.deworming, src.disclosures, src.deposit_url, t, t),
+      src.deworming, src.disclosures, src.deposit_url, src.socialization, t, t),
     auditStmt(env, ...who(breeder), 'puppy.duplicate', 'puppy', newId, null, { from: src.id }),
   ]);
   return json({ id: newId }, 201);
@@ -1717,6 +1728,28 @@ async function checkMyPhoto(request, env, ctx, id) {
   return json({ quality: r.quality, reasons: r.reasons, messages: r.messages, route: s.photoCheckRoute });
 }
 
+/**
+ * Staff acting for a breeder can put a photo the check sent back on the listing (Alex, 2026-11-27).
+ * Hope works through Manage as this breeder, so the admin's Use anyway (2026-11-25) never reached
+ * her. A breeder signed in as themselves cannot, and the audit row names the operator.
+ */
+async function useMyPhoto(request, env, ctx, id) {
+  requireSameOrigin(request);
+  const s = await needSession(request, env);
+  if (!s.operator) throw forbidden('Only Puppy Connection can use a photo the photo check sent back.');
+  requireDrafting(s.breeder);
+  const ph = await env.DB.prepare("SELECT * FROM photos WHERE id = ? AND breeder_id = ? AND quality IN ('sent_back', 'review', 'pending')").bind(id, s.breeder.id).first();
+  if (!ph) throw bad('That photo is already on the listing or was removed.');
+  const stmts = [
+    env.DB.prepare("UPDATE photos SET quality = 'pass', quality_note = ? WHERE id = ? AND quality IN ('sent_back', 'review', 'pending')").bind(`used anyway by ${s.operator.email}`, id),
+    auditStmt(env, ...who(s.breeder), 'photo.override', 'puppy', ph.puppy_id, { photo: id, quality: ph.quality, reasons: ph.quality_reasons }, { photo: id, quality: 'pass' }),
+    ...await photoPassedStmts(env, ph.puppy_id, ph.created_at, { type: 'operator', email: s.operator.email }),
+  ];
+  if (await hasPublic(env, 'id = ?', ph.puppy_id)) stmts.push(dirtyStmt(env));
+  await env.DB.batch(stmts);
+  return json({ ok: true, quality: 'pass' });
+}
+
 async function orderPhotos(request, env, ctx, puppyId) {
   requireSameOrigin(request);
   const { breeder } = await needSession(request, env);
@@ -1875,16 +1908,22 @@ async function archiveParent(request, env, ctx, id) {
  */
 async function uploadParentPhoto(request, env, ctx, id) {
   requireSameOrigin(request);
-  const { breeder } = await needSession(request, env);
+  const sess = await needSession(request, env);
+  const { breeder } = sess;
   requireDrafting(breeder);
   const p = await owned(env, 'parent', id, breeder.id);
   // A test can ask the local stand-in for a verdict. Nothing else can choose one.
   const sim = isLocal(request, env) ? request.headers.get('x-sim-photo-check') : null;
+  // Staff acting for the breeder can keep a photo the check refused (Alex, 2026-11-27).
+  const override = new URL(request.url).searchParams.get('override') === '1';
+  if (override && !sess.operator) throw forbidden('Only Puppy Connection can use a photo the photo check sent back.');
   const r = await storeParentPhoto(env, p, new Uint8Array(await request.arrayBuffer()),
-    (action, after) => auditStmt(env, ...who(breeder), action, 'parent', id, null, after), { sim });
+    (action, after) => auditStmt(env, ...who(breeder), action, 'parent', id, null, { ...after, ...(override ? { photo_check: 'overridden' } : {}) }),
+    { sim, skipCheck: override });
   if (r.refused) {
     await auditStmt(env, ...who(breeder), 'parent.photo.sent_back', 'parent', id, null, { reasons: r.refused.reasons }).run();
-    throw new HttpError(422, `${r.refused.messages.join(' ')} The photo was not added, so upload a clearer one.`);
+    throw new HttpError(422, `${r.refused.messages.join(' ')} The photo was not added${sess.operator ? '' : ', so upload a clearer one'}.`,
+      { photo_check: r.refused.reasons, can_override: !!sess.operator });
   }
   if (await isPublicParent(env, id)) r.stmts.push(dirtyStmt(env));
   await env.DB.batch(r.stmts);
@@ -1955,8 +1994,18 @@ async function addDocument(request, env, breeder, { puppyId = null, parentId = n
   if (n.n >= MAX_DOCS) throw bad(`Each ${puppyId ? 'puppy' : 'mom or dad'} can have up to ${MAX_DOCS} documents.`);
   if (Number(request.headers.get('content-length') || 0) > MAX_DOC_BYTES) throw bad('Documents can be up to 10 MB. A scan at a lower resolution, or one page per file, will fit.');
   const url = new URL(request.url);
+  const raw = new Uint8Array(await request.arrayBuffer());
+  const fileName = tidyFileName(url.searchParams.get('name'));
+  // Alex, 2026-11-27. "Read it for me" reads the file for its kind and a plain name. A name the
+  // breeder typed is kept, and a file that cannot be read keeps its file name as Other document.
+  if (url.searchParams.get('kind') === 'auto') {
+    const file = cleanDocument(raw);
+    const n = await nameDocument(env, file.bytes, file.type, fileName || 'document');
+    url.searchParams.set('kind', n ? n.kind : 'other');
+    if (!url.searchParams.get('title') && n && n.title) url.searchParams.set('title', n.title);
+  }
   const { row, stmt } = await storeDocument(env, {
-    breederId: breeder.id, puppyId, parentId, raw: new Uint8Array(await request.arrayBuffer()), params: url.searchParams, fileName: url.searchParams.get('name'),
+    breederId: breeder.id, puppyId, parentId, raw, params: url.searchParams, fileName,
   });
   const stmts = [stmt, auditStmt(env, ...who(breeder), 'document.add', puppyId ? 'puppy' : 'parent', puppyId || parentId, null,
     { document: row.id, kind: row.kind, visibility: row.visibility, bytes: row.bytes })];
@@ -2578,6 +2627,7 @@ const ROUTES = [
   ['POST', /^\/api\/photos\/([\w-]+)\/card$/, uploadCard],
   ['PUT', /^\/api\/photos\/([\w-]+)\/focus$/, setPhotoFocus],
   ['POST', /^\/api\/photos\/([\w-]+)\/check$/, checkMyPhoto],
+  ['POST', /^\/api\/photos\/([\w-]+)\/use$/, useMyPhoto],
   ['GET', /^\/still-available$/, () => stillAvailablePage()],
   ['GET', /^\/media\/([\w-]+)$/, media],
   // A picture in a list email, at the full address mail clients load (lib/campaigns.js).

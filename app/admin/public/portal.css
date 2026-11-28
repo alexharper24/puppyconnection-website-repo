@@ -1002,3 +1002,33 @@ body.plain .plain-site, body.plain .plain-foot a { color: #5b574e; }
   [data-litter-card] .card-head [data-add-puppy] { grid-column: auto; order: -1; }
   [data-litter-card] .card-head > .btn-row > .btn { padding-inline: .3rem; white-space: nowrap; }
 }
+
+/* Alex, 2026-11-27. The editors use less height on a wide screen: tighter rows in Comes with and
+   the admin's breeder drawer, Who can see it on one line, the upload boxes as one row, and the
+   litter buttons side by side. Below 861px the 44px touch sizes above are unchanged. */
+@media (min-width: 861px) {
+  .drawer-body .field { margin-bottom: .65rem; }
+  .drawer-body h3 { margin-top: 1.1rem; }
+  .drawer-body textarea { min-height: 76px; }
+  .drawer-body #p-desc { min-height: 110px; }
+  .includes-groups { gap: .5rem .75rem; }
+  .includes-group { padding: .45rem .7rem .3rem; }
+  .includes-group .check { min-height: 26px; font-size: .9rem; }
+  .doc-vis { display: flex; flex-wrap: wrap; gap: .1rem 1.4rem; margin-bottom: .5rem; }
+  .doc-vis .check { min-height: 28px; }
+  .doc-form .doc-up { margin: 0 0 .3rem; }
+  .doc { padding: .45rem .7rem; }
+  .doc-body { gap: .2rem; }
+  .doc-who .check { min-height: 28px; }
+  .upload { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem 1rem; text-align: left; padding: .5rem .75rem; }
+  .upload > .hint { margin: 0; flex: 1 1 18rem; }
+  .upload > .error, .upload > #vid-progress { flex-basis: 100%; margin: 0; }
+  .photo-standard { margin: .3rem 0 .4rem; padding: .45rem .7rem; }
+  .prefill { padding: .55rem .8rem; margin-bottom: .8rem; }
+  .prefill .hint { margin-bottom: .35rem; }
+  .dsec { padding: .75rem .9rem .8rem; margin-bottom: .8rem; }
+  .dsec .kv td { padding-block: .18rem; }
+  .dsec .pay-row { padding: .4rem 0; }
+  .dsec .pay-row > span:first-child { flex: 1 1 auto; min-width: 0; }
+  .dsec .pay-row > .btn-row { flex: 0 0 auto; flex-wrap: nowrap; margin: 0; gap: .4rem; }
+}

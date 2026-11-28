@@ -417,6 +417,18 @@ h1+:is(p,.lede,.split){margin-top:1.1rem}
 .thumb-nav{box-shadow:0 0 0 4px rgba(252,252,252,.72)}
 .thumbs button[aria-current]{border-color:var(--ink);border-width:2px}
 .thumbs img{width:100%;height:100%;object-fit:cover}
+/* Amber, 2026-11-27. The Watch button under the gallery, and the player in the main photo's place. */
+.watch-video{display:flex;flex-direction:column;align-items:center;gap:.25rem;width:100%;margin-top:.6rem;padding:.85rem 1rem;
+  border:0;border-radius:4px;background:var(--sage);color:var(--cream-text);cursor:pointer;text-align:center}
+.watch-video:hover,.watch-video:focus-visible{background:var(--ink);color:var(--gold)}
+.watch-video .wv-main{display:flex;align-items:center;gap:.55rem;font-family:var(--cond);font-size:1.05rem;letter-spacing:.14em;text-transform:uppercase}
+.watch-video .wv-sub{font-size:.88rem;opacity:.9}
+.gallery-main .video-stage{position:absolute;inset:0;z-index:3;background:#000}
+.gallery-main .video-stage iframe{display:block;width:100%;height:100%;border:0}
+.gallery-main .video-back{position:absolute;top:.6rem;right:.6rem;z-index:4;min-height:36px;padding:.35rem .8rem;border:0;border-radius:4px;
+  background:rgba(38,38,38,.78);color:#fff;font-size:.85rem;cursor:pointer}
+.gallery-main.is-video{cursor:auto}
+.gallery-main.is-video .photo-zoom{display:none}
 
 .name-row{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;flex-wrap:wrap}
 .name-row h1{font-size:clamp(1.9rem,3.6vw,2.8rem)}

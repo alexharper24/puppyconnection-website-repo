@@ -36,7 +36,7 @@ tasks:
     closed: 2026-11-05
     evidence: "Alex 2026-11-05, after opening the test copy in Gmail: Looks right"
     asked: "Alex 2026-11-05: Send me a test"
-    sent: "2026-11-05T20:09:24Z to alex24harper@gmail.com through the production admin, Resend id 01a1ad54-97aa-7eff-8453-804007d53b84. The draft held {first name} in the subject and greeting and one picture, email-image/01M6PN7ZXX8W4P2AF6PX1AZXQT (200 image/jpeg, 113,255 bytes, one-year cache). The draft was deleted afterwards and production holds no campaigns"
+    sent: "2026-11-05T20:09:24Z to Alex's address through the production admin, Resend id 01a1ad54-97aa-7eff-8453-804007d53b84. The draft held {first name} in the subject and greeting and one picture, email-image/01M6PN7ZXX8W4P2AF6PX1AZXQT (200 image/jpeg, 113,255 bytes, one-year cache). The draft was deleted afterwards and production holds no campaigns"
     item: "Alex confirms in Gmail that the picture shows, the greeting reads Hi Alex, and the layout holds on phone and desktop"
   - id: e5-ship
     status: done

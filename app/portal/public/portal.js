@@ -703,8 +703,11 @@
       var ready = all.filter(function (x) { return !x.pay_block; }).length;
       var soon = all.filter(function (x) { return x.is_public && x.expires_at && new Date(x.expires_at) - Date.now() < 7 * 86400000; }).length;
       var placed = all.filter(function (x) { return x.availability === 'placed'; }).length;
-      var views = all.reduce(function (n, x) { return n + (x.views || 0); }, 0);
-      var clicks = all.reduce(function (n, x) { return n + (x.clicks || 0); }, 0);
+      // Alex, 2026-11-27. Every puppy with counts, archived ones too, so this matches Views and clicks.
+      var counted = [];
+      L.litters.forEach(function (l) { l.puppies.forEach(function (x) { counted.push(x); }); });
+      var views = counted.reduce(function (n, x) { return n + (x.views || 0); }, 0);
+      var clicks = counted.reduce(function (n, x) { return n + (x.clicks || 0); }, 0);
       shell(html + firstSteps(L, all, live) + '<div class="stats">' +
         '<a class="stat" href="#/litters"><b>' + live + '</b><span>Live on the site</span></a>' +
         '<a class="stat" href="#/litters"><b>' + drafts + '</b><span>Drafts</span></a>' +
@@ -713,7 +716,7 @@
         (live ? '<div class="card"><h2>Next steps</h2><p>Save each new mom and dad under Moms and dads, add the litter and pick them, add each puppy with a price and photos, then pay ' + esc(money(L.fee_cents)) + ' per puppy to list it ' + term(L) + '.</p>' +
         '<div class="btn-row"><a class="btn btn-primary" href="#/litters">Litters and puppies</a>' + (ready ? '<a class="btn btn-gold" href="#/pay">Pay to list ' + ready + '</a>' : '') +
         (me.site_url ? '<a class="btn" href="' + esc(me.site_url) + '" target="_blank" rel="noopener">See your page on the site</a>' : '') + '</div></div>' : '') +
-        (live || views ? '<div class="card"><h2>Views and clicks</h2><p>In the last 30 days buyers opened your puppies\' pages ' + plural(views, 'time') + ' and clicked through to you ' + plural(clicks, 'time') + '.</p>' +
+        (live || views ? '<div class="card"><h2>Views and clicks</h2><p>In the last 30 days families opened your puppies\' pages ' + plural(views, 'time') + ' and went on to you ' + plural(clicks, 'time') + '.</p>' +
           '<a class="btn btn-sm" href="#/stats">See each puppy</a></div>' : ''));
     });
   }
@@ -2377,7 +2380,9 @@
   function stats() {
     api('GET', '/api/stats').then(function (S) {
       var t = S.total;
-      shell(head('Views and clicks', 'How often buyers opened each puppy\'s page on the site, and how often they went on to your website, phone or email. Nothing about the buyers themselves is kept.') +
+      var me = state.me || {};
+      var P = S.profile || { views: 0, clicks: 0, views_all: 0, clicks_all: 0 };
+      shell(head('Views and clicks', 'How often families opened each puppy\'s page on the site, and how often they went on from it to reach you. Your own visits, and Puppy Connection\'s, are not counted, and nothing about the families themselves is kept.') +
         '<div class="stats">' +
         '<div class="stat"><b>' + t.views + '</b><span>Views in the last 30 days</span></div>' +
         '<div class="stat"><b>' + t.clicks + '</b><span>Clicks through to you in 30 days</span></div>' +
@@ -2390,8 +2395,13 @@
               '<td class="num hide-sm">' + p.views_all + '</td><td class="num hide-sm">' + p.clicks_all + '</td></tr>';
           }).join('') + '<tr class="total-row"><td><b>Total</b></td><td class="num"><b>' + t.views + '</b></td><td class="num"><b>' + t.clicks + '</b></td>' +
           '<td class="num hide-sm"><b>' + t.views_all + '</b></td><td class="num hide-sm"><b>' + t.clicks_all + '</b></td></tr></tbody></table></div>'
-          : empty('No views yet', 'Counts appear here once your puppies are listed and buyers start opening their pages.', '<a class="btn" href="#/litters">Litters and puppies</a>')) + '</section>' +
-        '<p class="hint">A view is counted when a puppy\'s page opens, and a click when someone follows your website, phone or email link from it.</p>');
+          : empty('No views yet', 'Counts appear here once your puppies are listed and families start opening their pages.', '<a class="btn" href="#/litters">Litters and puppies</a>')) + '</section>' +
+        // Alex, 2026-11-27. The breeder page itself, which families reach from the breeders list and from each puppy.
+        '<section class="panel"><h2>Your breeder page</h2><div class="table-wrap"><table class="list"><thead><tr><th>Page</th><th class="num">Views</th><th class="num">Clicks</th>' +
+          '<th class="num hide-sm">All-time views</th><th class="num hide-sm">All-time clicks</th></tr></thead><tbody><tr><td><b>Your breeder page</b>' +
+          (me.site_url ? '<span class="sub"><a href="' + esc(me.site_url) + '" target="_blank" rel="noopener">Open it on the site</a></span>' : '') + '</td>' +
+          '<td class="num">' + P.views + '</td><td class="num">' + P.clicks + '</td><td class="num hide-sm">' + P.views_all + '</td><td class="num hide-sm">' + P.clicks_all + '</td></tr></tbody></table></div></section>' +
+        '<p class="hint">A view is counted each time a page opens, so a family that comes back on another day counts again. A click is counted when someone follows one of your links to reach you: your website, phone, email or Facebook, your own page for that puppy, or your deposit link. The last 30 days are today and the 29 days before.</p>');
     });
   }
 

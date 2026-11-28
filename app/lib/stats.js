@@ -157,5 +157,12 @@ export async function breederStats(env, breederId, days = 30) {
   ).bind(since, since, breederId).all();
   const total = { views: 0, clicks: 0, views_all: 0, clicks_all: 0 };
   for (const r of results) for (const k of Object.keys(total)) total[k] += r[k];
-  return { days, since, total, puppies: results };
+  // Alex, 2026-11-27. The breeder's own profile page, breeder-<slug>, counted in page_stats.
+  const prof = await env.DB.prepare(
+    `SELECT COALESCE(SUM(CASE WHEN s.day >= ? THEN s.views END), 0) AS views, COALESCE(SUM(CASE WHEN s.day >= ? THEN s.clicks END), 0) AS clicks,
+            COALESCE(SUM(s.views), 0) AS views_all, COALESCE(SUM(s.clicks), 0) AS clicks_all
+       FROM breeder_profiles bp JOIN page_stats s ON s.page = 'breeder-' || bp.slug
+      WHERE bp.breeder_id = ? AND bp.slug IS NOT NULL`,
+  ).bind(since, since, breederId).first();
+  return { days, since, total, puppies: results, profile: prof || { views: 0, clicks: 0, views_all: 0, clicks_all: 0 } };
 }

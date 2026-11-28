@@ -920,7 +920,8 @@ async function reportData(env) {
     `SELECT br.name AS breed, SUM(s.searches) AS searches FROM breed_searches s JOIN breeds br ON br.id = s.breed_id
       WHERE s.day >= ? GROUP BY br.id ORDER BY searches DESC, br.name`,
   ).bind(addDays(now(), -30).slice(0, 10)).all()).results;
-  const since = addDays(now(), -30).slice(0, 10);
+  // Alex, 2026-11-27. Today and the 29 days before, the same 30 days the breeder portal shows (lib/stats.js).
+  const since = addDays(now(), -29).slice(0, 10);
   const views = (await env.DB.prepare(
     `SELECT p.id, p.name, br.name AS breed, bp.business_name,
             SUM(s.views) AS views, SUM(s.clicks) AS clicks,

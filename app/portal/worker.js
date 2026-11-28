@@ -2678,7 +2678,14 @@ export default {
       }
       if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/auth/')) throw notFound();
       const asset = await env.ASSETS.fetch(new Request(new URL(url.pathname === '/' ? '/index.html' : url.pathname, url), request));
-      return withHeaders(asset, SECURITY_HEADERS);
+      const out = withHeaders(asset, SECURITY_HEADERS);
+      // Alex, 2026-11-27. A browser that opens the portal belongs to a breeder or to staff, so the
+      // public site leaves its visits out of the view and click counts, as the admin does for
+      // operators (admin/worker.js). The cookie keeps the name the site already reads.
+      if (url.hostname.endsWith('puppy-connection.com') && (url.pathname === '/' || url.pathname.endsWith('.html'))) {
+        out.headers.append('set-cookie', 'pc_staff=1; Domain=puppy-connection.com; Path=/; Max-Age=34560000; Secure; SameSite=Lax');
+      }
+      return out;
     } catch (e) {
       if (e instanceof HttpError) return json({ error: e.message, ...(e.extra || {}) }, e.status);
       console.error(e);

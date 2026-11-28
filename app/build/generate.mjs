@@ -302,8 +302,9 @@ window.pcSource = (function () {
 })();
 `;
 
-// Every page but a puppy page counts a view when it opens and a click when a visitor follows a
-// phone, email or off-site link (Alex, 2026-11-01), by its file name only and the same cookieless
+// Every page but a puppy page counts a view when it opens and a click when a visitor follows one of
+// a breeder's own links, which only a breeder profile page has (Alex, 2026-11-27, in place of any
+// phone, email or off-site link from 2026-11-01), by its file name only and the same cookieless
 // way as the puppy pages, which keep their own count in PAGES_JS. Appended to js/main.js, which
 // every page loads.
 const PAGE_COUNT_JS = `
@@ -321,7 +322,7 @@ const PAGE_COUNT_JS = `
   }
   send('page');
   document.addEventListener('click', function (e) {
-    var a = e.target.closest && e.target.closest('a[href]');
+    var a = e.target.closest && e.target.closest('.contact-list a[href], .profile-actions a[href]');
     if (!a) return;
     if (/^(tel|mailto|sms):/i.test(a.getAttribute('href')) || (/^https?:$/.test(a.protocol) && a.host !== location.host)) send('pclick');
   }, true);

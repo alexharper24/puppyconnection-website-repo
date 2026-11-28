@@ -28,3 +28,37 @@ export async function reportDaily(request, env, url) {
   res.headers.set('cache-control', 'no-store');
   return res;
 }
+
+// New breeders and listed puppies by day, for the same dashboard (2026-11-27). These are the two counts that
+// follow the site's income, because a breeder joins and then pays per listed puppy. Counts only, no names.
+//   breeder_added   a breeder approved that day who did not come across from the old Wix site
+//   listing_paid    a puppy listed that day after a paid checkout
+//   listing_comped  a puppy listed that day without a charge (a package paid outside, or free)
+// A puppy counts on the day it was first published, and the day is the owners' day, America/Indiana/Indianapolis.
+const OWNERS_DAY = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Indiana/Indianapolis' });
+const dayOf = (iso) => { const d = new Date(iso); return Number.isNaN(d.getTime()) ? null : OWNERS_DAY.format(d); };
+
+export function groupListings(breeders, puppies, since) {
+  const by = new Map();
+  const add = (day, kind) => { if (day && day >= since) by.set(`${day}|${kind}`, (by.get(`${day}|${kind}`) || 0) + 1); };
+  for (const b of breeders) add(dayOf(b.decided_at), 'breeder_added');
+  for (const p of puppies) add(dayOf(p.published_at), p.payment_state === 'paid' ? 'listing_paid' : 'listing_comped');
+  return [...by.entries()].map(([k, n]) => { const [day, kind] = k.split('|'); return { day, kind, n }; })
+    .sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.kind < b.kind ? -1 : 1));
+}
+
+export async function reportListings(request, env, url) {
+  const key = env.REPORT_KEY || '';
+  if (request.method !== 'GET' || !key || !sameKey(request.headers.get('x-report-key') || '', key)) {
+    return new Response('Forbidden', { status: 403, headers: { 'cache-control': 'no-store' } });
+  }
+  const from = url.searchParams.get('from');
+  const since = from && DAY_RX.test(from) ? from : new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  // Two days of slack on the database side, since the owners' day can sit a day either side of the UTC date.
+  const slack = new Date(Date.parse(since) - 2 * 86400000).toISOString().slice(0, 10);
+  const breeders = (await env.DB.prepare("SELECT decided_at FROM breeders WHERE status = 'approved' AND legacy = 0 AND decided_at >= ?").bind(slack).all()).results;
+  const puppies = (await env.DB.prepare("SELECT published_at, payment_state FROM puppies WHERE payment_state IN ('paid','comped') AND published_at >= ?").bind(slack).all()).results;
+  const res = json({ from: since, rows: groupListings(breeders, puppies, since) });
+  res.headers.set('cache-control', 'no-store');
+  return res;
+}

@@ -1053,6 +1053,7 @@
       field('vaccinations', 'Vaccinations', p.vaccinations, { textarea: true, rows: 70 }) +
       field('deworming', 'Deworming', p.deworming, { textarea: true, rows: 70 }) +
       field('disclosures', 'Disclosures', p.disclosures, { textarea: true, rows: 70 }) +
+      field('socialization', 'Socialization', p.socialization, { textarea: true, rows: 70 }) +
       field('deposit_url', 'The breeder\'s deposit link', p.deposit_url, { type: 'url' }) +
       ((p.videos || []).length ? '<div class="field"><label>Videos</label>' + p.videos.map(function (v) {
         return '<div class="small" style="margin:.3rem 0">' + (v.iframe ? '<a href="' + esc(v.iframe) + '" target="_blank" rel="noopener">Watch</a>' : esc(v.status === 'error' ? 'Could not be processed' : 'Processing')) +

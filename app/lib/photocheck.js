@@ -100,9 +100,67 @@ export function readVerdict(response) {
   return { verdict: o.verdict, reasons: o.verdict === 'pass' ? [] : [...new Set(reasons)] };
 }
 
+// The confirm step (tuning of 2026-11-27, docs/photo-check-tuning-2026-11-27.md). The first
+// question over-calls send_back when a person, a blanket or a plant is in the photo, so a
+// send_back is checked against plain yes/no facts about the same photo, and only reasons a fact
+// backs are kept. A photo whose reasons are all unconfirmed passes.
+export const PHOTO_FACTS_PROMPT = `Look at the puppy (or dog) in this photo and answer each question with true or false.
+
+- dog_visible: Is there a puppy or dog in the photo?
+- face_visible: Can you see the puppy's face, meaning at least its eyes or its nose?
+- puppy_sharp: Is the puppy itself in focus, sharp enough to see its eyes and coat?
+- text_on_puppy: Does a watermark or large text lie on top of the puppy itself?
+- too_dark: Is the photo so dark that you can barely see the puppy?
+- puppy_tiny: Is the puppy so small in the photo that you cannot see what it looks like?
+- pixelated: Is the whole photo pixelated, very grainy or a low resolution screenshot?
+
+Answer with JSON only.`;
+
+const FACT_KEYS = ['dog_visible', 'face_visible', 'puppy_sharp', 'text_on_puppy', 'too_dark', 'puppy_tiny', 'pixelated'];
+const FACTS_SCHEMA = {
+  type: 'object',
+  properties: Object.fromEntries(FACT_KEYS.map((k) => [k, { type: 'boolean' }])),
+  required: FACT_KEYS,
+};
+
+// The fact that confirms each reason. A person counts only when the puppy's face cannot be seen.
+const CONFIRMS = {
+  hidden: (f) => f.face_visible === false || f.dog_visible === false,
+  turned_away: (f) => f.face_visible === false,
+  face_down: (f) => f.face_visible === false,
+  person: (f) => f.face_visible === false,
+  too_small: (f) => f.puppy_tiny === true || f.dog_visible === false,
+  blurry: (f) => f.puppy_sharp === false,
+  dark: (f) => f.too_dark === true,
+  low_quality: (f) => f.pixelated === true,
+  watermark: (f) => f.text_on_puppy === true,
+};
+
+function readFacts(response) {
+  let o = response;
+  if (typeof o === 'string') {
+    const m = o.match(/\{[\s\S]*\}/);
+    if (!m) return null;
+    try { o = JSON.parse(m[0]); } catch { return null; }
+  }
+  if (!o || typeof o !== 'object' || !FACT_KEYS.some((k) => typeof o[k] === 'boolean')) return null;
+  return o;
+}
+
+/** Keep only the reasons the facts confirm. Exported so a test can check the mapping without the model. */
+export function confirmReasons(reasons, facts) {
+  return (reasons || []).filter((r) => CONFIRMS[r] && CONFIRMS[r](facts));
+}
+
+function addUsage(a, b) {
+  if (!a || !b) return a || b;
+  return { ...a, prompt_tokens: (a.prompt_tokens || 0) + (b.prompt_tokens || 0), completion_tokens: (a.completion_tokens || 0) + (b.completion_tokens || 0), total_tokens: (a.total_tokens || 0) + (b.total_tokens || 0) };
+}
+
 /**
  * Judge one photo. bytes is the image (the 640 px card copy where there is one, which costs
- * fewer tokens). Returns { verdict, reasons, judged, usage, ms }.
+ * fewer tokens). A send_back is checked by a second, yes/no question before it stands.
+ * Returns { verdict, reasons, judged, usage, ms }, plus first and facts when the confirm step ran.
  */
 export async function judgePhoto(env, bytes, contentType = 'image/jpeg', { sim } = {}) {
   const mode = photoCheckMode(env);
@@ -112,20 +170,38 @@ export async function judgePhoto(env, bytes, contentType = 'image/jpeg', { sim }
     return { verdict: reasons.length ? 'send_back' : 'pass', reasons, judged: true, model: 'sim' };
   }
   const started = Date.now();
+  const model = env.PHOTO_MODEL || PHOTO_MODEL;
+  const image = { type: 'image_url', image_url: { url: `data:${contentType};base64,${base64(bytes)}` } };
+  const ask = (text, schema, maxTokens) => env.AI.run(model, {
+    messages: [{ role: 'user', content: [{ type: 'text', text }, image] }],
+    response_format: { type: 'json_schema', json_schema: schema },
+    max_tokens: maxTokens,
+    temperature: 0,
+  });
   try {
-    const model = env.PHOTO_MODEL || PHOTO_MODEL;
-    const out = await env.AI.run(model, {
-      messages: [{ role: 'user', content: [
-        { type: 'text', text: PHOTO_PROMPT },
-        { type: 'image_url', image_url: { url: `data:${contentType};base64,${base64(bytes)}` } },
-      ] }],
-      response_format: { type: 'json_schema', json_schema: SCHEMA },
-      max_tokens: 60,
-      temperature: 0,
-    });
+    const out = await ask(PHOTO_PROMPT, SCHEMA, 60);
     const v = readVerdict(out && out.response);
     if (!v) return { verdict: 'pass', reasons: [], judged: false, error: 'unreadable answer', usage: out && out.usage, ms: Date.now() - started };
-    return { ...v, judged: true, model, usage: out.usage, ms: Date.now() - started };
+    if (v.verdict === 'pass') return { ...v, judged: true, model, usage: out.usage, ms: Date.now() - started };
+    // The confirm step. A failed or unreadable second answer leaves the first answer standing.
+    let facts = null, usage = out.usage;
+    try {
+      const out2 = await ask(PHOTO_FACTS_PROMPT, FACTS_SCHEMA, 120);
+      usage = addUsage(usage, out2 && out2.usage);
+      facts = readFacts(out2 && out2.response);
+    } catch { facts = null; }
+    if (!facts) return { ...v, judged: true, model, usage, confirmed: false, ms: Date.now() - started };
+    const reasons = confirmReasons(v.reasons, facts);
+    return {
+      verdict: reasons.length ? 'send_back' : 'pass',
+      reasons,
+      first: v,
+      facts,
+      judged: true,
+      model,
+      usage,
+      ms: Date.now() - started,
+    };
   } catch (e) {
     return { verdict: 'pass', reasons: [], judged: false, error: String(e.message || e).slice(0, 200), ms: Date.now() - started };
   }

@@ -425,6 +425,8 @@ CREATE TABLE IF NOT EXISTS puppies (
   deworming         TEXT,
   disclosures       TEXT,
   deposit_url       TEXT,
+  -- What the puppy has been raised around (migrations/0103, Alex 2026-11-27).
+  socialization     TEXT,
   -- When the puppy was marked adopted, kept by the triggers below (migrations/0019). The
   -- generator unlists an adopted puppy adopted_index_days after it.
   placed_at         TEXT,
@@ -820,7 +822,9 @@ SELECT pu.id, pu.breeder_id, pu.litter_id, pu.slug, pu.name, pu.sex, pu.color,
        -- migrations/0016. More puppy details.
        pu.registry, pu.markings, pu.health_notes, pu.vaccinations, pu.deworming, pu.disclosures, pu.deposit_url,
        -- migrations/0019. When it was marked adopted.
-       pu.placed_at
+       pu.placed_at,
+       -- migrations/0103. Socialization.
+       pu.socialization
 FROM puppies pu JOIN public_breeders pb ON pb.breeder_id = pu.breeder_id
 WHERE pu.publication_state = 'published'
   AND pu.payment_state IN ('paid','comped')

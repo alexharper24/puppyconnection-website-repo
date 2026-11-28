@@ -541,6 +541,9 @@ table.list .row-acts { margin-top: .4rem; }
 .doc-body { display: grid; gap: .45rem; min-width: 0; flex: 1 1 auto; }
 .doc-main { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; min-width: 0; }
 .doc-main a, .doc-main b { overflow-wrap: anywhere; }
+/* Alex, 2026-11-27. Who can see each document is a two-way choice on its own line. */
+.doc-who { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: .1rem 1rem; font-size: .92rem; }
+.doc-who .check { min-height: 36px; align-items: center; margin: 0; }
 .doc-actions { margin: 0; flex-wrap: wrap; gap: .4rem; }
 .doc.is-turning .doc-preview { opacity: .45; }
 /* Fill from a document (Alex, 2026-11-01). The box sits at the top of the form, and each field it

@@ -1300,7 +1300,7 @@
       input.dispatchEvent(new Event('change'));
     } catch (e) { toast('Saved. Choose the file again to upload it.'); }
   }
-  var NEW_UPLOAD_NOTE = '<p class="hint new-upload-note">Choosing a photo or document saves what you have entered first.</p>';
+  var NEW_UPLOAD_NOTE = '<p class="hint new-upload-note">Choosing a photo, video or document saves what you have entered first.</p>';
 
   /* Alex, 2026-11-18, after Mary's first evening adding parents and puppies. A photo, Face or
      document change on a saved record redraws the drawer from the server, and that threw away
@@ -1395,6 +1395,9 @@
       '<div class="field"><label for="p-dep">Deposit ($)</label><input id="p-dep" name="deposit" type="text" inputmode="decimal" value="' + esc(x ? dollars(x.deposit_cents) : '') + '"' + dis + '></div></div>' +
       '<div class="field"><label>Status</label>' + seg() + '<div class="hint">Placed puppies stay visible in their litter, marked placed.</div></div>' +
       '<div class="field"><label for="p-desc">Description</label><textarea id="p-desc" name="description"' + dis + '>' + esc(x ? x.description : '') + '</textarea></div>' +
+      // Alex, 2026-11-27, from Hope. Its own heading on the puppy page.
+      '<div class="field"><label for="p-social">Socialization</label><textarea id="p-social" name="socialization" style="min-height:70px"' + dis + '>' + esc(x ? x.socialization : '') + '</textarea>' +
+        '<div class="hint">Optional. What the puppy has been raised around, such as children, other dogs, car rides, grooming or household sounds.</div></div>' +
       includesField(x ? x.includes : [], dis) +
       '<div class="field"><label for="p-url">Link to this puppy on your site</label><input id="p-url" name="breeder_url" type="url" value="' + esc(x ? x.breeder_url : '') + '"' + dis + '><div class="hint">Optional. Buyers are sent here to contact you.</div></div>' +
       detailFields(x, dis) +
@@ -1402,7 +1405,8 @@
       (canEdit ? '<div class="btn-row"><button class="btn btn-primary" type="submit">' + (x ? 'Save puppy' : 'Add puppy') + '</button>' + '</div>' : '') +
       '</form>' + (canEdit && x ? payNext(x) + moveBox(x) : '') +
       (x ? SPLIT + photoSection(x, canEdit) + videoSection(x, canEdit) + docSection(x.documents || [], canEdit, 'puppy') + (canEdit ? dangerZone('archive-puppy', 'Remove puppy') : '')
-        : canEdit ? SPLIT + NEW_UPLOAD_NOTE + photoSection({ photos: [], name: 'this puppy' }, true) + docSection([], true, 'puppy') + '<p class="hint">Add videos once the puppy is saved.</p>' : ''),
+        // Alex, 2026-11-27. A video can be chosen before the first save, which saves the puppy and then uploads it.
+        : canEdit ? SPLIT + NEW_UPLOAD_NOTE + photoSection({ photos: [], name: 'this puppy' }, true) + videoSection({ videos: [], name: 'this puppy' }, true) + docSection([], true, 'puppy') : ''),
       function (d) {
         var form = $('#puppy', d);
         $$('[data-av]', d).forEach(function (b) {
@@ -1571,6 +1575,8 @@
           (canEdit ? '<label class="photo-pick" title="Select to remove"><input type="checkbox" data-pick aria-label="Select photo ' + (i + 1) + ' to remove"></label>' : '') +
           (canEdit ? '<div class="tools"><button type="button" data-move="-1" aria-label="Move earlier"' + (i === 0 ? ' disabled' : '') + '>&larr;</button>' +
             '<button type="button" data-remove aria-label="Remove photo">Remove</button>' +
+            // Alex, 2026-11-27. Staff acting for the breeder can put a held photo on the listing.
+            (state.me && state.me.operator && /^(sent_back|review|pending)$/.test(ph.quality || '') ? '<button type="button" data-use>Use anyway</button>' : '') +
             '<button type="button" data-move="1" aria-label="Move later"' + (i === x.photos.length - 1 ? ' disabled' : '') + '>&rarr;</button></div>' +
             '<div class="tools tools-2"><label class="sr" for="ph-pos-' + esc(ph.id) + '">Position</label><select id="ph-pos-' + esc(ph.id) + '" data-pos aria-label="Position of photo ' + (i + 1) + '">' +
               x.photos.map(function (_, k) { return '<option value="' + k + '"' + (k === i ? ' selected' : '') + '>' + (k === 0 ? '1, cover' : String(k + 1)) + '</option>'; }).join('') + '</select>' +
@@ -1578,7 +1584,8 @@
               (i > 0 ? '<button type="button" data-cover>Make cover</button>' : '') + '</div>' : '') + '</div>';
       }).join('') + '</div>' +
       (x.photos.some(function (ph) { return ph.quality === 'sent_back'; }) ? '<p class="error" style="white-space:pre-line">' + x.photos.filter(function (ph) { return ph.quality === 'sent_back'; }).map(function (ph) {
-        return 'A photo marked Sent back needs replacing. ' + (ph.messages || []).join(' ') + ' It is not shown on the site.'; }).join('\n') + '</p>' : '') +
+        return 'A photo marked Sent back needs replacing. ' + (ph.messages || []).join(' ') + ' It is not shown on the site.'; }).join('\n') +
+        (state.me && state.me.operator ? '\nAs Puppy Connection staff, you can press Use anyway on a photo to put it on the listing.' : '') + '</p>' : '') +
       '</section>';
   }
 
@@ -1612,7 +1619,15 @@
   }
   /* Workplan A9. The browser's size floor and dark check, shared with the admin in photoscreen.js
      (Alex, 2026-11-10), so a mom or dad photo staff add meets the same rules. */
-  function screen(file, what) { return window.pcScreenPhoto(file, what); }
+  function screen(file, what) {
+    var p = window.pcScreenPhoto(file, what);
+    // Alex, 2026-11-27. Staff acting for a breeder can keep a photo the size floor refuses.
+    if (!(state.me && state.me.operator)) return p;
+    return p.catch(function (e) {
+      if (e.message === 'skip') throw e;
+      return pcAsk(e.message + ' Use it anyway?', { yes: 'Use anyway' }).then(function (ok) { if (!ok) throw new Error('skip'); });
+    });
+  }
   function shrink(file) {
     return decode(file).then(function (src) {
       return draw(src, FULL_EDGE).then(function (full) {
@@ -1637,10 +1652,11 @@
   }
   /* What the check said about each photo in a batch, as one message. */
   function checkSummary(results) {
+    var staff = state.me && state.me.operator;
     var back = results.filter(function (c) { return c && c.quality === 'sent_back'; });
     var held = results.filter(function (c) { return c && c.quality === 'review'; });
     var out = [];
-    back.forEach(function (c) { out.push(c.name + ' needs another photo. ' + (c.messages || []).join(' ') + ' Remove it and upload a clearer one.'); });
+    back.forEach(function (c) { out.push(c.name + ' needs another photo. ' + (c.messages || []).join(' ') + (staff ? ' Press Use anyway on it to keep it, or remove it and upload a clearer one.' : ' Remove it and upload a clearer one.')); });
     if (held.length) out.push(plural(held.length, 'photo') + ' will show once Puppy Connection has looked at ' + (held.length === 1 ? 'it' : 'them') + '.');
     return out.join('\n');
   }
@@ -1676,6 +1692,13 @@
           if (cover) pickFace(cover.id, true);
         });
       }).catch(function (err) { errBox.hidden = false; errBox.textContent = err.message; reopen(); });
+    });
+    $$('[data-use]', d).forEach(function (b) {
+      b.addEventListener('click', function () {
+        b.disabled = true;
+        api('POST', '/api/photos/' + b.closest('.photo').dataset.id + '/use', {}).then(function () { toast('Photo added to the listing'); reopen(); })
+          .catch(function (err) { b.disabled = false; errBox.hidden = false; errBox.textContent = err.message; });
+      });
     });
     $$('[data-remove]', d).forEach(function (b) {
       b.addEventListener('click', function () {
@@ -1904,8 +1927,12 @@
       // The same size floor as puppy photos here, and the server checks the photo before it saves it.
       var fb = fileBusy(input, 'Checking photo…');
       screen(file, 'dog').then(function () { return shrink(file); }).then(function (s) {
-        return api('POST', '/api/parents/' + p.id + '/photo', undefined, s.full)
-          .then(function () { return s.card ? api('POST', '/api/parents/' + p.id + '/photo/card', undefined, s.card).catch(function () {}) : null; });
+        var up = function (q) { return api('POST', '/api/parents/' + p.id + '/photo' + q, undefined, s.full); };
+        return up('').catch(function (err) {
+          // Alex, 2026-11-27. Staff acting for the breeder are asked whether to keep it anyway.
+          if (!(err.status === 422 && err.data && err.data.can_override)) throw err;
+          return pcAsk(err.message + ' Use it anyway?', { yes: 'Use anyway' }).then(function (ok) { if (!ok) throw new Error('skip'); return up('?override=1'); });
+        }).then(function () { return s.card ? api('POST', '/api/parents/' + p.id + '/photo/card', undefined, s.card).catch(function () {}) : null; });
       }).then(function () { fb.done(); toast('Photo added'); return reopen().then(function () { pickFace(true); }); }).catch(function (err) {
         fb.done(); input.value = '';
         if (err.message === 'skip') return;
@@ -2057,6 +2084,9 @@
   // ------------------------------------------------------------ documents (workplan A20)
   /* Health records, guarantees and pedigrees, as a PDF or an image, for a puppy or a parent. Each is
      shown to families or kept for Puppy Connection staff only, and starts private until chosen. */
+  /* Alex, 2026-11-27. Who can see it stays on the last choice made, through every upload and every
+     drawer, until the page is reloaded. It starts on staff only. */
+  var docVisChoice = 'private';
   function docKinds() { return (state.listings && state.listings.doc_kinds) || (state.parents && state.parents.doc_kinds) || {}; }
   function docSection(docs, canEdit, owner) {
     var K = docKinds();
@@ -2071,21 +2101,25 @@
             (pdf ? '<span class="doc-pdf-label">PDF</span>' : '<img src="' + esc(doc.file) + '" alt="" loading="lazy">') + '</a>' +
           '<div class="doc-body"><div class="doc-main"><a href="' + esc(doc.file) + '" target="_blank" rel="noopener">' + esc(doc.title) + '</a>' +
           '<span class="muted small">' + esc(doc.kind_label) + ', ' + (pdf ? 'PDF' : 'image') + '</span>' +
-          '<span class="pill ' + (pub ? 'pill-ok' : '') + '">' + (pub ? 'Families can see it' : 'Puppy Connection only') + '</span></div>' +
+          (canEdit ? '<span class="doc-who" role="radiogroup" aria-label="Who can see ' + esc(doc.title) + '">' +
+              '<label class="check"><input type="radio" name="vis-' + esc(doc.id) + '" value="public" data-doc-vis' + (pub ? ' checked' : '') + '><span>Families, on the site</span></label>' +
+              '<label class="check"><input type="radio" name="vis-' + esc(doc.id) + '" value="private" data-doc-vis' + (pub ? '' : ' checked') + '><span>Puppy Connection staff only</span></label></span>'
+            : '<span class="pill ' + (pub ? 'pill-ok' : '') + '">' + (pub ? 'Families can see it' : 'Puppy Connection only') + '</span>') + '</div>' +
           (canEdit ? '<div class="btn-row doc-actions"><button type="button" class="btn btn-sm btn-quiet" data-doc-rot="270" aria-label="Rotate ' + esc(doc.title) + ' left">Rotate left</button>' +
             '<button type="button" class="btn btn-sm btn-quiet" data-doc-rot="90" aria-label="Rotate ' + esc(doc.title) + ' right">Rotate right</button>' +
-            '<button type="button" class="btn btn-sm" data-doc-vis="' + (pub ? 'private' : 'public') + '">' + (pub ? 'Make private' : 'Show to families') + '</button>' +
             '<button type="button" class="btn btn-sm btn-quiet" data-doc-remove>Remove</button></div>' : '') + '</div></li>';
       }).join('') + '</ul>' : '<p class="muted small">No documents yet.</p>') +
       (canEdit && docs.length < max ? '<form class="doc-form" novalidate><div class="grid-2"><div class="field"><label for="doc-kind-' + owner + '">What it is</label><select id="doc-kind-' + owner + '" name="kind">' +
+          // Alex, 2026-11-27. Each file is read for what it is and named from what it says.
+          '<option value="auto" selected>Read each file and choose for me</option>' +
           Object.keys(K).map(function (k) { return '<option value="' + esc(k) + '">' + esc(K[k]) + '</option>'; }).join('') + '</select></div>' +
-        '<div class="field"><label for="doc-title-' + owner + '">Name</label><input id="doc-title-' + owner + '" name="title" type="text" maxlength="120"><div class="hint">Optional. The file name is used otherwise.</div></div></div>' +
+        '<div class="field"><label for="doc-title-' + owner + '">Name</label><input id="doc-title-' + owner + '" name="title" type="text" maxlength="120"><div class="hint">Optional, for one file. Left empty, each file is named from what it says.</div></div></div>' +
+        '<fieldset class="field doc-vis"><legend>Who can see it</legend><label class="check"><input type="radio" name="visibility" value="public"' + (docVisChoice === 'public' ? ' checked' : '') + '><span>Families, on the site</span></label>' +
+        '<label class="check"><input type="radio" name="visibility" value="private"' + (docVisChoice === 'public' ? '' : ' checked') + '><span>Puppy Connection staff only</span></label></fieldset>' +
         // Alex, 2026-11-02. The upload sits right under What it is and Name.
         // Alex, 2026-11-18. Several files can be chosen at once, and each is added with the same What it is and Who can see it.
         '<label for="doc-file-' + owner + '" class="btn btn-sm doc-up">Choose files and upload</label><input id="doc-file-' + owner + '" type="file" accept="application/pdf,image/jpeg,image/png,image/webp" multiple hidden>' +
-        '<div class="hint">You can choose several files at once, up to ' + (max - docs.length) + ' more.</div>' +
-        '<fieldset class="field doc-vis"><legend>Who can see it</legend><label class="check"><input type="radio" name="visibility" value="public"><span>Families, on the site</span></label>' +
-        '<label class="check"><input type="radio" name="visibility" value="private" checked><span>Puppy Connection staff only</span></label></fieldset>' +
+        '<div class="hint">You can choose several files at once, up to ' + (max - docs.length) + ' more. Each one is added with the Who can see it choice above.</div>' +
         '<p class="error" data-doc-error hidden></p></form>' : '') + '</section>';
   }
   /* pdf.js (Mozilla, Apache 2.0, the legacy build of 6.2.108 under /vendor/pdfjs) draws the first
@@ -2162,6 +2196,7 @@
       });
     });
     var form = $('.doc-form', sec), errBox = form && $('[data-doc-error]', form);
+    if (form) $$('[name=visibility]', form).forEach(function (r) { r.addEventListener('change', function () { if (r.checked) docVisChoice = r.value; }); });
     var max = (state.listings && state.listings.max_doc_bytes) || (state.parents && state.parents.max_doc_bytes) || 10485760;
     if (form) $('input[type=file]', form).addEventListener('change', function () {
       var input = this, files = Array.prototype.slice.call(input.files || []);
@@ -2178,9 +2213,11 @@
       // A typed Name fits one file, so with several each keeps its own file name.
       var title = go.length === 1 ? (f.title || '') : '';
       var failed = [];
+      var reading = f.kind === 'auto';
       var fb = fileBusy(input, go.length > 1 ? 'Uploading ' + go.length + ' files…' : 'Uploading…');
-      go.reduce(function (p, file) {
+      go.reduce(function (p, file, i) {
         return p.then(function () {
+          fb.set((reading ? 'Uploading and reading ' : 'Uploading ') + (go.length > 1 ? (i + 1) + ' of ' + go.length : file.name) + '…');
           var q = '?kind=' + encodeURIComponent(f.kind) + '&visibility=' + encodeURIComponent(vis) + '&title=' + encodeURIComponent(title) + '&name=' + encodeURIComponent(file.name.replace(/\.[^.]+$/, ''));
           return api('POST', uploadPath + q, undefined, file).catch(function (err) { failed.push(file.name + ': ' + err.message); });
         });
@@ -2196,11 +2233,13 @@
       });
     });
     $$('[data-doc-vis]', sec).forEach(function (b) {
-      b.addEventListener('click', function () {
-        b.disabled = true;
-        api('PUT', '/api/documents/' + b.closest('.doc').dataset.id, { visibility: b.dataset.docVis })
-          .then(function () { toast(b.dataset.docVis === 'public' ? 'Families can see it now' : 'Kept for Puppy Connection only'); reopen(); })
-          .catch(function (err) { b.disabled = false; toast(err.message); });
+      b.addEventListener('change', function () {
+        if (!b.checked) return;
+        var group = $$('[data-doc-vis]', b.closest('.doc'));
+        group.forEach(function (o) { o.disabled = true; });
+        api('PUT', '/api/documents/' + b.closest('.doc').dataset.id, { visibility: b.value })
+          .then(function () { toast(b.value === 'public' ? 'Families can see it now' : 'Kept for Puppy Connection only'); reopen(); })
+          .catch(function (err) { group.forEach(function (o) { o.disabled = false; o.checked = o.defaultChecked; }); toast(err.message); });
       });
     });
     $$('[data-doc-remove]', sec).forEach(function (b) {

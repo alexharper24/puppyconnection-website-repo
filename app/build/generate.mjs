@@ -1078,6 +1078,7 @@ ${INFO_PAGES.map((pg) => `          <li><a href="${pg.file}">${pg.name}</a></li>
         <button class="thumb-nav next" type="button" aria-label="More photos" hidden>&#8250;</button>
       </div>` : ''}
       ${p.about.length ? `<section class="about-block"><p class="eyebrow">About this puppy</p>${paras(p.about)}</section>` : ''}
+      ${(p.socialization || []).length ? `<section class="about-block puppy-social"><h2 class="eyebrow">Socialization</h2>${paras(p.socialization)}</section>` : ''}
       ${videos.length ? `<section class="about-block puppy-videos"><p class="eyebrow">${videos.length === 1 ? 'Video' : 'Videos'}</p>${videos.map((v, i) => `<div class="video-frame" style="position:relative;padding-top:56.25%;margin:0 0 .8rem"><iframe src="${esc(v.iframe)}${v.poster ? `?poster=${encodeURIComponent(v.poster)}` : ''}" title="Video ${i + 1} of ${esc(p.name)}" loading="lazy" style="position:absolute;inset:0;width:100%;height:100%;border:0" allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe></div>`).join('')}</section>` : ''}
       ${parents.length ? `<section class="about-block puppy-parents"><p class="eyebrow">${parents.length === 2 ? 'The parents' : 'Parent'}</p><div class="parent-grid">${parents.map((x) => parentCard(x[0], x[1], x[2], p.name)).join('')}</div></section>` : ''}
       ${health.length ? `<section class="about-block puppy-health"><h2 class="eyebrow">Health and care</h2>${health.map((h) => `<h3>${esc(h[0])}</h3>${paras(h[1])}`).join('')}</section>` : ''}

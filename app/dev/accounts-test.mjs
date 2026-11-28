@@ -262,7 +262,7 @@ async function main() {
   const opMe = (await op.get('/api/me')).data;
   check('the portal opens as the breeder, marked as the operator', land.status === 303 && opMe.id === D.id && opMe.operator && opMe.operator.email === OPERATOR, JSON.stringify(opMe.operator));
   const sess = sql(`SELECT created_at, expires_at, email FROM sessions WHERE breeder_id = ${q(D.id)} AND operator_email = ${q(OPERATOR)}`)[0];
-  check('the operator session lasts 8 hours', Math.round((Date.parse(sess.expires_at) - Date.parse(sess.created_at)) / 3600000) === 8 && sess.email === null);
+  check('the operator session lasts 30 days', Math.round((Date.parse(sess.expires_at) - Date.parse(sess.created_at)) / 3600000) === 720 && sess.email === null);
   check('the hand-over works once', (await new Client(PORTAL).get(new URL(mint.data.url).pathname + new URL(mint.data.url).search)).status === 400);
   const html = await op.get('/portal.js?v=28');
   check('the portal draws a banner naming the kennel and the operator, with End', /operator-banner/.test(html.data) && /Managing /.test(html.data) && /id="operator-end"/.test(html.data));

@@ -12,7 +12,7 @@ rules:
   - Every new photo checked on a contact sheet at the site's card shapes before the database changes.
   - Production D1 write is a migration with backup and two rehearsals; Alex applies it unless his allow rule is in.
 tasks:
-  - {id: r1-plan, status: done, evidence: "102 puppies, not 104: Alexa and Ash left out because luke.blakeslee replaced every photo on both in the admin at 01:30-01:33 UTC 2026-11-01. Those two held the only 15 portal uploads in the set, so no portal upload is touched. Plan by app/ops/wix_photo_refresh.py"}
+  - {id: r1-plan, status: done, evidence: "102 puppies, not 104: Alexa and Ash left out because the owners' shared address replaced every photo on both in the admin at 01:30-01:33 UTC 2026-11-01. Those two held the only 15 portal uploads in the set, so no portal upload is touched. Plan by app/ops/wix_photo_refresh.py"}
   - {id: r2-fetch, status: done, evidence: "724 originals fetched, 0 failures; 672 stored as the original, 52 as Wix's rotated copy (all EXIF orientation 6, each matched to its turned original at correlation >= 0.9)"}
   - {id: r3-check, status: done, evidence: "contact sheets and check.html in app/.state/wix-photo-refresh/sheets. 16 images on 7 puppies left out (badges on Florence, Matilda, Webster, Sage; photographed OFA certificates with a person's name and address on Jo, Lawrence, Meg), reasons in overrides.json. photo_copies.py now converts colour profiles to sRGB (628 of 708 were wide gamut). No sideways photos, frames or crops that lose a head"}
   - {id: r4-cap, status: done, evidence: "_harvest/harvest.py 10 to 15, _harvest/prod.py 12 to 15. The portal and admin limit is the max_photos setting, 12 in production, left for Alex"}

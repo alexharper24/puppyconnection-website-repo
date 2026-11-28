@@ -24,6 +24,16 @@ check('comped listings are kept apart from paid ones', get('2026-11-08', 'listin
 check('anything before the start day is left out', rows.every((r) => r.day >= '2026-11-01') && get('2026-10-30', 'listing_paid') === 0);
 check('rows come back in date order', rows.map((r) => r.day).join() === [...rows.map((r) => r.day)].sort().join());
 
+const money = groupListings([], [], '2026-11-01', [
+  { paid_at: '2026-11-08T15:00:00Z', amount_total_cents: 2500, pay_status: 'succeeded' },
+  { paid_at: '2026-11-08T16:00:00Z', amount_total_cents: 5000, pay_status: 'partially_refunded' },
+  { paid_at: '2026-11-08T17:00:00Z', amount_total_cents: 2500, pay_status: 'refunded' },
+  { paid_at: '2026-11-09T17:00:00Z', amount_total_cents: 2500, pay_status: 'dispute_lost' },
+  { paid_at: '2026-11-09T18:00:00Z', amount_total_cents: 2500, pay_status: null }]);
+const cents = (day) => money.find((r) => r.day === day && r.kind === 'revenue_cents')?.n || 0;
+check('revenue adds paid checkouts by day in cents', cents('2026-11-08') === 7500, JSON.stringify(money));
+check('a checkout refunded in full or lost to a dispute is left out', cents('2026-11-09') === 2500);
+
 const env = { REPORT_KEY: 'k', DB: { prepare: () => ({ bind: () => ({ all: async () => ({ results: [] }) }) }) } };
 const refused = await reportListings(new Request('https://x/api/report/listings'), env, new URL('https://x/api/report/listings'));
 check('a read without the key is refused', refused.status === 403);
